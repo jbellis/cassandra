@@ -28,7 +28,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.OutboundTcpConnection;
 import org.apache.cassandra.utils.Pair;
 
@@ -119,7 +119,7 @@ public class StreamInSession
             current = null;
         StreamReply reply = new StreamReply(remoteFile.getFilename(), getSessionId(), StreamReply.Status.FILE_FINISHED);
         // send a StreamStatus message telling the source node it can delete this file
-        sendMessage(reply.getMessage(Gossiper.instance.getVersion(getHost())));
+        sendMessage(reply.createMessage());
         logger.debug("ack {} sent for {}", reply, remoteFile);
     }
 
@@ -127,12 +127,17 @@ public class StreamInSession
     {
         StreamReply reply = new StreamReply(remoteFile.getFilename(), getSessionId(), StreamReply.Status.FILE_RETRY);
         logger.info("Streaming of file {} from {} failed: requesting a retry.", remoteFile, this);
-        sendMessage(reply.getMessage(Gossiper.instance.getVersion(getHost())));
+        sendMessage(reply.createMessage());
     }
 
-    public void sendMessage(Message message) throws IOException
+    public void sendMessage(MessageOut<StreamReply> message) throws IOException
     {
-        OutboundTcpConnection.write(message, String.valueOf(getSessionId()), new DataOutputStream(socket.getOutputStream()));
+        DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+        OutboundTcpConnection.write(message,
+                                    String.valueOf(getSessionId()),
+                                    out,
+                                    Gossiper.instance.getVersion(getHost()));
+        out.flush();
     }
 
 
@@ -178,7 +183,10 @@ public class StreamInSession
             try
             {
                 if (socket != null)
-                    OutboundTcpConnection.write(reply.getMessage(Gossiper.instance.getVersion(getHost())), context.right.toString(), new DataOutputStream(socket.getOutputStream()));
+                    OutboundTcpConnection.write(reply.createMessage(),
+                                                context.right.toString(),
+                                                new DataOutputStream(socket.getOutputStream()),
+                                                Gossiper.instance.getVersion(getHost()));
                 else
                     logger.debug("No socket to reply to {} with!", getHost());
             }
