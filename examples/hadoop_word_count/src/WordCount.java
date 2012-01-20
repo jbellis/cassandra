@@ -133,11 +133,11 @@ public class WordCount extends Configured implements Tool
             context.write(outputKey, Collections.singletonList(getMutation(word, sum)));
         }
 
-        private static Mutation getMutation(Text word, int sum)
+        private static Mutation getMutation(Text word, long sum)
         {
             Column c = new Column();
             c.setName(Arrays.copyOf(word.getBytes(), word.getLength()));
-            c.setValue(ByteBufferUtil.bytes(String.valueOf(sum)));
+            c.setValue(ByteBufferUtil.bytes(sum));
             c.setTimestamp(System.currentTimeMillis());
 
             Mutation m = new Mutation();
