@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import com.google.common.base.Function;
 import com.google.common.collect.*;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
@@ -45,8 +44,6 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.migration.AddKeyspace;
-import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
@@ -62,11 +59,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ResponseVerbHandler;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.streaming.*;
-import org.apache.cassandra.thrift.Constants;
-import org.apache.cassandra.thrift.EndpointDetails;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.TokenRange;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NodeId;
 import org.apache.cassandra.utils.Pair;
@@ -2058,15 +2051,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // we use the actual Range token for the first and last brackets of the splits to ensure correctness
         tokens.add(range.left);
 
-        List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
         Table t = Table.open(table);
         ColumnFamilyStore cfs = t.getColumnFamilyStore(cfName);
-        for (DecoratedKey sample : cfs.allKeySamples())
-        {
-            if (range.contains(sample.token))
-                keys.add(sample);
-        }
-        FBUtilities.sortSampledKeys(keys, range);
+        List<DecoratedKey> keys = keySamples(Collections.singleton(cfs), range);
         int splits = keys.size() * DatabaseDescriptor.getIndexInterval() / keysPerSplit;
 
         if (keys.size() >= splits)
@@ -2082,22 +2069,21 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return tokens;
     }
 
+    private List<DecoratedKey> keySamples(Iterable<ColumnFamilyStore> cfses, Range<Token> range)
+    {
+        List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
+        for (ColumnFamilyStore cfs : cfses)
+            Iterables.addAll(keys, cfs.keySamples(range));
+        FBUtilities.sortSampledKeys(keys, range);
+        return keys;
+    }
+
     /** return a token to which if a node bootstraps it will get about 1/2 of this node's range */
     public Token getBootstrapToken()
     {
         Range<Token> range = getLocalPrimaryRange();
-        List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
-            if (cfs.table.name.equals(Table.SYSTEM_TABLE))
-                continue;
-            for (DecoratedKey key : cfs.allKeySamples())
-            {
-                if (range.contains(key.token))
-                    keys.add(key);
-            }
-        }
-        FBUtilities.sortSampledKeys(keys, range);
+
+        List<DecoratedKey> keys = keySamples(ColumnFamilyStore.allUserDefined(), range);
 
         Token token;
         if (keys.size() < 3)
@@ -2909,28 +2895,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public List<String> getRangeKeySample()
     {
-        Range range = getLocalPrimaryRange();
-        List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
-            for(DecoratedKey key : cfs.allKeySamples())
-            {
-                if (range.contains(key.token)){
-                    keys.add(key);
-                }
-            }
-        }
-        FBUtilities.sortSampledKeys(keys, range);
-        
-        Function<DecoratedKey, String> transformer = new Function<DecoratedKey, String>()
-        {
-            public String apply(final DecoratedKey key){
-                return key.getToken().toString();
-            }
-        };
-        
+        List<DecoratedKey> keys = keySamples(ColumnFamilyStore.allUserDefined(), getLocalPrimaryRange());
+
         List<String> sampledKeys = new ArrayList<String>();
-        sampledKeys.addAll(Collections2.transform(keys, transformer)); 
+        for (DecoratedKey key : keys)
+            sampledKeys.add(key.getToken().toString());
         return sampledKeys;
     }
 }
