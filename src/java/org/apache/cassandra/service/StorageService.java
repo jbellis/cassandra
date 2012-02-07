@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.base.Function;
 import com.google.common.collect.*;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
@@ -2901,5 +2902,35 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void loadNewSSTables(String ksName, String cfName)
     {
         ColumnFamilyStore.loadNewSSTables(ksName, cfName);
+    }
+    
+    /**
+     * #{@inheritDoc}
+     */
+    public List<String> getRangeKeySample()
+    {
+        Range range = getLocalPrimaryRange();
+        List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+        {
+            for(DecoratedKey key : cfs.allKeySamples())
+            {
+                if (range.contains(key.token)){
+                    keys.add(key);
+                }
+            }
+        }
+        FBUtilities.sortSampledKeys(keys, range);
+        
+        Function<DecoratedKey, String> transformer = new Function<DecoratedKey, String>()
+        {
+            public String apply(final DecoratedKey key){
+                return key.getToken().toString();
+            }
+        };
+        
+        List<String> sampledKeys = new ArrayList<String>();
+        sampledKeys.addAll(Collections2.transform(keys, transformer)); 
+        return sampledKeys;
     }
 }
