@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.io.File;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -24,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.Pair;
@@ -32,9 +34,17 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(SizeTieredCompactionStrategy.class);
     protected static final long DEFAULT_MIN_SSTABLE_SIZE = 50L * 1024L * 1024L;
+    protected static final float DEFAULT_EXPIRING_COLUMN_THRESHOLD = 0.2f;
+    protected static final long DEFAULT_SINGLE_COMPACTION_INTERVAL = 24 * 60 * 3600; // 24hrs
+    protected static final int MINIMUM_COLUMN_SIZE_IN_BYTES = 4;
     protected static final String MIN_SSTABLE_SIZE_KEY = "min_sstable_size";
+    protected static final String EXPIRING_COLUMN_THRESHOLD_KEY = "expiring_column_threshold";
+    protected static final String SINGLE_COMPACTION_INTERVAL_KEY = "single_compaction_interval";
     protected long minSSTableSize;
     protected volatile int estimatedRemainingTasks;
+    protected float expiringColumnThreshold;
+    /** interval to check if enough time is spent before performing single sstable compaction */
+    protected long singleCompactionInterval;
 
     public SizeTieredCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -44,6 +54,10 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         minSSTableSize = (null != optionValue) ? Long.parseLong(optionValue) : DEFAULT_MIN_SSTABLE_SIZE;
         cfs.setMaximumCompactionThreshold(cfs.metadata.getMaxCompactionThreshold());
         cfs.setMinimumCompactionThreshold(cfs.metadata.getMinCompactionThreshold());
+        optionValue = options.get(EXPIRING_COLUMN_THRESHOLD_KEY);
+        expiringColumnThreshold = (null != optionValue) ? Float.parseFloat(optionValue) : DEFAULT_EXPIRING_COLUMN_THRESHOLD;
+        optionValue = options.get(SINGLE_COMPACTION_INTERVAL_KEY);
+        singleCompactionInterval = (null != optionValue) ? Long.parseLong(optionValue) : DEFAULT_SINGLE_COMPACTION_INTERVAL;
     }
 
     public AbstractCompactionTask getNextBackgroundTask(final int gcBefore)
@@ -74,7 +88,31 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         }
 
         if (prunedBuckets.isEmpty())
-            return null;
+        {
+            // if there is no sstables to compact in standard way, try compacting single sstable whose ttl column ratio
+            // is greater than threshold
+            for (List<SSTableReader> bucket : buckets)
+            {
+                for (SSTableReader table : bucket)
+                {
+                    // check data file's creation time to see if enough time is spent
+                    long dataFileCreationTimestamp = new File(table.descriptor.filenameFor(Component.DATA)).lastModified();
+                    float ratio = table.getEstimatedExpiringColumnRatio();
+                    // if average column size is too small, compaction does not help reducing file size (see CASSANDRA-3442)
+                    long averageColumnSize = table.getEstimatedAverageColumnSize();
+                    if (dataFileCreationTimestamp < System.currentTimeMillis() - singleCompactionInterval
+                        && ratio > expiringColumnThreshold
+                        && (averageColumnSize > MINIMUM_COLUMN_SIZE_IN_BYTES || (table.getMaxTimestamp() / 1000) < gcBefore))
+                    {
+                        // put in buckets to do single sstable compaction
+                        prunedBuckets.add(Collections.singletonList(table));
+                    }
+                }
+            }
+
+            if (prunedBuckets.isEmpty())
+                return null;
+        }
 
         List<SSTableReader> smallestBucket = Collections.min(prunedBuckets, new Comparator<List<SSTableReader>>()
         {
@@ -96,7 +134,8 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
                 return n / sstables.size();
             }
         });
-        return new CompactionTask(cfs, smallestBucket, gcBefore);
+        // when bucket only contains just one sstable, set userDefined to true to force single sstable compaction
+        return new CompactionTask(cfs, smallestBucket, gcBefore).isUserDefined(smallestBucket.size() == 1);
     }
 
     public AbstractCompactionTask getMaximalTask(final int gcBefore)
@@ -173,7 +212,6 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
                 buckets.put(bucket, size);
             }
         }
-
         return new LinkedList<List<T>>(buckets.keySet());
     }
 

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.db.compaction.AbstractCompactedRow;
+import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 
 /**
@@ -60,13 +61,8 @@ public class EchoedRow extends AbstractCompactedRow
         return false;
     }
 
-    public int columnCount()
+    public ColumnStats columnStats()
     {
-        return row.getColumnCount();
-    }
-
-    public long maxTimestamp()
-    {
-        return Long.MIN_VALUE;
+        return new ColumnStats(row.getColumnCount(), Long.MIN_VALUE, -1);
     }
 }

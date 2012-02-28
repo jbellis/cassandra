@@ -40,6 +40,7 @@ import org.apache.cassandra.utils.EstimatedHistogram;
  *  - max column timestamp
  *  - compression ratio
  *  - partitioner
+ *  - estimated column tombstone count histogram
  *
  * An SSTableMetadata should be instantiated via the Collector, openFromDescriptor()
  * or createDefaultInstance()
@@ -56,6 +57,7 @@ public class SSTableMetadata
     public final long maxTimestamp;
     public final double compressionRatio;
     public final String partitioner;
+    public final EstimatedHistogram estimatedTombstoneCount;
 
     private SSTableMetadata()
     {
@@ -64,10 +66,12 @@ public class SSTableMetadata
              ReplayPosition.NONE,
              Long.MIN_VALUE,
              Double.MIN_VALUE,
-             null);
+             null,
+             defaultTombsoneCountHistogram());
     }
 
-    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long maxTimestamp, double cr, String partitioner)
+    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long maxTimestamp,
+                            double cr, String partitioner, EstimatedHistogram expiredColumnCount)
     {
         this.estimatedRowSize = rowSizes;
         this.estimatedColumnCount = columnCounts;
@@ -75,6 +79,7 @@ public class SSTableMetadata
         this.maxTimestamp = maxTimestamp;
         this.compressionRatio = cr;
         this.partitioner = partitioner;
+        this.estimatedTombstoneCount = expiredColumnCount;
     }
 
     public static SSTableMetadata createDefaultInstance()
@@ -99,6 +104,11 @@ public class SSTableMetadata
         return new EstimatedHistogram(150);
     }
 
+    static EstimatedHistogram defaultTombsoneCountHistogram()
+    {
+        return defaultColumnCountHistogram();
+    }
+
     public static class Collector
     {
         protected EstimatedHistogram estimatedRowSize = defaultRowSizeHistogram();
@@ -106,6 +116,7 @@ public class SSTableMetadata
         protected ReplayPosition replayPosition = ReplayPosition.NONE;
         protected long maxTimestamp = Long.MIN_VALUE;
         protected double compressionRatio = Double.MIN_VALUE;
+        protected EstimatedHistogram estimatedTombstoneCount = defaultTombsoneCountHistogram();
 
         public void addRowSize(long rowSize)
         {
@@ -115,6 +126,11 @@ public class SSTableMetadata
         public void addColumnCount(long columnCount)
         {
             estimatedColumnCount.add(columnCount);
+        }
+
+        public void addExpiringColumnCount(long expiredColumnCount)
+        {
+            estimatedTombstoneCount.add(expiredColumnCount);
         }
 
         /**
@@ -138,7 +154,8 @@ public class SSTableMetadata
                                        replayPosition,
                                        maxTimestamp,
                                        compressionRatio,
-                                       partitioner);
+                                       partitioner,
+                                       estimatedTombstoneCount);
         }
 
         public Collector estimatedRowSize(EstimatedHistogram estimatedRowSize)
@@ -158,6 +175,22 @@ public class SSTableMetadata
             this.replayPosition = replayPosition;
             return this;
         }
+
+        void update(long size, ColumnStats stats)
+        {
+            /*
+             * The max timestamp is not always collected here (more precisely, row.maxTimestamp() may return Long.MIN_VALUE),
+             * to avoid deserializing an EchoedRow.
+             * This is the reason why it is collected first when calling ColumnFamilyStore.createCompactionWriter
+             * However, for old sstables without timestamp, we still want to update the timestamp (and we know
+             * that in this case we will not use EchoedRow, since CompactionControler.needsDeserialize() will be true).
+            */
+            updateMaxTimestamp(stats.maxTimestamp);
+            addRowSize(size);
+            addColumnCount(stats.columnCount);
+            if (stats.tombstoneCount >= 0)
+                addExpiringColumnCount(stats.tombstoneCount);
+        }
     }
 
     public static class SSTableMetadataSerializer
@@ -174,6 +207,7 @@ public class SSTableMetadata
             dos.writeLong(sstableStats.maxTimestamp);
             dos.writeDouble(sstableStats.compressionRatio);
             dos.writeUTF(sstableStats.partitioner);
+            EstimatedHistogram.serializer.serialize(sstableStats.estimatedTombstoneCount, dos);
         }
 
         public SSTableMetadata deserialize(Descriptor descriptor) throws IOException
@@ -209,7 +243,10 @@ public class SSTableMetadata
                                     ? dis.readDouble()
                                     : Double.MIN_VALUE;
             String partitioner = desc.hasPartitioner ? dis.readUTF() : null;
-            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp, compressionRatio, partitioner);
+            EstimatedHistogram ttlCounts = desc.hasExpiringColumnCount
+                                         ? EstimatedHistogram.serializer.deserialize(dis)
+                                         : defaultTombsoneCountHistogram();
+            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp, compressionRatio, partitioner, ttlCounts);
         }
     }
 }

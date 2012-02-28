@@ -132,9 +132,6 @@ public class IncomingStreamReader
                         PrecompactedRow row = new PrecompactedRow(controller, Collections.singletonList(iter));
                         // We don't expire anything so the row shouldn't be empty
                         assert !row.isEmpty();
-                        writer.append(row);
-                        // row append does not update the max timestamp on its own
-                        writer.updateMaxTimestamp(row.maxTimestamp());
 
                         // update cache
                         ColumnFamily cf = row.getFullColumnFamily();

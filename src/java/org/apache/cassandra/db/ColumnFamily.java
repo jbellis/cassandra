@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import static org.apache.cassandra.db.DBConstants.*;
-
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
@@ -30,10 +28,13 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.IColumnSerializer;
+import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.HeapAllocator;
+
+import static org.apache.cassandra.db.DBConstants.*;
 
 public class ColumnFamily extends AbstractColumnContainer
 {
@@ -362,5 +363,31 @@ public class ColumnFamily extends AbstractColumnContainer
         {
             column.validateFields(metadata);
         }
+    }
+
+    public ColumnStats getColumnStats()
+    {
+        int tombstones = 0;
+        long maxTimestampSeen = Long.MIN_VALUE;
+
+        for (IColumn column : columns)
+        {
+            maxTimestampSeen = Math.max(maxTimestampSeen, column.maxTimestamp());
+            if (column instanceof ExpiringColumn)
+            {
+                tombstones++;
+            }
+            else if (column instanceof SuperColumn)
+            {
+                SuperColumn sc = (SuperColumn) column;
+                for (IColumn subColumn : sc.getSubColumns())
+                {
+                    if (subColumn instanceof ExpiringColumn)
+                        tombstones++;
+                }
+            }
+        }
+        
+        return new ColumnStats(getColumnCount(), maxTimestampSeen, tombstones);
     }
 }

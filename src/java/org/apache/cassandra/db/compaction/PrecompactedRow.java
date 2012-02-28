@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.List;
 
+import org.apache.cassandra.io.sstable.ColumnStats;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -161,14 +162,9 @@ public class PrecompactedRow extends AbstractCompactedRow
         return compactedCf == null;
     }
 
-    public int columnCount()
+    public ColumnStats columnStats()
     {
-        return compactedCf == null ? 0 : compactedCf.getColumnCount();
-    }
-
-    public long maxTimestamp()
-    {
-        return compactedCf.maxTimestamp();
+        return compactedCf.getColumnStats();
     }
 
     /**

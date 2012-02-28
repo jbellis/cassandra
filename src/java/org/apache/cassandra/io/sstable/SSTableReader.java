@@ -940,6 +940,25 @@ public class SSTableReader extends SSTable
         return sstableMetadata.estimatedColumnCount;
     }
 
+    public float getEstimatedExpiringColumnRatio()
+    {
+        long meanColumnCount = sstableMetadata.estimatedColumnCount.mean();
+        if (meanColumnCount > 0)
+            return (float) sstableMetadata.estimatedTombstoneCount.mean() / (float) meanColumnCount;
+        else
+            return 0;
+    }
+
+    public long getEstimatedAverageColumnSize()
+    {
+        long meanColumnCount = sstableMetadata.estimatedColumnCount.mean();
+        if (meanColumnCount > 0)
+            return sstableMetadata.estimatedRowSize.mean() / meanColumnCount;
+        else
+            return 0;
+        
+    }
+
     public double getCompressionRatio()
     {
         return sstableMetadata.compressionRatio;
