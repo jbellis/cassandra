@@ -87,7 +87,7 @@ public class IncomingTcpConnection extends Thread
             // we should buffer
             input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
             // Receive the first message to set the version.
-            Message msg = receiveMessage(input, version);
+            MessageIn msg = receiveMessage(input, version);
             if (version > MessagingService.current_version)
             {
                 // save the endpoint so gossip will reconnect to it
@@ -127,7 +127,7 @@ public class IncomingTcpConnection extends Thread
         }
     }
 
-    private Message receiveMessage(DataInputStream input, int version) throws IOException
+    private MessageIn receiveMessage(DataInputStream input, int version) throws IOException
     {
         int totalSize = input.readInt();
         String id = input.readUTF();
@@ -150,7 +150,7 @@ public class IncomingTcpConnection extends Thread
         // starts sending correct-version messages (which it can do without reconnecting -- version is per-Message)
         if (version <= MessagingService.current_version)
         {
-            Message message = new Message(header, body, version);
+            MessageIn message = new MessageIn(header, body, version);
             MessagingService.instance().receive(message, id);
             return message;
         }

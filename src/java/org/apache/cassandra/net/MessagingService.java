@@ -522,7 +522,7 @@ public final class MessagingService implements MessagingServiceMBean
         }
     }
 
-    public void receive(Message message, String id)
+    public void receive(MessageIn message, String id)
     {
         if (logger.isTraceEnabled())
             logger.trace(FBUtilities.getBroadcastAddress() + " received " + message.getVerb()

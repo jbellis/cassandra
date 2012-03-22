@@ -445,7 +445,7 @@ public class AntiEntropyService
         /**
          * Trigger a validation compaction which will return the tree upon completion.
          */
-        public void doVerb(Message message, String id)
+        public void doVerb(MessageIn message, String id)
         {
             byte[] bytes = message.getMessageBody();
 
@@ -474,7 +474,7 @@ public class AntiEntropyService
      */
     public static class TreeResponseVerbHandler implements IVerbHandler
     {
-        public void doVerb(Message message, String id)
+        public void doVerb(MessageIn message, String id)
         {
             byte[] bytes = message.getMessageBody();
             DataInputStream buffer = new DataInputStream(new FastByteArrayInputStream(bytes));
@@ -874,7 +874,7 @@ public class AntiEntropyService
                                 return false;
                             }
 
-                            public void response(Message msg)
+                            public void response(MessageIn msg)
                             {
                                 RepairJob.this.snapshotLatch.countDown();
                             }

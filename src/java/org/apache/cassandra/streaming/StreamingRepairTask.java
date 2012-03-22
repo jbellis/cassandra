@@ -185,7 +185,7 @@ public class StreamingRepairTask implements Runnable
 
     public static class StreamingRepairRequest implements IVerbHandler
     {
-        public void doVerb(Message message, String id)
+        public void doVerb(MessageIn message, String id)
         {
             byte[] bytes = message.getMessageBody();
             DataInputStream dis = new DataInputStream(new ByteArrayInputStream(bytes));
@@ -212,7 +212,7 @@ public class StreamingRepairTask implements Runnable
 
     public static class StreamingRepairResponse implements IVerbHandler
     {
-        public void doVerb(Message message, String id)
+        public void doVerb(MessageIn message, String id)
         {
             byte[] bytes = message.getMessageBody();
             DataInputStream dis = new DataInputStream(new ByteArrayInputStream(bytes));
