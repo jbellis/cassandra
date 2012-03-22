@@ -26,24 +26,12 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 
-public class ReadRepairVerbHandler implements IVerbHandler
+public class ReadRepairVerbHandler implements IVerbHandler<RowMutation>
 {
-    public void doVerb(MessageIn message, String id)
+    public void doVerb(MessageIn<RowMutation> message, String id)
     {
-        DataInputStream in = new DataInputStream(new FastByteArrayInputStream(message.getMessageBody()));
-
-        RowMutation rm;
-        try
-        {
-            rm = RowMutation.serializer().deserialize(in, message.getVersion());
-            rm.apply();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
-
+        RowMutation rm = message.payload;
         WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
-        MessagingService.instance().sendReply(response.createMessage(), id, message.getFrom());
+        MessagingService.instance().sendReply(response.createMessage(), id, message.from);
     }
 }

@@ -34,7 +34,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.net.MessageSerializer;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 
@@ -44,8 +44,6 @@ public class SerializationsTest extends AbstractSerializationsTester
     {
         System.setProperty("cassandra.partitioner", "RandomPartitioner");
     }
-
-    private static MessageSerializer messageSerializer = new MessageSerializer();
 
     public static Range<Token> FULL_RANGE = new Range<Token>(StorageService.getPartitioner().getMinimumToken(), StorageService.getPartitioner().getMinimumToken());
 
@@ -65,7 +63,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         DataInputStream in = getInput("service.TreeRequest.bin");
         assert AntiEntropyService.TreeRequest.serializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getLocalAddress()) != null;
         in.close();
     }
 
@@ -98,8 +96,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         DataInputStream in = getInput("service.TreeResponse.bin");
         assert AntiEntropyService.Validator.serializer.deserialize(in, getVersion()) != null;
         assert AntiEntropyService.Validator.serializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getLocalAddress()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getLocalAddress()) != null;
         in.close();
     }
 

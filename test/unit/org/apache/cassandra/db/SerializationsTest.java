@@ -29,13 +29,15 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.net.CallbackInfo;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.net.MessageSerializer;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import org.junit.Test;
 
@@ -50,8 +52,6 @@ import java.util.HashMap;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
-    private static MessageSerializer messageSerializer = new MessageSerializer();
-
     private void testRangeSliceCommandWrite() throws IOException
     {
         ByteBuffer startCol = ByteBufferUtil.bytes("Start");
@@ -93,10 +93,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         DataInputStream in = getInput("db.RangeSliceCommand.bin");
         for (int i = 0; i < 6; i++)
-        {
-            MessageIn msg = messageSerializer.deserialize(in, getVersion());
-            RangeSliceCommand cmd = RangeSliceCommand.read(msg);
-        }
+            MessageIn.read(in, getVersion(), "id", FBUtilities.getBroadcastAddress());
         in.close();
     }
 
@@ -126,8 +123,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         assert SliceByNamesReadCommand.serializer().deserialize(in, getVersion()) != null;
         assert ReadCommand.serializer().deserialize(in, getVersion()) != null;
         assert ReadCommand.serializer().deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getBroadcastAddress()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getBroadcastAddress()) != null;
         in.close();
     }
 
@@ -156,8 +153,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         assert SliceFromReadCommand.serializer().deserialize(in, getVersion()) != null;
         assert ReadCommand.serializer().deserialize(in, getVersion()) != null;
         assert ReadCommand.serializer().deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getBroadcastAddress()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getBroadcastAddress()) != null;
         in.close();
     }
 
@@ -228,12 +225,12 @@ public class SerializationsTest extends AbstractSerializationsTester
         assert RowMutation.serializer().deserialize(in, getVersion()) != null;
         assert RowMutation.serializer().deserialize(in, getVersion()) != null;
         assert RowMutation.serializer().deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getBroadcastAddress()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getBroadcastAddress()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getBroadcastAddress()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getBroadcastAddress()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getBroadcastAddress()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getBroadcastAddress()) != null;
         in.close();
     }
 
@@ -264,9 +261,14 @@ public class SerializationsTest extends AbstractSerializationsTester
         assert Truncation.serializer().deserialize(in, getVersion()) != null;
         assert TruncateResponse.serializer().deserialize(in, getVersion()) != null;
         assert TruncateResponse.serializer().deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
+        assert MessageIn.read(in, getVersion(), "id", FBUtilities.getBroadcastAddress()) != null;
+
+        // set up some fake callbacks so deserialization knows that what it's deserializing is a TruncateResponse
+        MessagingService.instance().setCallbackForTests("tr1", new CallbackInfo(null, null, TruncateResponse.serializer()));
+        MessagingService.instance().setCallbackForTests("tr2", new CallbackInfo(null, null, TruncateResponse.serializer()));
+
+        assert MessageIn.read(in, getVersion(), "tr1", FBUtilities.getBroadcastAddress()) != null;
+        assert MessageIn.read(in, getVersion(), "tr2", FBUtilities.getBroadcastAddress()) != null;
         in.close();
     }
 

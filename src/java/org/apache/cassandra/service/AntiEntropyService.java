@@ -440,31 +440,21 @@ public class AntiEntropyService
      * Handler for requests from remote nodes to generate a valid tree.
      * The payload is a CFPair representing the columnfamily to validate.
      */
-    public static class TreeRequestVerbHandler implements IVerbHandler
+    public static class TreeRequestVerbHandler implements IVerbHandler<TreeRequest>
     {
         /**
          * Trigger a validation compaction which will return the tree upon completion.
          */
-        public void doVerb(MessageIn message, String id)
+        public void doVerb(MessageIn<TreeRequest> message, String id)
         {
-            byte[] bytes = message.getMessageBody();
+            TreeRequest remotereq = message.payload;
+            TreeRequest request = new TreeRequest(remotereq.sessionid, message.from, remotereq.range, remotereq.cf);
 
-            DataInputStream buffer = new DataInputStream(new FastByteArrayInputStream(bytes));
-            try
-            {
-                TreeRequest remotereq = TreeRequest.serializer.deserialize(buffer, message.getVersion());
-                TreeRequest request = new TreeRequest(remotereq.sessionid, message.getFrom(), remotereq.range, remotereq.cf);
-
-                // trigger readonly-compaction
-                ColumnFamilyStore store = Table.open(request.cf.left).getColumnFamilyStore(request.cf.right);
-                Validator validator = new Validator(request);
-                logger.debug("Queueing validation compaction for " + request);
-                CompactionManager.instance.submitValidation(store, validator);
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
+            // trigger read-only compaction
+            ColumnFamilyStore store = Table.open(request.cf.left).getColumnFamilyStore(request.cf.right);
+            Validator validator = new Validator(request);
+            logger.debug("Queueing validation compaction for " + request);
+            CompactionManager.instance.submitValidation(store, validator);
         }
     }
 
@@ -472,24 +462,14 @@ public class AntiEntropyService
      * Handler for responses from remote nodes which contain a valid tree.
      * The payload is a completed Validator object from the remote endpoint.
      */
-    public static class TreeResponseVerbHandler implements IVerbHandler
+    public static class TreeResponseVerbHandler implements IVerbHandler<Validator>
     {
-        public void doVerb(MessageIn message, String id)
+        public void doVerb(MessageIn<Validator> message, String id)
         {
-            byte[] bytes = message.getMessageBody();
-            DataInputStream buffer = new DataInputStream(new FastByteArrayInputStream(bytes));
-
-            try
-            {
-                // deserialize the remote tree, and register it
-                Validator response = Validator.serializer.deserialize(buffer, message.getVersion());
-                TreeRequest request = new TreeRequest(response.request.sessionid, message.getFrom(), response.request.range, response.request.cf);
-                AntiEntropyService.instance.rendezvous(request, response.tree);
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
+            // deserialize the remote tree, and register it
+            Validator response = message.payload;
+            TreeRequest request = new TreeRequest(response.request.sessionid, message.from, response.request.range, response.request.cf);
+            AntiEntropyService.instance.rendezvous(request, response.tree);
         }
     }
 
