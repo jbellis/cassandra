@@ -130,6 +130,9 @@ public class IncomingTcpConnection extends Thread
 
     private MessageIn receiveMessage(DataInputStream input, int version) throws IOException
     {
+        if (version <= MessagingService.VERSION_11)
+            input.readInt(); // size of entire message. in 1.0+ this is just a placeholder
+
         String id = input.readUTF();
         MessageIn message = MessageIn.read(input, version, id, socket.getInetAddress());
         if (message == null)

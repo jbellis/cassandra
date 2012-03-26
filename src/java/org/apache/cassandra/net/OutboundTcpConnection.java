@@ -189,7 +189,8 @@ public class OutboundTcpConnection extends Thread
         out.writeInt(header);
 
         // 0.8 included a total message size int.  1.0 doesn't need it but expects it to be there.
-        out.writeInt(-1);
+        if (version <= MessagingService.VERSION_11)
+            out.writeInt(-1);
 
         out.writeUTF(id);
         message.serialize(out, version);

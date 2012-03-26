@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class MessageOut<T>
 {
@@ -89,6 +90,9 @@ public class MessageOut<T>
 
     public void serialize(DataOutputStream out, int version) throws IOException
     {
+        if (version <= MessagingService.VERSION_11)
+            CompactEndpointSerializationHelper.serialize(FBUtilities.getBroadcastAddress(), out);
+
         out.writeInt(verb.ordinal());
         out.writeInt(parameters.size());
         for (Map.Entry<String, byte[]> entry : parameters.entrySet())

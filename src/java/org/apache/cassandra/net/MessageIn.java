@@ -52,6 +52,9 @@ public class MessageIn<T>
 
     public static <T2> MessageIn<T2> read(DataInput in, int version, String id, InetAddress from) throws IOException
     {
+        if (version <= MessagingService.VERSION_11)
+            CompactEndpointSerializationHelper.deserialize(in); // skip redundant from address
+
         MessagingService.Verb verb = MessagingService.Verb.values()[in.readInt()];
         int parameterCount = in.readInt();
         Map<String, byte[]> parameters;
