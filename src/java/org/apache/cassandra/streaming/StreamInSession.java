@@ -35,7 +35,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.OutboundTcpConnection;
 import org.apache.cassandra.utils.Pair;
 
@@ -115,7 +115,7 @@ public class StreamInSession extends AbstractStreamSession
             current = null;
         StreamReply reply = new StreamReply(remoteFile.getFilename(), getSessionId(), StreamReply.Status.FILE_FINISHED);
         // send a StreamStatus message telling the source node it can delete this file
-        sendMessage(reply.getMessage(Gossiper.instance.getVersion(getHost())));
+        sendMessage(reply.createMessage());
         logger.debug("ack {} sent for {}", reply, remoteFile);
     }
 
@@ -130,13 +130,18 @@ public class StreamInSession extends AbstractStreamSession
             return;
         }
         StreamReply reply = new StreamReply(remoteFile.getFilename(), getSessionId(), StreamReply.Status.FILE_RETRY);
-        logger.info("Streaming of file {} for {} failed: requesting a retry.", remoteFile, this);
-        sendMessage(reply.getMessage(Gossiper.instance.getVersion(getHost())));
+        logger.info("Streaming of file {} from {} failed: requesting a retry.", remoteFile, this);
+        sendMessage(reply.createMessage());
     }
 
-    public void sendMessage(Message message) throws IOException
+    public void sendMessage(MessageOut<StreamReply> message) throws IOException
     {
-        OutboundTcpConnection.write(message, String.valueOf(getSessionId()), new DataOutputStream(socket.getOutputStream()));
+        DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+        OutboundTcpConnection.write(message,
+                                    String.valueOf(getSessionId()),
+                                    out,
+                                    Gossiper.instance.getVersion(getHost()));
+        out.flush();
     }
 
     public void closeIfFinished() throws IOException
@@ -181,7 +186,10 @@ public class StreamInSession extends AbstractStreamSession
             try
             {
                 if (socket != null)
-                    OutboundTcpConnection.write(reply.getMessage(Gossiper.instance.getVersion(getHost())), context.right.toString(), new DataOutputStream(socket.getOutputStream()));
+                    OutboundTcpConnection.write(reply.createMessage(),
+                                                context.right.toString(),
+                                                new DataOutputStream(socket.getOutputStream()),
+                                                Gossiper.instance.getVersion(getHost()));
                 else
                     logger.debug("No socket to reply to {} with!", getHost());
             }
@@ -200,15 +208,8 @@ public class StreamInSession extends AbstractStreamSession
         sessions.remove(context);
         if (!success && FailureDetector.instance.isAlive(getHost()))
         {
-            try
-            {
-                StreamReply reply = new StreamReply("", getSessionId(), StreamReply.Status.SESSION_FAILURE);
-                MessagingService.instance().sendOneWay(reply.getMessage(Gossiper.instance.getVersion(getHost())), getHost());
-            }
-            catch (IOException ex)
-            {
-                logger.error("Error sending streaming session failure notification to " + getHost(), ex);
-            }
+            StreamReply reply = new StreamReply("", getSessionId(), StreamReply.Status.SESSION_FAILURE);
+            MessagingService.instance().sendOneWay(reply.createMessage(), getHost());
         }
     }
 
