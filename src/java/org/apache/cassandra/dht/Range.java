@@ -72,6 +72,20 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
             return bi.compareTo(left) > 0 && right.compareTo(bi) >= 0;
         }
     }
+    
+    /** return true if @param range intersects any of the given @param ranges */
+    public static <T2 extends RingPosition> boolean intersects(AbstractBounds<T2> range, Iterable<Range<T2>> ranges)
+    {
+        for (Range<T2> range2 : ranges)
+        {
+            if (range instanceof Range && range2.intersects((Range<T2>) range)
+                || range instanceof Bounds && range2.intersects((Bounds<T2>) range))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
     public boolean contains(Range<T> that)
     {
@@ -119,6 +133,15 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
     public boolean intersects(Range<T> that)
     {
         return intersectionWith(that).size() > 0;
+    }
+
+    /**
+     * @param that range to check for intersection
+     * @return true if the given range intersects with this range.
+     */
+    public boolean intersects(Bounds<T> that)
+    {
+        return intersects(new Range<T>(that.left, that.right)) || contains(that.right);
     }
 
     public static <T extends RingPosition> Set<Range<T>> rangeSet(Range<T> ... ranges)
