@@ -73,6 +73,16 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         }
     }
 
+    public boolean intersects(Iterable<Range<T>> ranges)
+    {
+        for (Range<T> range2 : ranges)
+        {
+            if (range2.intersects(this))
+                return true;
+        }
+        return false;
+    }
+
     public boolean contains(Range<T> that)
     {
         if (this.left.equals(this.right))
@@ -119,6 +129,15 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
     public boolean intersects(Range<T> that)
     {
         return intersectionWith(that).size() > 0;
+    }
+
+    /**
+     * @param that range to check for intersection
+     * @return true if the given range intersects with this range.
+     */
+    public boolean intersects(Bounds<T> that)
+    {
+        return intersects(new Range<T>(that.left, that.right)) || contains(that.right);
     }
 
     public static <T extends RingPosition> Set<Range<T>> rangeSet(Range<T> ... ranges)

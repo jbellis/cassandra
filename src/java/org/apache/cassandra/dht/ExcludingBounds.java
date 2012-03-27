@@ -42,6 +42,11 @@ public class ExcludingBounds<T extends RingPosition> extends AbstractBounds<T>
         assert left.compareTo(right) < 0 || right.isMinimum(partitioner) : "(" + left + "," + right + ")";
     }
 
+    public boolean intersects(Iterable<Range<T>> ranges)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     public boolean contains(T position)
     {
         return Range.contains(left, right, position) && !right.equals(position);

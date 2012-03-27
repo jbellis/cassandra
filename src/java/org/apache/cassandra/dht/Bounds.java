@@ -45,6 +45,16 @@ public class Bounds<T extends RingPosition> extends AbstractBounds<T>
         assert left.compareTo(right) <= 0 || right.isMinimum(partitioner) : "[" + left + "," + right + "]";
     }
 
+    public boolean intersects(Iterable<Range<T>> ranges)
+    {
+        for (Range<T> range2 : ranges)
+        {
+            if (range2.intersects(this))
+                return true;
+        }
+        return false;
+    }
+
     public boolean contains(T position)
     {
         return Range.contains(left, right, position) || left.equals(position);

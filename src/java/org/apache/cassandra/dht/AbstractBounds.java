@@ -42,6 +42,9 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
         return serializer;
     }
 
+    /** return true if @param range intersects any of the given @param ranges */
+    public abstract boolean intersects(Iterable<Range<T>> ranges);
+
     private enum Type
     {
         RANGE,
