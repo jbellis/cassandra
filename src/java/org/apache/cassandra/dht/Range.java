@@ -48,7 +48,10 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         super(left, right, partitioner);
     }
 
-    public static <T extends RingPosition> boolean contains(T left, T right, T bi)
+    /**
+     * @return true if the range denoted by [@param left, @param right) contains @param point
+     */
+    public static <T extends RingPosition> boolean contains(T left, T right, T point)
     {
         if (isWrapAround(left, right))
         {
@@ -59,20 +62,20 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
              * (2) k <= b -- return true
              * (3) b < k <= a -- return false
              */
-            if (bi.compareTo(left) > 0)
+            if (point.compareTo(left) > 0)
                 return true;
             else
-                return right.compareTo(bi) >= 0;
+                return right.compareTo(point) >= 0;
         }
         else
         {
             /*
              * This is the range (a, b] where a < b.
              */
-            return bi.compareTo(left) > 0 && right.compareTo(bi) >= 0;
+            return point.compareTo(left) > 0 && right.compareTo(point) >= 0;
         }
     }
-    
+
     /** return true if @param range intersects any of the given @param ranges */
     public static <T2 extends RingPosition> boolean intersects(AbstractBounds<T2> range, Iterable<Range<T2>> ranges)
     {
@@ -118,12 +121,12 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
     /**
      * Helps determine if a given point on the DHT ring is contained
      * in the range in question.
-     * @param bi point in question
+     * @param point point in question
      * @return true if the point contains within the range else false.
      */
-    public boolean contains(T bi)
+    public boolean contains(T point)
     {
-        return contains(left, right, bi);
+        return contains(left, right, point);
     }
 
     /**
