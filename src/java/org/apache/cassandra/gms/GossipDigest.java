@@ -20,8 +20,10 @@ package org.apache.cassandra.gms;
 import java.io.*;
 import java.net.InetAddress;
 
+import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Contains information about a specified list of Endpoints and the largest version
@@ -105,6 +107,6 @@ class GossipDigestSerializer implements IVersionedSerializer<GossipDigest>
 
     public long serializedSize(GossipDigest gossipDigest, int version)
     {
-        throw new UnsupportedOperationException();
+        return CompactEndpointSerializationHelper.serializedSize(FBUtilities.getBroadcastAddress()) + DBConstants.INT_SIZE + DBConstants.INT_SIZE;
     }
 }

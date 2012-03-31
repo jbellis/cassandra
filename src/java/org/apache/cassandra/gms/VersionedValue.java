@@ -21,6 +21,7 @@ import java.io.*;
 import java.net.InetAddress;
 import java.util.UUID;
 
+import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -202,7 +203,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public long serializedSize(VersionedValue value, int version)
         {
-            throw new UnsupportedOperationException();
+            return 2 + FBUtilities.encodedUTF8Length(value.value) + DBConstants.INT_SIZE;
         }
     }
 }
