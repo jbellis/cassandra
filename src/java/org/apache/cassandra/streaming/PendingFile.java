@@ -21,11 +21,15 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.utils.FBUtilities.encodedUTF8Length;
 
 /**
  * Represents portions of a file to be streamed between nodes.
@@ -147,9 +151,20 @@ public class PendingFile
             return new PendingFile(null, desc, component, sections, type, estimatedKeys);
         }
 
-        public long serializedSize(PendingFile pendingFile, int version)
+        public long serializedSize(PendingFile pf, int version)
         {
-            throw new UnsupportedOperationException();
+            if (pf == null)
+                return 2;
+
+            long size = 2 + encodedUTF8Length(pf.desc.filenameFor(pf.component));
+            size += 2 + encodedUTF8Length(pf.component);
+            size += DBConstants.INT_SIZE;
+            size += (DBConstants.LONG_SIZE + DBConstants.LONG_SIZE) * pf.sections.size();
+            if (version > MessagingService.VERSION_07)
+                size += 2 + encodedUTF8Length(pf.type.name());
+            if (version > MessagingService.VERSION_080)
+                size += DBConstants.LONG_SIZE;
+            return size;
         }
     }
 }

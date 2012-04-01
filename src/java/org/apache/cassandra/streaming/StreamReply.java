@@ -21,9 +21,11 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class StreamReply
 {
@@ -80,9 +82,9 @@ public class StreamReply
             return new StreamReply(targetFile, sessionId, action);
         }
 
-        public long serializedSize(StreamReply streamReply, int version)
+        public long serializedSize(StreamReply reply, int version)
         {
-            throw new UnsupportedOperationException();
+            return DBConstants.LONG_SIZE + 2 + FBUtilities.encodedUTF8Length(reply.file) + DBConstants.INT_SIZE;
         }
     }
 }

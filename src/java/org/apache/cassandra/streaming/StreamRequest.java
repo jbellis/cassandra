@@ -28,6 +28,7 @@ import java.util.List;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -36,6 +37,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
 * This class encapsulates the message that needs to be sent to nodes
@@ -189,9 +191,27 @@ public class StreamRequest
             }
         }
 
-        public long serializedSize(StreamRequest streamRequestMessage, int version)
+        public long serializedSize(StreamRequest sr, int version)
         {
-            throw new UnsupportedOperationException();
+            long size = DBConstants.LONG_SIZE;
+            size += CompactEndpointSerializationHelper.serializedSize(sr.target);
+            size += DBConstants.BOOL_SIZE;
+            if (sr.file != null)
+                return size + PendingFile.serializer().serializedSize(sr.file, version);
+
+            size += DBConstants.BOOL_SIZE;
+            size += 2 + FBUtilities.encodedUTF8Length(sr.table);
+            size += DBConstants.INT_SIZE;
+            for (Range<Token> range : sr.ranges)
+                size += AbstractBounds.serializer().serializedSize(range, version);
+            if (version > MessagingService.VERSION_07)
+                size += 2 + FBUtilities.encodedUTF8Length(sr.type.name());
+            if (version > MessagingService.VERSION_080)
+            {
+                size += DBConstants.INT_SIZE;
+                size += DBConstants.INT_SIZE * Iterables.size(sr.columnFamilies);
+            }
+            return size;
         }
     }
 }

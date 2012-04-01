@@ -108,9 +108,14 @@ public class UUIDGen
             return new UUID(in.readLong(), in.readLong());
         }
 
-        public long serializedSize(UUID uuid, int version)
+        public long serializedSize()
         {
             return DBConstants.LONG_SIZE + DBConstants.LONG_SIZE;
+        }
+
+        public long serializedSize(UUID uuid, int version)
+        {
+            return serializedSize();
         }
     }
 

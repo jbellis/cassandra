@@ -25,10 +25,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.utils.FBUtilities.encodedUTF8Length;
 
 public class StreamHeader
 {
@@ -110,9 +113,16 @@ public class StreamHeader
             return new StreamHeader(table, sessionId, file, pendingFiles, bca);
         }
 
-        public long serializedSize(StreamHeader streamHeader, int version)
+        public long serializedSize(StreamHeader sh, int version)
         {
-            throw new UnsupportedOperationException();
-        }
+            long size = 2 + encodedUTF8Length(sh.table);
+            size += DBConstants.LONG_SIZE;
+            size += PendingFile.serializer().serializedSize(sh.file, version);
+            size += DBConstants.INT_SIZE;
+            for(PendingFile file : sh.pendingFiles)
+                size += PendingFile.serializer().serializedSize(file, version);
+            size += CompactEndpointSerializationHelper.serializedSize(sh.broadcastAddress);
+            return size;
+       }
     }
 }
