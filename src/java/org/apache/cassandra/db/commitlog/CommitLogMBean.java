@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.commitlog;
 
 
+import java.io.IOException;
 
 public interface CommitLogMBean
 {
@@ -39,5 +40,5 @@ public interface CommitLogMBean
     /**
      * Recover a single file.
      */
-    public int recover(String path);
+    public void recover(String path) throws IOException;
 }

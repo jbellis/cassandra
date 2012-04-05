@@ -142,7 +142,7 @@ public class CommitLog implements CommitLogMBean
      * @param clogs   the list of commit log files to replay
      * @return the number of mutations replayed
      */
-    public int recover(File[] clogs) throws IOException
+    public int recover(File... clogs) throws IOException
     {
         CommitLogRecover recovery = new CommitLogRecover();
         recovery.recover(clogs);
@@ -152,19 +152,9 @@ public class CommitLog implements CommitLogMBean
     /**
      * Perform recovery on a single commit log.
      */
-    public int recover(String path)
+    public void recover(String path) throws IOException
     {
-        try
-        {
-            File clog = new File(path);
-            CommitLogRecover recovery = new CommitLogRecover();
-            recovery.recover(clog);
-            return recovery.blockForWrites();
-        }
-        catch (IOException ex)
-        {
-            throw new IOError(ex);
-        }
+        recover(new File(path));
     }
 
     /**
