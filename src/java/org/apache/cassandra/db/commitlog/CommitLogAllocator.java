@@ -145,6 +145,13 @@ public class CommitLogAllocator
     {
         activeSegments.remove(segment);
 
+        if (!DatabaseDescriptor.recycleCommitLog())
+        {
+            CommitLog.instance.archiver.waitForArchiving(segment.getName());
+            discardSegment(segment);
+            return;
+        }
+
         if (isCapExceeded())
         {
             discardSegment(segment);
@@ -170,7 +177,7 @@ public class CommitLogAllocator
     public void recycleSegment(final File file)
     {
         // check against SEGMENT_SIZE avoids recycling odd-sized or empty segments from old C* versions and unit tests
-        if (isCapExceeded() || file.length() != CommitLog.SEGMENT_SIZE)
+        if (isCapExceeded() || file.length() != DatabaseDescriptor.getCommitLogSegmentSize())
         {
             try
             {
@@ -200,7 +207,7 @@ public class CommitLogAllocator
      */
     private void discardSegment(final CommitLogSegment segment)
     {
-        size.addAndGet(-CommitLog.SEGMENT_SIZE);
+        size.addAndGet(-DatabaseDescriptor.getCommitLogSegmentSize());
 
         queue.add(new Runnable()
         {
@@ -239,7 +246,7 @@ public class CommitLogAllocator
      */
     private CommitLogSegment createFreshSegment()
     {
-        size.addAndGet(CommitLog.SEGMENT_SIZE);
+        size.addAndGet(DatabaseDescriptor.getCommitLogSegmentSize());
         return internalAddReadySegment(CommitLogSegment.freshSegment());
     }
 

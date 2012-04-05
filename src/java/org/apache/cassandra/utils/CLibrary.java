@@ -196,7 +196,7 @@ public final class CLibrary
         }
     }
 
-    private static void exec(ProcessBuilder pb) throws IOException
+    public static void exec(ProcessBuilder pb) throws IOException
     {
         Process p = pb.start();
         try

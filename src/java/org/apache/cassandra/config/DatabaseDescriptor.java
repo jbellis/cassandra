@@ -779,6 +779,14 @@ public class DatabaseDescriptor
         return conf.commitlog_directory;
     }
 
+    /**
+     * size of commitlog segments to allocate 
+     */
+    public static int getCommitLogSegmentSize()
+    {
+        return conf.commitlog_segment_size_in_mb * 1024 * 1024;
+    }
+
     public static String getSavedCachesLocation()
     {
         return conf.saved_caches_directory;
@@ -846,6 +854,11 @@ public class DatabaseDescriptor
 
     public static int getCommitLogSyncPeriod() {
         return conf.commitlog_sync_period_in_ms;
+    }
+
+    public static boolean recycleCommitLog()
+    {
+        return conf.commitlog_recycle;
     }
 
     public static Config.CommitLogSync getCommitLogSync()

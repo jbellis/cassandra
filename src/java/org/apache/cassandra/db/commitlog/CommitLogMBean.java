@@ -35,4 +35,9 @@ public interface CommitLogMBean
      * Get the current size used by all the commitlog segments.
      */
     public long getTotalCommitlogSize();
+
+    /**
+     * Recover a single file.
+     */
+    public int recover(String path);
 }
