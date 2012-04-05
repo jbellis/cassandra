@@ -25,9 +25,9 @@ public class CommitLogArchiver
     private static final Logger logger = LoggerFactory.getLogger(CommitLogArchiver.class);
     public final List<String> archivePending = Collections.synchronizedList(new ArrayList<String>());
     private final String archiveCommand;
-    private final String recoveryCommand;
-    private final String recoveryDirectories;
-    public final long recoveryPointInTime;
+    private final String restoreCommand;
+    private final String restoreDirectories;
+    public final long restorePointInTime;
 
     public CommitLogArchiver() throws ConfigurationException
     {
@@ -48,16 +48,16 @@ public class CommitLogArchiver
         }
 
         this.archiveCommand = commitlog_commands.getProperty("archive_command");
-        this.recoveryCommand = commitlog_commands.getProperty("recovery_command");
-        this.recoveryDirectories = commitlog_commands.getProperty("recovery_directories");
-        String targetTime = commitlog_commands.getProperty("recovery_point_in_time");
+        this.restoreCommand = commitlog_commands.getProperty("restore_command");
+        this.restoreDirectories = commitlog_commands.getProperty("restore_directories");
+        String targetTime = commitlog_commands.getProperty("restore_point_in_time");
         try
         {
-            this.recoveryPointInTime = Strings.isNullOrEmpty(targetTime) ? Long.MAX_VALUE : new SimpleDateFormat("yyyy:MM:dd HH:mm:ss").parse(targetTime).getTime();
+            this.restorePointInTime = Strings.isNullOrEmpty(targetTime) ? Long.MAX_VALUE : new SimpleDateFormat("yyyy:MM:dd HH:mm:ss").parse(targetTime).getTime();
         }
         catch (ParseException e)
         {
-            throw new ConfigurationException("Unable to parse recovery target time", e);
+            throw new ConfigurationException("Unable to parse restore target time", e);
         }
 
         if (!Strings.isNullOrEmpty(archiveCommand) && DatabaseDescriptor.recycleCommitLog())
@@ -111,10 +111,10 @@ public class CommitLogArchiver
 
     public void maybeRestoreArchive() throws IOException
     {
-        if (Strings.isNullOrEmpty(recoveryDirectories))
+        if (Strings.isNullOrEmpty(restoreDirectories))
             return;
 
-        for (String dir : recoveryDirectories.split(","))
+        for (String dir : restoreDirectories.split(","))
         {
             File[] files = new File(dir).listFiles();
             for (File fromFile : files)
@@ -123,7 +123,7 @@ public class CommitLogArchiver
                                        CommitLogSegment.FILENAME_PREFIX +
                                        System.nanoTime() +
                                        CommitLogSegment.FILENAME_EXTENSION);
-                String command = recoveryCommand.replace("%from", fromFile.getPath());
+                String command = restoreCommand.replace("%from", fromFile.getPath());
                 command = command.replace("%to", toFile.getPath());       
                 execute(command);
             }
