@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.net.MessagingService;
@@ -50,7 +51,7 @@ public class CommitLog implements CommitLogMBean
 
     public final CommitLogAllocator allocator;
 
-    public final CommitLogArchiver archiver = new CommitLogArchiver();
+    public final CommitLogArchiver archiver;
 
     public static final int END_OF_SEGMENT_MARKER = 0;          // this is written out at the end of a segment
     public static final int END_OF_SEGMENT_MARKER_SIZE = 4;     // number of bytes of ^^^
@@ -81,6 +82,15 @@ public class CommitLog implements CommitLogMBean
             mbs.registerMBean(this, new ObjectName("org.apache.cassandra.db:type=Commitlog"));
         }
         catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        try
+        {
+            archiver = new CommitLogArchiver();
+        }
+        catch (ConfigurationException e)
         {
             throw new RuntimeException(e);
         }
@@ -369,7 +379,8 @@ public class CommitLog implements CommitLogMBean
                 {
                     CommitLogSegment oldSegment = activeSegment;
                     activateNextSegment();
-                    // now we can run the user defined command just before switching to the new commit log
+                    // Now we can run the user defined command just before switching to the new commit log.
+                    // (Do this here instead of in the recycle call so we can get a head start on the archive.)
                     archiver.archive(oldSegment.getPath(), oldSegment.getName());
                 }
                 activeSegment.write(rowMutation);

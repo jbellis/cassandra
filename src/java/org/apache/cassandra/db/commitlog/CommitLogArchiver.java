@@ -3,13 +3,15 @@ package org.apache.cassandra.db.commitlog;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.net.URL;
+import java.io.InputStream;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.CLibrary;
@@ -25,31 +27,37 @@ public class CommitLogArchiver
     private final String archiveCommand;
     private final String recoveryCommand;
     private final String recoveryDirectories;
-    private final long recoveryTargetTime;
+    public final long recoveryPointInTime;
 
-    public CommitLogArchiver()
+    public CommitLogArchiver() throws ConfigurationException
     {
         Properties commitlog_commands = new Properties();
-        FileReader commandFile = null;
+        InputStream stream = null;
         try
         {
-            ClassLoader loader = CommitLogArchiver.class.getClassLoader();
-            URL url = loader.getResource("commitlog_archiving.properties");
-            commandFile = new FileReader(url.getFile());
-            commitlog_commands.load(commandFile);
-            this.archiveCommand = commitlog_commands.getProperty("archive_command");
-            this.recoveryCommand = commitlog_commands.getProperty("recovery_command");
-            this.recoveryDirectories = commitlog_commands.getProperty("recovery_directories");
-            String targetTime = commitlog_commands.getProperty("recovery_target_time");
-            this.recoveryTargetTime = Strings.isNullOrEmpty(targetTime) ? 0 : new SimpleDateFormat("MM:dd:yyyy HH:mm:ss").parse(targetTime).getTime();
+            stream = getClass().getClassLoader().getResourceAsStream("commitlog_archiving.properties");
+            commitlog_commands.load(stream);
         }
-        catch (Exception ex)
+        catch (IOException e)
         {
-            throw new RuntimeException(ex);
+            throw new ConfigurationException("Unable to load commitlog_archiving.properties", e);
         }
         finally
         {
-            FileUtils.closeQuietly(commandFile);
+            FileUtils.closeQuietly(stream);
+        }
+
+        this.archiveCommand = commitlog_commands.getProperty("archive_command");
+        this.recoveryCommand = commitlog_commands.getProperty("recovery_command");
+        this.recoveryDirectories = commitlog_commands.getProperty("recovery_directories");
+        String targetTime = commitlog_commands.getProperty("recovery_point_in_time");
+        try
+        {
+            this.recoveryPointInTime = Strings.isNullOrEmpty(targetTime) ? Long.MAX_VALUE : new SimpleDateFormat("yyyy:MM:dd HH:mm:ss").parse(targetTime).getTime();
+        }
+        catch (ParseException e)
+        {
+            throw new ConfigurationException("Unable to parse recovery target time", e);
         }
     }
 
@@ -120,11 +128,6 @@ public class CommitLogArchiver
         }
     }
 
-    public long restoreTarget()
-    {
-        return recoveryTargetTime;
-    }
-    
     private void execute(String command) throws IOException
     {
         ProcessBuilder pb = new ProcessBuilder(command.split(" "));

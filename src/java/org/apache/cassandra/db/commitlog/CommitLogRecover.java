@@ -208,7 +208,7 @@ public class CommitLogRecover
                     {
                         if (Schema.instance.getKSMetaData(frm.getTable()) == null)
                             return;
-                        if (doFilter(frm))
+                        if (pointInTimeExceeded(frm))
                             return;
 
                         final Table table = Table.open(frm.getTable());
@@ -255,11 +255,9 @@ public class CommitLogRecover
         }
     }
 
-    protected boolean doFilter(RowMutation frm)
+    protected boolean pointInTimeExceeded(RowMutation frm)
     {
-        long restoreTarget = CommitLog.instance.archiver.restoreTarget();
-        if (restoreTarget == 0)
-            return false;
+        long restoreTarget = CommitLog.instance.archiver.recoveryPointInTime;
 
         for (ColumnFamily families : frm.getColumnFamilies())
         {
@@ -268,5 +266,4 @@ public class CommitLogRecover
         }
         return false;
     }
-
 }
