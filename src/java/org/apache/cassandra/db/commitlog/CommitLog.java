@@ -153,7 +153,7 @@ public class CommitLog implements CommitLogMBean
      */
     public int recover(File... clogs) throws IOException
     {
-        CommitLogRecover recovery = new CommitLogRecover();
+        CommitLogReplayer recovery = new CommitLogReplayer();
         recovery.recover(clogs);
         return recovery.blockForWrites();
     }

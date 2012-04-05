@@ -37,9 +37,9 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.Ordering;
 
-public class CommitLogRecover
+public class CommitLogReplayer
 {
-    private static final Logger logger = LoggerFactory.getLogger(CommitLogRecover.class);
+    private static final Logger logger = LoggerFactory.getLogger(CommitLogReplayer.class);
     private static final int MAX_OUTSTANDING_REPLAY_COUNT = 1024;
 
     private final Set<Table> tablesRecovered;
@@ -51,7 +51,7 @@ public class CommitLogRecover
     private final Checksum checksum;
     private byte[] buffer;
 
-    public CommitLogRecover()
+    public CommitLogReplayer()
     {
         this.tablesRecovered = new NonBlockingHashSet<Table>();
         this.futures = new ArrayList<Future<?>>();
@@ -176,7 +176,7 @@ public class CommitLogRecover
 
                 /* deserialize the commit log entry */
                 FastByteArrayInputStream bufIn = new FastByteArrayInputStream(buffer, 0, serializedSize);
-                RowMutation rm = null;
+                RowMutation rm;
                 try
                 {
                     // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
