@@ -34,7 +34,7 @@ public class CommitLogArchiver
         try
         {
             ClassLoader loader = CommitLogArchiver.class.getClassLoader();
-            URL url = loader.getResource("commitlog_backup.properties");
+            URL url = loader.getResource("commitlog_archiving.properties");
             commandFile = new FileReader(url.getFile());
             commitlog_commands.load(commandFile);
             this.archiveCommand = commitlog_commands.getProperty("archive_command");
