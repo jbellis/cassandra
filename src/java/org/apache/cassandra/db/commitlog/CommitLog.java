@@ -112,8 +112,7 @@ public class CommitLog implements CommitLogMBean
      */
     public int recover() throws IOException
     {
-        // restore files from archive.
-        archiver.restoreArchive();
+        archiver.maybeRestoreArchive();
         
         File[] files = new File(DatabaseDescriptor.getCommitLogLocation()).listFiles(new FilenameFilter()
         {
@@ -381,7 +380,7 @@ public class CommitLog implements CommitLogMBean
                     activateNextSegment();
                     // Now we can run the user defined command just before switching to the new commit log.
                     // (Do this here instead of in the recycle call so we can get a head start on the archive.)
-                    archiver.archive(oldSegment.getPath(), oldSegment.getName());
+                    archiver.maybeArchive(oldSegment.getPath(), oldSegment.getName());
                 }
                 activeSegment.write(rowMutation);
             }

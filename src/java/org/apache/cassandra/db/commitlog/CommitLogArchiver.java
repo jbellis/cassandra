@@ -59,11 +59,14 @@ public class CommitLogArchiver
         {
             throw new ConfigurationException("Unable to parse recovery target time", e);
         }
+
+        if (!Strings.isNullOrEmpty(archiveCommand) && DatabaseDescriptor.recycleCommitLog())
+            throw new ConfigurationException("Commitlog recycling and archiving both enabled -- disable one or the other");
     }
 
-    public void archive(final String path, final String name)
+    public void maybeArchive(final String path, final String name)
     {
-        if (Strings.isNullOrEmpty(archiveCommand) || DatabaseDescriptor.recycleCommitLog())
+        if (Strings.isNullOrEmpty(archiveCommand))
             return;
 
         archivePending.add(name);
@@ -89,7 +92,7 @@ public class CommitLogArchiver
         }.start();
     }
 
-    public boolean waitForArchiving(String name)
+    public boolean maybeWaitForArchiving(String name)
     {
         while (archivePending.contains(name))
         {
@@ -106,7 +109,7 @@ public class CommitLogArchiver
         return true;
     }
 
-    public void restoreArchive() throws IOException
+    public void maybeRestoreArchive() throws IOException
     {
         if (Strings.isNullOrEmpty(recoveryDirectories))
             return;
@@ -116,11 +119,10 @@ public class CommitLogArchiver
             File[] files = new File(dir).listFiles();
             for (File fromFile : files)
             {
-                File toFile = new File (DatabaseDescriptor.getCommitLogLocation(), 
-                                            CommitLogSegment.FILENAME_PREFIX + 
-                                            System.nanoTime() + 
-                                            CommitLogSegment.FILENAME_EXTENSION);
-                
+                File toFile = new File(DatabaseDescriptor.getCommitLogLocation(),
+                                       CommitLogSegment.FILENAME_PREFIX +
+                                       System.nanoTime() +
+                                       CommitLogSegment.FILENAME_EXTENSION);
                 String command = recoveryCommand.replace("%from", fromFile.getPath());
                 command = command.replace("%to", toFile.getPath());       
                 execute(command);

@@ -147,7 +147,7 @@ public class CommitLogAllocator
 
         if (!DatabaseDescriptor.recycleCommitLog())
         {
-            CommitLog.instance.archiver.waitForArchiving(segment.getName());
+            CommitLog.instance.archiver.maybeWaitForArchiving(segment.getName());
             discardSegment(segment);
             return;
         }
