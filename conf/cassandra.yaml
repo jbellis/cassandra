@@ -150,9 +150,9 @@ saved_caches_directory: /var/lib/cassandra/saved_caches
 commitlog_sync: periodic
 commitlog_sync_period_in_ms: 10000
 
-# Commitlog file is recycled by default, if you want to disable it
-# you can set commitlog_recycle= false
-# This option should be set to false when archiving of commitlog is used.
+# Commitlog file is recycled by default for improved performance. 
+# This option should be disabled when archiving commitlogs,
+# or archive will abort to avoid potential corruption.
 # commitlog_recycle: true
 
 # Configure  the Size of the individual Commitlog file. default is 128 MB
