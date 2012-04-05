@@ -319,7 +319,7 @@ public class FBUtilities
 
     public static String resourceToFile(String filename) throws ConfigurationException
     {
-        ClassLoader loader = PropertyFileSnitch.class.getClassLoader();
+        ClassLoader loader = FBUtilities.class.getClassLoader();
         URL scpurl = loader.getResource(filename);
         if (scpurl == null)
             throw new ConfigurationException("unable to locate " + filename);
