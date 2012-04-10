@@ -227,7 +227,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
             {
                 Token left = factory.fromString(tokens.get(i - 1));
                 Token right = factory.fromString(tokens.get(i));
-                Range<Token> range = new Range<Token>(left, right);
+                Range<Token> range = new Range<Token>(left, right, partitioner);
                 List<Range<Token>> ranges = range.isWrapAround() ? range.unwrap() : ImmutableList.of(range);
                 for (Range<Token> subrange : ranges)
                 {
