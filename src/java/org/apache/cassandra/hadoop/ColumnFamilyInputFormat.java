@@ -232,7 +232,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
                 for (Range<Token> subrange : ranges)
                 {
                     ColumnFamilySplit split = new ColumnFamilySplit(factory.toString(subrange.left), factory.toString(subrange.right), endpoints);
-                    logger.debug("adding " + split);
+                    logger.info("adding " + split);
                     splits.add(split);
                 }
             }
