@@ -93,7 +93,7 @@ public class WordCount extends Configured implements Tool
                 else
                     value = ByteBufferUtil.string(column.value());
                                
-                System.err.println("read " + ByteBufferUtil.string(key) + ":" +name + ":" + value + " from " + context.getInputSplit());
+                logger.debug("read " + ByteBufferUtil.string(key) + ":" +name + ":" + value + " from " + context.getInputSplit());
 
                 StringTokenizer itr = new StringTokenizer(value);
                 while (itr.hasMoreTokens())
