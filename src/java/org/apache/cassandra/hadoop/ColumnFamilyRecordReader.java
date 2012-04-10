@@ -27,6 +27,7 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 import com.google.common.collect.*;
@@ -433,11 +434,20 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             }
             else
             {
+                KeySlice lastRow = Iterables.getLast(rows);
+                try
+                {
+                    logger.debug("Starting with last-seen row {}", ByteBufferUtil.string(lastRow.key));
+                }
+                catch (CharacterCodingException e)
+                {
+                    throw new RuntimeException(e);
+                }
                 keyRange = new KeyRange(batchSize)
-                          .setStart_key(Iterables.getLast(rows).key)
+                          .setStart_key(lastRow.key)
                           .setEnd_token(split.getEndToken())
                           .setRow_filter(filter);
-                startColumn = Iterables.getLast(Iterables.getLast(rows).columns).column.name;
+                startColumn = Iterables.getLast(lastRow.columns).column.name;
             }
 
             try
