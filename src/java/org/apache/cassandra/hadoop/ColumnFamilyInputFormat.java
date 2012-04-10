@@ -129,7 +129,6 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         {
             List<Future<List<InputSplit>>> splitfutures = new ArrayList<Future<List<InputSplit>>>();
             KeyRange jobKeyRange = ConfigHelper.getInputKeyRange(conf);
-            partitioner = null;
             Range<Token> jobRange = null;
             if (jobKeyRange != null && jobKeyRange.start_token != null)
             {
