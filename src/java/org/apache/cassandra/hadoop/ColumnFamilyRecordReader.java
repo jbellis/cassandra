@@ -31,6 +31,9 @@ import java.util.*;
 
 import com.google.common.collect.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.IColumn;
@@ -52,6 +55,8 @@ import org.apache.thrift.transport.TSocket;
 public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap<ByteBuffer, IColumn>>
     implements org.apache.hadoop.mapred.RecordReader<ByteBuffer, SortedMap<ByteBuffer, IColumn>>
 {
+    private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyRecordReader.class);
+
     public static final int CASSANDRA_HADOOP_MAX_KEY_SIZE_DEFAULT = 8192;
 
     private ColumnFamilySplit split;
@@ -437,6 +442,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             try
             {
                 rows = client.get_paged_slice(cfName, keyRange, startColumn, consistencyLevel);
+                logger.info("read {} rows for {} starting with {}", new Object[] {rows.size(), keyRange, startColumn});
                 wideColumns = Iterators.peekingIterator(new WideColumnIterator(rows));
                 if (wideColumns.hasNext() && wideColumns.peek().right.keySet().iterator().next().equals(startColumn))
                     wideColumns.next();
