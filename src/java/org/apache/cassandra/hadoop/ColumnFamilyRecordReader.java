@@ -443,7 +443,10 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             try
             {
                 rows = client.get_paged_slice(cfName, keyRange, startColumn, consistencyLevel);
-                logger.info("read {} rows for {} starting with {}", new Object[] {rows.size(), keyRange, startColumn});
+                int n = 0;
+                for (KeySlice row : rows)
+                    n += row.columns.size();
+                logger.info("read {} columns in {} rows for {} starting with {}", new Object[] {n, rows.size(), keyRange, startColumn});
                 wideColumns = Iterators.peekingIterator(new WideColumnIterator(rows));
                 if (wideColumns.hasNext() && wideColumns.peek().right.keySet().iterator().next().equals(startColumn))
                     wideColumns.next();
