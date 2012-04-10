@@ -162,7 +162,7 @@ public class WordCount extends Configured implements Tool
         // use a smaller page size that doesn't divide the row count evenly to exercise the paging logic better
         ConfigHelper.setRangeBatchSize(getConf(), 99);
 
-        for (int i = 0; i < WordCountSetup.TEST_COUNT; i++)
+        for (int i = 5; i < WordCountSetup.TEST_COUNT; i++)
         {
             String columnName = "text" + i;
 
