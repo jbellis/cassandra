@@ -119,7 +119,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         keyspace = ConfigHelper.getInputKeyspace(context.getConfiguration());
         cfName = ConfigHelper.getInputColumnFamily(context.getConfiguration());
         partitioner = ConfigHelper.getInputPartitioner(context.getConfiguration());
-        logger.info("partitioner is " + partitioner);
+        logger.debug("partitioner is " + partitioner);
 
         // cannonical ranges, split into pieces, fetching the splits in parallel
         ExecutorService executor = Executors.newCachedThreadPool();
@@ -232,7 +232,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
                 for (Range<Token> subrange : ranges)
                 {
                     ColumnFamilySplit split = new ColumnFamilySplit(factory.toString(subrange.left), factory.toString(subrange.right), endpoints);
-                    logger.info("adding " + split);
+                    logger.debug("adding " + split);
                     splits.add(split);
                 }
             }
