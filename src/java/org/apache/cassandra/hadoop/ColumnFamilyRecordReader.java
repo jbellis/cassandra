@@ -481,9 +481,11 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
             public WideColumnIterator(List<KeySlice> rows)
             {
-                assert !rows.isEmpty(); // maybeInit checks for this
                 this.rows = rows.iterator();
-                nextRow();
+                if (this.rows.hasNext())
+                    nextRow();
+                else
+                    columns = Iterators.emptyIterator();
             }
 
             private void nextRow()
