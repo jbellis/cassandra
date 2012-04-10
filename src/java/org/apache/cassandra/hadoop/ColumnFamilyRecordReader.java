@@ -438,16 +438,12 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             try
             {
                 rows = client.get_paged_slice(cfName, keyRange, startColumn, consistencyLevel);
-
-                // nothing found?
-                if (rows == null || rows.isEmpty() || rows.get(0).columns.isEmpty())
+                wideColumns = Iterators.peekingIterator(new WideColumnIterator(rows));
+                if (!wideColumns.hasNext())
                 {
                     rows = null;
                     return;
                 }
-
-                // reset to iterate through this new batch
-                wideColumns = Iterators.peekingIterator(new WideColumnIterator(rows));
                 if (wideColumns.peek().right.keySet().iterator().next().equals(startColumn))
                     wideColumns.next();
             }
