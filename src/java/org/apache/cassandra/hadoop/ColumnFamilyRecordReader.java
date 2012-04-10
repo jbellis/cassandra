@@ -181,6 +181,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         }
 
         iter = widerows ? new WideRowIterator() : new StaticRowIterator();
+        logger.info("created {}", iter)
     }
 
     public boolean nextKeyValue() throws IOException
