@@ -30,6 +30,7 @@ if [ ! -e $cwd/../build/word_count.jar ]; then
     exit 1
 fi
 
+CLASSPATH=$CLASSPATH:$cwd/../conf/
 CLASSPATH=$CLASSPATH:$cwd/../build/word_count.jar
 CLASSPATH=$CLASSPATH:$cwd/../../../build/classes/main
 CLASSPATH=$CLASSPATH:$cwd/../../../build/classes/thrift
@@ -54,7 +55,7 @@ if [ "x$JAVA" = "x" ]; then
     exit 1
 fi
 
-OUTPUT_REDUCER=cassandra
+OUTPUT_REDUCER=filesystem
 
 #echo $CLASSPATH
 $JAVA -Xmx1G -ea -cp $CLASSPATH WordCount output_reducer=$OUTPUT_REDUCER
