@@ -99,25 +99,12 @@ public class RowMutation implements IMutation
 
     /**
      * Returns mutation representing a Hints to be sent to <code>address</code>
-     * as soon as it becomes available.
-     * The format is the following:
-     *
-     * HintsColumnFamily: {        // cf
-     *   <dest token>: {           // key
-     *     <uuid>: {               // super-column
-     *       table: <table>        // columns
-     *       key: <key>
-     *       mutation: <mutation>
-     *       version: <version>
-     *     }
-     *   }
-     * }
-     *
+     * as soon as it becomes available.  See HintedHandoffManager for more details.
      */
     public static RowMutation hintFor(RowMutation mutation, ByteBuffer token) throws IOException
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, token);
-        ByteBuffer hintId = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
+        UUID id = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
 
         // determine the TTL for the RowMutation
         // this is set at the smallest GCGraceSeconds for any of the CFs in the RM
@@ -126,21 +113,9 @@ public class RowMutation implements IMutation
         for (ColumnFamily cf : mutation.getColumnFamilies())
             ttl = Math.min(ttl, cf.metadata().getGcGraceSeconds());
 
-        // serialized RowMutation
-        QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, hintId, ByteBufferUtil.bytes("mutation"));
+        // serialize the hint with id and version as a composite column name
+        QueryPath path = new QueryPath(SystemTable.HINTS_CF, null, HintedHandOffManager.comparator.decompose(id, MessagingService.current_version));
         rm.add(path, ByteBuffer.wrap(mutation.getSerializedBuffer(MessagingService.current_version)), System.currentTimeMillis(), ttl);
-
-        // serialization version
-        path = new QueryPath(HintedHandOffManager.HINTS_CF, hintId, ByteBufferUtil.bytes("version"));
-        rm.add(path, ByteBufferUtil.bytes(MessagingService.current_version), System.currentTimeMillis(), ttl);
-
-        // table
-        path = new QueryPath(HintedHandOffManager.HINTS_CF, hintId, ByteBufferUtil.bytes("table"));
-        rm.add(path, ByteBufferUtil.bytes(mutation.getTable()), System.currentTimeMillis(), ttl);
-
-        // key
-        path = new QueryPath(HintedHandOffManager.HINTS_CF, hintId, ByteBufferUtil.bytes("key"));
-        rm.add(path, mutation.key(), System.currentTimeMillis(), ttl);
 
         return rm;
     }

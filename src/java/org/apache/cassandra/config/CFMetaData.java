@@ -37,7 +37,6 @@ import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.CreateColumnFamilyStatement;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.index.SecondaryIndex;
@@ -45,7 +44,6 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.SnappyCompressor;
-import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -78,7 +76,9 @@ public final class CFMetaData
     public final static String DEFAULT_COMPRESSOR = SnappyCompressor.isAvailable() ? SnappyCompressor.class.getCanonicalName() : null;
 
     public static final CFMetaData StatusCf = newSystemMetadata(SystemTable.STATUS_CF, 0, "persistent metadata for the local node", BytesType.instance, null);
-    public static final CFMetaData HintsCf = newSystemMetadata(HintedHandOffManager.HINTS_CF, 1, "hinted handoff data", BytesType.instance, BytesType.instance);
+
+    @Deprecated
+    public static final CFMetaData OldHintsCf = newSystemMetadata(SystemTable.OLD_HINTS_CF, 1, "hinted handoff data", BytesType.instance, BytesType.instance);
     @Deprecated
     public static final CFMetaData MigrationsCf = newSystemMetadata(DefsTable.OLD_MIGRATIONS_CF, 2, "individual schema mutations", TimeUUIDType.instance, null);
     @Deprecated
@@ -102,7 +102,6 @@ public final class CFMetaData
                                                         + "component text PRIMARY KEY,"
                                                         + "version text"
                                                         + ") WITH COMMENT='server version information'");
-
     // new-style schema
     public static final CFMetaData SchemaKeyspacesCf = compile(8, "CREATE TABLE " + SystemTable.SCHEMA_KEYSPACES_CF + "("
                                                                  + "keyspace_name text PRIMARY KEY,"
@@ -150,6 +149,16 @@ public final class CFMetaData
                                                                + ") WITH COMMENT='ColumnFamily column attributes'");
 
     public static final CFMetaData HostIdCf = newSystemMetadata(SystemTable.HOST_ID_CF, 11, "Host Identifier", UUIDType.instance, null);
+
+    public static final CFMetaData HintsCf = compile(11, "CREATE TABLE " + SystemTable.HINTS_CF + " ("
+                                                         + "token_bytes blob,"
+                                                         + "id uuid,"
+                                                         + "mutation_key blob,"
+                                                         + "version int,"
+                                                         + "keyspace_name varchar,"
+                                                         + "mutation blob,"
+                                                         + "PRIMARY KEY (token_bytes, id, mutation_key, version, keyspace_name)"
+                                                         + ") WITH COMPACT STORAGE AND COMMENT='hints awaiting delivery'");
 
     public enum Caching
     {
