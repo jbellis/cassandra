@@ -206,7 +206,7 @@ public class QueryProcessor
         return statement.prepare();
     }
 
-    private static ParsedStatement parseStatement(String queryStr) throws InvalidRequestException, RecognitionException
+    public static ParsedStatement parseStatement(String queryStr) throws InvalidRequestException, RecognitionException
     {
         // Lexer and parser
         CharStream stream = new ANTLRStringStream(queryStr);
@@ -224,5 +224,4 @@ public class QueryProcessor
 
         return statement;
     }
-
 }
