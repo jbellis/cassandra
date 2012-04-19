@@ -344,17 +344,6 @@ public final class CFMetaData
                       .gcGraceSeconds(0);
     }
 
-    private static CFMetaData newSchemaMetadata(String cfName, int cfId, String comment, AbstractType<?> comparator, AbstractType<?> subcc)
-    {
-        /*
-         * Schema column families needs a gc_grace (since they are replicated
-         * on every node). That gc_grace should be high enough that no node
-         * could be dead for that long a time.
-         */
-        int gcGrace = 120 * 24 * 3600; // 3 months
-        return newSystemMetadata(cfName, cfId, comment, comparator, subcc).gcGraceSeconds(gcGrace);
-    }
-
     public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType<?> columnComparator)
     {
         // Depends on parent's cache setting, turn on its index CF's cache.
