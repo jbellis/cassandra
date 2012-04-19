@@ -38,8 +38,6 @@ import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.CfDef;
-import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -51,7 +49,7 @@ public class DefsTest extends SchemaLoader
     @Test
     public void ensureStaticCFMIdsAreLessThan1000()
     {
-        assert CFMetaData.StatusCf.cfId == 0;
+        assert CFMetaData.OldStatusCf.cfId == 0;
         assert CFMetaData.HintsCf.cfId == 1;
         assert CFMetaData.MigrationsCf.cfId == 2;
         assert CFMetaData.SchemaCf.cfId == 3;
