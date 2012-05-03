@@ -42,8 +42,9 @@ public interface IColumn
     public long mostRecentLiveChangeAt();
     public long mostRecentNonGCableChangeAt(int gcbefore);
     public ByteBuffer name();
-    public int size(DBTypeSizes typeSizes);
-    public int serializedSize(DBTypeSizes typeSizes);
+    /** the size of user-provided data, not including internal overhead */
+    public int dataSize(TypeSizes typeSizes);
+    public int serializedSize(TypeSizes typeSizes);
     public int serializationFlags();
     public long timestamp();
     public ByteBuffer value();
