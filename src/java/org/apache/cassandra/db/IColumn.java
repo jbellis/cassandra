@@ -43,7 +43,7 @@ public interface IColumn
     public long mostRecentNonGCableChangeAt(int gcbefore);
     public ByteBuffer name();
     /** the size of user-provided data, not including internal overhead */
-    public int dataSize(TypeSizes typeSizes);
+    public int dataSize();
     public int serializedSize(TypeSizes typeSizes);
     public int serializationFlags();
     public long timestamp();
