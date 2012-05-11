@@ -358,7 +358,7 @@ cfamColumns[CreateColumnFamilyStatement.RawStatement expr]
     ;
 
 cfamProperty[CreateColumnFamilyStatement.RawStatement expr]
-    : k=property '=' v=propertyValue { $expr.addProperty(k, v); }
+    : k=property '=' v=propertyValue { $expr.addProperty(k.toLowerCase(), v); }
     | K_COMPACT K_STORAGE { $expr.setCompactStorage(); }
     | K_CLUSTERING K_ORDER K_BY '(' cfamOrdering[expr] (',' cfamOrdering[expr])* ')'
     ;
