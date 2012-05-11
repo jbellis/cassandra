@@ -72,6 +72,7 @@ public final class KSMetaData
     public static KSMetaData systemKeyspace()
     {
         List<CFMetaData> cfDefs = Arrays.asList(CFMetaData.OldStatusCf,
+                                                CFMetaData.OldHintsCf,
                                                 CFMetaData.HintsCf,
                                                 CFMetaData.MigrationsCf,
                                                 CFMetaData.SchemaCf,
