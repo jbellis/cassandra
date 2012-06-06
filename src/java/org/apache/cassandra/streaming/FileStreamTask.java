@@ -133,7 +133,7 @@ public class FileStreamTask extends WrappedRunnable
      */
     private void stream() throws IOException
     {
-        ByteBuffer HeaderBuffer = MessagingService.instance().constructStreamHeader(header, false, Gossiper.instance.getVersion(to));
+        ByteBuffer HeaderBuffer = MessagingService.instance().constructStreamHeader(header, false, MessagingService.instance().getVersion(to));
         // write header (this should not be compressed for compatibility with other messages)
         output.write(ByteBufferUtil.getArray(HeaderBuffer));
 
