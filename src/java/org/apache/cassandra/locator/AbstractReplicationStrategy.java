@@ -176,7 +176,8 @@ public abstract class AbstractReplicationStrategy
 
     public Multimap<InetAddress, Range<Token>> getAddressRanges()
     {
-        return getAddressRanges(tokenMetadata);
+        TokenMetadata tmClone = tokenMetadata.cloneOnlyTokenMap();
+        return getAddressRanges(tmClone);
     }
 
     public Collection<Range<Token>> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddress pendingAddress)

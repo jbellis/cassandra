@@ -149,7 +149,9 @@ public class RangeStreamer implements IEndpointStateChangeSubscriber, IFailureDe
     private Multimap<Range<Token>, InetAddress> getAllRangesWithSourcesFor(String table, Collection<Range<Token>> desiredRanges)
     {
         AbstractReplicationStrategy strat = Table.open(table).getReplicationStrategy();
-        Multimap<Range<Token>, InetAddress> rangeAddresses = strat.getRangeAddresses(metadata);
+        // clone to avoid concurrent modification in calculateNaturalEndpoints
+        TokenMetadata tmClone = metadata.cloneOnlyTokenMap();
+        Multimap<Range<Token>, InetAddress> rangeAddresses = strat.getRangeAddresses(tmClone);
 
         Multimap<Range<Token>, InetAddress> rangeSources = ArrayListMultimap.create();
         for (Range<Token> desiredRange : desiredRanges)
