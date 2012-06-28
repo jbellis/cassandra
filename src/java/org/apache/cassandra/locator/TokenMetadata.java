@@ -84,7 +84,7 @@ public class TokenMetadata
 
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
-    private ArrayList<Token> sortedTokens;
+    private volatile ArrayList<Token> sortedTokens;
 
     private final Topology topology;
     /* list of subscribers that are notified when the tokenToEndpointMap changed */
@@ -524,15 +524,7 @@ public class TokenMetadata
 
     public ArrayList<Token> sortedTokens()
     {
-        lock.readLock().lock();
-        try
-        {
-            return sortedTokens;
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
+        return sortedTokens;
     }
 
     private Multimap<Range<Token>, InetAddress> getPendingRangesMM(String table)
