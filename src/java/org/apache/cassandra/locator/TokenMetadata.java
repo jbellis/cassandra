@@ -72,7 +72,7 @@ public class TokenMetadata
     // Finally, note that recording the tokens of joining nodes in bootstrapTokens also
     // means we can detect and reject the addition of multiple nodes at the same token
     // before one becomes part of the ring.
-    private final BiMap<Token, InetAddress> bootstrapTokens = Maps.synchronizedBiMap(HashBiMap.<Token, InetAddress>create());
+    private final BiMap<Token, InetAddress> bootstrapTokens = HashBiMap.<Token, InetAddress>create();
     // (don't need to record Token here since it's still part of tokenToEndpointMap until it's done leaving)
     private final Set<InetAddress> leavingEndpoints = new HashSet<InetAddress>();
     // this is a cache of the calculation from {tokenToEndpointMap, bootstrapTokens, leavingEndpoints}
@@ -115,11 +115,16 @@ public class TokenMetadata
     {
         int n = 0;
         Range<Token> sourceRange = getPrimaryRangeFor(getToken(source));
-        synchronized (bootstrapTokens)
+        lock.readLock().lock();
+        try
         {
             for (Token token : bootstrapTokens.keySet())
                 if (sourceRange.contains(token))
                     n++;
+        }
+        finally
+        {
+            lock.readLock().unlock();
         }
         return n;
     }
@@ -583,10 +588,18 @@ public class TokenMetadata
         return (Token) ((index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(index + 1));
     }
 
-    /** caller should not modify bootstrapTokens */
+    /** @return a copy of the bootstrapping tokens map */
     public Map<Token, InetAddress> getBootstrapTokens()
     {
-        return bootstrapTokens;
+        lock.readLock().lock();
+        try
+        {
+            return ImmutableMap.copyOf(bootstrapTokens);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
     }
 
     /** caller should not modify leavingEndpoints */
@@ -697,17 +710,14 @@ public class TokenMetadata
                 }
             }
 
-            synchronized (bootstrapTokens)
+            if (!bootstrapTokens.isEmpty())
             {
-                if (!bootstrapTokens.isEmpty())
+                sb.append("Bootstrapping Tokens:" );
+                sb.append(System.getProperty("line.separator"));
+                for (Map.Entry<Token, InetAddress> entry : bootstrapTokens.entrySet())
                 {
-                    sb.append("Bootstrapping Tokens:" );
+                    sb.append(entry.getValue() + ":" + entry.getKey());
                     sb.append(System.getProperty("line.separator"));
-                    for (Map.Entry<Token, InetAddress> entry : bootstrapTokens.entrySet())
-                    {
-                        sb.append(entry.getValue() + ":" + entry.getKey());
-                        sb.append(System.getProperty("line.separator"));
-                    }
                 }
             }
 
@@ -829,10 +839,7 @@ public class TokenMetadata
         {
             Map<Token, InetAddress> map = new HashMap<Token, InetAddress>(tokenToEndpointMap.size() + bootstrapTokens.size());
             map.putAll(tokenToEndpointMap);
-            synchronized (bootstrapTokens)
-            {
-                map.putAll(bootstrapTokens);
-            }
+            map.putAll(bootstrapTokens);
             return map;
         }
         finally
