@@ -866,7 +866,7 @@ public class TokenMetadata
             currentLocations = new HashMap<InetAddress, Pair<String, String>>();
         }
 
-        protected synchronized void clear()
+        protected void clear()
         {
             dcEndpoints.clear();
             dcRacks.clear();
@@ -878,20 +878,17 @@ public class TokenMetadata
          */
         protected Topology(Topology other)
         {
-            synchronized (other)
-            {
-                dcEndpoints = HashMultimap.create(other.dcEndpoints);
-                dcRacks = new HashMap<String, Multimap<String, InetAddress>>();
-                for (String dc : other.dcRacks.keySet())
-                    dcRacks.put(dc, HashMultimap.create(other.dcRacks.get(dc)));
-                currentLocations = new HashMap<InetAddress, Pair<String, String>>(other.currentLocations);
-            }
+            dcEndpoints = HashMultimap.create(other.dcEndpoints);
+            dcRacks = new HashMap<String, Multimap<String, InetAddress>>();
+            for (String dc : other.dcRacks.keySet())
+                dcRacks.put(dc, HashMultimap.create(other.dcRacks.get(dc)));
+            currentLocations = new HashMap<InetAddress, Pair<String, String>>(other.currentLocations);
         }
 
         /**
          * Stores current DC/rack assignment for ep
          */
-        protected synchronized void addEndpoint(InetAddress ep)
+        protected void addEndpoint(InetAddress ep)
         {
             IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
             String dc = snitch.getDatacenter(ep);
@@ -917,7 +914,7 @@ public class TokenMetadata
         /**
          * Removes current DC/rack assignment for ep
          */
-        protected synchronized void removeEndpoint(InetAddress ep)
+        protected void removeEndpoint(InetAddress ep)
         {
             if (!currentLocations.containsKey(ep))
                 return;
