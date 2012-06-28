@@ -25,6 +25,7 @@ import java.util.Map;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.StorageService;
 
 /**
  * This Replication Strategy returns the nodes responsible for a given
@@ -40,7 +41,7 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
         super(table, tokenMetadata, snitch, configOptions);
     }
 
-    public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+    public List<InetAddress> calculateNaturalEndpointsInternal(Token token, TokenMetadata metadata)
     {
         int replicas = getReplicationFactor();
         List<InetAddress> endpoints = new ArrayList<InetAddress>(replicas);

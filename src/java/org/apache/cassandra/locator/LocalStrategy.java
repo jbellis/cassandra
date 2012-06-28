@@ -48,7 +48,7 @@ public class LocalStrategy extends AbstractReplicationStrategy
         return l;
     }
 
-    public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+    public List<InetAddress> calculateNaturalEndpointsInternal(Token token, TokenMetadata metadata)
     {
         return Collections.singletonList(FBUtilities.getBroadcastAddress());
     }

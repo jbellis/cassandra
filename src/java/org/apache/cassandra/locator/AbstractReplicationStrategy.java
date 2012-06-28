@@ -30,10 +30,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
-import org.apache.cassandra.service.DatacenterWriteResponseHandler;
-import org.apache.cassandra.service.IWriteResponseHandler;
-import org.apache.cassandra.service.WriteResponseHandler;
+import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -110,9 +107,20 @@ public abstract class AbstractReplicationStrategy
      * @see #getNaturalEndpoints(org.apache.cassandra.dht.RingPosition)
      *
      * @param searchToken the token the natural endpoints are requested for
+     *
+     * @param tokenMetadata data about the nodes in the ring.  To calculateNaturalEndpoints having to deal with
+     *                      concurrent modifications, this must NOT be the "master" TokenMetdata from StorageService
+     *                      (clone it first with TM.cloneOnlyTokenMap, if necessary).
+     *
      * @return a copy of the natural endpoints for the given token
      */
-    public abstract List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata);
+    public final List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
+    {
+        assert tokenMetadata != StorageService.instance.getTokenMetadata();
+        return calculateNaturalEndpointsInternal(searchToken, tokenMetadata);
+    }
+
+    protected abstract List<InetAddress> calculateNaturalEndpointsInternal(Token searchToken, TokenMetadata tokenMetadata);
 
     public IWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistency_level)
     {

@@ -119,7 +119,8 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
             super(table, tokenMetadata, snitch, configOptions);
         }
 
-        public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+        @Override
+        public List<InetAddress> calculateNaturalEndpointsInternal(Token token, TokenMetadata metadata)
         {
             assert !called : "calculateNaturalEndpoints was already called, result should have been cached";
             called = true;
@@ -136,7 +137,8 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
             super(table, tokenMetadata, snitch, configOptions);
         }
 
-        public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+        @Override
+        public List<InetAddress> calculateNaturalEndpointsInternal(Token token, TokenMetadata metadata)
         {
             assert !called : "calculateNaturalEndpoints was already called, result should have been cached";
             called = true;
@@ -153,7 +155,8 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
             super(table, tokenMetadata, snitch, configOptions);
         }
 
-        public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+        @Override
+        public List<InetAddress> calculateNaturalEndpointsInternal(Token token, TokenMetadata metadata)
         {
             assert !called : "calculateNaturalEndpoints was already called, result should have been cached";
             called = true;

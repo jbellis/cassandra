@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import com.google.common.collect.Multimap;
@@ -77,7 +78,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
      * calculate endpoints in one pass through the tokens by tracking our progress in each DC, rack etc.
      */
     @SuppressWarnings("serial")
-    public List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
+    public List<InetAddress> calculateNaturalEndpointsInternal(Token searchToken, TokenMetadata tokenMetadata)
     {
         Set<InetAddress> replicas = new HashSet<InetAddress>();
         // replicas we have found in each DC
