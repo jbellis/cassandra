@@ -188,7 +188,7 @@ public class FileStreamTask extends WrappedRunnable
         MessagingService.validateMagic(input.readInt());
         String id = input.readUTF();
         // since we reject streaming with different version, using current_version here is fine
-        MessageIn message = MessageIn.read(FBUtilities.getEncodedInput(input, MessagingService.current_version), MessagingService.current_version, id);
+        MessageIn message = MessageIn.read(input, MessagingService.current_version, id);
         assert message.verb == MessagingService.Verb.STREAM_REPLY : "Non-reply message received on stream socket";
         handler.doVerb(message, id);
     }
