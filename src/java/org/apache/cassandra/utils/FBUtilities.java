@@ -603,17 +603,6 @@ public class FBUtilities
         public void close() {}
     }
 
-    public static <T> byte[] serialize(T object, IVersionedSerializer<T> serializer, int version) throws IOException
-    {
-        int size = (int) serializer.serializedSize(object, version);
-        DataOutputBuffer buffer = new DataOutputBuffer(size);
-        serializer.serialize(object, getEncodedOutput(buffer, version), version);
-        assert buffer.getLength() == size && buffer.getData().length == size
-               : String.format("Final buffer length %s to accommodate data size of %s (predicted %s) for %s",
-                               buffer.getData().length, buffer.getLength(), size, object);
-        return buffer.getData();
-    }
-
     public static DataOutput getEncodedOutput(DataOutput out, int version)
     {
         return (version >= MessagingService.VERSION_12) ? new EncodedDataOutputStream(out) : out;
