@@ -93,10 +93,11 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
 
     public long serializedSize(GossipDigestAck ack, int version)
     {
+        TypeSizes typeSizes = TypeSizes.get(version);
         int size = GossipDigestSerializationHelper.serializedSize(ack.gDigestList, version);
         if (version <= MessagingService.VERSION_11)
-            size += TypeSizes.NATIVE.sizeof(true);
-        size += TypeSizes.NATIVE.sizeof(ack.epStateMap.size());
+            size += typeSizes.sizeof(true);
+        size += typeSizes.sizeof(ack.epStateMap.size());
         for (Map.Entry<InetAddress, EndpointState> entry : ack.epStateMap.entrySet())
             size += CompactEndpointSerializationHelper.serializedSize(entry.getKey())
                   + EndpointState.serializer.serializedSize(entry.getValue(), version);

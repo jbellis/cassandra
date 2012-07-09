@@ -183,6 +183,6 @@ class CounterMutationSerializer implements IVersionedSerializer<CounterMutation>
     public long serializedSize(CounterMutation cm, int version)
     {
         return RowMutation.serializer.serializedSize(cm.rowMutation(), version)
-             + TypeSizes.NATIVE.sizeof(cm.consistency().name());
+             + TypeSizes.get(version).sizeof(cm.consistency().name());
     }
 }

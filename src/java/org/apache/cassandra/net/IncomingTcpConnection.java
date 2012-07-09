@@ -30,6 +30,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.streaming.IncomingStreamReader;
 import org.apache.cassandra.streaming.StreamHeader;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class IncomingTcpConnection extends Thread
 {
@@ -179,7 +180,7 @@ public class IncomingTcpConnection extends Thread
             input.readInt(); // size of entire message. in 1.0+ this is just a placeholder
 
         String id = input.readUTF();
-        MessageIn message = MessageIn.read(input, version, id);
+        MessageIn message = MessageIn.read(FBUtilities.getEncodedInput(input, version), version, id);
         if (message == null)
         {
             // callback expired; nothing to do

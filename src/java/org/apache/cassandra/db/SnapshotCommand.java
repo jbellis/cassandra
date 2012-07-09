@@ -78,9 +78,10 @@ class SnapshotCommandSerializer implements IVersionedSerializer<SnapshotCommand>
 
     public long serializedSize(SnapshotCommand sc, int version)
     {
-        return TypeSizes.NATIVE.sizeof(sc.keyspace)
-             + TypeSizes.NATIVE.sizeof(sc.column_family)
-             + TypeSizes.NATIVE.sizeof(sc.snapshot_name)
-             + TypeSizes.NATIVE.sizeof(sc.clear_snapshot);
+        TypeSizes typeSizes = TypeSizes.get(version);
+        return typeSizes.sizeof(sc.keyspace)
+             + typeSizes.sizeof(sc.column_family)
+             + typeSizes.sizeof(sc.snapshot_name)
+             + typeSizes.sizeof(sc.clear_snapshot);
     }
 }

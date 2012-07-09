@@ -21,10 +21,18 @@ package org.apache.cassandra;
 
 import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.net.MessagingService;
 
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.vint.EncodedDataInputStream;
+import org.apache.cassandra.utils.vint.EncodedDataOutputStream;
+import org.junit.Assert;
+
+import java.io.DataInput;
 import java.io.DataInputStream;
+import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -36,7 +44,7 @@ import java.util.Map;
 public class AbstractSerializationsTester extends SchemaLoader
 {
     protected static final String CUR_VER = System.getProperty("cassandra.version", "1.2");
-    protected static final Map<String, Integer> VERSION_MAP = new HashMap<String, Integer> ()
+    protected static final Map<String, Integer> VERSION_MAP = new HashMap<String, Integer>()
     {{
         put("0.7", 1);
         put("1.0", 3);
@@ -45,6 +53,9 @@ public class AbstractSerializationsTester extends SchemaLoader
 
     // TODO ant doesn't pass this -D up to the test, so it's kind of useless
     protected static final boolean EXECUTE_WRITES = Boolean.getBoolean("cassandra.test-serialization-writes");
+    private FileOutputStream fos;
+    private FileInputStream fis;
+    
 
     protected final int getVersion()
     {
@@ -54,21 +65,41 @@ public class AbstractSerializationsTester extends SchemaLoader
     protected <T> void testSerializedSize(T obj, IVersionedSerializer<T> serializer) throws IOException
     {
         ByteArrayDataOutput out = ByteStreams.newDataOutput();
-        serializer.serialize(obj, out, getVersion());
-        assert out.toByteArray().length == serializer.serializedSize(obj, getVersion());
+        serializer.serialize(obj, FBUtilities.getEncodedOutput(out, getVersion()), getVersion());
+        Assert.assertEquals(serializer.serializedSize(obj, getVersion()), out.toByteArray().length);
     }
 
-    protected static DataInputStream getInput(String name) throws IOException
+    protected DataInput getInput(String name) throws IOException
+    {
+        return new EncodedDataInputStream(getRawInput(name));
+    }
+
+    protected DataInput getRawInput(String name) throws IOException
     {
         File f = new File("test/data/serialization/" + CUR_VER + "/" + name);
         assert f.exists() : f.getPath();
-        return new DataInputStream(new FileInputStream(f));
+        fis = new FileInputStream(f);
+        return new DataInputStream(fis);
     }
 
-    protected static DataOutputStream getOutput(String name) throws IOException
+    protected DataOutput getOutput(String name) throws IOException
+    {
+        return new EncodedDataOutputStream(getRawOutput(name));
+    }
+
+    protected DataOutput getRawOutput(String name) throws IOException
     {
         File f = new File("test/data/serialization/" + CUR_VER + "/" + name);
         f.getParentFile().mkdirs();
-        return new DataOutputStream(new FileOutputStream(f));
+        fos = new FileOutputStream(f);
+        return new DataOutputStream(fos);
+    }
+
+    public void close()
+    {
+        FileUtils.closeQuietly(fis);
+        fis = null;
+        FileUtils.closeQuietly(fos);
+        fos = null;
     }
 }

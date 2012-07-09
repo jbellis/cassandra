@@ -123,7 +123,7 @@ public class ColumnSlice
 
         public long serializedSize(ColumnSlice cs, int version)
         {
-            TypeSizes sizes = TypeSizes.NATIVE;
+            TypeSizes sizes = TypeSizes.get(version);
 
             int startSize = cs.start.remaining();
             int finishSize = cs.finish.remaining();

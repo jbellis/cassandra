@@ -172,20 +172,21 @@ public class StreamRequest
 
         public long serializedSize(StreamRequest sr, int version)
         {
-            long size = TypeSizes.NATIVE.sizeof(sr.sessionId);
+            TypeSizes typeSizes = TypeSizes.get(version);
+            long size = typeSizes.sizeof(sr.sessionId);
             size += CompactEndpointSerializationHelper.serializedSize(sr.target);
-            size += TypeSizes.NATIVE.sizeof(true);
+            size += typeSizes.sizeof(true);
             if (sr.file != null)
                 return size + PendingFile.serializer.serializedSize(sr.file, version);
 
-            size += TypeSizes.NATIVE.sizeof(sr.table);
-            size += TypeSizes.NATIVE.sizeof(sr.ranges.size());
+            size += typeSizes.sizeof(sr.table);
+            size += typeSizes.sizeof(sr.ranges.size());
             for (Range<Token> range : sr.ranges)
                 size += AbstractBounds.serializer.serializedSize(range, version);
-            size += TypeSizes.NATIVE.sizeof(sr.type.name());
-            size += TypeSizes.NATIVE.sizeof(Iterables.size(sr.columnFamilies));
+            size += typeSizes.sizeof(sr.type.name());
+            size += typeSizes.sizeof(Iterables.size(sr.columnFamilies));
             for (ColumnFamilyStore cfs : sr.columnFamilies)
-                size += ColumnFamily.serializer.cfIdSerializedSize(cfs.metadata.cfId, TypeSizes.NATIVE, version);
+                size += ColumnFamily.serializer.cfIdSerializedSize(cfs.metadata.cfId, typeSizes, version);
             return size;
         }
     }

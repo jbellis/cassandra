@@ -74,8 +74,9 @@ public class Row
 
         public long serializedSize(Row row, int version)
         {
+            TypeSizes typeSizes = TypeSizes.get(version);
             int keySize = row.key.key.remaining();
-            return TypeSizes.NATIVE.sizeof((short) keySize) + keySize + ColumnFamily.serializer.serializedSize(row.cf, TypeSizes.NATIVE, version);
+            return typeSizes.sizeof((short) keySize) + keySize + ColumnFamily.serializer.serializedSize(row.cf, typeSizes, version);
         }
     }
 }

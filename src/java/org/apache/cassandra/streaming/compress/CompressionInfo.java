@@ -79,12 +79,13 @@ public class CompressionInfo
 
         public long serializedSize(CompressionInfo info, int version)
         {
+            TypeSizes typeSizes = TypeSizes.get(version);
             if (info == null)
-                return TypeSizes.NATIVE.sizeof(-1);
+                return typeSizes.sizeof(-1);
 
             // chunks
             int chunkCount = info.chunks.length;
-            long size = TypeSizes.NATIVE.sizeof(chunkCount);
+            long size = typeSizes.sizeof(chunkCount);
             for (int i = 0; i < chunkCount; i++)
                 size += CompressionMetadata.Chunk.serializer.serializedSize(info.chunks[i], version);
             // compression params

@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.cache;
 
+import java.io.DataOutput;
+import java.io.DataOutputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.util.Set;
@@ -118,7 +120,8 @@ public class SerializingCache<K, V> implements ICache<K, V>
 
         try
         {
-            serializer.serialize(value, new EncodedDataOutputStream(new MemoryOutputStream(freeableMemory)));
+            DataOutput dos = new DataOutputStream(new MemoryOutputStream(freeableMemory));
+            serializer.serialize(value, new EncodedDataOutputStream(dos));
         }
         catch (IOException e)
         {

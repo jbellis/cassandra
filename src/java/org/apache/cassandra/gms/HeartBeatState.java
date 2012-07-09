@@ -79,6 +79,7 @@ class HeartBeatStateSerializer implements IVersionedSerializer<HeartBeatState>
 
     public long serializedSize(HeartBeatState state, int version)
     {
-        return TypeSizes.NATIVE.sizeof(state.getGeneration()) + TypeSizes.NATIVE.sizeof(state.getHeartBeatVersion());
+        TypeSizes typeSizes = TypeSizes.get(version);
+        return typeSizes.sizeof(state.getGeneration()) + typeSizes.sizeof(state.getHeartBeatVersion());
     }
 }

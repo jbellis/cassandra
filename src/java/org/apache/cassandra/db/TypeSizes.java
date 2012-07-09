@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 
 public abstract class TypeSizes
@@ -44,7 +45,7 @@ public abstract class TypeSizes
     {
         int length = encodedUTF8Length(value);
         assert length <= Short.MAX_VALUE;
-        return sizeof((short) length) + length;
+        return 2 + length; // DIS writes constant 2 bytes.
     }
 
     public static int encodedUTF8Length(String st)
@@ -154,5 +155,10 @@ public abstract class TypeSizes
         {
             return sizeofVInt(value.getMostSignificantBits()) + sizeofVInt(value.getLeastSignificantBits());
         }
+    }
+
+    public static TypeSizes get(int version)
+    {
+        return (version >= MessagingService.VERSION_12) ? TypeSizes.VINT : TypeSizes.NATIVE;
     }
 }

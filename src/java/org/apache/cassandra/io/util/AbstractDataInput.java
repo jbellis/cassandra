@@ -338,7 +338,7 @@ public abstract class AbstractDataInput extends InputStream implements DataInput
      * @throws java.io.UTFDataFormatException
      *             if the bytes read cannot be decoded into a character string.
      */
-    public final String readUTF() throws IOException {
+    public String readUTF() throws IOException {
         return DataInputStream.readUTF(this);
     }
 }

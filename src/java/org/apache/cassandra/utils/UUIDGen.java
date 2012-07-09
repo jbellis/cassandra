@@ -110,7 +110,8 @@ public class UUIDGen
 
         public long serializedSize(UUID uuid, int version)
         {
-            return TypeSizes.NATIVE.sizeof(uuid.getMostSignificantBits()) + TypeSizes.NATIVE.sizeof(uuid.getLeastSignificantBits());
+            TypeSizes typeSizes = TypeSizes.get(version);
+            return typeSizes.sizeof(uuid.getMostSignificantBits()) + typeSizes.sizeof(uuid.getLeastSignificantBits());
         }
     }
 

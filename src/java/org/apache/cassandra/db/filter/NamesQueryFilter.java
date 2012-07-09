@@ -138,7 +138,7 @@ public class NamesQueryFilter implements IFilter
 
         public long serializedSize(NamesQueryFilter f, int version)
         {
-            TypeSizes sizes = TypeSizes.NATIVE;
+            TypeSizes sizes = TypeSizes.get(version);
             int size = sizes.sizeof(f.columns.size());
             for (ByteBuffer cName : f.columns)
             {

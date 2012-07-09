@@ -18,17 +18,15 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.junit.Test;
 
 import org.apache.cassandra.AbstractSerializationsTester;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessageIn;
@@ -46,10 +44,11 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testTreeRequestWrite() throws IOException
     {
-        DataOutputStream out = getOutput("service.TreeRequest.bin");
+        DataOutput stream = getOutput("service.TreeRequest.bin");
+        DataOutput out = FBUtilities.getEncodedOutput(stream, getVersion());
         AntiEntropyService.TreeRequest.serializer.serialize(Statics.req, out, getVersion());
         Statics.req.createMessage().serialize(out, getVersion());
-        out.close();
+        close();
 
         // test serializedSize
         testSerializedSize(Statics.req, AntiEntropyService.TreeRequest.serializer);
@@ -61,10 +60,11 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testTreeRequestWrite();
 
-        DataInputStream in = getInput("service.TreeRequest.bin");
+        DataInput stream = getInput("service.TreeRequest.bin");
+        DataInput in = FBUtilities.getEncodedInput(stream, getVersion());
         assert AntiEntropyService.TreeRequest.serializer.deserialize(in, getVersion()) != null;
         assert MessageIn.read(in, getVersion(), "id") != null;
-        in.close();
+        close();
     }
 
     private void testTreeResponseWrite() throws IOException
@@ -73,18 +73,18 @@ public class SerializationsTest extends AbstractSerializationsTester
         AntiEntropyService.Validator v0 = new AntiEntropyService.Validator(Statics.req);
 
         // validation with a tree
-        IPartitioner p = new RandomPartitioner();
+        IPartitioner p = new ByteOrderedPartitioner();
         MerkleTree mt = new MerkleTree(p, FULL_RANGE, MerkleTree.RECOMMENDED_DEPTH, Integer.MAX_VALUE);
         for (int i = 0; i < 10; i++)
             mt.split(p.getRandomToken());
         AntiEntropyService.Validator v1 = new AntiEntropyService.Validator(Statics.req, mt);
 
-        DataOutputStream out = getOutput("service.TreeResponse.bin");
+        DataOutput out = getOutput("service.TreeResponse.bin");
         AntiEntropyService.Validator.serializer.serialize(v0, out, getVersion());
         AntiEntropyService.Validator.serializer.serialize(v1, out, getVersion());
         v0.createMessage().serialize(out, getVersion());
         v1.createMessage().serialize(out, getVersion());
-        out.close();
+        close();
 
         // test serializedSize
         testSerializedSize(v0, AntiEntropyService.Validator.serializer);
@@ -97,12 +97,12 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testTreeResponseWrite();
 
-        DataInputStream in = getInput("service.TreeResponse.bin");
+        DataInput in = getInput("service.TreeResponse.bin");
         assert AntiEntropyService.Validator.serializer.deserialize(in, getVersion()) != null;
         assert AntiEntropyService.Validator.serializer.deserialize(in, getVersion()) != null;
         assert MessageIn.read(in, getVersion(), "id") != null;
         assert MessageIn.read(in, getVersion(), "id") != null;
-        in.close();
+        close();
     }
 
     private static class Statics

@@ -76,7 +76,7 @@ class GossipDigestAck2Serializer implements IVersionedSerializer<GossipDigestAck
 
     public long serializedSize(GossipDigestAck2 ack2, int version)
     {
-        long size = TypeSizes.NATIVE.sizeof(ack2.epStateMap.size());
+        long size = TypeSizes.get(version).sizeof(ack2.epStateMap.size());
         for (Map.Entry<InetAddress, EndpointState> entry : ack2.epStateMap.entrySet())
             size += CompactEndpointSerializationHelper.serializedSize(entry.getKey())
                   + EndpointState.serializer.serializedSize(entry.getValue(), version);

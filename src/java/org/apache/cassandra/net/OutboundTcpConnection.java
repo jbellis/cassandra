@@ -30,13 +30,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.xerial.snappy.SnappyOutputStream;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.gms.Gossiper;
 
 public class OutboundTcpConnection extends Thread
 {
@@ -200,7 +198,8 @@ public class OutboundTcpConnection extends Thread
             out.writeInt(-1);
 
         out.writeUTF(id);
-        message.serialize(out, version);
+        // Use encoded stream.
+        message.serialize(FBUtilities.getEncodedOutput(out, version), version);
     }
 
     private static void writeHeader(DataOutputStream out, int version, boolean compressionEnabled) throws IOException

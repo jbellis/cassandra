@@ -18,6 +18,7 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.File;
@@ -196,7 +197,9 @@ public class CommitLogReplayer
                 {
                     // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
                     // the current version. so do make sure the CL is drained prior to upgrading a node.
-                    rm = RowMutation.serializer.deserialize(new DataInputStream(bufIn), version, IColumnSerializer.Flag.LOCAL);
+                    rm = RowMutation.serializer.deserialize(FBUtilities.getEncodedInput(new DataInputStream(bufIn), version),
+                                                            version,
+                                                            IColumnSerializer.Flag.LOCAL);
                 }
                 catch (UnknownColumnFamilyException ex)
                 {

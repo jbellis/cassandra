@@ -68,9 +68,10 @@ public class TruncateResponse
 
         public long serializedSize(TruncateResponse tr, int version)
         {
-            return TypeSizes.NATIVE.sizeof(tr.keyspace)
-                 + TypeSizes.NATIVE.sizeof(tr.columnFamily)
-                 + TypeSizes.NATIVE.sizeof(tr.success);
+            TypeSizes typeSizes = TypeSizes.get(version);
+            return typeSizes.sizeof(tr.keyspace)
+                 + typeSizes.sizeof(tr.columnFamily)
+                 + typeSizes.sizeof(tr.success);
         }
     }
 }

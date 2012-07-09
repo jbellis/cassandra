@@ -242,7 +242,8 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public long serializedSize(VersionedValue value, int version)
         {
-            return TypeSizes.NATIVE.sizeof(outValue(value, version)) + TypeSizes.NATIVE.sizeof(value.version);
+            TypeSizes typeSizes = TypeSizes.get(version);
+            return typeSizes.sizeof(outValue(value, version)) + typeSizes.sizeof(value.version);
         }
     }
 }

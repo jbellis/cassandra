@@ -104,7 +104,7 @@ class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadComm
 
     public long serializedSize(ReadCommand cmd, int version)
     {
-        TypeSizes sizes = TypeSizes.NATIVE;
+        TypeSizes sizes = TypeSizes.get(version);
         SliceByNamesReadCommand command = (SliceByNamesReadCommand) cmd;
         int size = sizes.sizeof(command.isDigestQuery());
         int keySize = command.key.remaining();

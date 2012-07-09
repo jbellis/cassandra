@@ -166,16 +166,17 @@ public class PendingFile
 
         public long serializedSize(PendingFile pf, int version)
         {
+            TypeSizes typeSizes = TypeSizes.get(version);
             if (pf == null)
-                return TypeSizes.NATIVE.sizeof("");
+                return typeSizes.sizeof("");
 
-            long size = TypeSizes.NATIVE.sizeof(pf.desc.filenameFor(pf.component));
-            size += TypeSizes.NATIVE.sizeof(pf.component);
-            size += TypeSizes.NATIVE.sizeof(pf.sections.size());
+            long size = typeSizes.sizeof(pf.desc.filenameFor(pf.component));
+            size += typeSizes.sizeof(pf.component);
+            size += typeSizes.sizeof(pf.sections.size());
             for (Pair<Long,Long> section : pf.sections)
-                size += TypeSizes.NATIVE.sizeof(section.left) + TypeSizes.NATIVE.sizeof(section.right);
-            size += TypeSizes.NATIVE.sizeof(pf.type.name());
-            size += TypeSizes.NATIVE.sizeof(pf.estimatedKeys);
+                size += (typeSizes.sizeof(section.left) + typeSizes.sizeof(section.right));
+            size += typeSizes.sizeof(pf.type.name());
+            size += typeSizes.sizeof(pf.estimatedKeys);
             if (version > MessagingService.VERSION_11)
                 size += CompressionInfo.serializer.serializedSize(pf.compressionInfo, version);
             return size;

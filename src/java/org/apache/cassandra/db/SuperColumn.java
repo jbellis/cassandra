@@ -140,7 +140,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
         int size = typeSizes.sizeof((short) nameSize) + nameSize
                  + typeSizes.sizeof(getLocalDeletionTime())
                  + typeSizes.sizeof(getMarkedForDeleteAt())
-                 + typeSizes.sizeof(subColumnsSize) + subColumnsSize;
+                 + typeSizes.sizeof(getSubColumns().size()) + subColumnsSize;
         return size;
     }
 

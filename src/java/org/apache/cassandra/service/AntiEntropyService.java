@@ -541,10 +541,11 @@ public class AntiEntropyService
 
             public long serializedSize(TreeRequest request, int version)
             {
-                return TypeSizes.NATIVE.sizeof(request.sessionid)
+                TypeSizes typeSizes = TypeSizes.get(version);
+                return typeSizes.sizeof(request.sessionid)
                      + CompactEndpointSerializationHelper.serializedSize(request.endpoint)
-                     + TypeSizes.NATIVE.sizeof(request.cf.left)
-                     + TypeSizes.NATIVE.sizeof(request.cf.right)
+                     + typeSizes.sizeof(request.cf.left)
+                     + typeSizes.sizeof(request.cf.right)
                      + AbstractBounds.serializer.serializedSize(request.range, version);
             }
         }

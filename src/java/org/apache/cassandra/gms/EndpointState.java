@@ -148,12 +148,13 @@ class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
 
     public long serializedSize(EndpointState epState, int version)
     {
+        TypeSizes typeSizes = TypeSizes.get(version);
         long size = HeartBeatState.serializer.serializedSize(epState.getHeartBeatState(), version);
-        size += TypeSizes.NATIVE.sizeof(epState.applicationState.size());
+        size += typeSizes.sizeof(epState.applicationState.size());
         for (Map.Entry<ApplicationState, VersionedValue> entry : epState.applicationState.entrySet())
         {
             VersionedValue value = entry.getValue();
-            size += TypeSizes.NATIVE.sizeof(entry.getKey().ordinal());
+            size += typeSizes.sizeof(entry.getKey().ordinal());
             size += VersionedValue.serializer.serializedSize(value, version);
         }
         return size;

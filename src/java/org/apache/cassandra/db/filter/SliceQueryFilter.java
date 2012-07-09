@@ -217,8 +217,7 @@ public class SliceQueryFilter implements IFilter
 
         public long serializedSize(SliceQueryFilter f, int version)
         {
-            TypeSizes sizes = TypeSizes.NATIVE;
-
+            TypeSizes sizes = TypeSizes.get(version);
             int size = 0;
             if (version < MessagingService.VERSION_12)
             {

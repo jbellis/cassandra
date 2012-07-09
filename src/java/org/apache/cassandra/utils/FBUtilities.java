@@ -50,6 +50,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.IAsyncResult;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.vint.EncodedDataInputStream;
+import org.apache.cassandra.utils.vint.EncodedDataOutputStream;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
@@ -604,11 +607,21 @@ public class FBUtilities
     {
         int size = (int) serializer.serializedSize(object, version);
         DataOutputBuffer buffer = new DataOutputBuffer(size);
-        serializer.serialize(object, buffer, version);
+        serializer.serialize(object, getEncodedOutput(buffer, version), version);
         assert buffer.getLength() == size && buffer.getData().length == size
                : String.format("Final buffer length %s to accommodate data size of %s (predicted %s) for %s",
                                buffer.getData().length, buffer.getLength(), size, object);
         return buffer.getData();
+    }
+
+    public static DataOutput getEncodedOutput(DataOutput out, int version)
+    {
+        return (version >= MessagingService.VERSION_12) ? new EncodedDataOutputStream(out) : out;
+    }
+
+    public static DataInput getEncodedInput(DataInput in, int version)
+    {
+        return (version >= MessagingService.VERSION_12) ? new EncodedDataInputStream(in) : in;
     }
 
     public static RuntimeException unchecked(Exception e)

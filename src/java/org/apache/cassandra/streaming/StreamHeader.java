@@ -107,10 +107,11 @@ public class StreamHeader
 
         public long serializedSize(StreamHeader sh, int version)
         {
-            long size = TypeSizes.NATIVE.sizeof(sh.table);
-            size += TypeSizes.NATIVE.sizeof(sh.sessionId);
+            TypeSizes typeSizes = TypeSizes.get(version);
+            long size = typeSizes.sizeof(sh.table);
+            size += typeSizes.sizeof(sh.sessionId);
             size += PendingFile.serializer.serializedSize(sh.file, version);
-            size += TypeSizes.NATIVE.sizeof(sh.pendingFiles.size());
+            size += typeSizes.sizeof(sh.pendingFiles.size());
             for(PendingFile file : sh.pendingFiles)
                 size += PendingFile.serializer.serializedSize(file, version);
             size += CompactEndpointSerializationHelper.serializedSize(sh.broadcastAddress);

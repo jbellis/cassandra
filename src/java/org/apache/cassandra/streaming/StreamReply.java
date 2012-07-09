@@ -83,7 +83,8 @@ public class StreamReply
 
         public long serializedSize(StreamReply reply, int version)
         {
-            return TypeSizes.NATIVE.sizeof(reply.sessionId) + TypeSizes.NATIVE.sizeof(reply.file) + TypeSizes.NATIVE.sizeof(reply.action.ordinal());
+            TypeSizes typeSizes = TypeSizes.get(version);
+            return typeSizes.sizeof(reply.sessionId) + typeSizes.sizeof(reply.file) + typeSizes.sizeof(reply.action.ordinal());
         }
     }
 }

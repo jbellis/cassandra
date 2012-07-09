@@ -112,4 +112,13 @@ public class EncodedDataInputStream extends AbstractDataInput
     {
         return value < -120 || (value >= -112 && value < 0);
     }
+
+    /**
+     * Override this method in order to avoid DataInputStream.readUTF(this)
+     * let input deal with this.
+     */
+    public String readUTF() throws IOException
+    {
+        return input.readUTF(); 
+    }
 }

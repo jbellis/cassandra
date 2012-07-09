@@ -88,7 +88,7 @@ public class WriteResponse
 
         public long serializedSize(WriteResponse response, int version)
         {
-            TypeSizes sizes = TypeSizes.NATIVE;
+            TypeSizes sizes = TypeSizes.get(version);
             int keySize = response.key().remaining();
             int size = sizes.sizeof(response.table());
             size += sizes.sizeof((short) keySize) + keySize;

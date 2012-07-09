@@ -21,13 +21,20 @@ import static org.apache.cassandra.Util.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
+import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.vint.EncodedDataInputStream;
 import org.apache.cassandra.utils.vint.EncodedDataOutputStream;
@@ -47,7 +54,7 @@ public class EncodedStreamsTest extends SchemaLoader
     @Test
     public void testStreams() throws IOException
     {
-        ByteArrayOutputStream byteArrayOStream1 = new ByteArrayOutputStream();
+        DataOutputBuffer byteArrayOStream1 = new DataOutputBuffer();
         EncodedDataOutputStream odos = new EncodedDataOutputStream(byteArrayOStream1);
 
         ByteArrayOutputStream byteArrayOStream2 = new ByteArrayOutputStream();
@@ -78,7 +85,7 @@ public class EncodedStreamsTest extends SchemaLoader
         odos.flush();
         Assert.assertTrue(byteArrayOStream1.size() < byteArrayOStream2.size());
 
-        ByteArrayInputStream byteArrayIStream1 = new ByteArrayInputStream(byteArrayOStream1.toByteArray());
+        ByteArrayInputStream byteArrayIStream1 = new ByteArrayInputStream(byteArrayOStream1.getData());
         EncodedDataInputStream idis = new EncodedDataInputStream(new DataInputStream(byteArrayIStream1));
 
         // assert reading Short
@@ -121,11 +128,11 @@ public class EncodedStreamsTest extends SchemaLoader
     @Test
     public void testCFSerialization() throws IOException
     {
-        ByteArrayOutputStream byteArrayOStream1 = new ByteArrayOutputStream();
+        DataOutputBuffer byteArrayOStream1 = new DataOutputBuffer();
         EncodedDataOutputStream odos = new EncodedDataOutputStream(byteArrayOStream1);
         ColumnFamily.serializer.serialize(createCF(), odos, version);
 
-        ByteArrayInputStream byteArrayIStream1 = new ByteArrayInputStream(byteArrayOStream1.toByteArray());
+        ByteArrayInputStream byteArrayIStream1 = new ByteArrayInputStream(byteArrayOStream1.getData());
         EncodedDataInputStream odis = new EncodedDataInputStream(new DataInputStream(byteArrayIStream1));
         ColumnFamily cf = ColumnFamily.serializer.deserialize(odis, version);
         Assert.assertEquals(cf, createCF());
@@ -135,11 +142,11 @@ public class EncodedStreamsTest extends SchemaLoader
     @Test
     public void testCounterCFSerialization() throws IOException
     {
-        ByteArrayOutputStream byteArrayOStream1 = new ByteArrayOutputStream();
+        DataOutputBuffer byteArrayOStream1 = new DataOutputBuffer();
         EncodedDataOutputStream odos = new EncodedDataOutputStream(byteArrayOStream1);
         ColumnFamily.serializer.serialize(createCounterCF(), odos, version);
 
-        ByteArrayInputStream byteArrayIStream1 = new ByteArrayInputStream(byteArrayOStream1.toByteArray());
+        ByteArrayInputStream byteArrayIStream1 = new ByteArrayInputStream(byteArrayOStream1.getData());
         EncodedDataInputStream odis = new EncodedDataInputStream(new DataInputStream(byteArrayIStream1));
         ColumnFamily cf = ColumnFamily.serializer.deserialize(odis, version);
         Assert.assertEquals(cf, createCounterCF());
@@ -149,15 +156,45 @@ public class EncodedStreamsTest extends SchemaLoader
     @Test
     public void testSuperCFSerialization() throws IOException
     {
-        ByteArrayOutputStream byteArrayOStream1 = new ByteArrayOutputStream();
+        DataOutputBuffer byteArrayOStream1 = new DataOutputBuffer();
         EncodedDataOutputStream odos = new EncodedDataOutputStream(byteArrayOStream1);
         ColumnFamily.serializer.serialize(createSuperCF(), odos, version);
 
-        ByteArrayInputStream byteArrayIStream1 = new ByteArrayInputStream(byteArrayOStream1.toByteArray());
+        ByteArrayInputStream byteArrayIStream1 = new ByteArrayInputStream(byteArrayOStream1.getData());
         EncodedDataInputStream odis = new EncodedDataInputStream(new DataInputStream(byteArrayIStream1));
         ColumnFamily cf = ColumnFamily.serializer.deserialize(odis, version);
         Assert.assertEquals(cf, createSuperCF());
         Assert.assertEquals(byteArrayOStream1.size(), (int) ColumnFamily.serializer.serializedSize(cf, TypeSizes.VINT, version));
+    }
+
+    @Test
+    public void testWriteUtf() throws IOException
+    {
+        DataOutputBuffer tob = new DataOutputBuffer();
+        new EncodedDataOutputStream(tob).writeUTF("Keyspace1");
+        DataInput datain = new DataInputStream(new FastByteArrayInputStream(tob.getData()));
+        Assert.assertEquals("Keyspace1", new EncodedDataInputStream(datain).readUTF());
+    }
+
+    @Test
+    public void testSuperRowMutationSerialization() throws IOException
+    {
+        RowMutation rm;
+        DecoratedKey dk = Util.dk("keymulti");
+        ColumnFamily cf;
+        rm = new RowMutation("Keyspace1", dk.key);
+        cf = ColumnFamily.create("Keyspace1", "Super1");
+        cf.addColumn(superColumn(cf, "name", column("col1", "val1", 1L)));
+        rm.add(cf);
+        
+        long size = RowMutation.serializer.serializedSize(rm, MessagingService.current_version);
+        DataOutputBuffer dob = new DataOutputBuffer();
+        RowMutation.serializer.serialize(rm, new EncodedDataOutputStream(dob), MessagingService.current_version);
+        
+        FastByteArrayInputStream bufIn = new FastByteArrayInputStream(dob.getData(), 0, dob.getLength());;
+        rm = RowMutation.serializer.deserialize(FBUtilities.getEncodedInput(new DataInputStream(bufIn), MessagingService.current_version), MessagingService.current_version, IColumnSerializer.Flag.LOCAL);
+        Assert.assertEquals(rm.getColumnFamilies().iterator().next(), rm.getColumnFamilies().iterator().next());
+        Assert.assertEquals(size, dob.getLength());
     }
 }
 

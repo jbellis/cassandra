@@ -32,15 +32,13 @@ import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -77,14 +75,14 @@ public class SerializationsTest extends AbstractSerializationsTester
         RangeSliceCommand regRangeCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC,  nonEmptyRangePred, bounds, 100);
         MessageOut<RangeSliceCommand> regRangeCmdSupMsg = regRangeCmdSup.createMessage();
         
-        DataOutputStream out = getOutput("db.RangeSliceCommand.bin");
+        DataOutput out = getOutput("db.RangeSliceCommand.bin");
         namesCmdMsg.serialize(out, getVersion());
         emptyRangeCmdMsg.serialize(out, getVersion());
         regRangeCmdMsg.serialize(out, getVersion());
         namesCmdSupMsg.serialize(out, getVersion());
         emptyRangeCmdSupMsg.serialize(out, getVersion());
         regRangeCmdSupMsg.serialize(out, getVersion());
-        out.close();
+        close();
 
         // test serializedSize
         testSerializedSize(namesCmd, RangeSliceCommand.serializer);
@@ -101,10 +99,10 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testRangeSliceCommandWrite();
 
-        DataInputStream in = getInput("db.RangeSliceCommand.bin");
+        DataInput in = getInput("db.RangeSliceCommand.bin");
         for (int i = 0; i < 6; i++)
             MessageIn.read(in, getVersion(), "id");
-        in.close();
+        close();
     }
 
     private void testSliceByNamesReadCommandWrite() throws IOException
@@ -112,14 +110,14 @@ public class SerializationsTest extends AbstractSerializationsTester
         SliceByNamesReadCommand standardCmd = new SliceByNamesReadCommand(Statics.KS, Statics.Key, Statics.StandardPath, Statics.NamedCols);
         SliceByNamesReadCommand superCmd = new SliceByNamesReadCommand(Statics.KS, Statics.Key, Statics.SuperPath, Statics.NamedCols);
 
-        DataOutputStream out = getOutput("db.SliceByNamesReadCommand.bin");
+        DataOutput out = getOutput("db.SliceByNamesReadCommand.bin");
         SliceByNamesReadCommand.serializer.serialize(standardCmd, out, getVersion());
         SliceByNamesReadCommand.serializer.serialize(superCmd, out, getVersion());
         ReadCommand.serializer.serialize(standardCmd, out, getVersion());
         ReadCommand.serializer.serialize(superCmd, out, getVersion());
         standardCmd.createMessage().serialize(out, getVersion());
         superCmd.createMessage().serialize(out, getVersion());
-        out.close();
+        close();
 
         // test serializedSize
         testSerializedSize(standardCmd, SliceByNamesReadCommand.serializer);
@@ -132,28 +130,28 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testSliceByNamesReadCommandWrite();
 
-        DataInputStream in = getInput("db.SliceByNamesReadCommand.bin");
+        DataInput in = getInput("db.SliceByNamesReadCommand.bin");
         assert SliceByNamesReadCommand.serializer.deserialize(in, getVersion()) != null;
         assert SliceByNamesReadCommand.serializer.deserialize(in, getVersion()) != null;
         assert ReadCommand.serializer.deserialize(in, getVersion()) != null;
         assert ReadCommand.serializer.deserialize(in, getVersion()) != null;
         assert MessageIn.read(in, getVersion(), "id") != null;
         assert MessageIn.read(in, getVersion(), "id") != null;
-        in.close();
+        close();
     }
 
     private void testSliceFromReadCommandWrite() throws IOException
     {
         SliceFromReadCommand standardCmd = new SliceFromReadCommand(Statics.KS, Statics.Key, Statics.StandardPath, Statics.Start, Statics.Stop, true, 100);
         SliceFromReadCommand superCmd = new SliceFromReadCommand(Statics.KS, Statics.Key, Statics.SuperPath, Statics.Start, Statics.Stop, true, 100);
-        DataOutputStream out = getOutput("db.SliceFromReadCommand.bin");
+        DataOutput out = getOutput("db.SliceFromReadCommand.bin");
         SliceFromReadCommand.serializer.serialize(standardCmd, out, getVersion());
         SliceFromReadCommand.serializer.serialize(superCmd, out, getVersion());
         ReadCommand.serializer.serialize(standardCmd, out, getVersion());
         ReadCommand.serializer.serialize(superCmd, out, getVersion());
         standardCmd.createMessage().serialize(out, getVersion());
         superCmd.createMessage().serialize(out, getVersion());
-        out.close();
+        close();
 
         // test serializedSize
         testSerializedSize(standardCmd, SliceFromReadCommand.serializer);
@@ -166,23 +164,23 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testSliceFromReadCommandWrite();
 
-        DataInputStream in = getInput("db.SliceFromReadCommand.bin");
+        DataInput in = getInput("db.SliceFromReadCommand.bin");
         assert SliceFromReadCommand.serializer.deserialize(in, getVersion()) != null;
         assert SliceFromReadCommand.serializer.deserialize(in, getVersion()) != null;
         assert ReadCommand.serializer.deserialize(in, getVersion()) != null;
         assert ReadCommand.serializer.deserialize(in, getVersion()) != null;
         assert MessageIn.read(in, getVersion(), "id") != null;
         assert MessageIn.read(in, getVersion(), "id") != null;
-        in.close();
+        close();
     }
 
     private void testRowWrite() throws IOException
     {
-        DataOutputStream out = getOutput("db.Row.bin");
+        DataOutput out = getOutput("db.Row.bin");
         Row.serializer.serialize(Statics.StandardRow, out, getVersion());
         Row.serializer.serialize(Statics.SuperRow, out, getVersion());
         Row.serializer.serialize(Statics.NullRow, out, getVersion());
-        out.close();
+        close();
 
         // test serializedSize
         testSerializedSize(Statics.StandardRow, Row.serializer);
@@ -196,11 +194,11 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testRowWrite();
 
-        DataInputStream in = getInput("db.Row.bin");
+        DataInput in = getInput("db.Row.bin");
         assert Row.serializer.deserialize(in, getVersion()) != null;
         assert Row.serializer.deserialize(in, getVersion()) != null;
         assert Row.serializer.deserialize(in, getVersion()) != null;
-        in.close();
+        close();
     }
 
     private void testRowMutationWrite() throws IOException
@@ -217,7 +215,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         mods.put(Statics.SuperCf.metadata().cfId, Statics.SuperCf);
         RowMutation mixedRm = new RowMutation(Statics.KS, Statics.Key, mods);
 
-        DataOutputStream out = getOutput("db.RowMutation.bin");
+        DataOutput out = getOutput("db.RowMutation.bin");
         RowMutation.serializer.serialize(emptyRm, out, getVersion());
         RowMutation.serializer.serialize(standardRowRm, out, getVersion());
         RowMutation.serializer.serialize(superRowRm, out, getVersion());
@@ -232,7 +230,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         superRm.createMessage().serialize(out, getVersion());
         mixedRm.createMessage().serialize(out, getVersion());
 
-        out.close();
+        close();
 
         // test serializedSize
         testSerializedSize(emptyRm, RowMutation.serializer);
@@ -249,7 +247,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testRowMutationWrite();
 
-        DataInputStream in = getInput("db.RowMutation.bin");
+        DataInput in = getInput("db.RowMutation.bin");
         assert RowMutation.serializer.deserialize(in, getVersion()) != null;
         assert RowMutation.serializer.deserialize(in, getVersion()) != null;
         assert RowMutation.serializer.deserialize(in, getVersion()) != null;
@@ -262,7 +260,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         assert MessageIn.read(in, getVersion(), "id") != null;
         assert MessageIn.read(in, getVersion(), "id") != null;
         assert MessageIn.read(in, getVersion(), "id") != null;
-        in.close();
+        close();
     }
 
     private void testTruncateWrite() throws IOException
@@ -270,7 +268,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         Truncation tr = new Truncation(Statics.KS, "Doesn't Really Matter");
         TruncateResponse aff = new TruncateResponse(Statics.KS, "Doesn't Matter Either", true);
         TruncateResponse neg = new TruncateResponse(Statics.KS, "Still Doesn't Matter", false);
-        DataOutputStream out = getOutput("db.Truncation.bin");
+        DataOutput out = getOutput("db.Truncation.bin");
         Truncation.serializer.serialize(tr, out, getVersion());
         TruncateResponse.serializer.serialize(aff, out, getVersion());
         TruncateResponse.serializer.serialize(neg, out, getVersion());
@@ -279,7 +277,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         aff.createMessage().serialize(out, getVersion());
         neg.createMessage().serialize(out, getVersion());
         // todo: notice how CF names weren't validated.
-        out.close();
+        close();
 
         // test serializedSize
         testSerializedSize(tr, Truncation.serializer);
@@ -293,7 +291,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testTruncateWrite();
 
-        DataInputStream in = getInput("db.Truncation.bin");
+        DataInput in = getInput("db.Truncation.bin");
         assert Truncation.serializer.deserialize(in, getVersion()) != null;
         assert TruncateResponse.serializer.deserialize(in, getVersion()) != null;
         assert TruncateResponse.serializer.deserialize(in, getVersion()) != null;
@@ -305,17 +303,17 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         assert MessageIn.read(in, getVersion(), "tr1") != null;
         assert MessageIn.read(in, getVersion(), "tr2") != null;
-        in.close();
+        close();
     }
 
     private void testWriteResponseWrite() throws IOException
     {
         WriteResponse aff = new WriteResponse(Statics.KS, Statics.Key, true);
         WriteResponse neg = new WriteResponse(Statics.KS, Statics.Key, false);
-        DataOutputStream out = getOutput("db.WriteResponse.bin");
+        DataOutput out = getOutput("db.WriteResponse.bin");
         WriteResponse.serializer.serialize(aff, out, getVersion());
         WriteResponse.serializer.serialize(neg, out, getVersion());
-        out.close();
+        close();
 
         // test serializedSize
         testSerializedSize(aff, WriteResponse.serializer);
@@ -328,10 +326,10 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testWriteResponseWrite();
 
-        DataInputStream in = getInput("db.WriteResponse.bin");
+        DataInput in = getInput("db.WriteResponse.bin");
         assert WriteResponse.serializer.deserialize(in, getVersion()) != null;
         assert WriteResponse.serializer.deserialize(in, getVersion()) != null;
-        in.close();
+        close();
     }
 
     private static ByteBuffer bb(String s) {

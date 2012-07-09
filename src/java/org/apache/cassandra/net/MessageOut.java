@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.net;
 
-import java.io.DataOutputStream;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
@@ -100,7 +100,7 @@ public class MessageOut<T>
         return sbuf.toString();
     }
 
-    public void serialize(DataOutputStream out, int version) throws IOException
+    public void serialize(DataOutput out, int version) throws IOException
     {
         CompactEndpointSerializationHelper.serialize(from, out);
 

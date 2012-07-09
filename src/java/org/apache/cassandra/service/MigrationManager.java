@@ -325,7 +325,8 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
         public long serializedSize(Collection<RowMutation> schema, int version)
         {
-            int size = TypeSizes.NATIVE.sizeof(schema.size());
+            TypeSizes typeSizes = TypeSizes.get(version);
+            int size = typeSizes.sizeof(schema.size());
             for (RowMutation rm : schema)
                 size += RowMutation.serializer.serializedSize(rm, version);
             return size;

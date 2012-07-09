@@ -229,7 +229,7 @@ public class BootStrapper
 
         public long serializedSize(String s, int version)
         {
-            return TypeSizes.NATIVE.sizeof(s);
+            return TypeSizes.get(version).sizeof(s);
         }
     }
 }
