@@ -25,6 +25,8 @@ import org.apache.cassandra.io.util.AbstractDataOutput;
 /**
  * Borrows idea from
  * https://developers.google.com/protocol-buffers/docs/encoding#varints
+ *
+ * Ideally this would extend DataOutpuStream but that's not an option since methods we need to override are final there.
  */
 public class EncodedDataOutputStream extends AbstractDataOutput
 {
