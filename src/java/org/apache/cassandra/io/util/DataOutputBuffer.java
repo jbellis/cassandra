@@ -85,4 +85,9 @@ public final class DataOutputBuffer extends DataOutputStream
     {
         return ((FastByteArrayOutputStream) out).count;
     }
+
+    public void reset()
+    {
+        ((FastByteArrayOutputStream) out).reset();
+    }
 }

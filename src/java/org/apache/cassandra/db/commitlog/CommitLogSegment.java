@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.File;
-import java.io.IOError;
-import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.io.*;
 import java.nio.channels.FileChannel;
 import java.nio.MappedByteBuffer;
 import java.util.Collection;
@@ -36,9 +33,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.PureJavaCrc32;
+import org.apache.cassandra.utils.vint.EncodedDataOutputStream;
 
 /*
  * A single commit log file on disk. Manages creation of the file and writing row mutations to disk,
@@ -62,10 +61,13 @@ public class CommitLogSegment
 
     private boolean needsSync = false;
 
-    private final MappedByteBuffer buffer;
+    private final MappedByteBuffer out;
     private boolean closed;
 
     public final CommitLogDescriptor descriptor;
+
+    private static final DataOutputBuffer buffer = new DataOutputBuffer();
+    private static final DataOutput encodedBuffer = new EncodedDataOutputStream(buffer);
 
     /**
      * @return a newly minted segment file
@@ -111,9 +113,9 @@ public class CommitLogSegment
             // Map the segment, extending or truncating it to the standard segment size
             logFileAccessor.setLength(DatabaseDescriptor.getCommitLogSegmentSize());
 
-            buffer = logFileAccessor.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, DatabaseDescriptor.getCommitLogSegmentSize());
-            buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
-            buffer.position(0);
+            out = logFileAccessor.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, DatabaseDescriptor.getCommitLogSegmentSize());
+            out.putInt(CommitLog.END_OF_SEGMENT_MARKER);
+            out.position(0);
 
             needsSync = true;
         }
@@ -149,9 +151,9 @@ public class CommitLogSegment
     public CommitLogSegment recycle()
     {
         // writes an end-of-segment marker at the very beginning of the file and closes it
-        buffer.position(0);
-        buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
-        buffer.position(0);
+        out.position(0);
+        out.putInt(CommitLog.END_OF_SEGMENT_MARKER);
+        out.position(0);
 
         try
         {
@@ -174,7 +176,7 @@ public class CommitLogSegment
     public boolean hasCapacityFor(RowMutation mutation)
     {
         long totalSize = RowMutation.serializer.serializedSize(mutation, MessagingService.current_version) + ENTRY_OVERHEAD_SIZE;
-        return totalSize <= buffer.remaining();
+        return totalSize <= out.remaining();
     }
 
     /**
@@ -201,31 +203,33 @@ public class CommitLogSegment
    /**
      * Appends a row mutation onto the commit log.  Requres that hasCapacityFor has already been checked.
      *
-     * @param   rowMutation   the mutation to append to the commit log.
+     * @param   rm   the mutation to append to the commit log.
      * @return  the position of the appended mutation
      */
-    public ReplayPosition write(RowMutation rowMutation) throws IOException
+    public ReplayPosition write(RowMutation rm) throws IOException
     {
         assert !closed;
         ReplayPosition repPos = getContext();
-        markDirty(rowMutation, repPos);
+        markDirty(rm, repPos);
 
         Checksum checksum = new PureJavaCrc32();
-        byte[] serializedRow = rowMutation.getSerializedBuffer(MessagingService.current_version);
+        buffer.reset();
+        RowMutation.serializer.serialize(rm, encodedBuffer, MessagingService.current_version);
+        assert buffer.getLength() == RowMutation.serializer.serializedSize(rm, MessagingService.current_version);
 
-        checksum.update(serializedRow.length);
-        buffer.putInt(serializedRow.length);
-        buffer.putLong(checksum.getValue());
+        checksum.update(buffer.getLength());
+        out.putInt(buffer.getLength());
+        out.putLong(checksum.getValue());
 
-        buffer.put(serializedRow);
-        checksum.update(serializedRow, 0, serializedRow.length);
-        buffer.putLong(checksum.getValue());
+        out.put(buffer.getData(), 0, buffer.getLength());
+        checksum.update(buffer.getData(), 0, buffer.getLength());
+        out.putLong(checksum.getValue());
 
-        if (buffer.remaining() >= 4)
+        if (out.remaining() >= 4)
         {
             // writes end of segment marker and rewinds back to position where it starts
-            buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
-            buffer.position(buffer.position() - CommitLog.END_OF_SEGMENT_MARKER_SIZE);
+            out.putInt(CommitLog.END_OF_SEGMENT_MARKER);
+            out.position(out.position() - CommitLog.END_OF_SEGMENT_MARKER_SIZE);
         }
 
         needsSync = true;
@@ -239,7 +243,7 @@ public class CommitLogSegment
     {
         if (needsSync)
         {
-            buffer.force();
+            out.force();
             needsSync = false;
         }
     }
@@ -249,7 +253,7 @@ public class CommitLogSegment
      */
     public ReplayPosition getContext()
     {
-        return new ReplayPosition(id, buffer.position());
+        return new ReplayPosition(id, out.position());
     }
 
     /**
@@ -363,6 +367,6 @@ public class CommitLogSegment
 
     public int position()
     {
-        return buffer.position();
+        return out.position();
     }
 }

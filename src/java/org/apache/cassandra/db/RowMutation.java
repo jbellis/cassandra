@@ -275,7 +275,7 @@ public class RowMutation implements IMutation
         return new MessageOut<RowMutation>(verb, this, serializer);
     }
 
-    public byte[] getSerializedBuffer(int version) throws IOException
+    private byte[] getSerializedBuffer(int version) throws IOException
     {
         int size = (int) serializer.serializedSize(this, version);
         DataOutputBuffer buffer = new DataOutputBuffer(size);
