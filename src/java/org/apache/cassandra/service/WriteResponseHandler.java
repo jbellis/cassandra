@@ -40,16 +40,19 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
     protected static final Logger logger = LoggerFactory.getLogger(WriteResponseHandler.class);
 
     protected final AtomicInteger responses;
+    private final String table;
 
     protected WriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
         super(writeEndpoints, consistencyLevel);
+        this.table = table;
         responses = new AtomicInteger(determineBlockFor(table));
     }
 
     protected WriteResponseHandler(InetAddress endpoint)
     {
         super(Arrays.asList(endpoint), ConsistencyLevel.ALL);
+        table = null;
         responses = new AtomicInteger(1);
     }
 
@@ -67,6 +70,11 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
     {
         if (responses.decrementAndGet() == 0)
             condition.signal();
+    }
+
+    protected int ackCount()
+    {
+        return (table == null ? 1 : determineBlockFor(table)) - responses.get();
     }
 
     protected int determineBlockFor(String table)
