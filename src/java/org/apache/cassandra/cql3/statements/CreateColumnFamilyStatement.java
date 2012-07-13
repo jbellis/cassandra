@@ -73,11 +73,10 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         Integer componentIndex = null;
         if (comparator instanceof CompositeType)
         {
-            CompositeType ct = (CompositeType)comparator;
-            if (ct.types.get(ct.types.size() - 1) instanceof ColumnToCollectionType)
-                componentIndex = ct.types.size() - 2;
-            else
-                componentIndex = ct.types.size() - 1;
+            CompositeType ct = (CompositeType) comparator;
+            componentIndex = ct.types.get(ct.types.size() - 1) instanceof ColumnToCollectionType
+                           ? ct.types.size() - 2
+                           : ct.types.size() - 1;
         }
 
         for (Map.Entry<ColumnIdentifier, AbstractType> col : columns.entrySet())

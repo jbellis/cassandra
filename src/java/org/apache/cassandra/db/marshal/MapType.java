@@ -98,7 +98,7 @@ public class MapType extends CollectionType
                 doDiscard(cf, fullPath, args.get(0), params);
                 break;
             default:
-                throw new AssertionError();
+                throw new AssertionError("Unsupported function " + fct);
         }
     }
 

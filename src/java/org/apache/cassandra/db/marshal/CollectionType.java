@@ -40,7 +40,10 @@ import org.apache.cassandra.utils.Pair;
  */
 public abstract class CollectionType extends AbstractType<ByteBuffer>
 {
-    public enum Kind { MAP, SET, LIST };
+    public enum Kind
+    {
+        MAP, SET, LIST
+    }
 
     public enum Function
     {

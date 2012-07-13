@@ -131,7 +131,7 @@ public class ListType extends CollectionType
                 doPrepend(cf, fullPath, args, params);
                 break;
             default:
-                throw new AssertionError();
+                throw new AssertionError("Unsupported function " + fct);
         }
     }
 

@@ -99,7 +99,7 @@ public class SetType extends CollectionType
                 doDiscard(cf, fullPath, args, params);
                 break;
             default:
-                throw new AssertionError();
+                throw new AssertionError("Unsupported function " + fct);
         }
     }
 
