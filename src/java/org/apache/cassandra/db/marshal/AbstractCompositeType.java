@@ -77,7 +77,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
             ByteBuffer value1 = getWithShortLength(bb1);
             ByteBuffer value2 = getWithShortLength(bb2);
 
-            int cmp = comparator.compare(value1, value2, previous);
+            int cmp = comparator.compareCollectionMembers(value1, value2, previous);
             if (cmp != 0)
                 return cmp;
 
@@ -255,7 +255,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
                 throw new MarshalException("Not enough bytes to read value of component " + i);
             ByteBuffer value = getBytes(bb, length);
 
-            comparator.validate(value, previous);
+            comparator.validateCollectionMember(value, previous);
 
             if (bb.remaining() == 0)
                 throw new MarshalException("Not enough bytes to read the end-of-component byte of component" + i);

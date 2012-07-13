@@ -61,11 +61,11 @@ public class ColumnToCollectionType extends AbstractType<ByteBuffer>
         throw new UnsupportedOperationException("ColumnToCollectionType should only be used in composite types, never alone");
     }
 
-    public int compare(ByteBuffer o1, ByteBuffer o2, ByteBuffer previous)
+    public int compareCollectionMembers(ByteBuffer o1, ByteBuffer o2, ByteBuffer collectionName)
     {
-        CollectionType t = defined.get(previous);
+        CollectionType t = defined.get(collectionName);
         if (t == null)
-            throw new RuntimeException(ByteBufferUtil.bytesToHex(previous) + " is not defined as a collection");
+            throw new RuntimeException(ByteBufferUtil.bytesToHex(collectionName) + " is not defined as a collection");
 
         return t.nameComparator().compare(o1, o2);
     }
@@ -102,11 +102,11 @@ public class ColumnToCollectionType extends AbstractType<ByteBuffer>
         throw new UnsupportedOperationException("ColumnToCollectionType should only be used in composite types, never alone");
     }
 
-    public void validate(ByteBuffer bytes, ByteBuffer previous) throws MarshalException
+    public void validateCollectionMember(ByteBuffer bytes, ByteBuffer collectionName) throws MarshalException
     {
-        CollectionType t = defined.get(previous);
+        CollectionType t = defined.get(collectionName);
         if (t == null)
-            throw new MarshalException(ByteBufferUtil.bytesToHex(previous) + " is not defined as a collection");
+            throw new MarshalException(ByteBufferUtil.bytesToHex(collectionName) + " is not defined as a collection");
 
         t.nameComparator().validate(bytes);
     }
