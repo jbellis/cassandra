@@ -101,7 +101,12 @@ public class BootStrapper
             return token;
         }
 
-        return getBalancedToken(metadata, load);
+        // If there is no schema, we must be bringing up a brand-new cluster.  Pick random tokens so we don't
+        // bring up multiple nodes at the same token.  (The recommended way to avoid this is of course to
+        // specify the initial token.)  See CASSANDRA-3219.
+        return Schema.instance.getNonSystemTables().isEmpty()
+               ? StorageService.getPartitioner().getRandomToken()
+               : getBalancedToken(metadata, load);
     }
 
     public static Token getBalancedToken(TokenMetadata metadata, Map<InetAddress, Double> load)

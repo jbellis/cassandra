@@ -562,13 +562,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 && !SystemTable.isBootstrapped())
             logger_.info("This node will not auto bootstrap because it is configured to be a seed node.");
 
+        // The general idea is, we bootstrap if autobootstrap=true and we haven't successfully bootstrapped yet.
+        //
+        // The exception is, seeds never bootstrap.  This allows us to start instantly in the trivial case of a
+        // single node cluster with itself as a seed, which is the out-of-the-box configuration.
         InetAddress current = null;
-        // first startup is only chance to bootstrap
         Token<?> token;
         if (DatabaseDescriptor.isAutoBootstrap()
-            && !(SystemTable.isBootstrapped()
-                 || DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress())
-                 || !Schema.instance.getNonSystemTables().isEmpty()))
+            && !SystemTable.isBootstrapped()
+            && !DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()))
         {
             setMode(Mode.JOINING, "waiting for ring and schema information", true);
             // first sleep the delay to make sure we see the schema
