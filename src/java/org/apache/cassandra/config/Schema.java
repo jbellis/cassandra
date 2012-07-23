@@ -21,6 +21,7 @@ package org.apache.cassandra.config;
 import java.io.IOError;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -70,6 +71,19 @@ public class Schema
 
     private volatile UUID version;
 
+    public static final UUID emptyVersion = calculateEmptySchema();
+
+    private static UUID calculateEmptySchema()
+    {
+        try
+        {
+            return UUID.nameUUIDFromBytes(MessageDigest.getInstance("MD5").digest());
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            throw new AssertionError();
+        }
+    }
 
     /**
      * Initialize empty schema object

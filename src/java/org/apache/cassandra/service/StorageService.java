@@ -557,10 +557,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         HintedHandOffManager.instance.start();
 
+        boolean schemaPresent = false;
         if (DatabaseDescriptor.isAutoBootstrap() && !SystemTable.bootstrapComplete() && delay > 0)
         {
             // wait a couple gossip rounds so our schema check has something to go by
             FBUtilities.sleep(2 * Gossiper.intervalInMillis);
+        }
+        for (Entry<InetAddress, EndpointState> entry : Gossiper.instance.getEndpointStates())
+        {
+            if (!entry.getValue().getApplicationState(ApplicationState.SCHEMA).value.equals(Schema.emptyVersion.toString()))
+            {
+                schemaPresent = true;
+                break;
+            }
         }
 
         // We can bootstrap at startup, or if we detect a previous attempt that failed.  Either way, if the user
@@ -572,10 +581,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // as well as avoiding the nonsensical state of trying to stream from cluster with no active peers.
         Token<?> token;
         InetAddress current = null;
-        Collection<Token> tokens;
         if (DatabaseDescriptor.isAutoBootstrap()
-            && ((!SystemTable.bootstrapComplete() && Schema.instance.getNonSystemTables().isEmpty())
-                || SystemTable.bootstrapInProgress()))
+            && (SystemTable.bootstrapInProgress() || (!SystemTable.bootstrapComplete() && !schemaPresent)))
         {
             if (SystemTable.bootstrapInProgress())
                 logger_.warn("Detected previous bootstrap failure; retrying");
