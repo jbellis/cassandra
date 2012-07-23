@@ -69,7 +69,6 @@ public class Schema
     private final BiMap<Pair<String, String>, Integer> cfIdMap = HashBiMap.create();
 
     private volatile UUID version;
-    private final ReadWriteLock versionLock = new ReentrantReadWriteLock();
 
 
     /**
@@ -428,16 +427,7 @@ public class Schema
      */
     public UUID getVersion()
     {
-        versionLock.readLock().lock();
-
-        try
-        {
-            return version;
-        }
-        finally
-        {
-            versionLock.readLock().unlock();
-        }
+        return version;
     }
 
     /**
@@ -446,8 +436,6 @@ public class Schema
      */
     public void updateVersion()
     {
-        versionLock.writeLock().lock();
-
         try
         {
             MessageDigest versionDigest = MessageDigest.getInstance("MD5");
@@ -465,10 +453,6 @@ public class Schema
         catch (Exception e)
         {
             throw new RuntimeException(e);
-        }
-        finally
-        {
-            versionLock.writeLock().unlock();
         }
     }
 
