@@ -557,30 +557,32 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         HintedHandOffManager.instance.start();
 
-        if (DatabaseDescriptor.isAutoBootstrap()
-                && DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress())
-                && !SystemTable.bootstrapComplete())
-            logger_.info("This node will not auto bootstrap because it is configured to be a seed node.");
+        if (DatabaseDescriptor.isAutoBootstrap() && !SystemTable.bootstrapComplete() && delay > 0)
+        {
+            // wait a couple gossip rounds so our schema check has something to go by
+            FBUtilities.sleep(2 * Gossiper.intervalInMillis);
+        }
 
-        InetAddress current = null;
-        // we can bootstrap at startup, or if we detect a previous attempt that failed, which is to say:
-        // DD.isAutoBootstrap must be true AND:
-        //  bootstrap is not recorded as complete, OR
-        //  DD.getSeeds does not contain our BCA, OR
-        //  we do not have non-system tables already
-        // OR:
-        //  we detect that we were previously trying to bootstrap (ST.bootstrapInProgress is true)
+        // We can bootstrap at startup, or if we detect a previous attempt that failed.  Either way, if the user
+        // manually sets auto_bootstrap to false, we'll skip streaming data from other nodes and jump directly
+        // into the ring.
+        //
+        // The one exception is if after the above sleep we still have no schema information, we'll assume
+        // we're part of a fresh cluster start, and also skip bootstrap.  This is less confusing for new users,
+        // as well as avoiding the nonsensical state of trying to stream from cluster with no active peers.
         Token<?> token;
+        InetAddress current = null;
+        Collection<Token> tokens;
         if (DatabaseDescriptor.isAutoBootstrap()
-                && !(SystemTable.bootstrapComplete() || DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()) || !Schema.instance.getNonSystemTables().isEmpty())
-                || SystemTable.bootstrapInProgress())
+            && ((!SystemTable.bootstrapComplete() && Schema.instance.getNonSystemTables().isEmpty())
+                || SystemTable.bootstrapInProgress()))
         {
             if (SystemTable.bootstrapInProgress())
                 logger_.warn("Detected previous bootstrap failure; retrying");
             else
                 SystemTable.setBootstrapState(SystemTable.BootstrapState.IN_PROGRESS);
-            setMode(Mode.JOINING, "waiting for ring and schema information", true);
-            // first sleep the delay to make sure we see the schema
+            setMode(Mode.JOINING, "waiting for ring information", true);
+            // first sleep the delay to make sure we see all our peers
             try
             {
                 Thread.sleep(delay);
@@ -589,7 +591,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 throw new AssertionError(e);
             }
-            // now if our schema hasn't matched, keep sleeping until it does
+            // if our schema hasn't matched yet, keep sleeping until it does
+            // (post CASSANDRA-1391 we don't expect this to be necessary very often, but it doesn't hurt to be careful)
             while (!MigrationManager.isReadyForBootstrap())
             {
                 setMode(Mode.JOINING, "waiting for schema information to complete", true);
