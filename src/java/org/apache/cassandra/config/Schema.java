@@ -71,13 +71,13 @@ public class Schema
 
     private volatile UUID version;
 
-    public static final UUID emptyVersion = calculateEmptySchema();
+    public static final UUID emptyVersion;
 
-    private static UUID calculateEmptySchema()
+    static
     {
         try
         {
-            return UUID.nameUUIDFromBytes(MessageDigest.getInstance("MD5").digest());
+            emptyVersion = UUID.nameUUIDFromBytes(MessageDigest.getInstance("MD5").digest());
         }
         catch (NoSuchAlgorithmException e)
         {

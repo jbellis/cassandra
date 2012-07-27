@@ -565,6 +565,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
         for (Entry<InetAddress, EndpointState> entry : Gossiper.instance.getEndpointStates())
         {
+            if (entry.getKey().equals(FBUtilities.getBroadcastAddress()))
+            {
+                // skip ourselves to avoid confusing the tests, which always load a schema first thing
+                continue;
+            }
+
             if (!entry.getValue().getApplicationState(ApplicationState.SCHEMA).value.equals(Schema.emptyVersion.toString()))
             {
                 schemaPresent = true;
@@ -581,8 +587,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // as well as avoiding the nonsensical state of trying to stream from cluster with no active peers.
         Token<?> token;
         InetAddress current = null;
+        logger_.debug("Bootstrap variables: %s %s %s %s",
+                      new Object[] {DatabaseDescriptor.isAutoBootstrap(), SystemTable.bootstrapInProgress(), SystemTable.bootstrapComplete(), schemaPresent});
         if (DatabaseDescriptor.isAutoBootstrap()
-            && (SystemTable.bootstrapInProgress() || (!SystemTable.bootstrapComplete() && !schemaPresent)))
+            && (SystemTable.bootstrapInProgress() || (!SystemTable.bootstrapComplete() && schemaPresent)))
         {
             if (SystemTable.bootstrapInProgress())
                 logger_.warn("Detected previous bootstrap failure; retrying");
