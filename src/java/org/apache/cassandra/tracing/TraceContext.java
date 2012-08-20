@@ -119,7 +119,7 @@ public class TraceContext
     public static final String INDEX_STATEMENT = "CREATE INDEX idx_" + NAME + " ON " + TRACE_KEYSPACE + "."
             + EVENTS_TABLE + " (" + NAME + ")";
 
-    private static final CFMetaData eventsCfm = compile(TRACE_TABLE_STATEMENT);
+    public static final CFMetaData eventsCfm = compile(TRACE_TABLE_STATEMENT);
 
     private static final Logger logger = LoggerFactory.getLogger(TraceContext.class);
 
@@ -181,11 +181,6 @@ public class TraceContext
         return instance;
     }
 
-    public static CFMetaData traceTableMetadata()
-    {
-        return eventsCfm;
-    }
-
     private InetAddress localAddress;
     private ThreadLocal<TraceState> state = new ThreadLocal<TraceState>();
     private int timeToLive = 86400;
@@ -193,44 +188,42 @@ public class TraceContext
     protected TraceContext()
     {
         logger.info("Initializing Trace session context.");
-        if (!Iterables.tryFind(Schema.instance.getTables(), new Predicate<String>()
-        {
-            public boolean apply(String keyspace)
-            {
-                return keyspace.equals(TRACE_KEYSPACE);
-            }
-
-        }).isPresent())
-        {
-            try
-            {
-                logger.info("Trace keyspace was not found creating & announcing");
-                KSMetaData traceKs = KSMetaData.newKeyspace(TRACE_KEYSPACE, SimpleStrategy.class.getName(),
-                        ImmutableMap.of("replication_factor", "1"));
-                MigrationManager.announceNewKeyspace(traceKs);
-                MigrationManager.announceNewColumnFamily(eventsCfm);
-                Thread.sleep(1000);
-                try
-                {
-                    CreateIndexStatement statement = (CreateIndexStatement) QueryProcessor
-                            .parseStatement(INDEX_STATEMENT).prepare().statement;
-                    statement.announceMigration();
-                }
-                catch (InvalidRequestException e)
-                {
-                    if (!e.getWhy().contains("Index already exists"))
-                    {
-                        Throwables.propagate(e);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                Throwables.propagate(e);
-            }
-        }
 
         this.localAddress = FBUtilities.getLocalAddress();
+
+        for (String keyspace : Schema.instance.getTables())
+        {
+            if (keyspace.equals(TRACE_KEYSPACE))
+                return;
+        }
+
+        try
+        {
+            logger.info("Trace keyspace was not found; creating & announcing");
+            KSMetaData traceKs = KSMetaData.newKeyspace(TRACE_KEYSPACE,
+                                                        SimpleStrategy.class.getName(),
+                                                        ImmutableMap.of("replication_factor", "1"));
+            MigrationManager.announceNewKeyspace(traceKs);
+            MigrationManager.announceNewColumnFamily(eventsCfm);
+            Thread.sleep(1000);
+            try
+            {
+                CreateIndexStatement statement = (CreateIndexStatement) QueryProcessor
+                        .parseStatement(INDEX_STATEMENT).prepare().statement;
+                statement.announceMigration();
+            }
+            catch (InvalidRequestException e)
+            {
+                if (!e.getWhy().contains("Index already exists"))
+                {
+                    Throwables.propagate(e);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Throwables.propagate(e);
+        }
     }
 
     private void addColumn(ColumnFamily cf, ByteBuffer columnName, InetAddress address)

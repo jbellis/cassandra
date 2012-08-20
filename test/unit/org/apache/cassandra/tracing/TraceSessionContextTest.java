@@ -157,7 +157,6 @@ public class TraceSessionContextTest extends SchemaLoader
 
         assertNotNull(poolExecutor.submit(new Callable<UUID>()
         {
-            @Override
             public UUID call()
             {
                 assertTrue(isTracing());
@@ -220,8 +219,6 @@ public class TraceSessionContextTest extends SchemaLoader
 
         MessagingService.instance().registerVerbHandlers(Verb.UNUSED_1, new IVerbHandler<Void>()
         {
-
-            @Override
             public void doVerb(MessageIn<Void> message, String id)
             {
                 assertTrue(isTracing());
