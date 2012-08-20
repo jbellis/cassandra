@@ -20,22 +20,12 @@ package org.apache.cassandra.concurrent;
 import static org.apache.cassandra.tracing.TraceSessionContext.isTracing;
 import static org.apache.cassandra.tracing.TraceSessionContext.traceCtx;
 
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.RejectedExecutionHandler;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.tracing.TraceEvent;
 import org.apache.cassandra.tracing.TraceEvent.Type;
 import org.apache.cassandra.tracing.TraceEventBuilder;
 import org.apache.cassandra.tracing.TraceSessionContextThreadLocalState;
@@ -145,29 +135,51 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
     protected void onFinalRejection(Runnable task) {}
 
     @Override
+    protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T result)
+    {
+        if (isTracing() && !(runnable instanceof TraceSessionWrapper))
+        {
+            return new TraceSessionWrapper<T>(runnable, result);
+        }
+        return super.newTaskFor(runnable, result);
+    }
+
+    @Override
+    protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable)
+    {
+        if (isTracing() && !(callable instanceof TraceSessionWrapper))
+        {
+            return new TraceSessionWrapper<T>(callable);
+        }
+        return super.newTaskFor(callable);
+    }
+
+    @Override
     protected void afterExecute(Runnable r, Throwable t)
     {
         super.afterExecute(r, t);
 
         if (r instanceof TraceSessionWrapper && isTracing())
         {
-            if (getThreadFactory() instanceof NamedThreadFactory)
-            {
-                traceCtx().trace(
-                        new TraceEventBuilder().type(Type.STAGE_FINISH)
-                                .name(((NamedThreadFactory) getThreadFactory()).id).build());
-            }
-            else
-            {
-                traceCtx().trace(
-                        new TraceEventBuilder().type(Type.STAGE_FINISH)
-                                .build());
-            }
+            TraceEvent event = new TraceEventBuilder().type(Type.STAGE_FINISH).name(Thread.currentThread().getName()).build();
+            traceCtx().trace(event);
             // we modified the TraceSessionContext when this task started, so reset it
             traceCtx().reset();
         }
 
         logExceptionsAfterExecute(r, t);
+    }
+
+    @Override
+    protected void beforeExecute(Thread t, Runnable r)
+    {
+        if (r instanceof TraceSessionWrapper)
+        {
+            ((TraceSessionWrapper) r).setupContext();
+            TraceEvent event = new TraceEventBuilder().type(Type.STAGE_START).name(Thread.currentThread().getName()).build();
+            traceCtx().trace(event);
+        }
+        super.beforeExecute(t, r);
     }
 
     /**
@@ -231,87 +243,19 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
         return null;
     }
 
-    @SuppressWarnings("rawtypes")
-    protected void beforeExecute(Thread t, Runnable r)
-    {
-        if (r instanceof TraceSessionWrapper)
-        {
-            ((TraceSessionWrapper) r).setupContext();
-            if (getThreadFactory() instanceof NamedThreadFactory)
-            {
-                traceCtx().trace(new TraceEventBuilder().type(Type.STAGE_START)
-                        .name(((NamedThreadFactory) getThreadFactory()).id).build());
-            }
-            else
-            {
-                traceCtx().trace(new TraceEventBuilder().type(Type.STAGE_START)
-                        .build());
-            }
-        }
-        super.beforeExecute(t, r);
-    }
-
-    @Override
-    public void execute(Runnable command)
-    {
-        super.execute(wrapIfCallerIsTracing(command, null));
-    }
-
-    @Override
-    public Future<?> submit(Runnable task)
-    {
-        return super.submit(wrapIfCallerIsTracing(task, null));
-    }
-
-    @Override
-    public <T> Future<T> submit(Runnable task, T result)
-    {
-        return super.submit(wrapIfCallerIsTracing(task, result), result);
-    }
-
-    @Override
-    public <T> Future<T> submit(Callable<T> task)
-    {
-        return super.submit(wrapIfCallerIsTracing(task));
-    }
-
-    /**
-     * Wraps the caller with a trace session wrapper if the caller is tracing.
-     */
-    private <T> Runnable wrapIfCallerIsTracing(Runnable task, T result)
-    {
-        if (isTracing() && !(task instanceof TraceSessionWrapper))
-        {
-            return new TraceSessionWrapper<T>(task, result);
-        }
-        return task;
-    }
-
-    /**
-     * Wraps the caller with a trace session wrapper if the caller is tracing.
-     */
-    private <T> Callable<T> wrapIfCallerIsTracing(Callable<T> task)
-    {
-        if (isTracing() && !(task instanceof TraceSessionWrapper))
-        {
-            return new TraceSessionWrapper<T>(task);
-        }
-        return task;
-    }
-
     /**
      * Used to wrap a Runnable or Callable passed to submit or execute so we can clone the TraceSessionContext and move
      * it into the worker thread.
      *
      * @param <T>
      */
-    private static class TraceSessionWrapper<T> extends FutureTask<T> implements Callable<T>
+    private static class TraceSessionWrapper<T> extends FutureTask<T>
     {
-        private final TraceSessionContextThreadLocalState traceSessionThreadLocalState;
+        private final TraceSessionContextThreadLocalState state;
 
         // Using initializer because the ctor's provided by the FutureTask<> are all we need
         {
-            traceSessionThreadLocalState = traceCtx().copy();
+            state = traceCtx().copy();
         }
 
         public TraceSessionWrapper(Runnable runnable, T result)
@@ -326,13 +270,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 
         private void setupContext()
         {
-            traceCtx().update(traceSessionThreadLocalState);
-        }
-
-        public T call() throws Exception
-        {
-            run();
-            return get();
+            traceCtx().update(state);
         }
     }
 }
