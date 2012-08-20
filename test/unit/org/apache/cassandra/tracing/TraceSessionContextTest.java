@@ -206,7 +206,7 @@ public class TraceSessionContextTest extends SchemaLoader
 
         MessageIn<Void> messageIn = MessageIn.create(FBUtilities.getLocalAddress(), null,
                 ImmutableMap.<String, byte[]>
-                        of(TraceContext.TRACE_SESSION_CONTEXT_HEADER, instance().getSessionContextHeader()),
+                        of(TraceContext.TRACE_HEADER, instance().getSessionContextHeader()),
                 Verb.UNUSED_1, 1);
 
         // make sure we're not tracing when the message is sent (to emulate a receiving host)

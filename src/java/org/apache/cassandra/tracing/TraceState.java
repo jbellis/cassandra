@@ -33,23 +33,21 @@ import org.slf4j.LoggerFactory;
  */
 public class TraceState
 {
-    public static final Logger logger = LoggerFactory.getLogger(TraceState.class);
-
     public final UUID sessionId;
-    public final InetAddress origin;
+    public final InetAddress coordinator;
     public final Stopwatch watch;
 
-    public TraceState(final TraceState other)
+    public TraceState(TraceState other)
     {
-        this(other.origin, other.sessionId);
+        this(other.coordinator, other.sessionId);
     }
 
-    public TraceState(final InetAddress coordinator, final UUID sessionId)
+    public TraceState(InetAddress coordinator, UUID sessionId)
     {
         assert coordinator != null;
         assert sessionId != null;
 
-        this.origin = coordinator;
+        this.coordinator = coordinator;
         this.sessionId = sessionId;
         this.watch = new Stopwatch();
         this.watch.start();

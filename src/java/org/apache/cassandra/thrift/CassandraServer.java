@@ -86,6 +86,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.TraceEvent.Type;
 import org.apache.cassandra.tracing.TraceEventBuilder;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.TException;
 
 public class CassandraServer implements Cassandra.Iface
@@ -1583,23 +1585,19 @@ public class CassandraServer implements Cassandra.Iface
         state().setCQLVersion(version);
     }
 
-    @Override
     public void enable_tracing(double trace_probability, int num_queries_to_trace) throws TException
     {
         state().enableTracing(trace_probability, num_queries_to_trace);
     }
 
-    @Override
     public void disable_tracing() throws TException
     {
         state().disableTracing();
-
     }
 
-    @Override
     public ByteBuffer trace_next_query() throws TException
     {
-        UUID sessionId = instance().newSession();
+        UUID sessionId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
         state().prepareTracingSession(sessionId);
         return TimeUUIDType.instance.decompose(sessionId);
     }
@@ -1608,10 +1606,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (state().traceNextQuery())
         {
-            if (state().isPreparedTracingSession())
-                instance().newSession(state().getPreparedSessionIdAndReset());
-            else
-                instance().newSession();
+            state().createSession();
             return true;
         }
         return false;

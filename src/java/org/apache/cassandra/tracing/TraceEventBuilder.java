@@ -414,7 +414,7 @@ public class TraceEventBuilder
         {
             if (coordinator == null)
             {
-                coordinator = instance().threadLocalState().origin;
+                coordinator = instance().threadLocalState().coordinator;
                 checkNotNull(coordinator,
                         "coordinator must be provided or be set at the current thread's TraceSessionContextThreadLocalState");
             }

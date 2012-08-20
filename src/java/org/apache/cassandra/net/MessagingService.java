@@ -67,6 +67,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.streaming.compress.CompressedFileStreamTask;
+import org.apache.cassandra.tracing.TraceEvent;
 import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -578,11 +579,7 @@ public final class MessagingService implements MessagingServiceMBean
         if (to.equals(FBUtilities.getBroadcastAddress()))
             logger.debug("Message-to-self {} going over MessagingService", message);
 
-        if (TraceContext.isTracing())
-        {
-            message = TraceContext.instance().traceMessageDeparture(message, id,
-                                                       FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to);
-        }
+        TraceContext.instance().trace(TraceEvent.Type.MESSAGE_DEPARTURE.builder().name("MessageDeparture[" + id + "]").description(FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to).build());
 
         // message sinks are a testing hook
         MessageOut processedMessage = SinkManager.processOutboundMessage(message, id, to);

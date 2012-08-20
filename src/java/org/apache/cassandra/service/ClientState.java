@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
@@ -39,7 +38,10 @@ import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SemanticVersion;
+
+import static org.apache.cassandra.tracing.TraceContext.instance;
 
 /**
  * A container for per-client, thread-local state that Avro/Thrift threads must hold.
@@ -58,7 +60,6 @@ public class ClientState
     private int maxTracedSessions = 0;
     private int currentTracedSessions = 0;
     private UUID preparedTracingSession;
-    private Random random = new Random(1234L);
 
     // Reusable array for authorization
     private final List<Object> resource = new ArrayList<Object>();
@@ -123,8 +124,8 @@ public class ClientState
             return true;
         }
 
-        if (random.nextDouble() < traceProbability
-                && ((currentTracedSessions < maxTracedSessions) || (maxTracedSessions == -1)))
+        if ((currentTracedSessions < maxTracedSessions || maxTracedSessions == -1)
+            && FBUtilities.threadLocalRandom().nextDouble() < traceProbability)
         {
             currentTracedSessions++;
             return true;
@@ -139,8 +140,7 @@ public class ClientState
         if (traceProbability > 0.0 && maxTracedSessions > 0)
         {
             if (logger.isDebugEnabled())
-                logger.debug("tracing enabled. Tracing a total of: " + number + " queries with a probability of "
-                        + probability);
+                logger.debug("tracing enabled. Tracing a total of: " + number + " queries with a probability of " + probability);
         }
     }
 
@@ -156,16 +156,18 @@ public class ClientState
         this.preparedTracingSession = sessionId;
     }
 
-    public UUID getPreparedSessionIdAndReset()
+    public void createSession()
     {
-        UUID preparedTracingSession = this.preparedTracingSession;
-        this.preparedTracingSession = null;
-        return preparedTracingSession;
-    }
-
-    public boolean isPreparedTracingSession()
-    {
-        return this.preparedTracingSession != null;
+        if (this.preparedTracingSession == null)
+        {
+            instance().newSession();
+        }
+        else
+        {
+            UUID session = this.preparedTracingSession;
+            this.preparedTracingSession = null;
+            instance().newSession(session);
+        }
     }
 
     public String getSchedulingValue()

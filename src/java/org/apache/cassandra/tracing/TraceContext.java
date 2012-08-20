@@ -64,6 +64,7 @@ public class TraceContext
 {
     public static final String TRACE_KS = "system_traces";
     public static final String EVENTS_CF = "events";
+    public static final String TRACE_HEADER = "TraceSession";
 
     private static final int TTL = 24 * 3600;
 
@@ -86,7 +87,6 @@ public class TraceContext
     public static final String SESSION_ID = "sessionId";
     public static final String SOURCE = "source";
     public static final ByteBuffer SOURCE_BB = ByteBufferUtil.bytes(SOURCE);
-    public static final String TRACE_SESSION_CONTEXT_HEADER = "SessionContext";
     public static final String TYPE = "type";
     public static final ByteBuffer TYPE_BB = ByteBufferUtil.bytes(TYPE);
 
@@ -173,33 +173,6 @@ public class TraceContext
         return tls == null ? null : new TraceState(tls);
     }
 
-    /**
-     * Creates a byte[] to use a message header to serialize this context to another node, if any. The context is only
-     * included in the message if it started locally.
-     * 
-     * @return
-     */
-    public byte[] getSessionContextHeader()
-    {
-        if (!isLocalTraceSession())
-            return null;
-
-        // this uses a FBA so no need to close()
-        @SuppressWarnings("resource")
-        final DataOutputBuffer buffer = new DataOutputBuffer();
-        try
-        {
-            byte[] sessionId = TimeUUIDType.instance.decompose(getSessionId()).array();
-            buffer.writeInt(sessionId.length);
-            buffer.write(sessionId);
-            return buffer.getData();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
-    }
-
     public UUID getSessionId()
     {
         return isTracing() ? state.get().sessionId : null;
@@ -211,7 +184,7 @@ public class TraceContext
     public boolean isLocalTraceSession()
     {
         final TraceState tls = state.get();
-        return ((tls != null) && tls.origin.equals(localAddress)) ? true : false;
+        return ((tls != null) && tls.coordinator.equals(localAddress)) ? true : false;
     }
 
     /**
@@ -324,43 +297,19 @@ public class TraceContext
      */
     public void traceMessageArrival(final MessageIn<?> message, String id, String description)
     {
-        final byte[] queryContextBytes = message.parameters
-                .get(TraceContext.TRACE_SESSION_CONTEXT_HEADER);
+        final byte[] sessionBytes = message.parameters.get(TraceContext.TRACE_HEADER);
 
         // if the message has no session context header don't do tracing
-        if (queryContextBytes == null)
+        if (sessionBytes == null)
+        {
+            state.set(null);
             return;
-
-        checkState(queryContextBytes.length > 0);
-        final DataInputStream dis = new DataInputStream(new ByteArrayInputStream(queryContextBytes));
-        final byte[] sessionId;
-        try
-        {
-            sessionId = new byte[dis.readInt()];
-            dis.read(sessionId);
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
-        state.set(new TraceState(message.from,
-                                 TimeUUIDType.instance.compose(ByteBuffer.wrap(sessionId))));
-
-        trace(TraceEvent.Type.MESSAGE_ARRIVAL.builder().name("MessageArrival[" + id + "]")
-                .description(description).build());
-    }
-
-    public MessageOut traceMessageDeparture(MessageOut<?> messageOut, String id, String description)
-    {
-        byte[] tracePayload = instance().getSessionContextHeader();
-        if (tracePayload != null)
-        {
-            messageOut = messageOut.withParameter(TRACE_SESSION_CONTEXT_HEADER, tracePayload);
-            trace(TraceEvent.Type.MESSAGE_DEPARTURE.builder().name("MessageDeparture[" + id + "]")
-                    .description(description).build());
         }
 
-        return messageOut;
+        checkState(sessionBytes.length == 16);
+        state.set(new TraceState(message.from, UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes))));
+
+        trace(TraceEvent.Type.MESSAGE_ARRIVAL.builder().name("MessageArrival[" + id + "]").description(description).build());
     }
 
     /**
