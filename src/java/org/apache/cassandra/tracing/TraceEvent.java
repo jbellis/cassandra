@@ -32,7 +32,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
  */
 public class TraceEvent
 {
-
     /**
      * A predefined types of events
      */
@@ -50,7 +49,6 @@ public class TraceEvent
         {
             return new TraceEventBuilder().type(this);
         }
-
     }
 
     private final String name;

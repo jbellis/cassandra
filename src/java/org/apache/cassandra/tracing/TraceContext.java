@@ -67,7 +67,7 @@ public class TraceContext
 
     private static final int TTL = 24 * 3600;
 
-    private static TraceContext instance;
+    private static TraceContext instance = new TraceContext();
 
     public static final String COORDINATOR = "coordinator";
     public static final String DESCRIPTION = "description";
@@ -91,19 +91,6 @@ public class TraceContext
     public static final ByteBuffer TYPE_BB = ByteBufferUtil.bytes(TYPE);
 
     private static final Logger logger = LoggerFactory.getLogger(TraceContext.class);
-
-    public static void initialize()
-    {
-        try
-        {
-            instance = new TraceContext();
-            logger.info("Tracing system enabled and initialized.");
-        }
-        catch (Exception e)
-        {
-            logger.error("Error initializing tracing system. Tracing will be disabled", e);
-        }
-    }
 
     @VisibleForTesting
     public static void setInstance(TraceContext context)
