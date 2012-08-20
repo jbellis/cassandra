@@ -22,7 +22,7 @@
 package org.apache.cassandra.tracing;
 
 import static junit.framework.Assert.*;
-import static org.apache.cassandra.tracing.TraceSessionContext.*;
+import static org.apache.cassandra.tracing.TraceContext.*;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -63,7 +63,7 @@ import org.junit.Test;
 public class TraceSessionContextTest extends SchemaLoader
 {
 
-    private static class LocalTraceSessionContext extends TraceSessionContext
+    private static class LocalTraceSessionContext extends TraceContext
     {
 
         /**
@@ -85,19 +85,19 @@ public class TraceSessionContextTest extends SchemaLoader
     public static void loadSchema() throws IOException
     {
         SchemaLoader.loadSchema();
-        TraceSessionContext.setCtx(new LocalTraceSessionContext());
+        TraceContext.setInstance(new LocalTraceSessionContext());
     }
 
     @Test
     public void testNewSession() throws CharacterCodingException
     {
-        sessionId = traceCtx().newSession();
+        sessionId = instance().newSession();
         assertTrue(isTracing());
-        assertTrue(traceCtx().isLocalTraceSession());
-        assertNotNull(traceCtx().threadLocalState());
+        assertTrue(instance().isLocalTraceSession());
+        assertNotNull(instance().threadLocalState());
 
         // simulate a thrift req such as multiget_slice
-        UUID eventId = traceCtx().trace(new TraceEventBuilder()
+        UUID eventId = instance().trace(new TraceEventBuilder()
                 .name("multiget_slice")
                 .type(Type.SESSION_START)
                 .build());
@@ -122,7 +122,7 @@ public class TraceSessionContextTest extends SchemaLoader
     @Test
     public void testNewLocalTraceEvent() throws CharacterCodingException, UnknownHostException
     {
-        UUID eventId = traceCtx().trace(
+        UUID eventId = instance().trace(
                 new TraceEventBuilder().name("simple trace event").duration(4321L).timestamp(1234L)
                         .addPayload("simplePayload", LongType.instance, 9876L).build());
 
@@ -161,8 +161,8 @@ public class TraceSessionContextTest extends SchemaLoader
             public UUID call()
             {
                 assertTrue(isTracing());
-                assertEquals(sessionId, traceCtx().getSessionId());
-                return traceCtx().trace(
+                assertEquals(sessionId, instance().getSessionId());
+                return instance().trace(
                         new TraceEventBuilder().name("multi threaded trace event").duration(8765L).timestamp(5678L)
                                 .build());
             }
@@ -207,16 +207,16 @@ public class TraceSessionContextTest extends SchemaLoader
 
         MessageIn<Void> messageIn = MessageIn.create(FBUtilities.getLocalAddress(), null,
                 ImmutableMap.<String, byte[]>
-                        of(TraceSessionContext.TRACE_SESSION_CONTEXT_HEADER, traceCtx().getSessionContextHeader()),
+                        of(TraceContext.TRACE_SESSION_CONTEXT_HEADER, instance().getSessionContextHeader()),
                 Verb.UNUSED_1, 1);
 
         // make sure we're not tracing when the message is sent (to emulate a receiving host)
-        traceCtx().reset();
+        instance().reset();
 
         final AtomicReference<UUID> reference = new AtomicReference<UUID>();
 
         // change the local address to emulate another node
-        traceCtx().setLocalAddress(InetAddress.getByName("127.0.0.2"));
+        instance().setLocalAddress(InetAddress.getByName("127.0.0.2"));
 
         MessagingService.instance().registerVerbHandlers(Verb.UNUSED_1, new IVerbHandler<Void>()
         {
@@ -225,9 +225,9 @@ public class TraceSessionContextTest extends SchemaLoader
             public void doVerb(MessageIn<Void> message, String id)
             {
                 assertTrue(isTracing());
-                assertFalse(traceCtx().isLocalTraceSession());
-                assertEquals(sessionId, traceCtx().getSessionId());
-                reference.set(traceCtx().trace(
+                assertFalse(instance().isLocalTraceSession());
+                assertEquals(sessionId, instance().getSessionId());
+                reference.set(instance().trace(
                         new TraceEventBuilder().name("remote trace event").duration(9123L).timestamp(3219L)
                                 .build()));
             }

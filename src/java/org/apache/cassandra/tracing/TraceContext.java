@@ -75,9 +75,9 @@ import org.slf4j.LoggerFactory;
  * A trace session context. Able to track and store trace sessions. A session is usually a user initiated query, and may
  * have multiple local and remote events before it is completed. All events and sessions are stored at table.
  */
-public class TraceSessionContext
+public class TraceContext
 {
-    private static TraceSessionContext ctx;
+    private static TraceContext instance;
 
     public static final String COORDINATOR = "coordinator";
     public static final String DESCRIPTION = "description";
@@ -121,7 +121,7 @@ public class TraceSessionContext
 
     private static final CFMetaData eventsCfm = compile(TRACE_TABLE_STATEMENT);
 
-    private static final Logger logger = LoggerFactory.getLogger(TraceSessionContext.class);
+    private static final Logger logger = LoggerFactory.getLogger(TraceContext.class);
 
     private static CFMetaData compile(String cql)
     {
@@ -158,7 +158,7 @@ public class TraceSessionContext
     {
         try
         {
-            ctx = new TraceSessionContext();
+            instance = new TraceContext();
             logger.info("Tracing system enabled and initialized.");
         }
         catch (Exception e)
@@ -168,17 +168,17 @@ public class TraceSessionContext
     }
 
     @VisibleForTesting
-    public static void setCtx(TraceSessionContext context)
+    public static void setInstance(TraceContext context)
     {
-        ctx = context;
+        instance = context;
     }
 
     /**
      * Fetches and lazy initializes the trace context.
      */
-    public static TraceSessionContext traceCtx()
+    public static TraceContext instance()
     {
-        return ctx;
+        return instance;
     }
 
     public static CFMetaData traceTableMetadata()
@@ -187,10 +187,10 @@ public class TraceSessionContext
     }
 
     private InetAddress localAddress;
-    private ThreadLocal<TraceSessionContextThreadLocalState> sessionContextThreadLocalState = new ThreadLocal<TraceSessionContextThreadLocalState>();
+    private ThreadLocal<TraceState> state = new ThreadLocal<TraceState>();
     private int timeToLive = 86400;
 
-    protected TraceSessionContext()
+    protected TraceContext()
     {
         logger.info("Initializing Trace session context.");
         if (!Iterables.tryFind(Schema.instance.getTables(), new Predicate<String>()
@@ -291,10 +291,10 @@ public class TraceSessionContext
      * Copies the thread local state, if any. Used when the QueryContext needs to be copied into another thread. Use the
      * update() function to update the thread local state.
      */
-    public TraceSessionContextThreadLocalState copy()
+    public TraceState copy()
     {
-        final TraceSessionContextThreadLocalState tls = sessionContextThreadLocalState.get();
-        return tls == null ? null : new TraceSessionContextThreadLocalState(tls);
+        final TraceState tls = state.get();
+        return tls == null ? null : new TraceState(tls);
     }
 
     /**
@@ -326,7 +326,7 @@ public class TraceSessionContext
 
     public UUID getSessionId()
     {
-        return isTracing() ? sessionContextThreadLocalState.get().sessionId : null;
+        return isTracing() ? state.get().sessionId : null;
     }
 
     /**
@@ -334,7 +334,7 @@ public class TraceSessionContext
      */
     public boolean isLocalTraceSession()
     {
-        final TraceSessionContextThreadLocalState tls = sessionContextThreadLocalState.get();
+        final TraceState tls = state.get();
         return ((tls != null) && tls.origin.equals(localAddress)) ? true : false;
     }
 
@@ -343,12 +343,12 @@ public class TraceSessionContext
      */
     public static boolean isTracing()
     {
-        return ctx != null && ctx.sessionContextThreadLocalState.get() != null;
+        return instance != null && instance.state.get() != null;
     }
 
     public void reset()
     {
-        sessionContextThreadLocalState.set(null);
+        state.set(null);
     }
 
     @VisibleForTesting
@@ -369,12 +369,10 @@ public class TraceSessionContext
 
     public UUID newSession(UUID sessionId)
     {
-        assert sessionContextThreadLocalState.get() == null;
+        assert state.get() == null;
 
-        TraceSessionContextThreadLocalState tsctls = new TraceSessionContextThreadLocalState(localAddress,
-                localAddress, sessionId);
-
-        sessionContextThreadLocalState.set(tsctls);
+        TraceState ts = new TraceState(localAddress, localAddress, sessionId);
+        state.set(ts);
 
         return sessionId;
     }
@@ -419,9 +417,9 @@ public class TraceSessionContext
         }
     }
 
-    public TraceSessionContextThreadLocalState threadLocalState()
+    public TraceState threadLocalState()
     {
-        return sessionContextThreadLocalState.get();
+        return state.get();
     }
 
     public UUID trace(TraceEvent event)
@@ -456,7 +454,7 @@ public class TraceSessionContext
     public void traceMessageArrival(final MessageIn<?> message, String id, String description)
     {
         final byte[] queryContextBytes = message.parameters
-                .get(TraceSessionContext.TRACE_SESSION_CONTEXT_HEADER);
+                .get(TraceContext.TRACE_SESSION_CONTEXT_HEADER);
 
         // if the message has no session context header don't do tracing
         if (queryContextBytes == null)
@@ -474,8 +472,8 @@ public class TraceSessionContext
         {
             throw new IOError(e);
         }
-        sessionContextThreadLocalState.set(new TraceSessionContextThreadLocalState(message.from, localAddress,
-                TimeUUIDType.instance.compose(ByteBuffer.wrap(sessionId)), id));
+        state.set(new TraceState(message.from, localAddress,
+                                                                                   TimeUUIDType.instance.compose(ByteBuffer.wrap(sessionId)), id));
 
         trace(TraceEvent.Type.MESSAGE_ARRIVAL.builder().name("MessageArrival[" + id + "]")
                 .description(description).build());
@@ -483,7 +481,7 @@ public class TraceSessionContext
 
     public MessageOut traceMessageDeparture(MessageOut<?> messageOut, String id, String description)
     {
-        byte[] tracePayload = traceCtx().getSessionContextHeader();
+        byte[] tracePayload = instance().getSessionContextHeader();
         if (tracePayload != null)
         {
             messageOut = messageOut.withParameter(TRACE_SESSION_CONTEXT_HEADER, tracePayload);
@@ -497,8 +495,8 @@ public class TraceSessionContext
     /**
      * Updates the Query Context for this thread. Call copy() to obtain a copy of a threads query context.
      */
-    public void update(final TraceSessionContextThreadLocalState tls)
+    public void update(final TraceState tls)
     {
-        sessionContextThreadLocalState.set(tls);
+        state.set(tls);
     }
 }

@@ -30,13 +30,14 @@ import java.util.*;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
+
+import org.apache.cassandra.tracing.TraceContext;
 import org.apache.cassandra.tracing.TraceEvent;
 import org.apache.cassandra.tracing.TraceEventBuilder;
 import org.apache.cassandra.tracing.TracePrettyPrinter;
-import org.apache.cassandra.tracing.TraceSessionContext;
+
 import org.apache.commons.lang.StringUtils;
 import com.google.common.base.Charsets;
-import com.google.common.base.Joiner;
 
 import org.antlr.runtime.tree.Tree;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -47,7 +48,6 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.SimpleSnitch;
-import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -2021,10 +2021,10 @@ public class CliClient
         boolean changedKeyspaces = false;
         try
         {
-            if (this.keySpace != null && !this.keySpace.equals(TraceSessionContext.TRACE_KEYSPACE))
+            if (this.keySpace != null && !this.keySpace.equals(TraceContext.TRACE_KEYSPACE))
                 changedKeyspaces = true;
 
-            thriftClient.set_keyspace(TraceSessionContext.TRACE_KEYSPACE);
+            thriftClient.set_keyspace(TraceContext.TRACE_KEYSPACE);
 
             ColumnParent parent = new ColumnParent("trace_events");
 
@@ -2087,12 +2087,12 @@ public class CliClient
 
         try
         {
-            thriftClient.set_keyspace(TraceSessionContext.TRACE_KEYSPACE);
+            thriftClient.set_keyspace(TraceContext.TRACE_KEYSPACE);
 
             UUID sessionId = UUID.fromString(sessionIdAsString);
             ByteBuffer sessionIdAsBB = TimeUUIDType.instance.decompose(sessionId);
 
-            ColumnParent events = new ColumnParent(TraceSessionContext.EVENTS_TABLE);
+            ColumnParent events = new ColumnParent(TraceContext.EVENTS_TABLE);
 
             SliceRange range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER,
                     false, Integer.MAX_VALUE);

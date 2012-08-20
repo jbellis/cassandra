@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.net;
 
-import static org.apache.cassandra.tracing.TraceSessionContext.*;
+import static org.apache.cassandra.tracing.TraceContext.*;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -40,7 +40,7 @@ import javax.management.ObjectName;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.tracing.TraceSessionContext;
+import org.apache.cassandra.tracing.TraceContext;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -577,9 +577,9 @@ public final class MessagingService implements MessagingServiceMBean
         if (to.equals(FBUtilities.getBroadcastAddress()))
             logger.debug("Message-to-self {} going over MessagingService", message);
 
-        if (TraceSessionContext.isTracing())
+        if (TraceContext.isTracing())
         {
-            message = traceCtx().traceMessageDeparture(message, id,
+            message = instance().traceMessageDeparture(message, id,
                                                        FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to);
         }
 
@@ -701,8 +701,8 @@ public final class MessagingService implements MessagingServiceMBean
     public void receive(MessageIn message, String id)
     {
         // setup tracing (if the message requests it)
-        if (traceCtx() != null)
-            traceCtx().traceMessageArrival(message, id, FBUtilities.getBroadcastAddress() + " received " + message.verb
+        if (instance() != null)
+            instance().traceMessageArrival(message, id, FBUtilities.getBroadcastAddress() + " received " + message.verb
                                                         + " from " + id + "@" + message.from);
 
         message = SinkManager.processInboundMessage(message, id);
@@ -720,7 +720,7 @@ public final class MessagingService implements MessagingServiceMBean
         finally
         {
             if (isTracing())
-                traceCtx().reset();
+                instance().reset();
         }
     }
 

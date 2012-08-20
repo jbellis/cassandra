@@ -35,7 +35,7 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.tracing.TraceSessionContext;
+import org.apache.cassandra.tracing.TraceContext;
 
 import org.hsqldb.Trace;
 
@@ -515,7 +515,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         HintedHandOffManager.instance.start();
 
         // Start the tracing session context
-        TraceSessionContext.initialize();
+        TraceContext.initialize();
 
         // We bootstrap if we haven't successfully bootstrapped before, as long as we are not a seed.
         // If we are a seed, or if the user manually sets auto_bootstrap to false,
@@ -828,7 +828,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             // Dont set any state for the node which is bootstrapping the existing token...
             tokenMetadata.updateNormalTokens(tokens, FBUtilities.getBroadcastAddress());
         }
-        TraceSessionContext.traceCtx();
+        TraceContext.instance();
         setMode(Mode.JOINING, "Starting to bootstrap...", true);
         new BootStrapper(FBUtilities.getBroadcastAddress(), tokens, tokenMetadata).bootstrap(); // handles token update
     }

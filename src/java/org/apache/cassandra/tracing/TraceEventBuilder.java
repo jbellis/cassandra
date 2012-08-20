@@ -18,8 +18,8 @@
 package org.apache.cassandra.tracing;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.apache.cassandra.tracing.TraceSessionContext.traceCtx;
-import static org.apache.cassandra.tracing.TraceSessionContext.traceTableMetadata;
+import static org.apache.cassandra.tracing.TraceContext.instance;
+import static org.apache.cassandra.tracing.TraceContext.traceTableMetadata;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
  */
 public class TraceEventBuilder
 {
-    private static final Logger logger = LoggerFactory.getLogger(TraceSessionContext.class);
+    private static final Logger logger = LoggerFactory.getLogger(TraceContext.class);
 
     public static List<TraceEvent> fromThrift(UUID sessionId,
             List<ColumnOrSuperColumn> columnOrSuperColumns)
@@ -138,33 +138,33 @@ public class TraceEventBuilder
                 }
 
                 String colName = decodeColumnName(col.left);
-                if (colName.equals(TraceSessionContext.DESCRIPTION))
+                if (colName.equals(TraceContext.DESCRIPTION))
                 {
                     builder.description(UTF8Type.instance.compose(col.right));
                     continue;
                 }
-                if (colName.equals(TraceSessionContext.DURATION))
+                if (colName.equals(TraceContext.DURATION))
                 {
                     builder.duration(LongType.instance.compose(col.right));
                     continue;
                 }
-                if (colName.equals(TraceSessionContext.HAPPENED))
+                if (colName.equals(TraceContext.HAPPENED))
                 {
                     builder.timestamp(LongType.instance.compose(col.right));
                     continue;
                 }
-                if (colName.equals(TraceSessionContext.NAME))
+                if (colName.equals(TraceContext.NAME))
                 {
                     builder.name(UTF8Type.instance.compose(col.right));
                     continue;
                 }
-                if (colName.equals(TraceSessionContext.PAYLOAD))
+                if (colName.equals(TraceContext.PAYLOAD))
                 {
                     String payloadKey = decodeMapEntryKey(col.left);
                     builder.addPayloadRaw(payloadKey, col.right);
                     continue;
                 }
-                if (colName.equals(TraceSessionContext.PAYLOAD_TYPES))
+                if (colName.equals(TraceContext.PAYLOAD_TYPES))
                 {
                     String payloadKey = decodeMapEntryKey(col.left);
                     try
@@ -180,12 +180,12 @@ public class TraceEventBuilder
                     }
                     continue;
                 }
-                if (colName.equals(TraceSessionContext.SOURCE))
+                if (colName.equals(TraceContext.SOURCE))
                 {
                     builder.source(InetAddressType.instance.compose(col.right));
                     continue;
                 }
-                if (colName.equals(TraceSessionContext.TYPE))
+                if (colName.equals(TraceContext.TYPE))
                 {
                     builder.type(Type.valueOf(UTF8Type.instance.compose(col.right)));
                     continue;
@@ -414,13 +414,13 @@ public class TraceEventBuilder
         {
             if (coordinator == null)
             {
-                coordinator = traceCtx().threadLocalState().origin;
+                coordinator = instance().threadLocalState().origin;
                 checkNotNull(coordinator,
                         "coordinator must be provided or be set at the current thread's TraceSessionContextThreadLocalState");
             }
             if (source == null)
             {
-                source = traceCtx().threadLocalState().source;
+                source = instance().threadLocalState().source;
                 checkNotNull(source,
                         "source must be provided or be set at the current thread's TraceSessionContextThreadLocalState");
             }
@@ -444,13 +444,13 @@ public class TraceEventBuilder
             }
             if (sessionId == null)
             {
-                sessionId = traceCtx().threadLocalState().sessionId;
+                sessionId = instance().threadLocalState().sessionId;
                 checkNotNull(sessionId,
                         "sessionId must be provided or be set at the current thread's TraceSessionContextThreadLocalState");
             }
             if (duration == null)
             {
-                duration = traceCtx().threadLocalState().watch.elapsedTime(TimeUnit.NANOSECONDS);
+                duration = instance().threadLocalState().watch.elapsedTime(TimeUnit.NANOSECONDS);
                 checkNotNull(duration,
                         "duration must be provided or be measured from the current thread's TraceSessionContextThreadLocalState");
 
@@ -469,7 +469,7 @@ public class TraceEventBuilder
 
     private boolean isTracing()
     {
-        return eventId != null ? true : TraceSessionContext.isTracing();
+        return eventId != null ? true : TraceContext.isTracing();
     }
 
 }

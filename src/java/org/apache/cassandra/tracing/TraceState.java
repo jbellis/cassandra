@@ -31,9 +31,9 @@ import org.slf4j.LoggerFactory;
  * ThreadLocal state for a tracing session. The presence of an instance of this class as a ThreadLocal denotes that an
  * operation is being traced.
  */
-public class TraceSessionContextThreadLocalState
+public class TraceState
 {
-    public static final Logger logger = LoggerFactory.getLogger(TraceSessionContextThreadLocalState.class);
+    public static final Logger logger = LoggerFactory.getLogger(TraceState.class);
 
     public final UUID sessionId;
     public final InetAddress origin;
@@ -41,20 +41,17 @@ public class TraceSessionContextThreadLocalState
     public final String messageId;
     public final Stopwatch watch;
 
-    public TraceSessionContextThreadLocalState(final TraceSessionContextThreadLocalState other)
+    public TraceState(final TraceState other)
     {
         this(other.origin, other.source, other.sessionId, other.messageId);
     }
 
-    public TraceSessionContextThreadLocalState(final InetAddress coordinator, final InetAddress source,
-            final UUID sessionId)
+    public TraceState(final InetAddress coordinator, final InetAddress source, final UUID sessionId)
     {
         this(coordinator, source, sessionId, null);
     }
 
-    public TraceSessionContextThreadLocalState(final InetAddress coordinator, final InetAddress source,
-            final UUID sessionId,
-            final String messageId)
+    public TraceState(final InetAddress coordinator, final InetAddress source, final UUID sessionId, final String messageId)
     {
         checkNotNull(coordinator);
         checkNotNull(source);
