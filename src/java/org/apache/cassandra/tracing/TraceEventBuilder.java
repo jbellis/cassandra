@@ -418,12 +418,6 @@ public class TraceEventBuilder
                 checkNotNull(coordinator,
                         "coordinator must be provided or be set at the current thread's TraceSessionContextThreadLocalState");
             }
-            if (source == null)
-            {
-                source = instance().threadLocalState().source;
-                checkNotNull(source,
-                        "source must be provided or be set at the current thread's TraceSessionContextThreadLocalState");
-            }
             if (eventId == null)
             {
                 eventId(UUIDGen.getTimeUUIDBytes());

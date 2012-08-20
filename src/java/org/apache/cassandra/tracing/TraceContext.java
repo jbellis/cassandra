@@ -255,7 +255,7 @@ public class TraceContext
     {
         assert state.get() == null;
 
-        TraceState ts = new TraceState(localAddress, localAddress, sessionId);
+        TraceState ts = new TraceState(localAddress, sessionId);
         state.set(ts);
 
         return sessionId;
@@ -356,8 +356,8 @@ public class TraceContext
         {
             throw new IOError(e);
         }
-        state.set(new TraceState(message.from, localAddress,
-                                                                                   TimeUUIDType.instance.compose(ByteBuffer.wrap(sessionId)), id));
+        state.set(new TraceState(message.from,
+                                 TimeUUIDType.instance.compose(ByteBuffer.wrap(sessionId))));
 
         trace(TraceEvent.Type.MESSAGE_ARRIVAL.builder().name("MessageArrival[" + id + "]")
                 .description(description).build());

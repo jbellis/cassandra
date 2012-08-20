@@ -37,29 +37,20 @@ public class TraceState
 
     public final UUID sessionId;
     public final InetAddress origin;
-    public final InetAddress source;
-    public final String messageId;
     public final Stopwatch watch;
 
     public TraceState(final TraceState other)
     {
-        this(other.origin, other.source, other.sessionId, other.messageId);
+        this(other.origin, other.sessionId);
     }
 
-    public TraceState(final InetAddress coordinator, final InetAddress source, final UUID sessionId)
+    public TraceState(final InetAddress coordinator, final UUID sessionId)
     {
-        this(coordinator, source, sessionId, null);
-    }
+        assert coordinator != null;
+        assert sessionId != null;
 
-    public TraceState(final InetAddress coordinator, final InetAddress source, final UUID sessionId, final String messageId)
-    {
-        checkNotNull(coordinator);
-        checkNotNull(source);
-        checkNotNull(sessionId);
         this.origin = coordinator;
-        this.source = source;
         this.sessionId = sessionId;
-        this.messageId = ((messageId == null) || (messageId.length() == 0)) ? null : messageId;
         this.watch = new Stopwatch();
         this.watch.start();
     }
