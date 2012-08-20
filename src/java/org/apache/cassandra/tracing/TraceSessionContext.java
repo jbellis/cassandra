@@ -77,7 +77,6 @@ import org.slf4j.LoggerFactory;
  */
 public class TraceSessionContext
 {
-
     private static TraceSessionContext ctx;
 
     public static final String COORDINATOR = "coordinator";

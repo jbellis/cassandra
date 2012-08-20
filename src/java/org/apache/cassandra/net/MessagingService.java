@@ -39,7 +39,9 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
+
 import org.apache.cassandra.tracing.TraceSessionContext;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +82,9 @@ public final class MessagingService implements MessagingServiceMBean
     public static final int VERSION_12 = 5;
     public static final int current_version = VERSION_12;
 
-    /** we preface every message with this number so the recipient can validate the sender is sane */
+    /**
+     * we preface every message with this number so the recipient can validate the sender is sane
+     */
     static final int PROTOCOL_MAGIC = 0xCA552DFA;
 
     /* All verb handler identifiers */
@@ -123,6 +127,7 @@ public final class MessagingService implements MessagingServiceMBean
         ;
         // remember to add new verbs at the end, since we serialize by ordinal
     }
+
     public static final Verb[] VERBS = Verb.values();
 
     public static final EnumMap<MessagingService.Verb, Stage> verbStages = new EnumMap<MessagingService.Verb, Stage>(MessagingService.Verb.class)
@@ -242,14 +247,15 @@ public final class MessagingService implements MessagingServiceMBean
     /* Lookup table for registering message handlers based on the verb. */
     private final Map<Verb, IVerbHandler> verbHandlers;
 
-    /** One executor per destination InetAddress for streaming.
-     *
+    /**
+     * One executor per destination InetAddress for streaming.
+     * <p/>
      * See CASSANDRA-3494 for the background. We have streaming in place so we do not want to limit ourselves to
      * one stream at a time for throttling reasons. But, we also do not want to just arbitrarily stream an unlimited
      * amount of files at once because a single destination might have hundreds of files pending and it would cause a
      * seek storm. So, transfer exactly one file per destination host. That puts a very natural rate limit on it, in
      * addition to mapping well to the expected behavior in many cases.
-     *
+     * <p/>
      * We will create our stream executors with a core size of 0 so that they time out and do not consume threads. This
      * means the overhead in the degenerate case of having streamed to everyone in the ring over time as a ring changes,
      * is not going to be a thread per node - but rather an instance per node. That's totally fine.
@@ -271,11 +277,11 @@ public final class MessagingService implements MessagingServiceMBean
      * drop internal messages like bootstrap or repair notifications.
      */
     public static final EnumSet<Verb> DROPPABLE_VERBS = EnumSet.of(Verb.BINARY,
-                                                                                  Verb.MUTATION,
-                                                                                  Verb.READ_REPAIR,
-                                                                                  Verb.READ,
-                                                                                  Verb.RANGE_SLICE,
-                                                                                  Verb.REQUEST_RESPONSE);
+                                                                   Verb.MUTATION,
+                                                                   Verb.READ_REPAIR,
+                                                                   Verb.READ,
+                                                                   Verb.RANGE_SLICE,
+                                                                   Verb.REQUEST_RESPONSE);
 
     // total dropped message counts for server lifetime
     private final Map<Verb, AtomicInteger> droppedMessages = new EnumMap<Verb, AtomicInteger>(Verb.class);
@@ -367,7 +373,8 @@ public final class MessagingService implements MessagingServiceMBean
 
     /**
      * Track latency information for the dynamic snitch
-     * @param cb the callback associated with this message -- this lets us know if it's a message type we're interested in
+     *
+     * @param cb      the callback associated with this message -- this lets us know if it's a message type we're interested in
      * @param address the host that replied to the message
      * @param latency
      */
@@ -383,7 +390,9 @@ public final class MessagingService implements MessagingServiceMBean
             subscriber.receiveTiming(address, latency);
     }
 
-    /** called from gossiper when it notices a node is not responding. */
+    /**
+     * called from gossiper when it notices a node is not responding.
+     */
     public void convict(InetAddress ep)
     {
         logger.debug("Resetting pool for " + ep);
@@ -392,12 +401,13 @@ public final class MessagingService implements MessagingServiceMBean
 
     /**
      * Listen on the specified port.
+     *
      * @param localEp InetAddress whose port to listen on.
      */
     public void listen(InetAddress localEp) throws IOException, ConfigurationException
     {
         callbacks.reset(); // hack to allow tests to stop/restart MS
-        for (ServerSocket ss: getServerSocket(localEp))
+        for (ServerSocket ss : getServerSocket(localEp))
         {
             SocketThread th = new SocketThread(ss, "ACCEPT-" + localEp);
             th.start();
@@ -408,7 +418,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     private List<ServerSocket> getServerSocket(InetAddress localEp) throws IOException, ConfigurationException
     {
-       final List<ServerSocket> ss = new ArrayList<ServerSocket>(2);
+        final List<ServerSocket> ss = new ArrayList<ServerSocket>(2);
         if (DatabaseDescriptor.getEncryptionOptions().internode_encryption != EncryptionOptions.InternodeEncryption.none)
         {
             ss.add(SSLFactory.getServerSocket(DatabaseDescriptor.getEncryptionOptions(), localEp, DatabaseDescriptor.getSSLStoragePort()));
@@ -430,7 +440,7 @@ public final class MessagingService implements MessagingServiceMBean
                 throw new ConfigurationException(address + " is in use by another process.  Change listen_address:storage_port in cassandra.yaml to values that do not conflict with other services");
             else if (e.getMessage().contains("Cannot assign requested address"))
                 throw new ConfigurationException("Unable to bind to address " + address
-                        + ". Set listen_address in cassandra.yaml to an interface you can bind to, e.g., your private IP address on EC2");
+                                                 + ". Set listen_address in cassandra.yaml to an interface you can bind to, e.g., your private IP address on EC2");
             else
                 throw e;
         }
@@ -470,6 +480,7 @@ public final class MessagingService implements MessagingServiceMBean
     /**
      * Register a verb and the corresponding verb handler with the
      * Messaging Service.
+     *
      * @param verb
      * @param verbHandler handler for the specified verb
      */
@@ -482,6 +493,7 @@ public final class MessagingService implements MessagingServiceMBean
     /**
      * This method returns the verb handler associated with the registered
      * verb. If no handler has been registered then null is returned.
+     *
      * @param type for which the verb handler is sought
      * @return a reference to IVerbHandler which is the handler for the specified verb
      */
@@ -506,6 +518,7 @@ public final class MessagingService implements MessagingServiceMBean
     }
 
     private static final AtomicInteger idGen = new AtomicInteger(0);
+
     // TODO make these integers to avoid unnecessary int -> string -> int conversions
     private static String nextId()
     {
@@ -525,11 +538,12 @@ public final class MessagingService implements MessagingServiceMBean
      * which is invoked with the actual response.
      * Also holds the message (only mutation messages) to determine if it
      * needs to trigger a hint (uses StorageProxy for that).
+     *
      * @param message message to be sent.
-     * @param to endpoint to which the message needs to be sent
-     * @param cb callback interface which is used to pass the responses or
-     *           suggest that a timeout occurred to the invoker of the send().
-     *           suggest that a timeout occurred to the invoker of the send().
+     * @param to      endpoint to which the message needs to be sent
+     * @param cb      callback interface which is used to pass the responses or
+     *                suggest that a timeout occurred to the invoker of the send().
+     *                suggest that a timeout occurred to the invoker of the send().
      * @param timeout the timeout used for expiration
      * @return an reference to message id used to match with the result
      */
@@ -553,8 +567,9 @@ public final class MessagingService implements MessagingServiceMBean
     /**
      * Send a message to a given endpoint. This method adheres to the fire and forget
      * style messaging.
+     *
      * @param message messages to be sent.
-     * @param to endpoint to which the message needs to be sent
+     * @param to      endpoint to which the message needs to be sent
      */
     public void sendOneWay(MessageOut message, String id, InetAddress to)
     {
@@ -565,7 +580,7 @@ public final class MessagingService implements MessagingServiceMBean
         if (TraceSessionContext.isTracing())
         {
             message = traceCtx().traceMessageDeparture(message, id,
-                    FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to);
+                                                       FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to);
         }
 
         // message sinks are a testing hook
@@ -592,9 +607,10 @@ public final class MessagingService implements MessagingServiceMBean
     /**
      * Stream a file from source to destination. This is highly optimized
      * to not hold any of the contents of the file in memory.
+     *
      * @param header Header contains file to stream and other metadata.
-     * @param to endpoint to which we need to stream the file.
-    */
+     * @param to     endpoint to which we need to stream the file.
+     */
 
     public void stream(StreamHeader header, InetAddress to)
     {
@@ -612,8 +628,8 @@ public final class MessagingService implements MessagingServiceMBean
         }
 
         executor.execute(header.file == null || header.file.compressionInfo == null
-                                 ? new FileStreamTask(header, to)
-                                 : new CompressedFileStreamTask(header, to));
+                         ? new FileStreamTask(header, to)
+                         : new CompressedFileStreamTask(header, to));
     }
 
     public void incrementActiveStreamsOutbound()
@@ -626,7 +642,9 @@ public final class MessagingService implements MessagingServiceMBean
         activeStreamsOutbound.decrementAndGet();
     }
 
-    /** The count of active outbound stream tasks. */
+    /**
+     * The count of active outbound stream tasks.
+     */
     public int getActiveStreamsOutbound()
     {
         return activeStreamsOutbound.get();
@@ -685,7 +703,7 @@ public final class MessagingService implements MessagingServiceMBean
         // setup tracing (if the message requests it)
         if (traceCtx() != null)
             traceCtx().traceMessageArrival(message, id, FBUtilities.getBroadcastAddress() + " received " + message.verb
-                    + " from " + id + "@" + message.from);
+                                                        + " from " + id + "@" + message.from);
 
         message = SinkManager.processInboundMessage(message, id);
         if (message == null)
@@ -832,7 +850,7 @@ public final class MessagingService implements MessagingServiceMBean
             {
                 logTpstats = true;
                 logger.info("{} {} messages dropped in last {}ms",
-                             new Object[] {recent, verb, LOG_DROPPED_INTERVAL_IN_MS});
+                            new Object[]{ recent, verb, LOG_DROPPED_INTERVAL_IN_MS });
                 lastDroppedInternal.put(verb, dropped.get());
             }
         }
@@ -892,7 +910,7 @@ public final class MessagingService implements MessagingServiceMBean
         OutboundTcpConnectionPool connection = connectionManagers.get(address);
         return connection == null ? 0 : connection.cmdCon.getPendingMessages();
     }
-    
+
     public Map<String, Long> getCommandCompletedTasks()
     {
         Map<String, Long> completedTasks = new HashMap<String, Long>();
@@ -962,7 +980,7 @@ public final class MessagingService implements MessagingServiceMBean
     public Map<String, Long> getTimeoutsPerHost()
     {
         Map<String, Long> result = new HashMap<String, Long>();
-        for (Map.Entry<String, AtomicLong> entry: timeoutsPerHost.entrySet())
+        for (Map.Entry<String, AtomicLong> entry : timeoutsPerHost.entrySet())
         {
             result.put(entry.getKey(), entry.getValue().get());
         }
@@ -972,7 +990,7 @@ public final class MessagingService implements MessagingServiceMBean
     public Map<String, Long> getRecentTimeoutsPerHost()
     {
         Map<String, Long> result = new HashMap<String, Long>();
-        for (Map.Entry<String, AtomicLong> entry: recentTimeoutsPerHost.entrySet())
+        for (Map.Entry<String, AtomicLong> entry : recentTimeoutsPerHost.entrySet())
         {
             String ip = entry.getKey();
             AtomicLong recent = entry.getValue();

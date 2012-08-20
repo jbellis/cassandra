@@ -132,7 +132,6 @@ public class ThriftType extends AbstractType<TBase<?, ?>>
         return getClass().getName() + "(" + objectClass.getName() + ")";
     }
 
-    @Override
     public int compare(ByteBuffer arg0, ByteBuffer arg1)
     {
         throw new UnsupportedOperationException();

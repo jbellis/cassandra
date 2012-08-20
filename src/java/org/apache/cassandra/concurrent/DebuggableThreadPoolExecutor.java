@@ -329,7 +329,6 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
             traceCtx().update(traceSessionThreadLocalState);
         }
 
-        @Override
         public T call() throws Exception
         {
             run();

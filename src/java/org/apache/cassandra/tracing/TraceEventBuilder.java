@@ -50,7 +50,6 @@ import org.slf4j.LoggerFactory;
  */
 public class TraceEventBuilder
 {
-
     private static final Logger logger = LoggerFactory.getLogger(TraceSessionContext.class);
 
     public static List<TraceEvent> fromThrift(UUID sessionId,
@@ -111,7 +110,6 @@ public class TraceEventBuilder
                 Maps.<UUID, Collection<Pair<ByteBuffer, ByteBuffer>>> newLinkedHashMap(),
                 new Supplier<ArrayList<Pair<ByteBuffer, ByteBuffer>>>()
                 {
-                    @Override
                     public ArrayList<Pair<ByteBuffer, ByteBuffer>> get()
                     {
                         return Lists.newArrayList();

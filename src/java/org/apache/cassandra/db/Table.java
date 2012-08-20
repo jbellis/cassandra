@@ -70,7 +70,7 @@ public class Table
     /**
      * accesses to CFS.memtable should acquire this for thread safety.
      * CFS.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
-     *
+     * <p/>
      * (Enabling fairness in the RRWL is observed to decrease throughput, so we leave it off.)
      */
     public static final ReentrantReadWriteLock switchLock = new ReentrantReadWriteLock();
@@ -170,9 +170,8 @@ public class Table
      * Take a snapshot of the specific column family, or the entire set of column families
      * if columnFamily is null with a given timestamp
      *
-     * @param snapshotName the tag associated with the name of the snapshot.  This value may not be null
+     * @param snapshotName     the tag associated with the name of the snapshot.  This value may not be null
      * @param columnFamilyName the column family to snapshot or all on null
-     *
      * @throws IOException if the column family doesn't exist
      */
     public void snapshot(String snapshotName, String columnFamilyName) throws IOException
@@ -227,7 +226,7 @@ public class Table
      * Clear all the snapshots for a given table.
      *
      * @param snapshotName the user supplied snapshot name. It empty or null,
-     * all the snapshots will be cleaned
+     *                     all the snapshots will be cleaned
      */
     public void clearSnapshot(String snapshotName)
     {
@@ -314,7 +313,9 @@ public class Table
         cfs.invalidate();
     }
 
-    /** adds a cf to internal structures, ends up creating disk files). */
+    /**
+     * adds a cf to internal structures, ends up creating disk files).
+     */
     public void initCf(UUID cfId, String cfName, boolean loadSSTables)
     {
         if (columnFamilyStores.containsKey(cfId))
@@ -351,10 +352,10 @@ public class Table
     /**
      * This method appends a row to the global CommitLog, then updates memtables and indexes.
      *
-     * @param mutation the row to write.  Must not be modified after calling apply, since commitlog append
-     *                 may happen concurrently, depending on the CL Executor type.
+     * @param mutation       the row to write.  Must not be modified after calling apply, since commitlog append
+     *                       may happen concurrently, depending on the CL Executor type.
      * @param writeCommitLog false to disable commitlog append entirely
-     * @param updateIndexes false to disable index updates (used by CollationController "defragmenting")
+     * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
      */
     public void apply(RowMutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
@@ -524,8 +525,8 @@ public class Table
     }
 
     /**
-     * @param key row to index
-     * @param cfs ColumnFamily to index row in
+     * @param key      row to index
+     * @param cfs      ColumnFamily to index row in
      * @param idxNames columns to index, in comparator order
      */
     public static void indexRow(DecoratedKey key, ColumnFamilyStore cfs, Set<String> idxNames)
@@ -595,18 +596,17 @@ public class Table
     {
         return getClass().getSimpleName() + "(name='" + name + "')";
     }
-    
+
     private void traceApplyMutation(RowMutation mutation, boolean writeCommitLog, long start)
     {
         // do not trace the tracing system of the system tables
-        if (TraceSessionContext.isTracing() && 
-                !mutation.getTable().equals(TraceSessionContext.TRACE_KEYSPACE) &&
-                !mutation.getTable().equals("system"))
+        if (TraceSessionContext.isTracing() &&
+            !mutation.getTable().equals(TraceSessionContext.TRACE_KEYSPACE) &&
+            !mutation.getTable().equals("system"))
         {
             TraceEventBuilder builder = new TraceEventBuilder();
             builder.name("apply_mutation");
-            builder.duration(TraceSessionContext.traceCtx().threadLocalState().watch.elapsedTime(TimeUnit.NANOSECONDS)
-                    - start);
+            builder.duration(TraceSessionContext.traceCtx().threadLocalState().watch.elapsedTime(TimeUnit.NANOSECONDS) - start);
             builder.addPayload("write_commit_log", writeCommitLog);
             builder.addPayload("num_column_families", mutation.getColumnFamilies().size());
             int totalCols = 0;
@@ -633,5 +633,4 @@ public class Table
             TraceSessionContext.traceCtx().trace(builder.build());
         }
     }
-
 }
