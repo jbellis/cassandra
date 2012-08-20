@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.concurrent;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import java.util.EnumMap;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -52,6 +55,8 @@ public class StageManager
         stages.put(Stage.MIGRATION, new JMXEnabledThreadPoolExecutor(Stage.MIGRATION));
         stages.put(Stage.MISC, new JMXEnabledThreadPoolExecutor(Stage.MISC));
         stages.put(Stage.READ_REPAIR, multiThreadedStage(Stage.READ_REPAIR, Runtime.getRuntime().availableProcessors()));
+        stages.put(Stage.TRACING, new ThreadPoolExecutor(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<Runnable>(1000), new NamedThreadFactory(Stage.TRACING.getJmxName())));
     }
 
     private static ThreadPoolExecutor multiThreadedStage(Stage stage, int numThreads)
@@ -103,4 +108,5 @@ public class StageManager
             StageManager.stages.get(stage).shutdownNow();
         }
     }
+
 }

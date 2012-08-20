@@ -65,6 +65,8 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.tracing.TraceSessionContext;
+import org.apache.cassandra.tracing.TraceEventBuilder;
 import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -1152,11 +1154,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         assert columnFamily.equals(filter.getColumnFamilyName()) : filter.getColumnFamilyName();
 
+        TraceEventBuilder builder = new TraceEventBuilder();
+        builder.name("get_column_family");
+
+        ColumnFamily result = null;
+
         long start = System.nanoTime();
         try
         {
+
             if (!isRowCacheEnabled())
             {
+                builder.addPayload("row_cache_enabled", false);
+
                 ColumnFamily cf = getTopLevelColumns(filter, gcBefore, false);
 
                 if (cf == null)
@@ -1164,23 +1174,49 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 // TODO this is necessary because when we collate supercolumns together, we don't check
                 // their subcolumns for relevance, so we need to do a second prune post facto here.
-                return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
+                result = cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
+
             }
+            else
+            {
 
-            UUID cfId = Schema.instance.getId(table.name, this.columnFamily);
-            if (cfId == null)
-                return null; // secondary index
+                UUID cfId = Schema.instance.getId(table.name, this.columnFamily);
+                if (cfId == null)
+                    return null; // secondary index
 
-            ColumnFamily cached = getThroughCache(cfId, filter);
-            if (cached == null)
-                return null;
+                ColumnFamily cached = getThroughCache(cfId, filter);
+                if (cached == null)
+                    return null;
 
-            return filterColumnFamily(cached, filter, gcBefore);
+                result = filterColumnFamily(cached, filter, gcBefore);
+            }
         }
         finally
         {
             readStats.addNano(System.nanoTime() - start);
         }
+
+        if (TraceSessionContext.isTracing())
+        {
+            if (result == null)
+            {
+                builder.addPayload("result_col_count", 0);
+                builder.addPayload("result_col_totalsize", 0);
+                return result;
+            }
+            long totalColSize = 0;
+            for (IColumn col : result)
+            {
+                totalColSize += col.value().remaining();
+            }
+
+            builder.addPayload("result_col_count", result.getColumnCount());
+            builder.addPayload("result_col_totalsize", totalColSize);
+            
+            TraceSessionContext.traceCtx().trace(builder.build());
+        }
+
+        return result;
     }
 
     /**

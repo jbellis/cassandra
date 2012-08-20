@@ -35,6 +35,10 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.tracing.TraceSessionContext;
+
+import org.hsqldb.Trace;
+
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -510,6 +514,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         HintedHandOffManager.instance.start();
 
+        // Start the tracing session context
+        TraceSessionContext.initialize();
+
         // We bootstrap if we haven't successfully bootstrapped before, as long as we are not a seed.
         // If we are a seed, or if the user manually sets auto_bootstrap to false,
         // we'll skip streaming data from other nodes and jump directly into the ring.
@@ -821,6 +828,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             // Dont set any state for the node which is bootstrapping the existing token...
             tokenMetadata.updateNormalTokens(tokens, FBUtilities.getBroadcastAddress());
         }
+        TraceSessionContext.traceCtx();
         setMode(Mode.JOINING, "Starting to bootstrap...", true);
         new BootStrapper(FBUtilities.getBroadcastAddress(), tokens, tokenMetadata).bootstrap(); // handles token update
     }

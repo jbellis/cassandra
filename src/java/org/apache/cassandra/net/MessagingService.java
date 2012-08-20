@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.net;
 
+import static org.apache.cassandra.tracing.TraceSessionContext.*;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOError;
@@ -37,6 +39,7 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
+import org.apache.cassandra.tracing.TraceSessionContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -555,11 +558,15 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void sendOneWay(MessageOut message, String id, InetAddress to)
     {
-        if (logger.isTraceEnabled())
-            logger.trace(FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to);
 
         if (to.equals(FBUtilities.getBroadcastAddress()))
             logger.debug("Message-to-self {} going over MessagingService", message);
+
+        if (TraceSessionContext.isTracing())
+        {
+            message = traceCtx().traceMessageDeparture(message, id,
+                    FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to);
+        }
 
         // message sinks are a testing hook
         MessageOut processedMessage = SinkManager.processOutboundMessage(message, id, to);
@@ -675,18 +682,28 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void receive(MessageIn message, String id)
     {
-        if (logger.isTraceEnabled())
-            logger.trace(FBUtilities.getBroadcastAddress() + " received " + message.verb
-                          + " from " + id + "@" + message.from);
+        // setup tracing (if the message requests it)
+        if (traceCtx() != null)
+            traceCtx().traceMessageArrival(message, id, FBUtilities.getBroadcastAddress() + " received " + message.verb
+                    + " from " + id + "@" + message.from);
 
         message = SinkManager.processInboundMessage(message, id);
         if (message == null)
             return;
 
-        Runnable runnable = new MessageDeliveryTask(message, id);
+        final Runnable runnable = new MessageDeliveryTask(message, id);
         ExecutorService stage = StageManager.getStage(message.getMessageType());
         assert stage != null : "No stage for message type " + message.verb;
-        stage.execute(runnable);
+
+        try
+        {
+            stage.execute(runnable);
+        }
+        finally
+        {
+            if (isTracing())
+                traceCtx().reset();
+        }
     }
 
     public void setCallbackForTests(String messageId, CallbackInfo callback)

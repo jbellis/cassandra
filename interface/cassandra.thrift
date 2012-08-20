@@ -721,6 +721,17 @@ service Cassandra {
                                4:required i32 keys_per_split)
     throws (1:InvalidRequestException ire),
 
+  /** Enables tracing for the next query in this connection and returns the UUID for that trace session */  
+  binary trace_next_query(),
+
+  /** Enables detailed logging for queries sent on this connection with the provided probability.
+      In total num_queries_to_trace will be traced.
+      num_queries_to_trace must be > 0 or -1 (enable tracing permanently for this client) */
+  void enable_tracing(1:required double trace_probability,
+                      2:required i32 num_queries_to_trace),
+
+  void disable_tracing(),
+
   /** adds a column family. returns the new schema id. */
   string system_add_column_family(1:required CfDef cf_def)
     throws (1:InvalidRequestException ire, 2:SchemaDisagreementException sde),

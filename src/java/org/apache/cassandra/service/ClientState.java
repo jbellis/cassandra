@@ -17,9 +17,16 @@
  */
 package org.apache.cassandra.service;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
 
 import org.apache.commons.lang.StringUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,6 +54,12 @@ public class ClientState
     // Current user for the session
     private AuthenticatedUser user;
     private String keyspace;
+    private double traceProbability = 0.0;
+    private int maxTracedSessions = 0;
+    private int currentTracedSessions = 0;
+    private UUID preparedTracingSession;
+    private Random random = new Random(1234L);
+
     // Reusable array for authorization
     private final List<Object> resource = new ArrayList<Object>();
     private SemanticVersion cqlVersion = DEFAULT_CQL_VERSION;
@@ -103,6 +116,58 @@ public class ClientState
         keyspace = ks;
     }
 
+    public boolean traceNextQuery()
+    {
+        if (preparedTracingSession != null)
+        {
+            return true;
+        }
+
+        if (random.nextDouble() < traceProbability
+                && ((currentTracedSessions < maxTracedSessions) || (maxTracedSessions == -1)))
+        {
+            currentTracedSessions++;
+            return true;
+        }
+        return false;
+    }
+
+    public void enableTracing(double probability, int number)
+    {
+        this.traceProbability = probability;
+        this.maxTracedSessions = number;
+        if (traceProbability > 0.0 && maxTracedSessions > 0)
+        {
+            if (logger.isDebugEnabled())
+                logger.debug("tracing enabled. Tracing a total of: " + number + " queries with a probability of "
+                        + probability);
+        }
+    }
+
+    public void disableTracing()
+    {
+        this.traceProbability = 0.0;
+        this.maxTracedSessions = 0;
+        this.preparedTracingSession = null;
+    }
+
+    public void prepareTracingSession(UUID sessionId)
+    {
+        this.preparedTracingSession = sessionId;
+    }
+
+    public UUID getPreparedSessionIdAndReset()
+    {
+        UUID preparedTracingSession = this.preparedTracingSession;
+        this.preparedTracingSession = null;
+        return preparedTracingSession;
+    }
+
+    public boolean isPreparedTracingSession()
+    {
+        return this.preparedTracingSession != null;
+    }
+
     public String getSchedulingValue()
     {
         switch(DatabaseDescriptor.getRequestSchedulerId())
@@ -141,6 +206,9 @@ public class ClientState
     {
         user = DatabaseDescriptor.getAuthenticator().defaultUser();
         keyspace = null;
+        maxTracedSessions = 0;
+        traceProbability = 0;
+        preparedTracingSession = null;
         resourceClear();
         prepared.clear();
         cql3Prepared.clear();

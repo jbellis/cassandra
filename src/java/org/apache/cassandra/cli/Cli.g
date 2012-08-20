@@ -38,6 +38,11 @@ tokens {
     NODE_DESCRIBE;
     NODE_DESCRIBE_CLUSTER;
     NODE_USE_TABLE;
+    NODE_TRACE_NEXT_QUERY;
+    NODE_EXPLAIN_TRACE_SESSION;
+    NODE_SHOW_TRACING_SUMMARY;
+    NODE_ENABLE_TRACING;
+    NODE_DISABLE_TRACING;
     NODE_EXIT;
     NODE_HELP;
     NODE_NO_OP;
@@ -145,6 +150,11 @@ statement
     | delColumnFamily
     | delKeyspace
     | useKeyspace
+    | traceNextQuery
+    | explainTraceSession
+    | showTracingSummary
+    | enableTracing
+    | disableTracing
     | delStatement
     | getStatement
     | helpStatement
@@ -173,6 +183,16 @@ helpStatement
         -> ^(NODE_HELP NODE_CONNECT)
     | HELP USE 
         -> ^(NODE_HELP NODE_USE_TABLE)
+    | HELP TRACE NEXT QUERY
+        -> ^(NODE_HELP NODE_TRACE_NEXT_QUERY)
+    | HELP EXPLAIN TRACE SESSION
+        -> ^(NODE_HELP NODE_EXPLAIN_TRACE_SESSION)
+    | HELP SHOW TRACING SUMMARY
+        -> ^(NODE_HELP NODE_SHOW_TRACING_SUMMARY)    
+    | HELP ENABLE TRACING
+        -> ^(NODE_HELP NODE_ENABLE_TRACING)
+    | HELP DISABLE TRACING
+        -> ^(NODE_HELP NODE_DISABLE_TRACING)
     | HELP DESCRIBE
         -> ^(NODE_HELP NODE_DESCRIBE)
     | HELP DESCRIBE 'CLUSTER'
@@ -372,7 +392,31 @@ useKeyspace
     : USE keyspace ( username )? ( password )? 
         -> ^(NODE_USE_TABLE keyspace ( username )? ( password )?)
     ;
+    
+traceNextQuery
+    : TRACE NEXT QUERY
+        -> ^(NODE_TRACE_NEXT_QUERY)
+    ;
 
+explainTraceSession
+    : EXPLAIN TRACE SESSION traceSessionId
+        -> ^(NODE_EXPLAIN_TRACE_SESSION traceSessionId)
+    ;
+
+showTracingSummary
+    : SHOW TRACING SUMMARY sessionRequest
+        -> ^(NODE_SHOW_TRACING_SUMMARY sessionRequest)
+    ;
+
+enableTracing
+    : ENABLE TRACING tracingProbability tracingNumber 
+        -> ^(NODE_ENABLE_TRACING tracingProbability tracingNumber)
+    ;
+
+disableTracing
+    : DISABLE TRACING
+        -> ^(NODE_DISABLE_TRACING)
+    ;
 
 keyValuePairExpr
     : entityName ( (AND | WITH) keyValuePair )*
@@ -533,12 +577,28 @@ ip_address
         -> ^(NODE_ID_LIST IP_ADDRESS)
     ;
 
-
 port    
     : IntegerPositiveLiteral
     ;
 
 incrementValue
+    : IntegerPositiveLiteral
+    | IntegerNegativeLiteral
+    ;
+
+traceSessionId
+    : Identifier
+    ;
+
+sessionRequest
+    : Identifier
+    ;
+
+tracingProbability
+    : DoubleLiteral
+    ;
+
+tracingNumber
     : IntegerPositiveLiteral
     | IntegerNegativeLiteral
     ;
@@ -552,13 +612,22 @@ incrementValue
 //
 // CLI is case-insensitive with respect to these keywords.
 // However, they MUST be listed in upper case here.
-// 
+//
 CONFIG:      'CONFIG';
 CONNECT:     'CONNECT';
 COUNT:       'COUNT';
 DEL:         'DEL';
 DESCRIBE:    'DESCRIBE';
 USE:         'USE';
+ENABLE:      'ENABLE';
+DISABLE:     'DISABLE';
+TRACING:     'TRACING';
+TRACE:       'TRACE';
+NEXT:        'NEXT';
+QUERY:       'QUERY';
+EXPLAIN:     'EXPLAIN';
+SESSION:     'SESSION';
+SUMMARY:     'SUMMARY';
 GET:         'GET';
 HELP:        'HELP';
 EXIT:        'EXIT';

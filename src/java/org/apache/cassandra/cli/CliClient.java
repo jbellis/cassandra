@@ -29,6 +29,11 @@ import java.util.*;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.Maps;
+import org.apache.cassandra.tracing.TraceEvent;
+import org.apache.cassandra.tracing.TraceEventBuilder;
+import org.apache.cassandra.tracing.TracePrettyPrinter;
+import org.apache.cassandra.tracing.TraceSessionContext;
 import org.apache.commons.lang.StringUtils;
 import com.google.common.base.Charsets;
 import com.google.common.base.Joiner;
@@ -264,6 +269,21 @@ public class CliClient
                     break;
                 case CliParser.NODE_USE_TABLE:
                     executeUseKeySpace(tree);
+                    break;
+                case CliParser.NODE_TRACE_NEXT_QUERY:
+                    executeTraceNextQuery();
+                    break;
+                case CliParser.NODE_EXPLAIN_TRACE_SESSION:
+                    executeExplainTraceSession(tree.getChild(0).getText());
+                    break;
+                case CliParser.NODE_SHOW_TRACING_SUMMARY:
+                    executeShowTracingSummary(tree.getChild(0).getText());
+                    break;
+                case CliParser.NODE_ENABLE_TRACING:
+                    executeEnableTracing(tree);
+                    break;
+                case CliParser.NODE_DISABLE_TRACING:
+                    executeDisableTracing();
                     break;
                 case CliParser.NODE_CONNECT:
                     executeConnect(tree);
@@ -1982,6 +2002,163 @@ public class CliClient
             sessionState.err.println("Login failure. Did you specify 'keyspace', 'username' and 'password'?");
         }
     }
+
+    private void executeTraceNextQuery() throws TException, CharacterCodingException
+    {
+        if (!CliMain.isConnected())
+            return;
+
+        UUID sessionId = TimeUUIDType.instance.compose(thriftClient.trace_next_query());
+
+        sessionState.out.println("Will trace next query. Session ID: " + sessionId.toString());
+    }
+
+    private void executeShowTracingSummary(String request) throws UnavailableException, TException, TimedOutException
+    {
+        if (!CliMain.isConnected())
+            return;
+
+        boolean changedKeyspaces = false;
+        try
+        {
+            if (this.keySpace != null && !this.keySpace.equals(TraceSessionContext.TRACE_KEYSPACE))
+                changedKeyspaces = true;
+
+            thriftClient.set_keyspace(TraceSessionContext.TRACE_KEYSPACE);
+
+            ColumnParent parent = new ColumnParent("trace_events");
+
+            SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange().setStart(
+                    ByteBufferUtil.EMPTY_BYTE_BUFFER).setFinish(ByteBufferUtil.EMPTY_BYTE_BUFFER));
+
+            IndexExpression expression = new IndexExpression().setColumn_name(ByteBufferUtil.bytes("name"))
+                    .setOp(IndexOperator.EQ).setValue(ByteBufferUtil.bytes(request));
+
+            KeyRange range = new KeyRange().setStart_token("0").setEnd_token("0").setCount(10000);
+            // .setRow_filter(ImmutableList.of(expression));
+
+            List<KeySlice> slices = thriftClient.get_range_slices(parent, predicate, range, ConsistencyLevel.ONE);
+
+            Map<UUID, List<TraceEvent>> allEvents = Maps.newHashMap();
+
+            for (KeySlice keySlice : slices)
+            {
+                UUID key = TimeUUIDType.instance.compose(keySlice.bufferForKey());
+                List<TraceEvent> sessionEvents = TraceEventBuilder.fromThrift(key, keySlice.getColumns());
+                // TODO we should query the index for only the rows that contain the requested event
+                if (sessionEvents.isEmpty())
+                    continue;
+                if (sessionEvents.get(0).name().equals(request))
+                    allEvents.put(key, sessionEvents);
+            }
+
+            if (allEvents.isEmpty())
+            {
+                System.out.println("No trace events to display for request: " + request);
+                return;
+            }
+
+            TracePrettyPrinter.printMultiSessionTraceForRequestType(request, allEvents, System.out);
+        }
+        catch (Exception e)
+        {
+            sessionState.out.println("Invalid Request: " + e);
+            e.printStackTrace();
+        }
+        finally
+        {
+            try
+            {
+                if (changedKeyspaces)
+                    thriftClient.set_keyspace(this.keySpace);
+            }
+            catch (InvalidRequestException e)
+            {
+            }
+        }
+    }
+
+    private void executeExplainTraceSession(String sessionIdAsString) throws TException, UnavailableException, TimedOutException,
+            CharacterCodingException
+    {
+
+        if (!CliMain.isConnected())
+            return;
+
+        try
+        {
+            thriftClient.set_keyspace(TraceSessionContext.TRACE_KEYSPACE);
+
+            UUID sessionId = UUID.fromString(sessionIdAsString);
+            ByteBuffer sessionIdAsBB = TimeUUIDType.instance.decompose(sessionId);
+
+            ColumnParent events = new ColumnParent(TraceSessionContext.EVENTS_TABLE);
+
+            SliceRange range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                    false, Integer.MAX_VALUE);
+            SlicePredicate predicate = new SlicePredicate().setColumn_names(null).setSlice_range(range);
+
+            // get all the events
+            List<ColumnOrSuperColumn> eventCols = thriftClient.get_slice(sessionIdAsBB, events, predicate,
+                    ConsistencyLevel.QUORUM);
+
+            List<TraceEvent> traceEvents = TraceEventBuilder.fromThrift(sessionId, eventCols);
+
+            if (traceEvents != null && !traceEvents.isEmpty())
+            {
+                TracePrettyPrinter.printSingleSessionTrace(sessionId, traceEvents, System.out);
+            }
+            else
+            {
+                System.out.println("No session was found for id: " + sessionId);
+                return;
+            }
+        }
+        catch (InvalidRequestException e)
+        {
+            sessionState.out.println("Invalid request: " + e);
+        }
+        finally
+        {
+            try
+            {
+                if (this.keySpace != null)
+                {
+                    thriftClient.set_keyspace(this.keySpace);
+                }
+            }
+            catch (InvalidRequestException e)
+            {
+            }
+        }
+
+    }
+
+    private void executeEnableTracing(final Tree statement) throws TException
+    {
+        if (!CliMain.isConnected())
+            return;
+
+        final double tracingProbability = Double.parseDouble(statement.getChild(0).getText());
+        final int tracingNumber = Integer.parseInt(statement.getChild(1).getText());
+
+        thriftClient.enable_tracing(tracingProbability, tracingNumber);
+
+        sessionState.out.println("Query Tracing is enabled, will trace queries from this client with "
+                + new Double(tracingProbability).floatValue() + " probability up to "
+                + (tracingNumber == -1 ? "ALL" : tracingNumber) + " queries");
+    }
+
+    private void executeDisableTracing() throws TException
+    {
+        if (!CliMain.isConnected())
+            return;
+
+        thriftClient.disable_tracing();
+
+        sessionState.out.println("Query tracing is disabled.");
+    }
+
 
     private void describeKeySpace(String keySpaceName, KsDef metadata) throws TException
     {
