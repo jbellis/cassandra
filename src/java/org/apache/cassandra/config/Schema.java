@@ -22,8 +22,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
+import com.google.common.collect.*;
+
 import org.apache.cassandra.service.MigrationManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +35,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.UnknownColumnFamilyException;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.tracing.TraceContext;
 import org.apache.cassandra.utils.Pair;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -281,9 +282,8 @@ public class Schema
      */
     public List<String> getNonSystemTables()
     {
-        List<String> tablesList = new ArrayList<String>(tables.keySet());
-        tablesList.remove(Table.SYSTEM_KS);
-        return Collections.unmodifiableList(tablesList);
+        ImmutableSet<String> system = ImmutableSet.of(Table.SYSTEM_KS, TraceContext.TRACE_KS);
+        return ImmutableList.copyOf(Sets.difference(tables.keySet(), system));
     }
 
     /**
