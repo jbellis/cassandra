@@ -37,8 +37,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.tracing.TraceContext;
 
-import org.hsqldb.Trace;
-
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
