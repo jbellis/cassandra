@@ -36,35 +36,22 @@ import java.util.concurrent.RejectedExecutionException;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.ColumnNameBuilder;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.statements.CreateColumnFamilyStatement;
-import org.apache.cassandra.cql3.statements.CreateIndexStatement;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Throwables;
-import com.google.common.collect.ImmutableMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,6 +64,8 @@ public class TraceContext
 {
     public static final String TRACE_KS = "system_traces";
     public static final String EVENTS_CF = "events";
+
+    private static final int TTL = 24 * 3600;
 
     private static TraceContext instance;
 
@@ -101,57 +90,7 @@ public class TraceContext
     public static final String TYPE = "type";
     public static final ByteBuffer TYPE_BB = ByteBufferUtil.bytes(TYPE);
 
-    public static final String TRACE_TABLE_STATEMENT = "CREATE TABLE " + TRACE_KS + "." + EVENTS_CF + " (" +
-            "  " + SESSION_ID + "        timeuuid," +
-            "  " + COORDINATOR + "       inet," +
-            "  " + EVENT_ID + "          timeuuid," +
-            "  " + DESCRIPTION + "       text," +
-            "  " + DURATION + "          bigint," +
-            "  " + HAPPENED + "          timestamp," +
-            "  " + NAME + "              text," +
-            "  " + PAYLOAD_TYPES + "     map<text, text>," +
-            "  " + PAYLOAD + "           map<text, blob>," +
-            "  " + SOURCE + "            inet," +
-            "  " + TYPE + "              text," +
-            "  PRIMARY KEY (" + SESSION_ID + ", " + COORDINATOR + ", " + EVENT_ID + "));";
-
-    public static final String INDEX_STATEMENT = "CREATE INDEX idx_" + NAME + " ON " + TRACE_KS + "."
-            + EVENTS_CF + " (" + NAME + ")";
-
-    public static final CFMetaData eventsCfm = compile(TRACE_TABLE_STATEMENT);
-
     private static final Logger logger = LoggerFactory.getLogger(TraceContext.class);
-
-    private static CFMetaData compile(String cql)
-    {
-        CreateColumnFamilyStatement statement = null;
-        try
-        {
-            statement = (CreateColumnFamilyStatement) QueryProcessor.parseStatement(cql)
-                    .prepare().statement;
-
-            CFMetaData newCFMD = new CFMetaData(TRACE_KS, statement.columnFamily(), ColumnFamilyType.Standard,
-                    statement.comparator,
-                    null);
-
-            newCFMD.comment("")
-                    .readRepairChance(0)
-                    .dcLocalReadRepairChance(0)
-                    .gcGraceSeconds(0);
-
-            statement.applyPropertiesTo(newCFMD);
-
-            return newCFMD;
-        }
-        catch (InvalidRequestException e)
-        {
-            throw Throwables.propagate(e);
-        }
-        catch (ConfigurationException e)
-        {
-            throw Throwables.propagate(e);
-        }
-    }
 
     public static void initialize()
     {
@@ -181,63 +120,21 @@ public class TraceContext
     }
 
     private InetAddress localAddress;
-    private ThreadLocal<TraceState> state = new ThreadLocal<TraceState>();
-    private int timeToLive = 24 * 3600;
-
-    protected TraceContext()
-    {
-        logger.info("Initializing Trace session context.");
-
-        this.localAddress = FBUtilities.getLocalAddress();
-
-        for (String keyspace : Schema.instance.getTables())
-        {
-            if (keyspace.equals(TRACE_KS))
-                return;
-        }
-
-        try
-        {
-            logger.info("Trace keyspace was not found; creating & announcing");
-            KSMetaData traceKs = KSMetaData.newKeyspace(TRACE_KS,
-                                                        SimpleStrategy.class.getName(),
-                                                        ImmutableMap.of("replication_factor", "1"));
-            MigrationManager.announceNewKeyspace(traceKs);
-            MigrationManager.announceNewColumnFamily(eventsCfm);
-            Thread.sleep(1000);
-            try
-            {
-                CreateIndexStatement statement = (CreateIndexStatement) QueryProcessor
-                        .parseStatement(INDEX_STATEMENT).prepare().statement;
-                statement.announceMigration();
-            }
-            catch (InvalidRequestException e)
-            {
-                if (!e.getWhy().contains("Index already exists"))
-                {
-                    Throwables.propagate(e);
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            Throwables.propagate(e);
-        }
-    }
+    private final ThreadLocal<TraceState> state = new ThreadLocal<TraceState>();
 
     private void addColumn(ColumnFamily cf, ByteBuffer columnName, InetAddress address)
     {
-        cf.addColumn(new ExpiringColumn(columnName, bytes(address), System.currentTimeMillis(), timeToLive));
+        cf.addColumn(new ExpiringColumn(columnName, bytes(address), System.currentTimeMillis(), TTL));
     }
 
     private void addColumn(ColumnFamily cf, ByteBuffer columnName, long value)
     {
-        cf.addColumn(new ExpiringColumn(columnName, ByteBufferUtil.bytes(value), System.currentTimeMillis(), timeToLive));
+        cf.addColumn(new ExpiringColumn(columnName, ByteBufferUtil.bytes(value), System.currentTimeMillis(), TTL));
     }
 
     private void addColumn(ColumnFamily cf, ByteBuffer columnName, String value)
     {
-        cf.addColumn(new ExpiringColumn(columnName, ByteBufferUtil.bytes(value), System.currentTimeMillis(), timeToLive));
+        cf.addColumn(new ExpiringColumn(columnName, ByteBufferUtil.bytes(value), System.currentTimeMillis(), TTL));
     }
 
     private void addPayloadColumns(ColumnFamily cf, Map<String, ByteBuffer> rawPayload,
@@ -245,9 +142,9 @@ public class TraceContext
     {
         for (Map.Entry<String, ByteBuffer> entry : rawPayload.entrySet())
         {
-            cf.addColumn(new ExpiringColumn(buildName(eventsCfm, coord, eventId, PAYLOAD_BB,
+            cf.addColumn(new ExpiringColumn(buildName(CFMetaData.TraceEventsCf, coord, eventId, PAYLOAD_BB,
                     UTF8Type.instance.decompose(entry.getKey())), entry.getValue(), System.currentTimeMillis(),
-                    timeToLive));
+                                            TTL));
         }
     }
 
@@ -257,9 +154,9 @@ public class TraceContext
 
         for (Map.Entry<String, AbstractType<?>> entry : payloadTypes.entrySet())
         {
-            cf.addColumn(new ExpiringColumn(buildName(eventsCfm, coord, eventId, PAYLOAD_TYPES_BB,
+            cf.addColumn(new ExpiringColumn(buildName(CFMetaData.TraceEventsCf, coord, eventId, PAYLOAD_TYPES_BB,
                     UTF8Type.instance.decompose(entry.getKey())), UTF8Type.instance.decompose(entry.getValue()
-                    .toString()), System.currentTimeMillis(), timeToLive));
+                    .toString()), System.currentTimeMillis(), TTL));
         }
 
     }
@@ -349,11 +246,6 @@ public class TraceContext
         this.localAddress = localAddress;
     }
 
-    public void setTimeToLive(int timeToLive)
-    {
-        this.timeToLive = timeToLive;
-    }
-
     public UUID newSession()
     {
         return newSession(TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes())));
@@ -420,15 +312,15 @@ public class TraceContext
         {
             // log the event to debug (in case tracing queue is full)
             logger.debug("Tracing event: " + event);
-            ColumnFamily family = ColumnFamily.create(eventsCfm);
+            ColumnFamily family = ColumnFamily.create(CFMetaData.TraceEventsCf);
             ByteBuffer coordinatorAsBB = bytes(event.coordinator());
             ByteBuffer eventIdAsBB = event.idAsBB();
-            addColumn(family, buildName(eventsCfm, coordinatorAsBB, eventIdAsBB, SOURCE_BB), event.source());
-            addColumn(family, buildName(eventsCfm, coordinatorAsBB, eventIdAsBB, NAME_BB), event.name());
-            addColumn(family, buildName(eventsCfm, coordinatorAsBB, eventIdAsBB, DURATION_BB), event.duration());
-            addColumn(family, buildName(eventsCfm, coordinatorAsBB, eventIdAsBB, HAPPENED_BB), event.timestamp());
-            addColumn(family, buildName(eventsCfm, coordinatorAsBB, eventIdAsBB, DESCRIPTION_BB), event.description());
-            addColumn(family, buildName(eventsCfm, coordinatorAsBB, eventIdAsBB, TYPE_BB), event.type().name());
+            addColumn(family, buildName(CFMetaData.TraceEventsCf, coordinatorAsBB, eventIdAsBB, SOURCE_BB), event.source());
+            addColumn(family, buildName(CFMetaData.TraceEventsCf, coordinatorAsBB, eventIdAsBB, NAME_BB), event.name());
+            addColumn(family, buildName(CFMetaData.TraceEventsCf, coordinatorAsBB, eventIdAsBB, DURATION_BB), event.duration());
+            addColumn(family, buildName(CFMetaData.TraceEventsCf, coordinatorAsBB, eventIdAsBB, HAPPENED_BB), event.timestamp());
+            addColumn(family, buildName(CFMetaData.TraceEventsCf, coordinatorAsBB, eventIdAsBB, DESCRIPTION_BB), event.description());
+            addColumn(family, buildName(CFMetaData.TraceEventsCf, coordinatorAsBB, eventIdAsBB, TYPE_BB), event.type().name());
             addPayloadTypeColumns(family, event.payloadTypes(), coordinatorAsBB, eventIdAsBB);
             addPayloadColumns(family, event.rawPayload(), coordinatorAsBB, eventIdAsBB);
             store(event.sessionId(), family);

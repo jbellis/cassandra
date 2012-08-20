@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
@@ -77,21 +78,21 @@ public class TraceEventBuilder
 
     public static InetAddress decodeCoordinator(ByteBuffer name)
     {
-        CompositeType traceColumnType = ((CompositeType) TraceContext.eventsCfm.comparator);
+        CompositeType traceColumnType = ((CompositeType) CFMetaData.TraceEventsCf.comparator);
         AbstractType<InetAddress> coordinatorType = (AbstractType<InetAddress>) traceColumnType.types.get(0);
         return coordinatorType.compose(traceColumnType.deconstruct(name).get(0).value);
     }
 
     public static UUID decodeEventId(ByteBuffer name)
     {
-        CompositeType traceColumnType = ((CompositeType) TraceContext.eventsCfm.comparator);
+        CompositeType traceColumnType = ((CompositeType) CFMetaData.TraceEventsCf.comparator);
         AbstractType<UUID> eventIdComponentType = (AbstractType<UUID>) traceColumnType.types.get(1);
         return eventIdComponentType.compose(traceColumnType.deconstruct(name).get(1).value);
     }
 
     public static String decodeColumnName(ByteBuffer name)
     {
-        CompositeType traceColumnType = ((CompositeType) TraceContext.eventsCfm.comparator);
+        CompositeType traceColumnType = ((CompositeType) CFMetaData.TraceEventsCf.comparator);
         AbstractType<String> columnNameType = (AbstractType<String>) traceColumnType.types.get(2);
         return columnNameType.compose(traceColumnType.deconstruct(name).get(2).value);
     }
@@ -99,7 +100,7 @@ public class TraceEventBuilder
     public static String decodeMapEntryKey(ByteBuffer name)
     {
         // here we cheat a bit as we now that both map types have a UTF8Type key (avoids having a method per map)
-        CompositeType traceColumnType = ((CompositeType) TraceContext.eventsCfm.comparator);
+        CompositeType traceColumnType = ((CompositeType) CFMetaData.TraceEventsCf.comparator);
         return UTF8Type.instance.compose(traceColumnType.deconstruct(name).get(3).value);
     }
 

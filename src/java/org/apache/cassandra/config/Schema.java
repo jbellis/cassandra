@@ -336,17 +336,8 @@ public class Schema
      */
     public void setTableDefinition(KSMetaData ksm)
     {
-        if (ksm != null)
-            tables.put(ksm.name, ksm);
-    }
-
-    /**
-     * Add a new system table
-     * @param systemTable The metadata describing new system table
-     */
-    public void addSystemTable(KSMetaData systemTable)
-    {
-        tables.put(systemTable.name, systemTable);
+        assert ksm != null;
+        tables.put(ksm.name, ksm);
     }
 
     /* ColumnFamily query/control methods */

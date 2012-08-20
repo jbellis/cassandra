@@ -19,6 +19,7 @@ package org.apache.cassandra.config;
 
 import java.util.*;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang.StringUtils;
 
@@ -30,6 +31,7 @@ import org.apache.cassandra.locator.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.KsDef;
+import org.apache.cassandra.tracing.TraceContext;
 
 import static org.apache.cassandra.utils.FBUtilities.*;
 
@@ -83,6 +85,12 @@ public final class KSMetaData
                                                 CFMetaData.MigrationsCf,
                                                 CFMetaData.SchemaCf);
         return new KSMetaData(Table.SYSTEM_KS, LocalStrategy.class, Collections.<String, String>emptyMap(), true, cfDefs);
+    }
+
+    public static KSMetaData traceKeyspace()
+    {
+        List<CFMetaData> cfDefs = Arrays.asList(CFMetaData.TraceEventsCf);
+        return new KSMetaData(TraceContext.TRACE_KS, SimpleStrategy.class, ImmutableMap.of("replication_factor", "1"), true, cfDefs);
     }
 
     public static KSMetaData testMetadata(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, CFMetaData... cfDefs)
