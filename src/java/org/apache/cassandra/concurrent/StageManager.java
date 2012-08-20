@@ -20,10 +20,12 @@ package org.apache.cassandra.concurrent;
 import com.google.common.annotations.VisibleForTesting;
 
 import java.util.EnumMap;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.net.MessagingService;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.*;
 
@@ -35,6 +37,8 @@ import static org.apache.cassandra.config.DatabaseDescriptor.*;
  */
 public class StageManager
 {
+    private static final Logger logger = LoggerFactory.getLogger(StageManager.class);
+
     private static final EnumMap<Stage, ThreadPoolExecutor> stages = new EnumMap<Stage, ThreadPoolExecutor>(Stage.class);
 
     public static final long KEEPALIVE = 60; // seconds to keep "extra" threads alive for when idle
@@ -55,8 +59,25 @@ public class StageManager
         stages.put(Stage.MIGRATION, new JMXEnabledThreadPoolExecutor(Stage.MIGRATION));
         stages.put(Stage.MISC, new JMXEnabledThreadPoolExecutor(Stage.MISC));
         stages.put(Stage.READ_REPAIR, multiThreadedStage(Stage.READ_REPAIR, Runtime.getRuntime().availableProcessors()));
-        stages.put(Stage.TRACING, new ThreadPoolExecutor(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<Runnable>(1000), new NamedThreadFactory(Stage.TRACING.getJmxName())));
+        stages.put(Stage.TRACING, tracingExecutor());
+    }
+
+    private static ThreadPoolExecutor tracingExecutor()
+    {
+        JMXEnabledThreadPoolExecutor executor = new JMXEnabledThreadPoolExecutor(1,
+                                                                                 KEEPALIVE,
+                                                                                 TimeUnit.SECONDS,
+                                                                                 new LinkedBlockingQueue<Runnable>(),
+                                                                                 new NamedThreadFactory(Stage.TRACING.getJmxName()),
+                                                                                 Stage.TRACING.getJmxType());
+        executor.setRejectedExecutionHandler(new RejectedExecutionHandler()
+        {
+            public void rejectedExecution(Runnable r, ThreadPoolExecutor executor)
+            {
+                MessagingService.instance().incrementDroppedMessages(MessagingService.Verb._TRACE);
+            }
+        });
+        return executor;
     }
 
     private static ThreadPoolExecutor multiThreadedStage(Stage stage, int numThreads)
