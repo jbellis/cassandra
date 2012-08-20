@@ -55,7 +55,6 @@ public class TracePrettyPrinter
                 Maps.<InetAddress, Collection<TraceEvent>> newLinkedHashMap(),
                 new Supplier<ArrayList<TraceEvent>>()
                 {
-                    @Override
                     public ArrayList<TraceEvent> get()
                     {
                         return Lists.newArrayList();
@@ -260,8 +259,6 @@ public class TracePrettyPrinter
         final DescriptiveStatistics writtenSizeStats = new DescriptiveStatistics();
         applyToAll(traceEvents, new Function<TraceEvent, Void>()
         {
-
-            @Override
             public Void apply(TraceEvent event)
             {
                 if (event.type() == TraceEvent.Type.SESSION_START)
@@ -394,7 +391,6 @@ public class TracePrettyPrinter
             return builder;
         }
 
-        @Override
         public int compareTo(Timeline o)
         {
             return Longs.compare(start, o.start);
@@ -449,13 +445,11 @@ public class TracePrettyPrinter
         {
             return Joiner.on(",").join(Iterables.transform(events, new Function<TraceEvent, String>()
             {
-                @Override
                 public String apply(TraceEvent traceEvent)
                 {
                     return shortNames(traceEvent);
                 }
             }));
         }
-
     }
 }

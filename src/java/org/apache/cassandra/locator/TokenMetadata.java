@@ -95,7 +95,6 @@ public class TokenMetadata
 
     private static final Comparator<InetAddress> inetaddressCmp = new Comparator<InetAddress>()
     {
-        @Override
         public int compare(InetAddress o1, InetAddress o2)
         {
             return ByteBuffer.wrap(o1.getAddress()).compareTo(ByteBuffer.wrap(o2.getAddress()));
