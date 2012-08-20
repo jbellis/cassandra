@@ -82,7 +82,7 @@ public final class KSMetaData
                                                 CFMetaData.OldHintsCf,
                                                 CFMetaData.MigrationsCf,
                                                 CFMetaData.SchemaCf);
-        return new KSMetaData(Table.SYSTEM_TABLE, LocalStrategy.class, Collections.<String, String>emptyMap(), true, cfDefs);
+        return new KSMetaData(Table.SYSTEM_KS, LocalStrategy.class, Collections.<String, String>emptyMap(), true, cfDefs);
     }
 
     public static KSMetaData testMetadata(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, CFMetaData... cfDefs)
@@ -206,7 +206,7 @@ public final class KSMetaData
 
     public RowMutation dropFromSchema(long timestamp)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(name));
+        RowMutation rm = new RowMutation(Table.SYSTEM_KS, SystemTable.getSchemaKSKey(name));
         rm.delete(new QueryPath(SystemTable.SCHEMA_KEYSPACES_CF), timestamp);
         rm.delete(new QueryPath(SystemTable.SCHEMA_COLUMNFAMILIES_CF), timestamp);
         rm.delete(new QueryPath(SystemTable.SCHEMA_COLUMNS_CF), timestamp);
@@ -216,7 +216,7 @@ public final class KSMetaData
 
     public RowMutation toSchema(long timestamp)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(name));
+        RowMutation rm = new RowMutation(Table.SYSTEM_KS, SystemTable.getSchemaKSKey(name));
         ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_KEYSPACES_CF);
 
         cf.addColumn(Column.create(durableWrites, timestamp, "durable_writes"));

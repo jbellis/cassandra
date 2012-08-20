@@ -282,7 +282,7 @@ public class Schema
     public List<String> getNonSystemTables()
     {
         List<String> tablesList = new ArrayList<String>(tables.keySet());
-        tablesList.remove(Table.SYSTEM_TABLE);
+        tablesList.remove(Table.SYSTEM_KS);
         return Collections.unmodifiableList(tablesList);
     }
 

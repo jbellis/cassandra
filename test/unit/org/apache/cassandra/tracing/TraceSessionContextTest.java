@@ -73,7 +73,7 @@ public class TraceSessionContextTest extends SchemaLoader
         @Override
         protected void store(final UUID key, final ColumnFamily family)
         {
-            RowMutation mutation = new RowMutation(TRACE_KEYSPACE, TimeUUIDType.instance.decompose(key));
+            RowMutation mutation = new RowMutation(TRACE_KS, TimeUUIDType.instance.decompose(key));
             mutation.add(family);
             mutation.apply();
         }
@@ -103,12 +103,12 @@ public class TraceSessionContextTest extends SchemaLoader
                 .build());
 
         ColumnFamily family = Table
-                .open(TRACE_KEYSPACE)
-                .getColumnFamilyStore(EVENTS_TABLE)
+                .open(TRACE_KS)
+                .getColumnFamilyStore(EVENTS_CF)
                 .getColumnFamily(
                         QueryFilter.getIdentityFilter(Util.dk(ByteBuffer.wrap(UUIDGen.decompose(sessionId))),
                                 new QueryPath(
-                                        EVENTS_TABLE)));
+                                        EVENTS_CF)));
 
         List<TraceEvent> traceEvents = TraceEventBuilder.fromColumnFamily(sessionId, family);
         // we should have two events because "get" actually produces one
@@ -127,12 +127,12 @@ public class TraceSessionContextTest extends SchemaLoader
                         .addPayload("simplePayload", LongType.instance, 9876L).build());
 
         ColumnFamily family = Table
-                .open(TRACE_KEYSPACE)
-                .getColumnFamilyStore(EVENTS_TABLE)
+                .open(TRACE_KS)
+                .getColumnFamilyStore(EVENTS_CF)
                 .getColumnFamily(
                         QueryFilter.getIdentityFilter(Util.dk(ByteBuffer.wrap(UUIDGen.decompose(sessionId))),
                                 new QueryPath(
-                                        EVENTS_TABLE)));
+                                        EVENTS_CF)));
 
         List<TraceEvent> traceEvents = TraceEventBuilder.fromColumnFamily(sessionId, family);
         // we should have two events because "get" actually produces one
@@ -172,12 +172,12 @@ public class TraceSessionContextTest extends SchemaLoader
         Thread.sleep(200);
 
         ColumnFamily family = Table
-                .open(TRACE_KEYSPACE)
-                .getColumnFamilyStore(EVENTS_TABLE)
+                .open(TRACE_KS)
+                .getColumnFamilyStore(EVENTS_CF)
                 .getColumnFamily(
                         QueryFilter.getIdentityFilter(Util.dk(ByteBuffer.wrap(UUIDGen.decompose(sessionId))),
                                 new QueryPath(
-                                        EVENTS_TABLE)));
+                                        EVENTS_CF)));
 
         List<TraceEvent> traceEvents = TraceEventBuilder.fromColumnFamily(sessionId, family);
 
@@ -237,12 +237,12 @@ public class TraceSessionContextTest extends SchemaLoader
         assertNotNull(reference.get());
 
         ColumnFamily family = Table
-                .open(TRACE_KEYSPACE)
-                .getColumnFamilyStore(EVENTS_TABLE)
+                .open(TRACE_KS)
+                .getColumnFamilyStore(EVENTS_CF)
                 .getColumnFamily(
                         QueryFilter.getIdentityFilter(Util.dk(ByteBuffer.wrap(UUIDGen.decompose(sessionId))),
                                 new QueryPath(
-                                        EVENTS_TABLE)));
+                                        EVENTS_CF)));
 
         // Because the MessageDeliveryTask does not run on a DebuggableTPE no automated stage tracing
         // events were inserted, we just have 4 more than after the previous method

@@ -1900,7 +1900,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void forceTableCleanup(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        if (tableName.equals(Table.SYSTEM_TABLE))
+        if (tableName.equals(Table.SYSTEM_KS))
             throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
 
         NodeId.OneShotRenewer nodeIdRenewer = new NodeId.OneShotRenewer();
@@ -2075,7 +2075,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void forceTableRepair(final String tableName, boolean isSequential, final String... columnFamilies) throws IOException
     {
-        if (Table.SYSTEM_TABLE.equals(tableName))
+        if (Table.SYSTEM_KS.equals(tableName))
             return;
 
         Collection<Range<Token>> ranges = getLocalRanges(tableName);
@@ -2124,7 +2124,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void forceTableRepairPrimaryRange(final String tableName, boolean isSequential, final String... columnFamilies) throws IOException
     {
-        if (Table.SYSTEM_TABLE.equals(tableName))
+        if (Table.SYSTEM_KS.equals(tableName))
             return;
 
         List<AntiEntropyService.RepairFuture> futures = new ArrayList<AntiEntropyService.RepairFuture>();
@@ -2142,7 +2142,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void forceTableRepairRange(String beginToken, String endToken, final String tableName, boolean isSequential, final String... columnFamilies) throws IOException
     {
-        if (Table.SYSTEM_TABLE.equals(tableName))
+        if (Table.SYSTEM_KS.equals(tableName))
             return;
 
         Token parsedBeginToken = getPartitioner().getTokenFactory().fromString(beginToken);

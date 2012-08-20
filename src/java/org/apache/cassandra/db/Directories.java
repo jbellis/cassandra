@@ -31,7 +31,6 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
@@ -391,7 +390,7 @@ public class Directories
         boolean hasSystemKeyspace = false;
         for (File location : dataFileLocations)
         {
-            File systemDir = new File(location, Table.SYSTEM_TABLE);
+            File systemDir = new File(location, Table.SYSTEM_KS);
             hasSystemKeyspace |= (systemDir.exists() && systemDir.isDirectory());
             File statusCFDir = new File(systemDir, SystemTable.SCHEMA_KEYSPACES_CF);
             if (statusCFDir.exists())

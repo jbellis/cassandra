@@ -2021,10 +2021,10 @@ public class CliClient
         boolean changedKeyspaces = false;
         try
         {
-            if (this.keySpace != null && !this.keySpace.equals(TraceContext.TRACE_KEYSPACE))
+            if (this.keySpace != null && !this.keySpace.equals(TraceContext.TRACE_KS))
                 changedKeyspaces = true;
 
-            thriftClient.set_keyspace(TraceContext.TRACE_KEYSPACE);
+            thriftClient.set_keyspace(TraceContext.TRACE_KS);
 
             ColumnParent parent = new ColumnParent("trace_events");
 
@@ -2087,12 +2087,12 @@ public class CliClient
 
         try
         {
-            thriftClient.set_keyspace(TraceContext.TRACE_KEYSPACE);
+            thriftClient.set_keyspace(TraceContext.TRACE_KS);
 
             UUID sessionId = UUID.fromString(sessionIdAsString);
             ByteBuffer sessionIdAsBB = TimeUUIDType.instance.decompose(sessionId);
 
-            ColumnParent events = new ColumnParent(TraceContext.EVENTS_TABLE);
+            ColumnParent events = new ColumnParent(TraceContext.EVENTS_CF);
 
             SliceRange range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER,
                     false, Integer.MAX_VALUE);

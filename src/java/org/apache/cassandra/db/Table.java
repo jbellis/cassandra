@@ -63,7 +63,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class Table
 {
-    public static final String SYSTEM_TABLE = "system";
+    public static final String SYSTEM_KS = "system";
 
     private static final Logger logger = LoggerFactory.getLogger(Table.class);
 
@@ -601,7 +601,7 @@ public class Table
     {
         // do not trace the tracing system of the system tables
         if (TraceContext.isTracing() &&
-            !mutation.getTable().equals(TraceContext.TRACE_KEYSPACE) &&
+            !mutation.getTable().equals(TraceContext.TRACE_KS) &&
             !mutation.getTable().equals("system"))
         {
             TraceEventBuilder builder = new TraceEventBuilder();

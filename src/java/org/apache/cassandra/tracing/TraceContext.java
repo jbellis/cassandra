@@ -63,10 +63,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Predicate;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,6 +75,9 @@ import org.slf4j.LoggerFactory;
  */
 public class TraceContext
 {
+    public static final String TRACE_KS = "system_traces";
+    public static final String EVENTS_CF = "events";
+
     private static TraceContext instance;
 
     public static final String COORDINATOR = "coordinator";
@@ -85,7 +86,6 @@ public class TraceContext
     public static final String DURATION = "duration";
     public static final ByteBuffer DURATION_BB = ByteBufferUtil.bytes(DURATION);
     public static final String EVENT_ID = "eventId";
-    public static final String EVENTS_TABLE = "trace_events";
     public static final String HAPPENED = "happened_at";
     public static final ByteBuffer HAPPENED_BB = ByteBufferUtil.bytes(HAPPENED);
     public static final String NAME = "name";
@@ -97,12 +97,11 @@ public class TraceContext
     public static final String SESSION_ID = "sessionId";
     public static final String SOURCE = "source";
     public static final ByteBuffer SOURCE_BB = ByteBufferUtil.bytes(SOURCE);
-    public static final String TRACE_KEYSPACE = "trace";
     public static final String TRACE_SESSION_CONTEXT_HEADER = "SessionContext";
     public static final String TYPE = "type";
     public static final ByteBuffer TYPE_BB = ByteBufferUtil.bytes(TYPE);
 
-    public static final String TRACE_TABLE_STATEMENT = "CREATE TABLE " + TRACE_KEYSPACE + "." + EVENTS_TABLE + " (" +
+    public static final String TRACE_TABLE_STATEMENT = "CREATE TABLE " + TRACE_KS + "." + EVENTS_CF + " (" +
             "  " + SESSION_ID + "        timeuuid," +
             "  " + COORDINATOR + "       inet," +
             "  " + EVENT_ID + "          timeuuid," +
@@ -116,8 +115,8 @@ public class TraceContext
             "  " + TYPE + "              text," +
             "  PRIMARY KEY (" + SESSION_ID + ", " + COORDINATOR + ", " + EVENT_ID + "));";
 
-    public static final String INDEX_STATEMENT = "CREATE INDEX idx_" + NAME + " ON " + TRACE_KEYSPACE + "."
-            + EVENTS_TABLE + " (" + NAME + ")";
+    public static final String INDEX_STATEMENT = "CREATE INDEX idx_" + NAME + " ON " + TRACE_KS + "."
+            + EVENTS_CF + " (" + NAME + ")";
 
     public static final CFMetaData eventsCfm = compile(TRACE_TABLE_STATEMENT);
 
@@ -131,7 +130,7 @@ public class TraceContext
             statement = (CreateColumnFamilyStatement) QueryProcessor.parseStatement(cql)
                     .prepare().statement;
 
-            CFMetaData newCFMD = new CFMetaData(TRACE_KEYSPACE, statement.columnFamily(), ColumnFamilyType.Standard,
+            CFMetaData newCFMD = new CFMetaData(TRACE_KS, statement.columnFamily(), ColumnFamilyType.Standard,
                     statement.comparator,
                     null);
 
@@ -183,7 +182,7 @@ public class TraceContext
 
     private InetAddress localAddress;
     private ThreadLocal<TraceState> state = new ThreadLocal<TraceState>();
-    private int timeToLive = 86400;
+    private int timeToLive = 24 * 3600;
 
     protected TraceContext()
     {
@@ -193,14 +192,14 @@ public class TraceContext
 
         for (String keyspace : Schema.instance.getTables())
         {
-            if (keyspace.equals(TRACE_KEYSPACE))
+            if (keyspace.equals(TRACE_KS))
                 return;
         }
 
         try
         {
             logger.info("Trace keyspace was not found; creating & announcing");
-            KSMetaData traceKs = KSMetaData.newKeyspace(TRACE_KEYSPACE,
+            KSMetaData traceKs = KSMetaData.newKeyspace(TRACE_KS,
                                                         SimpleStrategy.class.getName(),
                                                         ImmutableMap.of("replication_factor", "1"));
             MigrationManager.announceNewKeyspace(traceKs);
@@ -391,7 +390,7 @@ public class TraceContext
             {
                 public void run()
                 {
-                    RowMutation mutation = new RowMutation(TRACE_KEYSPACE, TimeUUIDType.instance.decompose(key));
+                    RowMutation mutation = new RowMutation(TRACE_KS, TimeUUIDType.instance.decompose(key));
                     mutation.add(family);
                     try
                     {

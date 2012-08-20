@@ -242,7 +242,7 @@ public class ClientState
         validateKeyspace(keyspace);
 
         // hardcode disallowing messing with system keyspace
-        if (keyspace.equalsIgnoreCase(Table.SYSTEM_TABLE) && perm == Permission.WRITE)
+        if (keyspace.equalsIgnoreCase(Table.SYSTEM_KS) && perm == Permission.WRITE)
             throw new InvalidRequestException("system keyspace is not user-modifiable");
 
         resourceClear();
