@@ -580,7 +580,7 @@ public final class MessagingService implements MessagingServiceMBean
 
         if (TraceContext.isTracing())
         {
-            message = instance().traceMessageDeparture(message, id,
+            message = TraceContext.instance().traceMessageDeparture(message, id,
                                                        FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to);
         }
 
@@ -702,8 +702,8 @@ public final class MessagingService implements MessagingServiceMBean
     public void receive(MessageIn message, String id)
     {
         // setup tracing (if the message requests it)
-        if (instance() != null)
-            instance().traceMessageArrival(message, id, FBUtilities.getBroadcastAddress() + " received " + message.verb
+        if (isTracing())
+            TraceContext.instance().traceMessageArrival(message, id, FBUtilities.getBroadcastAddress() + " received " + message.verb
                                                         + " from " + id + "@" + message.from);
 
         message = SinkManager.processInboundMessage(message, id);
@@ -721,7 +721,7 @@ public final class MessagingService implements MessagingServiceMBean
         finally
         {
             if (isTracing())
-                instance().reset();
+                TraceContext.instance().reset();
         }
     }
 
