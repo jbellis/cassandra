@@ -602,7 +602,7 @@ public class Table
         // do not trace the tracing system of the system tables
         if (TraceContext.isTracing() &&
             !mutation.getTable().equals(TraceContext.TRACE_KS) &&
-            !mutation.getTable().equals("system"))
+            !mutation.getTable().equals(SYSTEM_KS))
         {
             TraceEventBuilder builder = new TraceEventBuilder();
             builder.name("apply_mutation");

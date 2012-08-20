@@ -487,7 +487,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         List<Row> rows;
         try
         {
-            rows = StorageProxy.getRangeSlice(new RangeSliceCommand("system", parent, predicate, range, null, LARGE_NUMBER), ConsistencyLevel.ONE);
+            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(Table.SYSTEM_KS, parent, predicate, range, null, LARGE_NUMBER), ConsistencyLevel.ONE);
         }
         catch (Exception e)
         {

@@ -36,6 +36,7 @@ import org.apache.commons.cli.*;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
@@ -1284,7 +1285,7 @@ public class NodeCmd
                     catch (ExecutionException ee) { err(ee, "Error occured during compaction"); }
                     break;
                 case CLEANUP :
-                    if (keyspace.equals("system")) { break; } // Skip cleanup on system cfs.
+                    if (keyspace.equals(Table.SYSTEM_KS)) { break; } // Skip cleanup on system cfs.
                     try { probe.forceTableCleanup(keyspace, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occured during cleanup"); }
                     break;
