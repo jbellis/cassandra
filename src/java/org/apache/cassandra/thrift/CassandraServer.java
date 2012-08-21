@@ -733,7 +733,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().build("remove", traceParameters);
+            Tracing.instance().begin("remove", traceParameters);
         }
 
         try
@@ -780,7 +780,7 @@ public class CassandraServer implements Cassandra.Iface
 
         if (startSessionIfRequested())
         {
-            Tracing.instance().build("get_range_slices", traceParameters);
+            Tracing.instance().begin("get_range_slices", traceParameters);
         }
 
         try
@@ -853,7 +853,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().build("get_paged_slice", traceParameters);
+            Tracing.instance().begin("get_paged_slice", traceParameters);
         }
 
         try
@@ -939,7 +939,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().build("get_indexed_slices", traceParameters);
+            Tracing.instance().begin("get_indexed_slices", traceParameters);
         }
 
         try
@@ -1297,7 +1297,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().build("add", traceParameters);
+            Tracing.instance().begin("add", traceParameters);
         }
 
         try
@@ -1342,7 +1342,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().build("remove_counter", traceParameters);
+            Tracing.instance().begin("remove_counter", traceParameters);
         }
 
         try
@@ -1416,15 +1416,14 @@ public class CassandraServer implements Cassandra.Iface
     public CqlResult execute_cql_query(ByteBuffer query, Compression compression)
     throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
-        if (startSessionIfRequested())
-        {
-            Tracing.instance().build("execute_cql_query", traceParameters);
-        }
-
         try
         {
-
             String queryString = uncompress(query, compression);
+            if (startSessionIfRequested())
+            {
+                Tracing.instance().begin("execute_cql_query",
+                                         ImmutableMap.of("query", queryString));
+            }
 
             ClientState cState = state();
             if (cState.getCQLVersion().major == 2)
@@ -1441,7 +1440,8 @@ public class CassandraServer implements Cassandra.Iface
     public CqlPreparedResult prepare_cql_query(ByteBuffer query, Compression compression)
     throws InvalidRequestException, TException
     {
-        if (logger.isDebugEnabled()) logger.debug("prepare_cql_query");
+        if (logger.isDebugEnabled())
+            logger.debug("prepare_cql_query");
 
         String queryString = uncompress(query,compression);
 
@@ -1457,7 +1457,8 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().build("execute_prepared_cql_query", traceParameters);
+            // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
+            Tracing.instance().begin("execute_prepared_cql_query", Collections.<String, String>emptyMap());
         }
 
         try

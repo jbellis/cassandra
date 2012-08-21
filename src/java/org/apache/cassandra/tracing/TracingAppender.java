@@ -1,6 +1,5 @@
 package org.apache.cassandra.tracing;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import org.apache.log4j.AppenderSkeleton;
