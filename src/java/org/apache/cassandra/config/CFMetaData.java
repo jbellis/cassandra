@@ -45,7 +45,7 @@ import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.tracing.TraceContext;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -170,20 +170,20 @@ public final class CFMetaData
                                                          + "cql_version text"
                                                          + ") WITH COMMENT='information about the local node'");
 
-    public static final String TRACE_TABLE_STATEMENT = "CREATE TABLE " + TraceContext.TRACE_KS + "." + TraceContext.EVENTS_CF + " (" +
-            "  " + TraceContext.SESSION_ID + "        timeuuid," +
-            "  " + TraceContext.COORDINATOR + "       inet," +
-            "  " + TraceContext.EVENT_ID + "          timeuuid," +
-            "  " + TraceContext.DESCRIPTION + "       text," +
-            "  " + TraceContext.DURATION + "          bigint," +
-            "  " + TraceContext.HAPPENED + "          timestamp," +
-            "  " + TraceContext.NAME + "              text," +
-            "  " + TraceContext.PAYLOAD_TYPES + "     map<text, text>," +
-            "  " + TraceContext.PAYLOAD + "           map<text, blob>," +
-            "  " + TraceContext.SOURCE + "            inet," +
-            "  " + TraceContext.TYPE + "              text," +
-            "  PRIMARY KEY (" + TraceContext.SESSION_ID + ", " + TraceContext.COORDINATOR + ", " + TraceContext.EVENT_ID + "));";
-    public static final CFMetaData TraceEventsCf = compile(14, TRACE_TABLE_STATEMENT, TraceContext.TRACE_KS);
+    public static final String TRACE_TABLE_STATEMENT = "CREATE TABLE " + Tracing.TRACE_KS + "." + Tracing.EVENTS_CF + " (" +
+            "  " + Tracing.SESSION_ID + "        timeuuid," +
+            "  " + Tracing.COORDINATOR + "       inet," +
+            "  " + Tracing.EVENT_ID + "          timeuuid," +
+            "  " + Tracing.DESCRIPTION + "       text," +
+            "  " + Tracing.DURATION + "          bigint," +
+            "  " + Tracing.HAPPENED + "          timestamp," +
+            "  " + Tracing.NAME + "              text," +
+            "  " + Tracing.PAYLOAD_TYPES + "     map<text, text>," +
+            "  " + Tracing.PAYLOAD + "           map<text, blob>," +
+            "  " + Tracing.SOURCE + "            inet," +
+            "  " + Tracing.TYPE + "              text," +
+            "  PRIMARY KEY (" + Tracing.SESSION_ID + ", " + Tracing.COORDINATOR + ", " + Tracing.EVENT_ID + "));";
+    public static final CFMetaData TraceEventsCf = compile(14, TRACE_TABLE_STATEMENT, Tracing.TRACE_KS);
 
     public enum Caching
     {

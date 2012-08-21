@@ -22,10 +22,6 @@ package org.apache.cassandra.tracing;
 
 import static com.google.common.base.Preconditions.checkState;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOError;
-import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -43,9 +39,7 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -60,7 +54,7 @@ import org.slf4j.LoggerFactory;
  * A trace session context. Able to track and store trace sessions. A session is usually a user initiated query, and may
  * have multiple local and remote events before it is completed. All events and sessions are stored at table.
  */
-public class TraceContext
+public class Tracing
 {
     public static final String TRACE_KS = "system_traces";
     public static final String EVENTS_CF = "events";
@@ -68,7 +62,7 @@ public class TraceContext
 
     private static final int TTL = 24 * 3600;
 
-    private static TraceContext instance = new TraceContext();
+    private static Tracing instance = new Tracing();
 
     public static final String COORDINATOR = "coordinator";
     public static final String DESCRIPTION = "description";
@@ -90,10 +84,10 @@ public class TraceContext
     public static final String TYPE = "type";
     public static final ByteBuffer TYPE_BB = ByteBufferUtil.bytes(TYPE);
 
-    private static final Logger logger = LoggerFactory.getLogger(TraceContext.class);
+    private static final Logger logger = LoggerFactory.getLogger(Tracing.class);
 
     @VisibleForTesting
-    public static void setInstance(TraceContext context)
+    public static void setInstance(Tracing context)
     {
         instance = context;
     }
@@ -101,7 +95,7 @@ public class TraceContext
     /**
      * Fetches and lazy initializes the trace context.
      */
-    public static TraceContext instance()
+    public static Tracing instance()
     {
         return instance;
     }
@@ -297,7 +291,7 @@ public class TraceContext
      */
     public void traceMessageArrival(final MessageIn<?> message, String id, String description)
     {
-        final byte[] sessionBytes = message.parameters.get(TraceContext.TRACE_HEADER);
+        final byte[] sessionBytes = message.parameters.get(Tracing.TRACE_HEADER);
 
         // if the message has no session context header don't do tracing
         if (sessionBytes == null)

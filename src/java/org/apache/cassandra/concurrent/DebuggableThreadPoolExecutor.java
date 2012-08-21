@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.concurrent;
 
-import static org.apache.cassandra.tracing.TraceContext.isTracing;
-import static org.apache.cassandra.tracing.TraceContext.instance;
+import static org.apache.cassandra.tracing.Tracing.isTracing;
+import static org.apache.cassandra.tracing.Tracing.instance;
 
 import java.util.concurrent.*;
 

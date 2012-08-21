@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.thrift;
 
-import static org.apache.cassandra.tracing.TraceContext.instance;
-
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.SocketAddress;
@@ -83,6 +81,7 @@ import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.SocketSessionManagementService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.TraceEvent.Type;
 import org.apache.cassandra.tracing.TraceEventBuilder;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -344,7 +343,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("get_slice")
                     .type(Type.SESSION_START)
                     .addPayload("key", key)
@@ -362,7 +361,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -371,7 +370,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("multiget_slice")
                     .type(Type.SESSION_START)
                     .addPayload("keys", BytesType.instance, keys)
@@ -387,7 +386,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -456,7 +455,7 @@ public class CassandraServer implements Cassandra.Iface
         
         if (startSessionIfRequested())
         {
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("get")
                     .type(Type.SESSION_START)
                     .addPayload("key", key)
@@ -471,7 +470,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -480,7 +479,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("get_count")
                     .type(Type.SESSION_START)
                     .addPayload("key", key)
@@ -555,7 +554,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -571,7 +570,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("multiget_count")
                     .type(Type.SESSION_START)
                     .addPayload("keys", BytesType.instance, keys)
@@ -599,7 +598,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -637,7 +636,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("insert")
                     .type(Type.SESSION_START)
                     .addPayload("insert", key)
@@ -653,7 +652,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -737,7 +736,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -767,7 +766,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("remove")
                     .type(Type.SESSION_START)
                     .addPayload("key", key)
@@ -783,7 +782,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -822,7 +821,7 @@ public class CassandraServer implements Cassandra.Iface
         if (startSessionIfRequested())
         {
 
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("get_range_slices")
                     .type(Type.SESSION_START)
                     .addPayload("column_parent", column_parent)
@@ -893,7 +892,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -902,7 +901,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("get_paged_slice")
                     .type(Type.SESSION_START)
                     .addPayload("column_family", column_family)
@@ -974,7 +973,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -995,7 +994,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("get_indexed_slices")
                     .type(Type.SESSION_START)
                     .addPayload("column_parent", column_parent)
@@ -1051,7 +1050,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -1336,7 +1335,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -1360,7 +1359,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("add")
                     .type(Type.SESSION_START)
                     .addPayload("key", key)
@@ -1403,7 +1402,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -1412,7 +1411,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("remove_counter")
                     .type(Type.SESSION_START)
                     .addPayload("key", key)
@@ -1427,7 +1426,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -1494,7 +1493,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("execute_cql_query")
                     .type(Type.SESSION_START)
                     .addPayload("query", query)
@@ -1515,7 +1514,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -1538,7 +1537,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            instance().trace(new TraceEventBuilder()
+            Tracing.instance().trace(new TraceEventBuilder()
                     .name("execute_prepared_cql_query")
                     .type(Type.SESSION_START)
                     .addPayload("itemId", itemId)
@@ -1574,7 +1573,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            instance().stopSession();
+            Tracing.instance().stopSession();
         }
     }
 
@@ -1669,7 +1668,7 @@ public class CassandraServer implements Cassandra.Iface
                 }
             }
         }
-        instance().trace(new TraceEventBuilder()
+        Tracing.instance().trace(new TraceEventBuilder()
                 .name("batch_mutate")
                 .type(Type.SESSION_START)
                 .addPayload("total_keys", numKeys)

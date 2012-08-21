@@ -31,7 +31,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
 
-import org.apache.cassandra.tracing.TraceContext;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.TraceEvent;
 import org.apache.cassandra.tracing.TraceEventBuilder;
 import org.apache.cassandra.tracing.TracePrettyPrinter;
@@ -2021,10 +2021,10 @@ public class CliClient
         boolean changedKeyspaces = false;
         try
         {
-            if (this.keySpace != null && !this.keySpace.equals(TraceContext.TRACE_KS))
+            if (this.keySpace != null && !this.keySpace.equals(Tracing.TRACE_KS))
                 changedKeyspaces = true;
 
-            thriftClient.set_keyspace(TraceContext.TRACE_KS);
+            thriftClient.set_keyspace(Tracing.TRACE_KS);
 
             ColumnParent parent = new ColumnParent("trace_events");
 
@@ -2087,12 +2087,12 @@ public class CliClient
 
         try
         {
-            thriftClient.set_keyspace(TraceContext.TRACE_KS);
+            thriftClient.set_keyspace(Tracing.TRACE_KS);
 
             UUID sessionId = UUID.fromString(sessionIdAsString);
             ByteBuffer sessionIdAsBB = TimeUUIDType.instance.decompose(sessionId);
 
-            ColumnParent events = new ColumnParent(TraceContext.EVENTS_CF);
+            ColumnParent events = new ColumnParent(Tracing.EVENTS_CF);
 
             SliceRange range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER,
                     false, Integer.MAX_VALUE);

@@ -22,7 +22,7 @@
 package org.apache.cassandra.tracing;
 
 import static junit.framework.Assert.*;
-import static org.apache.cassandra.tracing.TraceContext.*;
+import static org.apache.cassandra.tracing.Tracing.*;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -63,7 +63,7 @@ import org.junit.Test;
 public class TraceSessionContextTest extends SchemaLoader
 {
 
-    private static class LocalTraceSessionContext extends TraceContext
+    private static class LocalTraceSessionContext extends Tracing
     {
 
         /**
@@ -85,7 +85,7 @@ public class TraceSessionContextTest extends SchemaLoader
     public static void loadSchema() throws IOException
     {
         SchemaLoader.loadSchema();
-        TraceContext.setInstance(new LocalTraceSessionContext());
+        Tracing.setInstance(new LocalTraceSessionContext());
     }
 
     @Test
@@ -206,7 +206,7 @@ public class TraceSessionContextTest extends SchemaLoader
 
         MessageIn<Void> messageIn = MessageIn.create(FBUtilities.getLocalAddress(), null,
                 ImmutableMap.<String, byte[]>
-                        of(TraceContext.TRACE_HEADER, instance().getSessionContextHeader()),
+                        of(Tracing.TRACE_HEADER, instance().getSessionContextHeader()),
                 Verb.UNUSED_1, 1);
 
         // make sure we're not tracing when the message is sent (to emulate a receiving host)

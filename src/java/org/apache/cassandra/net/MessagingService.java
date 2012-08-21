@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.net;
 
-import static org.apache.cassandra.tracing.TraceContext.*;
+import static org.apache.cassandra.tracing.Tracing.*;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -40,7 +40,7 @@ import javax.management.ObjectName;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.tracing.TraceContext;
+import org.apache.cassandra.tracing.Tracing;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -579,7 +579,7 @@ public final class MessagingService implements MessagingServiceMBean
         if (to.equals(FBUtilities.getBroadcastAddress()))
             logger.debug("Message-to-self {} going over MessagingService", message);
 
-        TraceContext.instance().trace(TraceEvent.Type.MESSAGE_DEPARTURE.builder().name("MessageDeparture[" + id + "]").description(FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to).build());
+        Tracing.instance().trace(TraceEvent.Type.MESSAGE_DEPARTURE.builder().name("MessageDeparture[" + id + "]").description(FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to).build());
 
         // message sinks are a testing hook
         MessageOut processedMessage = SinkManager.processOutboundMessage(message, id, to);
@@ -700,7 +700,7 @@ public final class MessagingService implements MessagingServiceMBean
     {
         // setup tracing (if the message requests it)
         if (isTracing())
-            TraceContext.instance().traceMessageArrival(message, id, FBUtilities.getBroadcastAddress() + " received " + message.verb
+            Tracing.instance().traceMessageArrival(message, id, FBUtilities.getBroadcastAddress() + " received " + message.verb
                                                         + " from " + id + "@" + message.from);
 
         message = SinkManager.processInboundMessage(message, id);
@@ -718,7 +718,7 @@ public final class MessagingService implements MessagingServiceMBean
         finally
         {
             if (isTracing())
-                TraceContext.instance().reset();
+                Tracing.instance().reset();
         }
     }
 

@@ -35,7 +35,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.UnknownColumnFamilyException;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.tracing.TraceContext;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Pair;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -282,7 +282,7 @@ public class Schema
      */
     public List<String> getNonSystemTables()
     {
-        ImmutableSet<String> system = ImmutableSet.of(Table.SYSTEM_KS, TraceContext.TRACE_KS);
+        ImmutableSet<String> system = ImmutableSet.of(Table.SYSTEM_KS, Tracing.TRACE_KS);
         return ImmutableList.copyOf(Sets.difference(tables.keySet(), system));
     }
 

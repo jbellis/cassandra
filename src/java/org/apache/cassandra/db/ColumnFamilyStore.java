@@ -65,7 +65,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.tracing.TraceContext;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.TraceEventBuilder;
 import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -1196,7 +1196,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             readStats.addNano(System.nanoTime() - start);
         }
 
-        if (TraceContext.isTracing())
+        if (Tracing.isTracing())
         {
             if (result == null)
             {
@@ -1213,7 +1213,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             builder.addPayload("result_col_count", result.getColumnCount());
             builder.addPayload("result_col_totalsize", totalColSize);
 
-            TraceContext.instance().trace(builder.build());
+            Tracing.instance().trace(builder.build());
         }
 
         return result;

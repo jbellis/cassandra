@@ -41,7 +41,7 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SemanticVersion;
 
-import static org.apache.cassandra.tracing.TraceContext.instance;
+import static org.apache.cassandra.tracing.Tracing.instance;
 
 /**
  * A container for per-client, thread-local state that Avro/Thrift threads must hold.

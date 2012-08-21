@@ -18,7 +18,7 @@
 package org.apache.cassandra.tracing;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.apache.cassandra.tracing.TraceContext.instance;
+import static org.apache.cassandra.tracing.Tracing.instance;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
  */
 public class TraceEventBuilder
 {
-    private static final Logger logger = LoggerFactory.getLogger(TraceContext.class);
+    private static final Logger logger = LoggerFactory.getLogger(Tracing.class);
 
     public static List<TraceEvent> fromThrift(UUID sessionId,
             List<ColumnOrSuperColumn> columnOrSuperColumns)
@@ -138,33 +138,33 @@ public class TraceEventBuilder
                 }
 
                 String colName = decodeColumnName(col.left);
-                if (colName.equals(TraceContext.DESCRIPTION))
+                if (colName.equals(Tracing.DESCRIPTION))
                 {
                     builder.description(UTF8Type.instance.compose(col.right));
                     continue;
                 }
-                if (colName.equals(TraceContext.DURATION))
+                if (colName.equals(Tracing.DURATION))
                 {
                     builder.duration(LongType.instance.compose(col.right));
                     continue;
                 }
-                if (colName.equals(TraceContext.HAPPENED))
+                if (colName.equals(Tracing.HAPPENED))
                 {
                     builder.timestamp(LongType.instance.compose(col.right));
                     continue;
                 }
-                if (colName.equals(TraceContext.NAME))
+                if (colName.equals(Tracing.NAME))
                 {
                     builder.name(UTF8Type.instance.compose(col.right));
                     continue;
                 }
-                if (colName.equals(TraceContext.PAYLOAD))
+                if (colName.equals(Tracing.PAYLOAD))
                 {
                     String payloadKey = decodeMapEntryKey(col.left);
                     builder.addPayloadRaw(payloadKey, col.right);
                     continue;
                 }
-                if (colName.equals(TraceContext.PAYLOAD_TYPES))
+                if (colName.equals(Tracing.PAYLOAD_TYPES))
                 {
                     String payloadKey = decodeMapEntryKey(col.left);
                     try
@@ -180,12 +180,12 @@ public class TraceEventBuilder
                     }
                     continue;
                 }
-                if (colName.equals(TraceContext.SOURCE))
+                if (colName.equals(Tracing.SOURCE))
                 {
                     builder.source(InetAddressType.instance.compose(col.right));
                     continue;
                 }
-                if (colName.equals(TraceContext.TYPE))
+                if (colName.equals(Tracing.TYPE))
                 {
                     builder.type(Type.valueOf(UTF8Type.instance.compose(col.right)));
                     continue;
@@ -463,7 +463,7 @@ public class TraceEventBuilder
 
     private boolean isTracing()
     {
-        return eventId != null ? true : TraceContext.isTracing();
+        return eventId != null ? true : Tracing.isTracing();
     }
 
 }

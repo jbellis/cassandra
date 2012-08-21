@@ -41,7 +41,7 @@ import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.tracing.TraceContext;
+import org.apache.cassandra.tracing.Tracing;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
@@ -343,7 +343,7 @@ public class Table
 
     public void apply(RowMutation mutation, boolean writeCommitLog)
     {
-        long start = TraceContext.isTracing() ? TraceContext.instance().threadLocalState().watch
+        long start = Tracing.isTracing() ? Tracing.instance().threadLocalState().watch
                 .elapsedTime(TimeUnit.NANOSECONDS) : 0;
         apply(mutation, writeCommitLog, true);
         traceApplyMutation(mutation, writeCommitLog, start);
@@ -600,13 +600,13 @@ public class Table
     private void traceApplyMutation(RowMutation mutation, boolean writeCommitLog, long start)
     {
         // do not trace the tracing system of the system tables
-        if (TraceContext.isTracing() &&
-            !mutation.getTable().equals(TraceContext.TRACE_KS) &&
+        if (Tracing.isTracing() &&
+            !mutation.getTable().equals(Tracing.TRACE_KS) &&
             !mutation.getTable().equals(SYSTEM_KS))
         {
             TraceEventBuilder builder = new TraceEventBuilder();
             builder.name("apply_mutation");
-            builder.duration(TraceContext.instance().threadLocalState().watch.elapsedTime(TimeUnit.NANOSECONDS) - start);
+            builder.duration(Tracing.instance().threadLocalState().watch.elapsedTime(TimeUnit.NANOSECONDS) - start);
             builder.addPayload("write_commit_log", writeCommitLog);
             builder.addPayload("num_column_families", mutation.getColumnFamilies().size());
             int totalCols = 0;
@@ -630,7 +630,7 @@ public class Table
             builder.addPayload("max_col_size", maxColSize);
             builder.addPayload("min_col_size", minColSize);
             builder.addPayload("total_col_size", totalColSize);
-            TraceContext.instance().trace(builder.build());
+            Tracing.instance().trace(builder.build());
         }
     }
 }
