@@ -89,7 +89,7 @@ public final class KSMetaData
 
     public static KSMetaData traceKeyspace()
     {
-        List<CFMetaData> cfDefs = Arrays.asList(CFMetaData.TraceEventsCf);
+        List<CFMetaData> cfDefs = Arrays.asList(CFMetaData.TraceSessionsCf, CFMetaData.TraceEventsCf);
         return new KSMetaData(Tracing.TRACE_KS, SimpleStrategy.class, ImmutableMap.of("replication_factor", "1"), true, cfDefs);
     }
 

@@ -20,12 +20,17 @@ package org.apache.cassandra.tracing;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Stopwatch;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * ThreadLocal state for a tracing session. The presence of an instance of this class as a ThreadLocal denotes that an
@@ -36,11 +41,7 @@ public class TraceState
     public final UUID sessionId;
     public final InetAddress coordinator;
     public final Stopwatch watch;
-
-    public TraceState(TraceState other)
-    {
-        this(other.coordinator, other.sessionId);
-    }
+    public final ByteBuffer sessionIdBytes;
 
     public TraceState(InetAddress coordinator, UUID sessionId)
     {
@@ -49,7 +50,14 @@ public class TraceState
 
         this.coordinator = coordinator;
         this.sessionId = sessionId;
-        this.watch = new Stopwatch();
-        this.watch.start();
+        sessionIdBytes = ByteBufferUtil.bytes(sessionId);
+        watch = new Stopwatch();
+        watch.start();
+    }
+
+    public int elapsed()
+    {
+        long elapsed = watch.elapsedTime(TimeUnit.MICROSECONDS);
+        return elapsed < Integer.MAX_VALUE ? (int) elapsed : Integer.MAX_VALUE;
     }
 }

@@ -32,8 +32,6 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.tracing.TraceEvent;
-import org.apache.cassandra.tracing.TraceEventBuilder;
 import org.apache.cassandra.tracing.TracePrettyPrinter;
 
 import org.apache.commons.lang.StringUtils;

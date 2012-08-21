@@ -35,6 +35,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
+import antlr.debug.TraceEvent;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
@@ -93,8 +94,7 @@ public class TraceSessionContextTest extends SchemaLoader
     {
         sessionId = instance().newSession();
         assertTrue(isTracing());
-        assertTrue(instance().isLocalTraceSession());
-        assertNotNull(instance().threadLocalState());
+        assertNotNull(instance().get());
 
         // simulate a thrift req such as multiget_slice
         UUID eventId = instance().trace(new TraceEventBuilder()
@@ -222,7 +222,6 @@ public class TraceSessionContextTest extends SchemaLoader
             public void doVerb(MessageIn<Void> message, String id)
             {
                 assertTrue(isTracing());
-                assertFalse(instance().isLocalTraceSession());
                 assertEquals(sessionId, instance().getSessionId());
                 reference.set(instance().trace(
                         new TraceEventBuilder().name("remote trace event").duration(9123L).timestamp(3219L)

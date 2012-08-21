@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.net;
 
-import static org.apache.cassandra.tracing.Tracing.*;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOError;
@@ -67,7 +65,6 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.streaming.compress.CompressedFileStreamTask;
-import org.apache.cassandra.tracing.TraceEvent;
 import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -575,11 +572,11 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void sendOneWay(MessageOut message, String id, InetAddress to)
     {
+        if (logger.isTraceEnabled() || Tracing.isTracing())
+            logger.trace(FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to);
 
         if (to.equals(FBUtilities.getBroadcastAddress()))
             logger.debug("Message-to-self {} going over MessagingService", message);
-
-        Tracing.instance().trace(TraceEvent.Type.MESSAGE_DEPARTURE.builder().name("MessageDeparture[" + id + "]").description(FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to).build());
 
         // message sinks are a testing hook
         MessageOut processedMessage = SinkManager.processOutboundMessage(message, id, to);
@@ -698,10 +695,10 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void receive(MessageIn message, String id)
     {
-        // setup tracing (if the message requests it)
-        if (isTracing())
-            Tracing.instance().traceMessageArrival(message, id, FBUtilities.getBroadcastAddress() + " received " + message.verb
-                                                        + " from " + id + "@" + message.from);
+        Tracing.instance().initializeFromMessage(message);
+
+        if (logger.isTraceEnabled() || Tracing.isTracing())
+            logger.trace(FBUtilities.getBroadcastAddress() + " received " + message.verb + " from " + id + "@" + message.from);
 
         message = SinkManager.processInboundMessage(message, id);
         if (message == null)
@@ -711,15 +708,7 @@ public final class MessagingService implements MessagingServiceMBean
         ExecutorService stage = StageManager.getStage(message.getMessageType());
         assert stage != null : "No stage for message type " + message.verb;
 
-        try
-        {
-            stage.execute(runnable);
-        }
-        finally
-        {
-            if (isTracing())
-                Tracing.instance().reset();
-        }
+        stage.execute(runnable);
     }
 
     public void setCallbackForTests(String messageId, CallbackInfo callback)

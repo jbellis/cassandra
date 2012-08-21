@@ -18,17 +18,15 @@
 package org.apache.cassandra.concurrent;
 
 import static org.apache.cassandra.tracing.Tracing.isTracing;
-import static org.apache.cassandra.tracing.Tracing.instance;
 
 import java.util.concurrent.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.tracing.TraceEvent;
 import org.apache.cassandra.tracing.TraceEvent.Type;
-import org.apache.cassandra.tracing.TraceEventBuilder;
 import org.apache.cassandra.tracing.TraceState;
+import org.apache.cassandra.tracing.Tracing;
 
 /**
  * This class encorporates some Executor best practices for Cassandra.  Most of the executors in the system
@@ -159,13 +157,10 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
     {
         super.afterExecute(r, t);
 
-        if (r instanceof TraceSessionWrapper && isTracing())
-        {
-            TraceEvent event = new TraceEventBuilder().type(Type.STAGE_FINISH).name(Thread.currentThread().getName()).build();
-            instance().trace(event);
-            // we modified the TraceSessionContext when this task started, so reset it
-            instance().reset();
-        }
+        if (r instanceof TraceSessionWrapper)
+            logger.debug("completed executing {}", r);
+        // we leave the threadlocal TraceState alone, since we don't care about it unless
+        // we get another TraceSessionWrapper, which will inject a new TraceState
 
         logExceptionsAfterExecute(r, t);
     }
@@ -174,11 +169,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
     protected void beforeExecute(Thread t, Runnable r)
     {
         if (r instanceof TraceSessionWrapper)
-        {
-            ((TraceSessionWrapper) r).setupContext();
-            TraceEvent event = new TraceEventBuilder().type(Type.STAGE_START).name(Thread.currentThread().getName()).build();
-            instance().trace(event);
-        }
+            logger.debug("executing {}", r);
         super.beforeExecute(t, r);
     }
 
@@ -255,7 +246,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 
         // Using initializer because the ctor's provided by the FutureTask<> are all we need
         {
-            state = instance().copy();
+            state = Tracing.instance().get();
         }
 
         public TraceSessionWrapper(Runnable runnable, T result)
@@ -270,7 +261,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 
         private void setupContext()
         {
-            instance().update(state);
+            Tracing.instance().set(state);
         }
     }
 }

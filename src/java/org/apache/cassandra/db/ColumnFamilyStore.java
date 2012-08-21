@@ -66,7 +66,6 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.tracing.TraceEventBuilder;
 import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -1154,9 +1153,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         assert columnFamily.equals(filter.getColumnFamilyName()) : filter.getColumnFamilyName();
 
-        TraceEventBuilder builder = new TraceEventBuilder();
-        builder.name("get_column_family");
-
         ColumnFamily result = null;
 
         long start = System.nanoTime();
@@ -1165,8 +1161,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             if (!isRowCacheEnabled())
             {
-                builder.addPayload("row_cache_enabled", false);
-
                 ColumnFamily cf = getTopLevelColumns(filter, gcBefore, false);
 
                 if (cf == null)
@@ -1196,25 +1190,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             readStats.addNano(System.nanoTime() - start);
         }
 
-        if (Tracing.isTracing())
-        {
-            if (result == null)
-            {
-                builder.addPayload("result_col_count", 0);
-                builder.addPayload("result_col_totalsize", 0);
-                return result;
-            }
-            long totalColSize = 0;
-            for (IColumn col : result)
-            {
-                totalColSize += col.value().remaining();
-            }
-
-            builder.addPayload("result_col_count", result.getColumnCount());
-            builder.addPayload("result_col_totalsize", totalColSize);
-
-            Tracing.instance().trace(builder.build());
-        }
+        logger.debug("Read {} columns", result.getColumnCount());
 
         return result;
     }

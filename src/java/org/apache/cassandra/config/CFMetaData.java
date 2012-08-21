@@ -170,20 +170,24 @@ public final class CFMetaData
                                                          + "cql_version text"
                                                          + ") WITH COMMENT='information about the local node'");
 
-    public static final String TRACE_TABLE_STATEMENT = "CREATE TABLE " + Tracing.TRACE_KS + "." + Tracing.EVENTS_CF + " (" +
-            "  " + Tracing.SESSION_ID + "        timeuuid," +
-            "  " + Tracing.COORDINATOR + "       inet," +
-            "  " + Tracing.EVENT_ID + "          timeuuid," +
-            "  " + Tracing.DESCRIPTION + "       text," +
-            "  " + Tracing.DURATION + "          bigint," +
-            "  " + Tracing.HAPPENED + "          timestamp," +
-            "  " + Tracing.NAME + "              text," +
-            "  " + Tracing.PAYLOAD_TYPES + "     map<text, text>," +
-            "  " + Tracing.PAYLOAD + "           map<text, blob>," +
-            "  " + Tracing.SOURCE + "            inet," +
-            "  " + Tracing.TYPE + "              text," +
-            "  PRIMARY KEY (" + Tracing.SESSION_ID + ", " + Tracing.COORDINATOR + ", " + Tracing.EVENT_ID + "));";
-    public static final CFMetaData TraceEventsCf = compile(14, TRACE_TABLE_STATEMENT, Tracing.TRACE_KS);
+    public static final CFMetaData TraceSessionsCf = compile(14, "CREATE TABLE " + Tracing.SESSIONS_CF + " ("
+                                                               + "  session_id uuid PRIMARY KEY,"
+                                                               + "  coordinator inet,"
+                                                               + "  request text,"
+                                                               + "  happened_at timestamp,"
+                                                               + "  parameters map<text, text>"
+                                                               + ") WITH COMMENT='traced sessions'", Tracing.TRACE_KS);
+
+    public static final CFMetaData TraceEventsCf = compile(14, "CREATE TABLE " + Tracing.EVENTS_CF + " ("
+                                                               + "  session_id uuid,"
+                                                               + "  event_id timeuuid,"
+                                                               + "  source inet,"
+                                                               + "  thread text,"
+                                                               + "  activity text,"
+                                                               + "  happened_at timestamp,"
+                                                               + "  source_elapsed int,"
+                                                               + "  PRIMARY KEY (session_id, event_id)"
+                                                               + ");", Tracing.TRACE_KS);
 
     public enum Caching
     {

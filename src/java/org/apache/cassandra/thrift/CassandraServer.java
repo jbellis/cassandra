@@ -35,6 +35,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
+import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,7 +66,6 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -81,9 +81,8 @@ import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.SocketSessionManagementService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tracing.TraceParameters;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.tracing.TraceEvent.Type;
-import org.apache.cassandra.tracing.TraceEventBuilder;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -343,14 +342,11 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("get_slice")
-                    .type(Type.SESSION_START)
-                    .addPayload("key", key)
-                    .addPayload("column_parent", column_parent)
-                    .addPayload("predicate", predicate)
-                    .addPayload("consistency_level", consistency_level)
-                    .build());
+            Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
+                                                                  "column_parent", TraceParameters.toString(column_parent),
+                                                                  "predicate", TraceParameters.toString(predicate),
+                                                                  "consistency_level", consistency_level.name());
+            Tracing.instance().begin("get_slice", traceParameters);
         }
 
         try
@@ -370,13 +366,11 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("multiget_slice")
-                    .type(Type.SESSION_START)
-                    .addPayload("keys", BytesType.instance, keys)
-                    .addPayload("column_parent", column_parent)
-                    .addPayload("predicate", predicate)
-                    .build());
+            Map<String, String> traceParameters = ImmutableMap.of("keys", ByteBufferUtil.bytesToHex(keys),
+                                                                  "column_parent", TraceParameters.toString(column_parent),
+                                                                  "predicate", TraceParameters.toString(predicate),
+                                                                  "consistency_level", consistency_level.name());
+            Tracing.instance().begin("multiget_slice", traceParameters);
         }
         
         try
@@ -455,13 +449,7 @@ public class CassandraServer implements Cassandra.Iface
         
         if (startSessionIfRequested())
         {
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("get")
-                    .type(Type.SESSION_START)
-                    .addPayload("key", key)
-                    .addPayload("column_path", column_path)
-                    .addPayload("consistency_level", consistency_level)
-                    .build());
+            Tracing.instance().begin("get", traceParameters);
         }
         
         try
@@ -479,14 +467,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("get_count")
-                    .type(Type.SESSION_START)
-                    .addPayload("key", key)
-                    .addPayload("column_parent", column_parent)
-                    .addPayload("predicate", predicate)
-                    .addPayload("consistency_level", consistency_level)
-                    .build());
+            Tracing.instance().begin("get_count", traceParameters);
         }
         
         try
@@ -570,14 +551,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("multiget_count")
-                    .type(Type.SESSION_START)
-                    .addPayload("keys", BytesType.instance, keys)
-                    .addPayload("column_parent", column_parent)
-                    .addPayload("predicate", predicate)
-                    .addPayload("consistency_level", consistency_level)
-                    .build());
+            Tracing.instance().begin("multiget_count", traceParameters);
         }
         
         try
@@ -636,14 +610,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("insert")
-                    .type(Type.SESSION_START)
-                    .addPayload("insert", key)
-                    .addPayload("column_parent", column_parent)
-                    .addPayload("column", column)
-                    .addPayload("consistency_level", consistency_level)
-                    .build());
+            Tracing.instance().begin("insert", traceParameters);
         }
 
         try
@@ -766,14 +733,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("remove")
-                    .type(Type.SESSION_START)
-                    .addPayload("key", key)
-                    .addPayload("column_path", column_path)
-                    .addPayload("timestamp", timestamp)
-                    .addPayload("consistency_level", consistency_level)
-                    .build());
+            Tracing.instance().build("remove", traceParameters);
         }
 
         try
@@ -820,15 +780,7 @@ public class CassandraServer implements Cassandra.Iface
 
         if (startSessionIfRequested())
         {
-
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("get_range_slices")
-                    .type(Type.SESSION_START)
-                    .addPayload("column_parent", column_parent)
-                    .addPayload("predicate", predicate)
-                    .addPayload("range", range)
-                    .addPayload("consistency_level", consistency_level)
-                    .build());
+            Tracing.instance().build("get_range_slices", traceParameters);
         }
 
         try
@@ -901,14 +853,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("get_paged_slice")
-                    .type(Type.SESSION_START)
-                    .addPayload("column_family", column_family)
-                    .addPayload("range", range)
-                    .addPayload("start_column", start_column)
-                    .addPayload("consistency_level", consistency_level)
-                    .build());
+            Tracing.instance().build("get_paged_slice", traceParameters);
         }
 
         try
@@ -994,14 +939,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("get_indexed_slices")
-                    .type(Type.SESSION_START)
-                    .addPayload("column_parent", column_parent)
-                    .addPayload("index_clause", index_clause)
-                    .addPayload("column_predicate", column_predicate)
-                    .addPayload("consistency_level", consistency_level)
-                    .build());
+            Tracing.instance().build("get_indexed_slices", traceParameters);
         }
 
         try
@@ -1359,14 +1297,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("add")
-                    .type(Type.SESSION_START)
-                    .addPayload("key", key)
-                    .addPayload("column_parent", column_parent)
-                    .addPayload("column", column)
-                    .addPayload("consistency_level", consistency_level)
-                    .build());
+            Tracing.instance().build("add", traceParameters);
         }
 
         try
@@ -1411,13 +1342,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("remove_counter")
-                    .type(Type.SESSION_START)
-                    .addPayload("key", key)
-                    .addPayload("path", path)
-                    .addPayload("consistency_level", consistency_level)
-                    .build());
+            Tracing.instance().build("remove_counter", traceParameters);
         }
 
         try
@@ -1493,12 +1418,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("execute_cql_query")
-                    .type(Type.SESSION_START)
-                    .addPayload("query", query)
-                    .addPayload("compression", compression)
-                    .build());
+            Tracing.instance().build("execute_cql_query", traceParameters);
         }
 
         try
@@ -1537,12 +1457,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Tracing.instance().trace(new TraceEventBuilder()
-                    .name("execute_prepared_cql_query")
-                    .type(Type.SESSION_START)
-                    .addPayload("itemId", itemId)
-                    .addPayload("bindVariables", BytesType.instance, bindVariables)
-                    .build());
+            Tracing.instance().build("execute_prepared_cql_query", traceParameters);
         }
 
         try
@@ -1610,7 +1525,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         return false;
     }
-    
+
     private void traceBatchMutate(Map<ByteBuffer, Map<String, List<Mutation>>> mutation_map,
                                         ConsistencyLevel consistency_level)
     {
@@ -1668,18 +1583,9 @@ public class CassandraServer implements Cassandra.Iface
                 }
             }
         }
-        Tracing.instance().trace(new TraceEventBuilder()
-                .name("batch_mutate")
-                .type(Type.SESSION_START)
-                .addPayload("total_keys", numKeys)
-                .addPayload("total_mutations", totalMutations)
-                .addPayload("total_deletions", totalDeletions)
-                .addPayload("total_columns", totalColumns)
-                .addPayload("total_counters", totalCounters)
-                .addPayload("total_super_columns", totalSuperColumns)
-                .addPayload("total_written_size", totalWrittenSize)
-                .addPayload("consistency_level", consistency_level)
-                .build());
+
+        // maybe just throw (key, ConfigHelper.thriftToString(map)) entries into traceParameters?
+        Tracing.instance().begin("batch_mutate", traceParameters);
     }
 
     // main method moved to CassandraDaemon
