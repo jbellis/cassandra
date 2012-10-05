@@ -27,6 +27,15 @@ public class ThriftSessionManager
     public final static ThreadLocal<SocketAddress> remoteSocket = new ThreadLocal<SocketAddress>();
     private final Map<SocketAddress, ClientState> activeSocketSessions = new ConcurrentHashMap<SocketAddress, ClientState>();
 
+    public final ThreadLocal<ClientState> clientState = new ThreadLocal<ClientState>()
+    {
+        @Override
+        public ClientState initialValue()
+        {
+            return new ClientState();
+        }
+    };
+
     public ClientState get(SocketAddress key)
     {
         ClientState retval = null;
@@ -56,4 +65,18 @@ public class ThriftSessionManager
         activeSocketSessions.clear();
     }
 
+    public ClientState currentSession()
+    {
+        SocketAddress remoteSocket = ThriftSessionManager.remoteSocket.get();
+        if (remoteSocket == null)
+            return clientState.get();
+
+        ClientState cState = ThriftSessionManager.instance.get(remoteSocket);
+        if (cState == null)
+        {
+            cState = new ClientState();
+            ThriftSessionManager.instance.put(remoteSocket, cState);
+        }
+        return cState;
+    }
 }

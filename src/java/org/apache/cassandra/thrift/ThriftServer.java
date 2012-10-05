@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.service.ThriftSessionManager;
 import org.apache.thrift.server.TNonblockingServer;
 import org.apache.thrift.server.TThreadPoolServer;
 import org.slf4j.Logger;
@@ -143,7 +144,7 @@ public class ThriftServer implements CassandraDaemon.Server
                                                                          .inputProtocolFactory(tProtocolFactory)
                                                                          .outputProtocolFactory(tProtocolFactory)
                                                                          .processor(processor);
-                ExecutorService executorService = new CleaningThreadPool(cassandraServer.clientState, serverArgs.minWorkerThreads, serverArgs.maxWorkerThreads);
+                ExecutorService executorService = new CleaningThreadPool(ThriftSessionManager.instance.clientState, serverArgs.minWorkerThreads, serverArgs.maxWorkerThreads);
                 serverEngine = new CustomTThreadPoolServer(serverArgs, executorService);
                 logger.info(String.format("Using synchronous/threadpool thrift server on %s : %s", listenAddr, listenPort));
             }
