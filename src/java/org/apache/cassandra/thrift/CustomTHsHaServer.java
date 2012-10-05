@@ -27,7 +27,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 
-import org.apache.cassandra.service.SocketSessionManagementService;
+import org.apache.cassandra.service.ThriftSessionManager;
 import org.apache.thrift.server.TNonblockingServer;
 import org.apache.thrift.transport.TNonblockingServerTransport;
 import org.apache.thrift.transport.TNonblockingSocket;
@@ -97,7 +97,7 @@ public class CustomTHsHaServer extends TNonblockingServer
         public void run()
         {
             TNonblockingSocket socket = (TNonblockingSocket) frameBuffer.trans_;
-            SocketSessionManagementService.remoteSocket.set(socket.getSocketChannel().socket().getRemoteSocketAddress());
+            ThriftSessionManager.remoteSocket.set(socket.getSocketChannel().socket().getRemoteSocketAddress());
             frameBuffer.invoke();
             // this is how we let the same selector thread change the selection type.
             thread.requestSelectInterestChange(frameBuffer);

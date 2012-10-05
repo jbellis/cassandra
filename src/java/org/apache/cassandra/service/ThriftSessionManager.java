@@ -21,9 +21,9 @@ import java.net.SocketAddress;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class SocketSessionManagementService
+public class ThriftSessionManager
 {
-    public final static SocketSessionManagementService instance = new SocketSessionManagementService();
+    public final static ThriftSessionManager instance = new ThriftSessionManager();
     public final static ThreadLocal<SocketAddress> remoteSocket = new ThreadLocal<SocketAddress>();
     private final Map<SocketAddress, ClientState> activeSocketSessions = new ConcurrentHashMap<SocketAddress, ClientState>();
 

@@ -21,7 +21,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 
-import org.apache.cassandra.service.SocketSessionManagementService;
+import org.apache.cassandra.service.ThriftSessionManager;
 import org.apache.thrift.transport.TNonblockingServerSocket;
 import org.apache.thrift.transport.TNonblockingSocket;
 import org.apache.thrift.transport.TTransportException;
@@ -51,7 +51,7 @@ public class TCustomNonblockingServerSocket extends TNonblockingServerSocket
             return tsocket;
         Socket socket = tsocket.getSocketChannel().socket();
         // clean up the old information.
-        SocketSessionManagementService.instance.remove(socket.getRemoteSocketAddress());
+        ThriftSessionManager.instance.remove(socket.getRemoteSocketAddress());
         try
         {
             socket.setKeepAlive(this.keepAlive);

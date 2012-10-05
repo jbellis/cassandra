@@ -35,7 +35,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.auth.PermissionDenied;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.cql.QueryProcessor;
@@ -92,15 +91,15 @@ public class CassandraServer implements Cassandra.Iface
 
     public ClientState state()
     {
-        SocketAddress remoteSocket = SocketSessionManagementService.remoteSocket.get();
+        SocketAddress remoteSocket = ThriftSessionManager.remoteSocket.get();
         if (remoteSocket == null)
             return clientState.get();
 
-        ClientState cState = SocketSessionManagementService.instance.get(remoteSocket);
+        ClientState cState = ThriftSessionManager.instance.get(remoteSocket);
         if (cState == null)
         {
             cState = new ClientState();
-            SocketSessionManagementService.instance.put(remoteSocket, cState);
+            ThriftSessionManager.instance.put(remoteSocket, cState);
         }
         return cState;
     }
