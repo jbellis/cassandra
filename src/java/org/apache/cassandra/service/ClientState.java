@@ -21,7 +21,6 @@ import java.util.*;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.cql3.CFName;
-import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -180,6 +179,7 @@ public class ClientState
         preparedTracingSession = null;
         resourceClear();
         prepared.clear();
+        cqlVersion = DEFAULT_CQL_VERSION;
     }
 
     public void hasKeyspaceAccess(String keyspace, Permission perm) throws UnauthorizedException, InvalidRequestException
