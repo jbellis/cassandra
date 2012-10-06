@@ -50,12 +50,13 @@ public class TCustomNonblockingServerSocket extends TNonblockingServerSocket
         if (tsocket == null || tsocket.getSocketChannel() == null)
             return tsocket;
         Socket socket = tsocket.getSocketChannel().socket();
-        // clean up the old information.
-        ThriftSessionManager.instance.remove(socket.getRemoteSocketAddress());
+        // Any old connection we had from this remote socket must be done now, so reset it
+        ThriftSessionManager.instance.connectionComplete(socket.getRemoteSocketAddress());
         try
         {
             socket.setKeepAlive(this.keepAlive);
-        } catch (SocketException se)
+        }
+        catch (SocketException se)
         {
             logger.warn("Failed to set keep-alive on Thrift socket.", se);
         }

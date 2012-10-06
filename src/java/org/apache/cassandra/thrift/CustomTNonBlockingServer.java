@@ -32,7 +32,7 @@ public class CustomTNonBlockingServer extends TNonblockingServer
     protected boolean requestInvoke(FrameBuffer frameBuffer)
     {
         TNonblockingSocket socket = (TNonblockingSocket) frameBuffer.trans_;
-        ThriftSessionManager.remoteSocket.set(socket.getSocketChannel().socket().getRemoteSocketAddress());
+        ThriftSessionManager.instance.setCurrentSocket(socket.getSocketChannel().socket().getRemoteSocketAddress());
         frameBuffer.invoke();
         return true;
     }

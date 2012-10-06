@@ -21,13 +21,22 @@ import java.net.SocketAddress;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Encapsulates the current client state (session).
+ *
+ * For thread-per-connection, this is simply a ClientState threadlocal.
+ *
+ * For asynchronous connections, we rely on the connection manager to tell us what socket it is
+ * executing a request for, and associate the ClientState with that.
+ */
 public class ThriftSessionManager
 {
     public final static ThriftSessionManager instance = new ThriftSessionManager();
-    public final static ThreadLocal<SocketAddress> remoteSocket = new ThreadLocal<SocketAddress>();
+
+    private final ThreadLocal<SocketAddress> remoteSocket = new ThreadLocal<SocketAddress>();
     private final Map<SocketAddress, ClientState> activeSocketSessions = new ConcurrentHashMap<SocketAddress, ClientState>();
 
-    public final ThreadLocal<ClientState> clientState = new ThreadLocal<ClientState>()
+    private final ThreadLocal<ClientState> clientState = new ThreadLocal<ClientState>()
     {
         @Override
         public ClientState initialValue()
@@ -36,47 +45,46 @@ public class ThriftSessionManager
         }
     };
 
-    public ClientState get(SocketAddress key)
+    /**
+     * @param socket the address on which the current thread will work on requests for until further notice
+     */
+    public void setCurrentSocket(SocketAddress socket)
     {
-        ClientState retval = null;
-        if (key != null)
-        {
-            retval = activeSocketSessions.get(key);
-        }
-        return retval;
+        remoteSocket.set(socket);
     }
 
-    public void put(SocketAddress key, ClientState value)
-    {
-        if (key != null && value != null)
-        {
-            activeSocketSessions.put(key, value);
-        }
-    }
-
-    public boolean remove(SocketAddress key)
-    {
-        assert key != null;
-        return activeSocketSessions.remove(key) != null;
-    }
-
-    public void clear()
-    {
-        activeSocketSessions.clear();
-    }
-
+    /**
+     * @return the current session, either from the socket information or threadlocal.
+     */
     public ClientState currentSession()
     {
-        SocketAddress remoteSocket = ThriftSessionManager.remoteSocket.get();
-        if (remoteSocket == null)
+        SocketAddress socket = remoteSocket.get();
+        if (socket == null)
             return clientState.get();
 
-        ClientState cState = ThriftSessionManager.instance.get(remoteSocket);
+        ClientState cState = activeSocketSessions.get(socket);
         if (cState == null)
         {
             cState = new ClientState();
-            ThriftSessionManager.instance.put(remoteSocket, cState);
+            activeSocketSessions.put(socket, cState);
         }
         return cState;
+    }
+
+    /**
+     * The connection associated with the current thread is permanently finished.
+     */
+    public void threadComplete()
+    {
+        clientState.get().logout();
+    }
+
+    /**
+     * The connection associated with @param socket is permanently finished.
+     */
+    public void connectionComplete(SocketAddress socket)
+    {
+        assert socket != null;
+        activeSocketSessions.remove(socket);
     }
 }

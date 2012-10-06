@@ -144,7 +144,7 @@ public class ThriftServer implements CassandraDaemon.Server
                                                                          .inputProtocolFactory(tProtocolFactory)
                                                                          .outputProtocolFactory(tProtocolFactory)
                                                                          .processor(processor);
-                ExecutorService executorService = new CleaningThreadPool(ThriftSessionManager.instance.clientState, serverArgs.minWorkerThreads, serverArgs.maxWorkerThreads);
+                ExecutorService executorService = new CleaningThreadPool(serverArgs.minWorkerThreads, serverArgs.maxWorkerThreads);
                 serverEngine = new CustomTThreadPoolServer(serverArgs, executorService);
                 logger.info(String.format("Using synchronous/threadpool thrift server on %s : %s", listenAddr, listenPort));
             }
@@ -218,11 +218,9 @@ public class ThriftServer implements CassandraDaemon.Server
      */
     private static class CleaningThreadPool extends ThreadPoolExecutor
     {
-        private final ThreadLocal<ClientState> state;
-        public CleaningThreadPool(ThreadLocal<ClientState> state, int minWorkerThread, int maxWorkerThreads)
+        public CleaningThreadPool(int minWorkerThread, int maxWorkerThreads)
         {
             super(minWorkerThread, maxWorkerThreads, 60, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new NamedThreadFactory("Thrift"));
-            this.state = state;
         }
 
         @Override
@@ -230,7 +228,7 @@ public class ThriftServer implements CassandraDaemon.Server
         {
             super.afterExecute(r, t);
             DebuggableThreadPoolExecutor.logExceptionsAfterExecute(r, t);
-            state.get().logout();
+            ThriftSessionManager.instance.threadComplete();
         }
     }
 }

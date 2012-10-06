@@ -97,7 +97,7 @@ public class CustomTHsHaServer extends TNonblockingServer
         public void run()
         {
             TNonblockingSocket socket = (TNonblockingSocket) frameBuffer.trans_;
-            ThriftSessionManager.remoteSocket.set(socket.getSocketChannel().socket().getRemoteSocketAddress());
+            ThriftSessionManager.instance.setCurrentSocket(socket.getSocketChannel().socket().getRemoteSocketAddress());
             frameBuffer.invoke();
             // this is how we let the same selector thread change the selection type.
             thread.requestSelectInterestChange(frameBuffer);
