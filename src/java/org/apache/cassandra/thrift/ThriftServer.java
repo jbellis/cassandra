@@ -144,7 +144,12 @@ public class ThriftServer implements CassandraDaemon.Server
                                                                          .inputProtocolFactory(tProtocolFactory)
                                                                          .outputProtocolFactory(tProtocolFactory)
                                                                          .processor(processor);
-                ExecutorService executorService = new CleaningThreadPool(serverArgs.minWorkerThreads, serverArgs.maxWorkerThreads);
+                ExecutorService executorService = new ThreadPoolExecutor(serverArgs.minWorkerThreads,
+                                                                         serverArgs.maxWorkerThreads,
+                                                                         60,
+                                                                         TimeUnit.SECONDS,
+                                                                         new SynchronousQueue<Runnable>(),
+                                                                         new NamedThreadFactory("Thrift"));
                 serverEngine = new CustomTThreadPoolServer(serverArgs, executorService);
                 logger.info(String.format("Using synchronous/threadpool thrift server on %s : %s", listenAddr, listenPort));
             }
@@ -206,29 +211,6 @@ public class ThriftServer implements CassandraDaemon.Server
         {
             logger.info("Stop listening to thrift clients");
             serverEngine.stop();
-        }
-    }
-
-    /**
-     * A subclass of Java's ThreadPoolExecutor which implements Jetty's ThreadPool
-     * interface (for integration with Avro), and performs ClientState cleanup.
-     *
-     * (Note that the tasks being executed perform their own while-command-process
-     * loop until the client disconnects.)
-     */
-    private static class CleaningThreadPool extends ThreadPoolExecutor
-    {
-        public CleaningThreadPool(int minWorkerThread, int maxWorkerThreads)
-        {
-            super(minWorkerThread, maxWorkerThreads, 60, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new NamedThreadFactory("Thrift"));
-        }
-
-        @Override
-        protected void afterExecute(Runnable r, Throwable t)
-        {
-            super.afterExecute(r, t);
-            DebuggableThreadPoolExecutor.logExceptionsAfterExecute(r, t);
-            ThriftSessionManager.instance.threadComplete();
         }
     }
 }

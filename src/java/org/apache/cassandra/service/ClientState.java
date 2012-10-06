@@ -81,7 +81,10 @@ public class ClientState
     public ClientState(boolean internalCall)
     {
         this.internalCall = internalCall;
-        reset();
+
+        user = DatabaseDescriptor.getAuthenticator().defaultUser();
+        resourceClear();
+        prepared.clear();
     }
 
     public Map<Integer, CQLStatement> getPrepared()
@@ -158,28 +161,11 @@ public class ClientState
         this.user = user;
     }
 
-    public void logout()
-    {
-        if (logger.isDebugEnabled())
-            logger.debug("logged out: {}", user);
-        reset();
-    }
-
     private void resourceClear()
     {
         resource.clear();
         resource.add(Resources.ROOT);
         resource.add(Resources.KEYSPACES);
-    }
-
-    public void reset()
-    {
-        user = DatabaseDescriptor.getAuthenticator().defaultUser();
-        keyspace = null;
-        preparedTracingSession = null;
-        resourceClear();
-        prepared.clear();
-        cqlVersion = DEFAULT_CQL_VERSION;
     }
 
     public void hasKeyspaceAccess(String keyspace, Permission perm) throws UnauthorizedException, InvalidRequestException

@@ -24,10 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Encapsulates the current client state (session).
  *
- * For thread-per-connection, this is simply a ClientState threadlocal.
- *
- * For asynchronous connections, we rely on the connection manager to tell us what socket it is
- * executing a request for, and associate the ClientState with that.
+ * We rely on the Thrift server to tell us what socket it is
+ * executing a request for via setCurrentSocket, after which currentSession can do its job anywhere.
  */
 public class ThriftSessionManager
 {
@@ -35,15 +33,6 @@ public class ThriftSessionManager
 
     private final ThreadLocal<SocketAddress> remoteSocket = new ThreadLocal<SocketAddress>();
     private final Map<SocketAddress, ClientState> activeSocketSessions = new ConcurrentHashMap<SocketAddress, ClientState>();
-
-    private final ThreadLocal<ClientState> clientState = new ThreadLocal<ClientState>()
-    {
-        @Override
-        public ClientState initialValue()
-        {
-            return new ClientState();
-        }
-    };
 
     /**
      * @param socket the address on which the current thread will work on requests for until further notice
@@ -54,13 +43,12 @@ public class ThriftSessionManager
     }
 
     /**
-     * @return the current session, either from the socket information or threadlocal.
+     * @return the current session for the most recently given socket on this thread
      */
     public ClientState currentSession()
     {
         SocketAddress socket = remoteSocket.get();
-        if (socket == null)
-            return clientState.get();
+        assert socket != null;
 
         ClientState cState = activeSocketSessions.get(socket);
         if (cState == null)
@@ -69,14 +57,6 @@ public class ThriftSessionManager
             activeSocketSessions.put(socket, cState);
         }
         return cState;
-    }
-
-    /**
-     * The connection associated with the current thread is permanently finished.
-     */
-    public void threadComplete()
-    {
-        clientState.get().logout();
     }
 
     /**

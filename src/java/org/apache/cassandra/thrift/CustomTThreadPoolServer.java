@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.thrift;
 
+import java.net.SocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.service.ThriftSessionManager;
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TProtocol;
@@ -170,8 +172,11 @@ public class CustomTThreadPoolServer extends TServer
             TTransport outputTransport = null;
             TProtocol inputProtocol = null;
             TProtocol outputProtocol = null;
+            SocketAddress socket = null;
             try
             {
+                socket = ((TCustomSocket) client_).getSocket().getRemoteSocketAddress();
+                ThriftSessionManager.instance.setCurrentSocket(socket);
                 processor = processorFactory_.getProcessor(client_);
                 inputTransport = inputTransportFactory_.getTransport(client_);
                 outputTransport = outputTransportFactory_.getTransport(client_);
@@ -204,6 +209,8 @@ public class CustomTThreadPoolServer extends TServer
             finally
             {
                 activeClients.decrementAndGet();
+                if (socket != null)
+                    ThriftSessionManager.instance.connectionComplete(socket);
             }
 
             if (inputTransport != null)
