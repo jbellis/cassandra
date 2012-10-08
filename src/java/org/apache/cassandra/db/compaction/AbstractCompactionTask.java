@@ -46,7 +46,7 @@ public abstract class AbstractCompactionTask extends DiskAwareRunnable
         cfs.getDataTracker().unmarkCompacting(sstables);
     }
 
-    public AbstractCompactionTask isUserDefined(boolean isUserDefined)
+    public AbstractCompactionTask setUserDefined(boolean isUserDefined)
     {
         this.isUserDefined = isUserDefined;
         return this;

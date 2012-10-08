@@ -270,7 +270,7 @@ public class CompactionManager implements CompactionManagerMBean
                     // SSTables are marked by the caller
                     // NOTE: it is important that the task create one and only one sstable, even for Leveled compaction (see LeveledManifest.replace())
                     CompactionTask task = new CompactionTask(cfs, Collections.singletonList(sstable), NO_GC);
-                    task.isUserDefined(true);
+                    task.setUserDefined(true);
                     task.setCompactionType(OperationType.UPGRADE_SSTABLES);
                     task.execute(metrics);
                 }
@@ -567,7 +567,7 @@ public class CompactionManager implements CompactionManagerMBean
                 continue;
             }
 
-            CompactionController controller = new CompactionController(cfs, Collections.singletonList(sstable), getDefaultGcBefore(cfs), false);
+            CompactionController controller = new CompactionController(cfs, Collections.singletonList(sstable), getDefaultGcBefore(cfs));
             long startTime = System.currentTimeMillis();
 
             long totalkeysWritten = 0;

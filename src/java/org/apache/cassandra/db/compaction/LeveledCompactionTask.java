@@ -41,12 +41,6 @@ public class LeveledCompactionTask extends CompactionTask
     }
 
     @Override
-    protected boolean isCompactionInteresting(Set<SSTableReader> toCompact)
-    {
-        return true;
-    }
-
-    @Override
     protected boolean partialCompactionsAcceptable()
     {
         return false;
