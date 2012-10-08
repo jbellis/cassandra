@@ -99,7 +99,7 @@ public class CompactionsTest extends SchemaLoader
         // enable compaction, submit background and wait for it to complete
         store.setMinimumCompactionThreshold(2);
         store.setMaximumCompactionThreshold(4);
-        FBUtilities.waitOnFuture(CompactionManager.instance.submitBackground(store));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(store));
         while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0)
             TimeUnit.SECONDS.sleep(1);
 
@@ -147,7 +147,7 @@ public class CompactionsTest extends SchemaLoader
 
         store.setMinimumCompactionThreshold(2);
         store.setMaximumCompactionThreshold(4);
-        FBUtilities.waitOnFuture(CompactionManager.instance.submitBackground(store));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(store));
         while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0)
             TimeUnit.SECONDS.sleep(1);
 

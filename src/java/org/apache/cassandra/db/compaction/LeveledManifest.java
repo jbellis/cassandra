@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -29,7 +30,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
@@ -270,7 +270,8 @@ public class LeveledManifest
         return builder.toString();
     }
 
-    private long maxBytesForLevel(int level)
+    @VisibleForTesting
+    long maxBytesForLevel(int level)
     {
         if (level == 0)
             return 4L * maxSSTableSizeInBytes;
@@ -280,6 +281,10 @@ public class LeveledManifest
         return (long) bytes;
     }
 
+    /**
+     * @return highest-priority sstables to compact
+     * If no compactions are necessary, will return an empty list.  Never returns null.
+     */
     public synchronized Collection<SSTableReader> getCompactionCandidates()
     {
         // LevelDB gives each level a score of how much data it contains vs its ideal amount, and
@@ -308,7 +313,10 @@ public class LeveledManifest
             List<SSTableReader> sstables = generations[i];
             if (sstables.isEmpty())
                 continue; // mostly this just avoids polluting the debug log with zero scores
-            double score = (double)SSTableReader.getTotalBytes(sstables) / (double)maxBytesForLevel(i);
+            // we want to calculate score excluding compacting ones
+            Set<SSTableReader> sstablesInLevel = Sets.newHashSet(sstables);
+            Set<SSTableReader> remaining = Sets.difference(sstablesInLevel, cfs.getDataTracker().getCompacting());
+            double score = (double)SSTableReader.getTotalBytes(remaining) / (double)maxBytesForLevel(i);
             logger.debug("Compaction score for level {} is {}", i, score);
 
             // L0 gets a special case that if we don't have anything more important to do,
@@ -406,7 +414,8 @@ public class LeveledManifest
         return overlapping(first, last, others);
     }
 
-    private static Set<SSTableReader> overlapping(SSTableReader sstable, Iterable<SSTableReader> others)
+    @VisibleForTesting
+    static Set<SSTableReader> overlapping(SSTableReader sstable, Iterable<SSTableReader> others)
     {
         return overlapping(sstable.first.token, sstable.last.token, others);
     }
@@ -428,10 +437,17 @@ public class LeveledManifest
         return overlapped;
     }
 
+    /**
+     * @return highest-priority sstables to compact for the given level.
+     * If no compactions are possible (because of concurrent compactions or because some sstables are blacklisted
+     * for prior failure), will return an empty list.  Never returns null.
+     */
     private Collection<SSTableReader> getCandidatesFor(int level)
     {
         assert !generations[level].isEmpty();
         logger.debug("Choosing candidates for L{}", level);
+
+        Set<SSTableReader> compacting = cfs.getDataTracker().getCompacting();
 
         if (level == 0)
         {
@@ -459,7 +475,7 @@ public class LeveledManifest
 
                 for (SSTableReader newCandidate : Sets.union(Collections.singleton(sstable), overlapping(sstable, remaining)))
                 {
-                    if (!newCandidate.isMarkedSuspect())
+                    if (!newCandidate.isMarkedSuspect() && !compacting.contains(newCandidate))
                     {
                         candidates.add(newCandidate);
                         remaining.remove(newCandidate);
@@ -472,23 +488,23 @@ public class LeveledManifest
                     List<SSTableReader> ageSortedCandidates = new ArrayList<SSTableReader>(candidates);
                     Collections.sort(ageSortedCandidates, SSTable.maxTimestampComparator);
                     candidates = new HashSet<SSTableReader>(ageSortedCandidates.subList(0, MAX_COMPACTING_L0));
-                    if (SSTable.getTotalBytes(candidates) > maxSSTableSizeInBytes)
-                    {
-                        // add sstables from L1 that overlap candidates
-                        candidates.addAll(overlapping(candidates, generations[1]));
-                    }
-                    return candidates;
-                }
-
-                if (SSTable.getTotalBytes(candidates) > maxSSTableSizeInBytes)
-                {
-                    // add sstables from L1 that overlap candidates
-                    candidates.addAll(overlapping(candidates, generations[1]));
-                    break;
                 }
             }
 
-            return candidates;
+            // leave everything in L0 if we didn't end up with a full sstable's worth of data
+            if (SSTable.getTotalBytes(candidates) <= maxSSTableSizeInBytes)
+                return candidates;
+
+            // add sstables from L1 that overlap candidates.
+            // if the overlapping ones are already busy in a compaction, leave it out.
+            Set<SSTableReader> expandedCandidates = new HashSet<SSTableReader>();
+            for (SSTableReader sstable : candidates)
+            {
+                Set<SSTableReader> withL1 = overlapping(sstable, generations[1]);
+                if (overlapping(withL1, compacting).isEmpty())
+                    expandedCandidates.addAll(withL1);
+            }
+            return expandedCandidates;
         }
 
         // for non-L0 compactions, pick up where we left off last time
@@ -511,7 +527,7 @@ public class LeveledManifest
         while (true)
         {
             SSTableReader sstable = generations[level].get(i);
-            Set<SSTableReader> candidates = Sets.union(Collections.singleton(sstable), overlapping(sstable, generations[(level + 1)]));
+            Set<SSTableReader> candidates = Sets.union(Collections.singleton(sstable), overlapping(sstable, generations[level + 1]));
             for (SSTableReader candidate : candidates)
             {
                 if (candidate.isMarkedSuspect())
@@ -522,7 +538,8 @@ public class LeveledManifest
                     continue outer;
                 }
             }
-            return candidates;
+            if (overlapping(candidates, compacting).isEmpty())
+                return candidates;
         }
 
         // all the sstables were suspect or overlapped with something suspect
@@ -622,6 +639,4 @@ public class LeveledManifest
                      new Object[] {Arrays.toString(estimated), cfs.table.name, cfs.columnFamily});
         return Ints.checkedCast(tasks);
     }
-
-
 }
