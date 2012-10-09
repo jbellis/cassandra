@@ -488,6 +488,7 @@ public class LeveledManifest
                     List<SSTableReader> ageSortedCandidates = new ArrayList<SSTableReader>(candidates);
                     Collections.sort(ageSortedCandidates, SSTable.maxTimestampComparator);
                     candidates = new HashSet<SSTableReader>(ageSortedCandidates.subList(0, MAX_COMPACTING_L0));
+                    break;
                 }
             }
 
@@ -500,7 +501,7 @@ public class LeveledManifest
             Set<SSTableReader> expandedCandidates = new HashSet<SSTableReader>();
             for (SSTableReader sstable : candidates)
             {
-                Set<SSTableReader> withL1 = overlapping(sstable, generations[1]);
+                Set<SSTableReader> withL1 = Sets.union(Collections.singleton(sstable), overlapping(sstable, generations[1]));
                 if (overlapping(withL1, compacting).isEmpty())
                     expandedCandidates.addAll(withL1);
             }
