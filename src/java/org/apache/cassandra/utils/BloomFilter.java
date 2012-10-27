@@ -21,11 +21,12 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.utils.obs.OpenBitSet;
 
-public abstract class BloomFilter extends Filter
+public abstract class BloomFilter implements IFilter
 {
     private static final int EXCESS = 20;
 
     public final OpenBitSet bitset;
+    public final int hashCount;
 
     BloomFilter(int hashes, long numElements, int bucketsPer)
     {

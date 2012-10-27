@@ -36,12 +36,12 @@ public class FilterFactory
         SHA, MURMUR2, MURMUR3
     }
 
-    public static void serialize(Filter bf, DataOutput output) throws IOException
+    public static void serialize(IFilter bf, DataOutput output) throws IOException
     {
         serialize(bf, output, Type.MURMUR3);
     }
 
-    public static void serialize(Filter bf, DataOutput output, Type type) throws IOException
+    public static void serialize(IFilter bf, DataOutput output, Type type) throws IOException
     {
         switch (type)
         {
@@ -57,7 +57,7 @@ public class FilterFactory
         }
     }
 
-    public static Filter deserialize(DataInput input, Type type) throws IOException
+    public static IFilter deserialize(DataInput input, Type type) throws IOException
     {
         switch (type)
         {
@@ -70,12 +70,12 @@ public class FilterFactory
         }
     }
 
-    public static long serializedSize(Filter bf)
+    public static long serializedSize(IFilter bf)
     {
         return serializedSize(bf, Type.MURMUR3);
     }
 
-    public static long serializedSize(Filter bf, Type type)
+    public static long serializedSize(IFilter bf, Type type)
     {
         switch (type)
         {
@@ -92,13 +92,13 @@ public class FilterFactory
      * @return A BloomFilter with the lowest practical false positive
      *         probability for the given number of elements.
      */
-    public static Filter getFilter(long numElements, int targetBucketsPerElem)
+    public static IFilter getFilter(long numElements, int targetBucketsPerElem)
     {
         return getFilter(numElements, targetBucketsPerElem, Type.MURMUR3);
     }
 
     // helper method for test.
-    static Filter getFilter(long numElements, int targetBucketsPerElem, Type type)
+    static IFilter getFilter(long numElements, int targetBucketsPerElem, Type type)
     {
         int maxBucketsPerElement = Math.max(1, BloomCalculations.maxBucketsPerElement(numElements));
         int bucketsPerElement = Math.min(targetBucketsPerElem, maxBucketsPerElement);
@@ -117,13 +117,13 @@ public class FilterFactory
      *         Asserts that the given probability can be satisfied using this
      *         filter.
      */
-    public static Filter getFilter(long numElements, double maxFalsePosProbability)
+    public static IFilter getFilter(long numElements, double maxFalsePosProbability)
     {
         return getFilter(numElements, maxFalsePosProbability, Type.MURMUR3);
     }
 
     // helper method for test.
-    static Filter getFilter(long numElements, double maxFalsePosProbability, Type type)
+    static IFilter getFilter(long numElements, double maxFalsePosProbability, Type type)
     {
         assert maxFalsePosProbability <= 1.0 : "Invalid probability";
         int bucketsPerElement = BloomCalculations.maxBucketsPerElement(numElements);
@@ -131,7 +131,7 @@ public class FilterFactory
         return createFilter(spec.K, numElements, spec.bucketsPerElement, type);
     }
 
-    private static Filter createFilter(int hash, long numElements, int bucketsPer, Type type)
+    private static IFilter createFilter(int hash, long numElements, int bucketsPer, Type type)
     {
         switch (type)
         {

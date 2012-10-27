@@ -33,7 +33,7 @@ abstract class BloomFilterSerializer implements ISerializer<BloomFilter>
         int pageSize = bf.bitset.getPageSize();
         int pageCount = bf.bitset.getPageCount();
 
-        dos.writeInt(bf.getHashCount());
+        dos.writeInt(bf.hashCount);
         dos.writeInt(bitLength);
 
         for (int p = 0; p < pageCount; p++)
@@ -79,7 +79,7 @@ abstract class BloomFilterSerializer implements ISerializer<BloomFilter>
         int pageCount = bf.bitset.getPageCount();
 
         int size = 0;
-        size += typeSizes.sizeof(bf.getHashCount()); // hash count
+        size += typeSizes.sizeof(bf.hashCount); // hash count
         size += typeSizes.sizeof(bitLength); // length
 
         for (int p = 0; p < pageCount; p++)
