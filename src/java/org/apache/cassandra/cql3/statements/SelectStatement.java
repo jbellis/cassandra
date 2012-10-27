@@ -201,7 +201,7 @@ public class SelectStatement implements CQLStatement
         Collection<ByteBuffer> keys = getKeys(variables);
         List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
 
-        IFilter filter = makeFilter(variables);
+        IDiskAtomFilter filter = makeFilter(variables);
         // ...a range (slice) of column names
         if (isColumnRange())
         {
@@ -228,7 +228,7 @@ public class SelectStatement implements CQLStatement
 
     private RangeSliceCommand getRangeCommand(List<ByteBuffer> variables) throws RequestValidationException
     {
-        IFilter filter = makeFilter(variables);
+        IDiskAtomFilter filter = makeFilter(variables);
         List<IndexExpression> expressions = getIndexExpressions(variables);
         // The LIMIT provided by the user is the number of CQL row he wants returned.
         // For NamesQueryFilter, this is the number of internal rows returned, since a NamesQueryFilter can only select one CQL row in a given internal row.
@@ -290,7 +290,7 @@ public class SelectStatement implements CQLStatement
         return bounds;
     }
 
-    private IFilter makeFilter(List<ByteBuffer> variables)
+    private IDiskAtomFilter makeFilter(List<ByteBuffer> variables)
     throws InvalidRequestException
     {
         if (isColumnRange())
