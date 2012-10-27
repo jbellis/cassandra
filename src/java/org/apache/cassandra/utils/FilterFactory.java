@@ -148,8 +148,8 @@ public class FilterFactory
         }
     }
 
-    public static BloomFilter emptyFilter()
+    public static IFilter emptyFilter()
     {
-        return new Murmur3BloomFilter(0, new OpenBitSet(BITSET_EXCESS));
+        return new AlwaysPresentFilter();
     }
 }
