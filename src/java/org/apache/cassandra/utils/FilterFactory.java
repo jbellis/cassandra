@@ -142,8 +142,8 @@ public class FilterFactory
         }
     }
 
-    public static BloomFilter emptyFilter()
+    public static IFilter emptyFilter()
     {
-        return new Murmur3BloomFilter(0, 0, 0);
+        return new AlwaysPresentFilter();
     }
 }
