@@ -52,13 +52,9 @@ public class CompressedSegmentedFile extends PoolingSegmentedFile
         }
     }
 
-    public FileDataInput getSegment(long position)
+    protected RandomAccessReader createReader(String path)
     {
-        RandomAccessReader reader = pool.poll();
-        if (reader == null)
-            reader = CompressedRandomAccessReader.open(path, metadata);
-        reader.seek(position);
-        return reader;
+        return CompressedRandomAccessReader.open(path, metadata);
     }
 
     @Override

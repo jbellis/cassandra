@@ -49,12 +49,8 @@ public class BufferedSegmentedFile extends PoolingSegmentedFile
         }
     }
 
-    public FileDataInput getSegment(long position)
+    protected RandomAccessReader createReader(String path)
     {
-        RandomAccessReader reader = pool.poll();
-        if (reader == null)
-            reader = RandomAccessReader.open(new File(path));
-        reader.seek(position);
-        return reader;
+        return RandomAccessReader.open(new File(path));
     }
 }

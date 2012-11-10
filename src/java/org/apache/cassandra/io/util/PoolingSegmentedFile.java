@@ -17,6 +17,17 @@ public abstract class PoolingSegmentedFile extends SegmentedFile
         super(path, length, onDiskLength);
     }
 
+    public FileDataInput getSegment(long position)
+    {
+        RandomAccessReader reader = pool.poll();
+        if (reader == null)
+            reader = createReader(path);
+        reader.seek(position);
+        return reader;
+    }
+
+    protected abstract RandomAccessReader createReader(String path);
+
     public void recycle(RandomAccessReader reader)
     {
         pool.add(reader);
