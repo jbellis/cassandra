@@ -67,7 +67,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
     public CompressedRandomAccessReader(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache) throws FileNotFoundException
     {
-        super(new File(dataFilePath), metadata.chunkLength(), skipIOCache);
+        super(new File(dataFilePath), metadata.chunkLength(), skipIOCache, null);
         this.metadata = metadata;
         compressed = new byte[metadata.compressor().initialCompressedBufferLength(metadata.chunkLength())];
         // can't use super.read(...) methods
@@ -155,9 +155,10 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     }
 
     @Override
-    public void close()
+    public void deallocate()
     {
-        super.close();
+        super.deallocate();
+
         try
         {
             source.close();

@@ -19,7 +19,7 @@ package org.apache.cassandra.io.util;
 
 import java.io.File;
 
-public class BufferedSegmentedFile extends SegmentedFile
+public class BufferedSegmentedFile extends PoolingSegmentedFile
 {
     public BufferedSegmentedFile(String path, long length)
     {
@@ -51,13 +51,10 @@ public class BufferedSegmentedFile extends SegmentedFile
 
     public FileDataInput getSegment(long position)
     {
-        RandomAccessReader file = RandomAccessReader.open(new File(path));
-        file.seek(position);
-        return file;
-    }
-
-    public void cleanup()
-    {
-        // nothing to do
+        RandomAccessReader reader = pool.poll();
+        if (reader == null)
+            reader = RandomAccessReader.open(new File(path));
+        reader.seek(position);
+        return reader;
     }
 }
