@@ -62,8 +62,7 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
 
     protected final PoolingSegmentedFile owner;
 
-    // used in tests
-    public RandomAccessReader(File file, int bufferSize, boolean skipIOCache, PoolingSegmentedFile owner) throws FileNotFoundException
+    protected RandomAccessReader(File file, int bufferSize, boolean skipIOCache, PoolingSegmentedFile owner) throws FileNotFoundException
     {
         super(file, "r");
 

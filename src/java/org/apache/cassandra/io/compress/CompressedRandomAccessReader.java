@@ -38,11 +38,6 @@ import org.apache.cassandra.utils.FBUtilities;
 // TODO refactor this to separate concept of "buffer to avoid lots of read() syscalls" and "compression buffer"
 public class CompressedRandomAccessReader extends RandomAccessReader
 {
-    public static RandomAccessReader open(String dataFilePath, CompressionMetadata metadata)
-    {
-        return open(dataFilePath, metadata, false);
-    }
-
     public static RandomAccessReader open(String path, CompressionMetadata metadata, CompressedSegmentedFile owner)
     {
         try
@@ -80,8 +75,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     private final FileInputStream source;
     private final FileChannel channel;
 
-    @VisibleForTesting
-    public CompressedRandomAccessReader(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache, PoolingSegmentedFile owner) throws FileNotFoundException
+    private CompressedRandomAccessReader(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache, PoolingSegmentedFile owner) throws FileNotFoundException
     {
         super(new File(dataFilePath), metadata.chunkLength(), skipIOCache, owner);
         this.metadata = metadata;
