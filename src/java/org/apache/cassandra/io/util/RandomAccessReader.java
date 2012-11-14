@@ -105,6 +105,11 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
         return open(file, false);
     }
 
+    public static RandomAccessReader open(File file, PoolingSegmentedFile owner)
+    {
+        return open(file, DEFAULT_BUFFER_SIZE, false, owner);
+    }
+
     public static RandomAccessReader open(File file, boolean skipIOCache)
     {
         return open(file, DEFAULT_BUFFER_SIZE, skipIOCache, null);

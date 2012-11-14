@@ -54,7 +54,7 @@ public class CompressedSegmentedFile extends PoolingSegmentedFile
 
     protected RandomAccessReader createReader(String path)
     {
-        return CompressedRandomAccessReader.open(path, metadata);
+        return CompressedRandomAccessReader.open(path, metadata, this);
     }
 
     @Override
