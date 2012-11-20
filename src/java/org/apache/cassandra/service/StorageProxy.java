@@ -312,9 +312,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                         Table.SYSTEM_KS,
                                                                         null,
                                                                         WriteType.BATCH_LOG);
-
-        sendMessagesToOneDC(rm.createMessage(), endpoints, true, handler);
-
+        updateBatchlog(rm, endpoints, handler);
         handler.get();
     }
 
@@ -323,8 +321,20 @@ public class StorageProxy implements StorageProxyMBean
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(uuid));
         rm.delete(new QueryPath(SystemTable.BATCHLOG_CF), FBUtilities.timestampMicros());
         AbstractWriteResponseHandler handler = new WriteResponseHandler(endpoints, Collections.<InetAddress>emptyList(), ConsistencyLevel.ANY, Table.SYSTEM_KS, null, WriteType.SIMPLE);
+        updateBatchlog(rm, endpoints, handler);
+    }
 
-        sendMessagesToOneDC(rm.createMessage(), endpoints, true, handler);
+    private static void updateBatchlog(RowMutation rm, Collection<InetAddress> endpoints, AbstractWriteResponseHandler handler)
+    {
+        if (endpoints.contains(FBUtilities.getBroadcastAddress()))
+        {
+            assert endpoints.size() == 1;
+            insertLocal(rm, handler);
+        }
+        else
+        {
+            sendMessagesToOneDC(rm.createMessage(), endpoints, true, handler);
+        }
     }
 
     private static void syncWriteBatchedMutations(List<WriteResponseHandlerWrapper> wrappers,
