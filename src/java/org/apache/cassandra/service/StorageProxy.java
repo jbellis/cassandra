@@ -359,11 +359,11 @@ public class StorageProxy implements StorageProxyMBean
      * successful.
      */
     public static AbstractWriteResponseHandler performWrite(IMutation mutation,
-                                                     ConsistencyLevel consistency_level,
-                                                     String localDataCenter,
-                                                     WritePerformer performer,
-                                                     Runnable callback,
-                                                     WriteType writeType)
+                                                            ConsistencyLevel consistency_level,
+                                                            String localDataCenter,
+                                                            WritePerformer performer,
+                                                            Runnable callback,
+                                                            WriteType writeType)
     throws UnavailableException, OverloadedException, IOException
     {
         String table = mutation.getTable();
@@ -919,7 +919,6 @@ public class StorageProxy implements StorageProxyMBean
                 ReadCommand command = commands.get(i);
                 try
                 {
-                    long startTime2 = System.currentTimeMillis();
                     Row row = handler.get();
                     if (row != null)
                     {
@@ -1162,14 +1161,6 @@ public class StorageProxy implements StorageProxyMBean
             rangeMetrics.addNano(System.nanoTime() - startTime);
         }
         return trim(command, rows);
-    }
-
-    private static IDiskAtomFilter getEmptySlicePredicate()
-    {
-        return new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                    ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                    false,
-                                    -1);
     }
 
     private static List<Row> trim(RangeSliceCommand command, List<Row> rows)
