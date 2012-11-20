@@ -62,7 +62,6 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.WrappedRunnable;
 
 public class StorageProxy implements StorageProxyMBean
 {
@@ -536,45 +535,41 @@ public class StorageProxy implements StorageProxyMBean
                     continue;
 
                 // Schedule a local hint
-                scheduleLocalHint(rm, destination, responseHandler, consistency_level);
+                submitHint(rm, destination, responseHandler, consistency_level);
             }
         }
 
         sendMessages(localDataCenter, dcMessages, responseHandler);
     }
 
-    public static Future<Void> scheduleLocalHint(final RowMutation mutation,
-                                                 final InetAddress target,
-                                                 final AbstractWriteResponseHandler responseHandler,
-                                                 final ConsistencyLevel consistencyLevel)
+    public static Future<Void> submitHint(final RowMutation mutation,
+                                          final InetAddress target,
+                                          final AbstractWriteResponseHandler responseHandler,
+                                          final ConsistencyLevel consistencyLevel)
     {
-        // Hint of itself doesn't make sense.
+        // local write that time out should be handled by LocalMutationRunnable
         assert !target.equals(FBUtilities.getBroadcastAddress()) : target;
-        totalHintsInProgress.incrementAndGet();
-        final AtomicInteger targetHints = hintsInProgress.get(target);
-        targetHints.incrementAndGet();
 
-        Runnable runnable = new WrappedRunnable()
+        HintRunnable runnable = new HintRunnable(target)
         {
             public void runMayThrow() throws IOException
             {
                 logger.debug("Adding hint for {}", target);
 
-                try
-                {
-                    writeHintForMutation(mutation, target);
-                    // Notify the handler only for CL == ANY
-                    if (responseHandler != null && consistencyLevel == ConsistencyLevel.ANY)
-                        responseHandler.response(null);
-                }
-                finally
-                {
-                    totalHintsInProgress.decrementAndGet();
-                    targetHints.decrementAndGet();
-                }
+                writeHintForMutation(mutation, target);
+                // Notify the handler only for CL == ANY
+                if (responseHandler != null && consistencyLevel == ConsistencyLevel.ANY)
+                    responseHandler.response(null);
             }
         };
 
+        return submitHint(runnable);
+    }
+
+    private static Future<Void> submitHint(HintRunnable runnable)
+    {
+        totalHintsInProgress.incrementAndGet();
+        hintsInProgress.get(runnable.target).incrementAndGet();
         return (Future<Void>) StageManager.getStage(Stage.MUTATION).submit(runnable);
     }
 
@@ -768,7 +763,7 @@ public class StorageProxy implements StorageProxyMBean
                                              final String localDataCenter,
                                              final ConsistencyLevel consistency_level)
     {
-        return new DroppableRunnable(MessagingService.Verb.MUTATION)
+        return new LocalMutationRunnable()
         {
             public void runMayThrow() throws IOException
             {
@@ -1481,6 +1476,9 @@ public class StorageProxy implements StorageProxyMBean
         public void apply(IMutation mutation, Iterable<InetAddress> targets, AbstractWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException, OverloadedException;
     }
 
+    /**
+     * A Runnable that aborts if it doesn't start running before it times out
+     */
     private static abstract class DroppableRunnable implements Runnable
     {
         private final long constructionTime = System.currentTimeMillis();
@@ -1506,6 +1504,76 @@ public class StorageProxy implements StorageProxyMBean
             catch (Exception e)
             {
                 throw new RuntimeException(e);
+            }
+        }
+
+        abstract protected void runMayThrow() throws Exception;
+    }
+
+    /**
+     * Like DroppableRunnable, but if it aborts, it will rerun (on the mutation stage) after
+     * marking itself as a hint in progress so that the hint backpressure mechanism can function.
+     */
+    private static abstract class LocalMutationRunnable implements Runnable
+    {
+        private final long constructionTime = System.currentTimeMillis();
+
+        public final void run()
+        {
+            if (System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getTimeout(MessagingService.Verb.MUTATION))
+            {
+                MessagingService.instance().incrementDroppedMessages(MessagingService.Verb.MUTATION);
+                HintRunnable runnable = new HintRunnable(FBUtilities.getBroadcastAddress())
+                {
+                    protected void runMayThrow() throws Exception
+                    {
+                        LocalMutationRunnable.this.runMayThrow();
+                    }
+                };
+                submitHint(runnable);
+                return;
+            }
+
+            try
+            {
+                runMayThrow();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        abstract protected void runMayThrow() throws Exception;
+    }
+
+    /**
+     * HintRunnable will decrease totalHintsInProgress and targetHints when finished.
+     * It is the caller's responsibility to increment them initially.
+     */
+    private abstract static class HintRunnable implements Runnable
+    {
+        public final InetAddress target;
+
+        protected HintRunnable(InetAddress target)
+        {
+            this.target = target;
+        }
+
+        public void run()
+        {
+            try
+            {
+                runMayThrow();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+            finally
+            {
+                totalHintsInProgress.decrementAndGet();
+                hintsInProgress.get(target).decrementAndGet();
             }
         }
 
