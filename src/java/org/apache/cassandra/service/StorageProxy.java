@@ -313,14 +313,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                         null,
                                                                         WriteType.BATCH_LOG);
 
-        try
-        {
-            sendMessagesToOneDC(rm.createMessage(), endpoints, true, handler);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Error writing to batchlog", e);
-        }
+        sendMessagesToOneDC(rm.createMessage(), endpoints, true, handler);
 
         handler.get();
     }
@@ -331,14 +324,7 @@ public class StorageProxy implements StorageProxyMBean
         rm.delete(new QueryPath(SystemTable.BATCHLOG_CF), FBUtilities.timestampMicros());
         AbstractWriteResponseHandler handler = new WriteResponseHandler(endpoints, Collections.<InetAddress>emptyList(), ConsistencyLevel.ANY, Table.SYSTEM_KS, null, WriteType.SIMPLE);
 
-        try
-        {
-            sendMessagesToOneDC(rm.createMessage(), endpoints, true, handler);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Error deleting batch " + uuid, e);
-        }
+        sendMessagesToOneDC(rm.createMessage(), endpoints, true, handler);
     }
 
     private static void syncWriteBatchedMutations(List<WriteResponseHandlerWrapper> wrappers,
@@ -348,15 +334,8 @@ public class StorageProxy implements StorageProxyMBean
     {
         for (WriteResponseHandlerWrapper wrapper : wrappers)
         {
-            try
-            {
-                Iterable<InetAddress> endpoints = Iterables.concat(wrapper.handler.naturalEndpoints, wrapper.handler.pendingEndpoints);
-                sendToHintedEndpoints(wrapper.mutation, endpoints, wrapper.handler, localDataCenter, consistencyLevel);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException("Error writing key " + ByteBufferUtil.bytesToHex(wrapper.mutation.key()), e);
-            }
+            Iterable<InetAddress> endpoints = Iterables.concat(wrapper.handler.naturalEndpoints, wrapper.handler.pendingEndpoints);
+            sendToHintedEndpoints(wrapper.mutation, endpoints, wrapper.handler, localDataCenter, consistencyLevel);
         }
 
         for (WriteResponseHandlerWrapper wrapper : wrappers)
@@ -488,7 +467,7 @@ public class StorageProxy implements StorageProxyMBean
                                              AbstractWriteResponseHandler responseHandler,
                                              String localDataCenter,
                                              ConsistencyLevel consistency_level)
-    throws IOException, OverloadedException
+    throws OverloadedException
     {
         // Multimap that holds onto all the messages and addresses meant for a specific datacenter
         Map<String, Multimap<MessageOut, InetAddress>> dcMessages = new HashMap<String, Multimap<MessageOut, InetAddress>>();
@@ -592,7 +571,6 @@ public class StorageProxy implements StorageProxyMBean
      * for each datacenter, send a message to one node to relay the write to other replicas
      */
     private static void sendMessages(String localDataCenter, Map<String, Multimap<MessageOut, InetAddress>> dcMessages, AbstractWriteResponseHandler handler)
-    throws IOException
     {
         for (Map.Entry<String, Multimap<MessageOut, InetAddress>> entry: dcMessages.entrySet())
         {
@@ -609,7 +587,19 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static void sendMessagesToOneDC(MessageOut message, Collection<InetAddress> targets, boolean localDC, AbstractWriteResponseHandler handler) throws IOException
+    private static void sendMessagesToOneDC(MessageOut message, Collection<InetAddress> targets, boolean localDC, AbstractWriteResponseHandler handler)
+    {
+        try
+        {
+            sendMessagesToOneDCInternal(message, targets, localDC, handler);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void sendMessagesToOneDCInternal(MessageOut message, Collection<InetAddress> targets, boolean localDC, AbstractWriteResponseHandler handler) throws IOException
     {
         Iterator<InetAddress> iter = targets.iterator();
         InetAddress target = iter.next();
