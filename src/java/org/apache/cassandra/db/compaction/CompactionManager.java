@@ -36,6 +36,7 @@ import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jsr166y.LinkedTransferQueue;
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
@@ -949,7 +950,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         private CompactionExecutor(int threadCount, String name)
         {
-            this(threadCount, threadCount, name, new LinkedBlockingQueue<Runnable>());
+            this(threadCount, threadCount, name, new LinkedTransferQueue<Runnable>());
         }
 
         public CompactionExecutor()

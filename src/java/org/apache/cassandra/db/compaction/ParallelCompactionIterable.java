@@ -278,7 +278,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
     private static class Deserializer extends AbstractIterator<RowContainer> implements CloseableIterator<RowContainer>
     {
-        private final LinkedBlockingQueue<RowContainer> queue = new LinkedBlockingQueue<RowContainer>(1);
+        private final BlockingQueue<RowContainer> queue = new LinkedBlockingQueue<RowContainer>(1);
         private static final RowContainer finished = new RowContainer((Row) null);
         private Condition condition;
         private final ICompactionScanner scanner;

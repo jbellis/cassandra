@@ -20,6 +20,7 @@ package org.apache.cassandra.db.commitlog;
 import java.util.ArrayList;
 import java.util.concurrent.*;
 
+import jsr166y.LinkedTransferQueue;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -31,12 +32,7 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService
 
     public BatchCommitLogExecutorService()
     {
-        this(DatabaseDescriptor.getConcurrentWriters());
-    }
-
-    public BatchCommitLogExecutorService(int queueSize)
-    {
-        queue = new LinkedBlockingQueue<CheaterFutureTask>(queueSize);
+        queue = new LinkedTransferQueue<CheaterFutureTask>();
         Runnable runnable = new WrappedRunnable()
         {
             public void runMayThrow() throws Exception
@@ -50,7 +46,6 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService
         };
         appendingThread = new Thread(runnable, "COMMIT-LOG-WRITER");
         appendingThread.start();
-
     }
 
     public long getPendingTasks()

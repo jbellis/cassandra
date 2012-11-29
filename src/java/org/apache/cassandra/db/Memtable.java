@@ -25,14 +25,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Function;
 import com.google.common.base.Throwables;
-
-import org.apache.cassandra.db.index.SecondaryIndexManager;
-import org.apache.cassandra.io.util.DiskAwareRunnable;
-import org.cliffc.high_scale_lib.NonBlockingHashSet;
-import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jsr166y.LinkedTransferQueue;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
@@ -41,11 +37,15 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.filter.AbstractColumnIterator;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.io.util.DiskAwareRunnable;
 import org.apache.cassandra.utils.SlabAllocator;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
+import org.github.jamm.MemoryMeter;
 
 public class Memtable
 {
@@ -66,7 +66,7 @@ public class Memtable
                                                                                           1,
                                                                                           Integer.MAX_VALUE,
                                                                                           TimeUnit.MILLISECONDS,
-                                                                                          new LinkedBlockingQueue<Runnable>(),
+                                                                                          new LinkedTransferQueue<Runnable>(),
                                                                                           new NamedThreadFactory("MemoryMeter"))
     {
         @Override

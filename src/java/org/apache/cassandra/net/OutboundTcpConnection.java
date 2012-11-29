@@ -26,20 +26,19 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jsr166y.LinkedTransferQueue;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.xerial.snappy.SnappyOutputStream;
-
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class OutboundTcpConnection extends Thread
 {
@@ -51,8 +50,8 @@ public class OutboundTcpConnection extends Thread
 
     // sending thread reads from "active" (one of queue1, queue2) until it is empty.
     // then it swaps it with "backlog."
-    private volatile BlockingQueue<QueuedMessage> backlog = new LinkedBlockingQueue<QueuedMessage>();
-    private volatile BlockingQueue<QueuedMessage> active = new LinkedBlockingQueue<QueuedMessage>();
+    private volatile BlockingQueue<QueuedMessage> backlog = new LinkedTransferQueue<QueuedMessage>();
+    private volatile BlockingQueue<QueuedMessage> active = new LinkedTransferQueue<QueuedMessage>();
 
     private final OutboundTcpConnectionPool poolReference;
 

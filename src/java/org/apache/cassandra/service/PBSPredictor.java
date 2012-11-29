@@ -22,7 +22,6 @@ import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -185,8 +184,8 @@ public class PBSPredictor implements PBSPredictorMBean
     }
 
     // used for LRU replacement
-    private final Queue<String> writeMessageIds = new LinkedBlockingQueue<String>();
-    private final Queue<String> readMessageIds = new LinkedBlockingQueue<String>();
+    private final Queue<String> writeMessageIds = new ConcurrentLinkedQueue<String>();
+    private final Queue<String> readMessageIds = new ConcurrentLinkedQueue<String>();
 
     private final Map<String, MessageLatencyCollection> messageIdToWriteLats = new ConcurrentHashMap<String, MessageLatencyCollection>();
     private final Map<String, MessageLatencyCollection> messageIdToReadLats = new ConcurrentHashMap<String, MessageLatencyCollection>();

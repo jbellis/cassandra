@@ -31,6 +31,7 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jsr166y.LinkedTransferQueue;
 import org.apache.cassandra.concurrent.JMXConfigurableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.Stage;
@@ -95,7 +96,7 @@ public class AntiEntropyService
         executor = new JMXConfigurableThreadPoolExecutor(4,
                                                          60,
                                                          TimeUnit.SECONDS,
-                                                         new LinkedBlockingQueue<Runnable>(),
+                                                         new LinkedTransferQueue<Runnable>(),
                                                          new NamedThreadFactory("AntiEntropySessions"),
                                                          "internal");
     }

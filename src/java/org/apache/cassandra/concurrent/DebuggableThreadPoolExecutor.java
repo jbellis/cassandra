@@ -22,6 +22,7 @@ import java.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jsr166y.LinkedTransferQueue;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 
@@ -76,11 +77,6 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
         }
     };
 
-    public DebuggableThreadPoolExecutor(String threadPoolName, int priority)
-    {
-        this(1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName, priority));
-    }
-
     public DebuggableThreadPoolExecutor(int corePoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> queue, ThreadFactory factory)
     {
         this(corePoolSize, corePoolSize, keepAliveTime, unit, queue, factory);
@@ -124,7 +120,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
      */
     public static DebuggableThreadPoolExecutor createWithMaximumPoolSize(String threadPoolName, int size, int keepAliveTime, TimeUnit unit)
     {
-        return new DebuggableThreadPoolExecutor(size, Integer.MAX_VALUE, keepAliveTime, unit, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName));
+        return new DebuggableThreadPoolExecutor(size, Integer.MAX_VALUE, keepAliveTime, unit, new LinkedTransferQueue<Runnable>(), new NamedThreadFactory(threadPoolName));
     }
 
     protected void onInitialRejection(Runnable task) {}

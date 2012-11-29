@@ -23,6 +23,7 @@ import java.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jsr166y.LinkedTransferQueue;
 import org.apache.cassandra.net.MessagingService;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.*;
@@ -82,7 +83,7 @@ public class StageManager
         return new JMXEnabledThreadPoolExecutor(numThreads,
                                                 KEEPALIVE,
                                                 TimeUnit.SECONDS,
-                                                new LinkedBlockingQueue<Runnable>(),
+                                                new LinkedTransferQueue<Runnable>(),
                                                 new NamedThreadFactory(stage.getJmxName()),
                                                 stage.getJmxType());
     }
@@ -92,7 +93,7 @@ public class StageManager
         return new JMXConfigurableThreadPoolExecutor(numThreads,
                                                      KEEPALIVE,
                                                      TimeUnit.SECONDS,
-                                                     new LinkedBlockingQueue<Runnable>(),
+                                                     new LinkedTransferQueue<Runnable>(),
                                                      new NamedThreadFactory(stage.getJmxName()),
                                                      stage.getJmxType());
     }
