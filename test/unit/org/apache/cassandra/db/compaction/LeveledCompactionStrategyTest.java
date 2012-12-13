@@ -66,7 +66,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
                 rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes("column" + c)), value, 0);
             }
             rm.apply();
-            store.forceBlockingFlush();
+            store.blockingFlushIfDirty();
         }
 
         LeveledCompactionStrategy strat = (LeveledCompactionStrategy)store.getCompactionStrategy();
@@ -108,7 +108,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
                 rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes("column" + c)), value, 0);
             }
             rm.apply();
-            store.forceBlockingFlush();
+            store.blockingFlushIfDirty();
         }
         store.forceMajorCompaction();
 

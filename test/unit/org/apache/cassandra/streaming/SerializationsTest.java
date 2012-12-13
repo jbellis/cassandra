@@ -210,7 +210,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         }
         try
         {
-            t.getColumnFamilyStore("Standard1").forceBlockingFlush();
+            t.getColumnFamilyStore("Standard1").blockingFlushIfDirty();
             return t.getColumnFamilyStore("Standard1").getSSTables().iterator().next();
         }
         catch (Exception any)

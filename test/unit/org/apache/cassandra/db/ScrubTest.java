@@ -141,7 +141,7 @@ public class ScrubTest extends SchemaLoader
         cf.delete(new DeletionInfo(0, 1)); // expired tombstone
         rm.add(cf);
         rm.applyUnsafe();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         CompactionManager.instance.performScrub(cfs);
         assert cfs.getSSTables().isEmpty();
@@ -234,7 +234,7 @@ public class ScrubTest extends SchemaLoader
             rm.applyUnsafe();
         }
 
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
     }
 
 

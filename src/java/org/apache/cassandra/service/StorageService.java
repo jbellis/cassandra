@@ -480,7 +480,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     {
                         for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
                         {
-                            Future<?> future = cfs.forceFlush();
+                            Future<?> future = cfs.flushIfDirty();
                             if (future != null)
                                 flushes.add(future);
                         }
@@ -2230,7 +2230,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
         {
             logger.debug("Forcing flush on keyspace " + tableName + ", CF " + cfStore.getColumnFamilyName());
-            cfStore.forceBlockingFlush();
+            cfStore.blockingFlushIfDirty();
         }
     }
 
@@ -3165,7 +3165,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         totalCFs = remainingCFs = cfses.size();
         for (ColumnFamilyStore cfs : cfses)
         {
-            cfs.forceBlockingFlush();
+            cfs.blockingFlushIfDirty();
             remainingCFs--;
         }
 
@@ -3355,7 +3355,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
 
         logger.warn("Flushing " + largest + " to relieve memory pressure");
-        largest.forceFlush();
+        largest.flushIfDirty();
     }
 
     /**

@@ -174,7 +174,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     protected Future<?> compact()
     {
         final ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.HINTS_CF);
-        hintStore.forceBlockingFlush();
+        hintStore.blockingFlushIfDirty();
         ArrayList<Descriptor> descriptors = new ArrayList<Descriptor>();
         for (SSTable sstable : hintStore.getSSTables())
             descriptors.add(sstable.descriptor);

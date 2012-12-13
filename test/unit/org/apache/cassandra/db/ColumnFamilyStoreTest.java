@@ -102,12 +102,12 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdf"), 1);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         cfs.getRecentSSTablesPerReadHistogram(); // resets counts
         cfs.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("key1"), new QueryPath("Standard1", null), ByteBufferUtil.bytes("Column1")));
@@ -454,7 +454,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertEquals(1, rows.size());
 
         // force a flush, so our index isn't being read from a memtable
-        table.getColumnFamilyStore(cfName).forceBlockingFlush();
+        table.getColumnFamilyStore(cfName).blockingFlushIfDirty();
 
         // now apply another update, but force the index update to be skipped
         rm = new RowMutation(keySpace, rowKey);
@@ -526,7 +526,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertEquals(1, rows.size());
 
         // force a flush and retry the query, so our index isn't being read from a memtable
-        table.getColumnFamilyStore(cfName).forceBlockingFlush();
+        table.getColumnFamilyStore(cfName).blockingFlushIfDirty();
         rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);
         assertEquals(1, rows.size());
 
@@ -675,7 +675,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
                 new Column(getBytes(1L), ByteBufferUtil.bytes("val1"), 1),
                 new Column(getBytes(2L), ByteBufferUtil.bytes("val2"), 1),
                 new Column(getBytes(3L), ByteBufferUtil.bytes("val3"), 1));
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         // insert, don't flush.
         putColsSuper(cfs, key, scfName,
@@ -701,7 +701,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertRowAndColCount(1, 0, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // flush
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         // re-verify delete.
         assertRowAndColCount(1, 0, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
@@ -788,7 +788,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertRowAndColCount(1, 2, null, false, cfs.getRangeSlice(null, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // flush.
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         // insert, don't flush
         putColsStandard(cfs, key, column("col3", "val3", 1), column("col4", "val4", 1));
@@ -803,7 +803,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertRowAndColCount(1, 0, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // flush
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         // re-verify delete. // first breakage is right here because of CASSANDRA-1837.
         assertRowAndColCount(1, 0, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
@@ -819,7 +819,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertRowAndColCount(1, 2, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // and it remains so after flush. (this wasn't failing before, but it's good to check.)
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
         assertRowAndColCount(1, 2, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
     }
 
@@ -865,7 +865,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         // Initially create a SC with 1 subcolumn
         putColsSuper(cfs, key, superColName, new Column(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes("a"), 1));
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         // Add another column
         putColsSuper(cfs, key, superColName, new Column(ByteBufferUtil.bytes("c2"), ByteBufferUtil.bytes("b"), 2));
@@ -922,7 +922,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         // Create a column a 'high timestamp'
         putColsStandard(cfs, key, new Column(cname, ByteBufferUtil.bytes("a"), 2));
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         // Nuke the metadata and reload that sstable
         Collection<SSTableReader> ssTables = cfs.getSSTables();
@@ -969,7 +969,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         putColsStandard(cfs, Util.dk("a"), cols[0], cols[1], cols[2], cols[3], cols[4]);
         putColsStandard(cfs, Util.dk("b"), cols[0], cols[1]);
         putColsStandard(cfs, Util.dk("c"), cols[0], cols[1], cols[2], cols[3]);
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         SlicePredicate sp = new SlicePredicate();
         sp.setSlice_range(new SliceRange());
@@ -1015,7 +1015,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         putColsStandard(cfs, Util.dk("a"), cols[0], cols[1], cols[2], cols[3]);
         putColsStandard(cfs, Util.dk("b"), cols[0], cols[1], cols[2]);
         putColsStandard(cfs, Util.dk("c"), cols[0], cols[1], cols[2], cols[3]);
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         SlicePredicate sp = new SlicePredicate();
         sp.setSlice_range(new SliceRange());
@@ -1093,7 +1093,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         {
             putColsStandard(cfs, idk(i), column("name", "value", 1));
         }
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         SlicePredicate sp = new SlicePredicate();
         sp.setSlice_range(new SliceRange());
@@ -1150,7 +1150,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
             rm.apply();
         }
 
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, LongType.instance.decompose(1L));
         // explicitly tell to the KeysSearcher to use column limiting for rowsPerQuery to trigger bogus columnsRead--; (CASSANDRA-3996)
@@ -1202,7 +1202,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         putColsStandard(cfs, dk("a"), cols);
 
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         // this setup should generate the following row (assuming indexes are of 4Kb each):
         // [colA, colB, colC, colD, colE, colF, colG, colH, colI]
@@ -1271,7 +1271,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         if (flush)
         {
-            cfs.forceBlockingFlush();
+            cfs.blockingFlushIfDirty();
         }
         else
         {

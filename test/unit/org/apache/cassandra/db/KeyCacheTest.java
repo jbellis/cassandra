@@ -65,7 +65,7 @@ public class KeyCacheTest extends SchemaLoader
 
         // insert data and force to disk
         insertData(TABLE1, COLUMN_FAMILY2, 0, 100);
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         // populate the cache
         readData(TABLE1, COLUMN_FAMILY2, 0, 100);
@@ -113,7 +113,7 @@ public class KeyCacheTest extends SchemaLoader
         rm.apply();
 
         // to make sure we have SSTable
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         // reads to cache key position
         cfs.getColumnFamily(QueryFilter.getSliceFilter(key1,

@@ -38,7 +38,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 /**
@@ -298,7 +297,7 @@ public class CommitLogAllocator
             {
                 String keypace = Schema.instance.getCF(dirtyCFId).left;
                 final ColumnFamilyStore cfs = Table.open(keypace).getColumnFamilyStore(dirtyCFId);
-                cfs.forceFlush();
+                cfs.flushIfDirty();
             }
         }
     }

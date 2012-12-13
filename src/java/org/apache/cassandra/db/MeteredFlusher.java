@@ -56,7 +56,7 @@ class MeteredFlusher implements Runnable
                 if (size > (DatabaseDescriptor.getTotalMemtableSpaceInMB() * 1048576L - flushingBytes) / maxInFlight)
                 {
                     logger.info("flushing high-traffic column family {} (estimated {} bytes)", cfs, size);
-                    cfs.forceFlush();
+                    cfs.flushIfDirty();
                 }
                 else
                 {
@@ -99,7 +99,7 @@ class MeteredFlusher implements Runnable
                 long size = cfs.getTotalMemtableLiveSize();
                 logger.info("flushing {} to free up {} bytes", cfs, size);
                 liveBytes -= size;
-                cfs.forceFlush();
+                cfs.flushIfDirty();
             }
         }
         finally

@@ -231,7 +231,7 @@ public abstract class SecondaryIndex
         {
             public void run()
             {
-                baseCfs.forceBlockingFlush();
+                baseCfs.blockingFlushIfDirty();
                 buildIndexBlocking();
             }
         };

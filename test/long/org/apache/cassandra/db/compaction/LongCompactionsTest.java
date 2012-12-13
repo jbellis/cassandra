@@ -138,7 +138,7 @@ public class LongCompactionsTest extends SchemaLoader
                 rm.apply();
                 inserted.add(key);
             }
-            cfs.forceBlockingFlush();
+            cfs.blockingFlushIfDirty();
             CompactionsTest.assertMaxTimestamp(cfs, maxTimestampExpected);
             assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(cfs).size());
         }
@@ -181,7 +181,7 @@ public class LongCompactionsTest extends SchemaLoader
                 rm.apply();
                 inserted.add(key);
             }
-            cfs.forceBlockingFlush();
+            cfs.blockingFlushIfDirty();
             CompactionsTest.assertMaxTimestamp(cfs, maxTimestampExpected);
             assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(cfs, superColumn).size());
         }

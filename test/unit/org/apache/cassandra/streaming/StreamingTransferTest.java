@@ -75,7 +75,7 @@ public class StreamingTransferTest extends SchemaLoader
         long timestamp = 1234;
         for (int i = 1; i <= 3; i++)
             mutator.mutate("key" + i, "col" + i, timestamp);
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
         Util.compactAll(cfs).get();
         assertEquals(1, cfs.getSSTables().size());
         SSTableReader sstable = cfs.getSSTables().iterator().next();

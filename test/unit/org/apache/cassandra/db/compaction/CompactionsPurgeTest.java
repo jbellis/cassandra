@@ -67,7 +67,7 @@ public class CompactionsPurgeTest extends SchemaLoader
             rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         }
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         // deletes
         for (int i = 0; i < 10; i++)
@@ -76,13 +76,13 @@ public class CompactionsPurgeTest extends SchemaLoader
             rm.delete(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), 1);
             rm.apply();
         }
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         // resurrect one column
         rm = new RowMutation(TABLE1, key.key);
         rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(5))), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         // major compact and test that all columns but the resurrected one is completely gone
         CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE).get();
@@ -112,7 +112,7 @@ public class CompactionsPurgeTest extends SchemaLoader
                 rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
             }
             rm.apply();
-            cfs.forceBlockingFlush();
+            cfs.blockingFlushIfDirty();
 
             // deletes
             for (int i = 0; i < 10; i++)
@@ -121,7 +121,7 @@ public class CompactionsPurgeTest extends SchemaLoader
                 rm.delete(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), 1);
                 rm.apply();
             }
-            cfs.forceBlockingFlush();
+            cfs.blockingFlushIfDirty();
         }
 
         DecoratedKey key1 = Util.dk("key1");
@@ -129,12 +129,12 @@ public class CompactionsPurgeTest extends SchemaLoader
 
         // flush, remember the current sstable and then resurrect one column
         // for first key. Then submit minor compaction on remembered sstables.
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
         Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
         rm = new RowMutation(TABLE2, key1.key);
         rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(5))), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
         new CompactionTask(cfs, sstablesIncomplete, Integer.MAX_VALUE).execute(null);
 
         // verify that minor compaction does not GC when key is present
@@ -175,7 +175,7 @@ public class CompactionsPurgeTest extends SchemaLoader
             rm.delete(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), 1);
             rm.apply();
         }
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
         assert cfs.getSSTables().size() == 1 : cfs.getSSTables(); // inserts & deletes were in the same memtable -> only deletes in sstable
 
         // compact and test that the row is completely gone
@@ -215,7 +215,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm.apply();
 
         // flush and major compact
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
         Util.compactAll(cfs).get();
 
         // re-inserts with timestamp lower than delete
@@ -260,7 +260,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm.apply();
 
         // flush and major compact (with tombstone purging)
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
         Util.compactAll(cfs).get();
 
         // re-inserts with timestamp lower than delete
@@ -307,7 +307,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm.apply();
 
         // flush and major compact
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
         Util.compactAll(cfs).get();
 
         // re-inserts with timestamp lower than delete

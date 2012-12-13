@@ -51,7 +51,7 @@ public class RemoveSuperColumnTest extends SchemaLoader
         rm = new RowMutation("Keyspace1", dk.key);
         addMutation(rm, "Super1", "SC1", 1, "val1", 0);
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
@@ -60,7 +60,7 @@ public class RemoveSuperColumnTest extends SchemaLoader
 
         validateRemoveTwoSources(dk);
 
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
         validateRemoveTwoSources(dk);
 
         CompactionManager.instance.performMaximal(store);
@@ -80,7 +80,7 @@ public class RemoveSuperColumnTest extends SchemaLoader
         addMutation(rm, "Super3", "SC1", 1, "val1", 0);
         addMutation(rm, "Super3", "SC1", 2, "val1", 0);
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
@@ -89,7 +89,7 @@ public class RemoveSuperColumnTest extends SchemaLoader
 
         validateRemoveSubColumn(dk);
 
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
         validateRemoveSubColumn(dk);
     }
 
@@ -136,7 +136,7 @@ public class RemoveSuperColumnTest extends SchemaLoader
         rm = new RowMutation("Keyspace1", dk.key);
         addMutation(rm, "Super2", "SC1", 1, "val1", 0);
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
@@ -150,7 +150,7 @@ public class RemoveSuperColumnTest extends SchemaLoader
 
         validateRemoveWithNewData(dk);
 
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
         validateRemoveWithNewData(dk);
 
         CompactionManager.instance.performMaximal(store);

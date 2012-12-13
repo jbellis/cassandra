@@ -65,7 +65,7 @@ public class HintedHandOffTest extends SchemaLoader
         RowMutation.hintFor(rm, UUID.randomUUID()).apply();
 
         // flush data to disk
-        hintStore.forceBlockingFlush();
+        hintStore.blockingFlushIfDirty();
         assertEquals(1, hintStore.getSSTables().size());
 
         // submit compaction

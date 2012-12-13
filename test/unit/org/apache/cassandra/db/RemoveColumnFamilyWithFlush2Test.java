@@ -50,7 +50,7 @@ public class RemoveColumnFamilyWithFlush2Test extends SchemaLoader
         rm = new RowMutation("Keyspace1", dk.key);
         rm.delete(new QueryPath("Standard1"), 1);
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1"))));
         assert retrieved.isMarkedForDelete();

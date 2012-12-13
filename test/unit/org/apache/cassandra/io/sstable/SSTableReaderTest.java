@@ -78,7 +78,7 @@ public class SSTableReaderTest extends SchemaLoader
             rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
         }
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
         CompactionManager.instance.performMaximal(store);
 
         List<Range<Token>> ranges = new ArrayList<Range<Token>>();
@@ -119,7 +119,7 @@ public class SSTableReaderTest extends SchemaLoader
             rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
         }
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
         CompactionManager.instance.performMaximal(store);
 
         // check that all our keys are found correctly
@@ -156,7 +156,7 @@ public class SSTableReaderTest extends SchemaLoader
             rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
         }
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         clearAndLoad(store);
         assert store.getMaxRowSize() != 0;
@@ -184,7 +184,7 @@ public class SSTableReaderTest extends SchemaLoader
             rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
         }
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
         CompactionManager.instance.performMaximal(store);
 
         SSTableReader sstable = store.getSSTables().iterator().next();
@@ -212,7 +212,7 @@ public class SSTableReaderTest extends SchemaLoader
         RowMutation rm = new RowMutation("Keyspace1", key);
         rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), System.currentTimeMillis());
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         // check if opening and querying works
         assertIndexQueryWorks(store);
@@ -274,7 +274,7 @@ public class SSTableReaderTest extends SchemaLoader
                    ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp);
             rm.apply();
         }
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         SSTableReader sstable = store.getSSTables().iterator().next();
         Descriptor desc = sstable.descriptor;
@@ -296,7 +296,7 @@ public class SSTableReaderTest extends SchemaLoader
         RowMutation rm = new RowMutation("Keyspace1", key);
         rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), System.currentTimeMillis());
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         ColumnFamilyStore indexCfs = store.indexManager.getIndexForColumn(ByteBufferUtil.bytes("birthdate")).getIndexCfs();
         assert indexCfs.partitioner instanceof LocalPartitioner;

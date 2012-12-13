@@ -46,7 +46,7 @@ public class RemoveSubColumnTest extends SchemaLoader
         rm = new RowMutation("Keyspace1", dk.key);
         Util.addMutation(rm, "Super1", "SC1", 1, "asdf", 0);
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
@@ -70,7 +70,7 @@ public class RemoveSubColumnTest extends SchemaLoader
         rm = new RowMutation("Keyspace1", dk.key);
         Util.addMutation(rm, "Super1", "SC1", 1, "asdf", 0);
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         // remove the SC
         rm = new RowMutation("Keyspace1", dk.key);

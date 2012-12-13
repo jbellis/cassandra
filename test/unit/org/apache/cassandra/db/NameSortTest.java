@@ -88,8 +88,8 @@ public class NameSortTest extends SchemaLoader
 
         validateNameSort(table, N);
 
-        table.getColumnFamilyStore("Standard1").forceBlockingFlush();
-        table.getColumnFamilyStore("Super1").forceBlockingFlush();
+        table.getColumnFamilyStore("Standard1").blockingFlushIfDirty();
+        table.getColumnFamilyStore("Super1").blockingFlushIfDirty();
         validateNameSort(table, N);
     }
 

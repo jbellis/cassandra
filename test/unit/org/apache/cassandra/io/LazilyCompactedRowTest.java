@@ -44,7 +44,6 @@ import org.apache.cassandra.io.util.MappedFileDataInput;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static junit.framework.Assert.assertEquals;
@@ -179,7 +178,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
         RowMutation rm = new RowMutation("Keyspace1", key);
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         assertBytes(cfs, Integer.MAX_VALUE);
         assertDigest(cfs, Integer.MAX_VALUE);
@@ -198,7 +197,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("d")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         assertBytes(cfs, Integer.MAX_VALUE);
         assertDigest(cfs, Integer.MAX_VALUE);
@@ -220,7 +219,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
         DataOutputBuffer out = new DataOutputBuffer();
         RowMutation.serializer.serialize(rm, out, MessagingService.current_version);
         assert out.getLength() > DatabaseDescriptor.getColumnIndexSize();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         assertBytes(cfs, Integer.MAX_VALUE);
         assertDigest(cfs, Integer.MAX_VALUE);
@@ -238,10 +237,10 @@ public class LazilyCompactedRowTest extends SchemaLoader
         RowMutation rm = new RowMutation("Keyspace1", key);
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         assertBytes(cfs, Integer.MAX_VALUE);
         assertDigest(cfs, Integer.MAX_VALUE);
@@ -260,10 +259,10 @@ public class LazilyCompactedRowTest extends SchemaLoader
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("d")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         assertBytes(cfs, Integer.MAX_VALUE);
         assertDigest(cfs, Integer.MAX_VALUE);
@@ -287,7 +286,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
                 rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(String.valueOf(i / 2))), ByteBufferUtil.EMPTY_BYTE_BUFFER, j * ROWS_PER_SSTABLE + i);
                 rm.apply();
             }
-            cfs.forceBlockingFlush();
+            cfs.blockingFlushIfDirty();
         }
 
         assertBytes(cfs, Integer.MAX_VALUE);
@@ -307,10 +306,10 @@ public class LazilyCompactedRowTest extends SchemaLoader
         ByteBuffer scKey = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
         rm.add(new QueryPath("Super5", scKey , ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         assertBytes(cfs, Integer.MAX_VALUE);
     }

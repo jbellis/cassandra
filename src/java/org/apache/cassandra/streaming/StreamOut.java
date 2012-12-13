@@ -94,7 +94,7 @@ public class StreamOut
         List<Future<?>> flushes = new ArrayList<Future<?>>();
         for (ColumnFamilyStore cfstore : stores)
         {
-            Future<?> flush = cfstore.forceFlush();
+            Future<?> flush = cfstore.flushIfDirty();
             if (flush != null)
                 flushes.add(flush);
         }

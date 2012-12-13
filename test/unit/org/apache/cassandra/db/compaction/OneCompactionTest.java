@@ -54,7 +54,7 @@ public class OneCompactionTest extends SchemaLoader
             rm.add(new QueryPath(columnFamilyName, null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
             inserted.add(key);
-            store.forceBlockingFlush();
+            store.blockingFlushIfDirty();
             assertEquals(inserted.size(), Util.getRangeSlice(store).size());
         }
         CompactionManager.instance.performMaximal(store);

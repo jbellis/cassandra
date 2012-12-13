@@ -49,7 +49,7 @@ public class TimeSortTest extends SchemaLoader
         rm = new RowMutation("Keyspace1", key.key);
         rm.add(new QueryPath("StandardLong1", null, getBytes(100)), ByteBufferUtil.bytes("a"), 100);
         rm.apply();
-        cfStore.forceBlockingFlush();
+        cfStore.blockingFlushIfDirty();
 
         rm = new RowMutation("Keyspace1", key.key);
         rm.add(new QueryPath("StandardLong1", null, getBytes(0)), ByteBufferUtil.bytes("b"), 0);
@@ -78,7 +78,7 @@ public class TimeSortTest extends SchemaLoader
 
         validateTimeSort(table);
 
-        cfStore.forceBlockingFlush();
+        cfStore.blockingFlushIfDirty();
         validateTimeSort(table);
 
         // interleave some new data to test memtable + sstable

@@ -192,7 +192,7 @@ public class DefsTest extends SchemaLoader
         rm.apply();
         ColumnFamilyStore store = Table.open(ks).getColumnFamilyStore(cf);
         assert store != null;
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cf), ByteBufferUtil.bytes("col0")));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
@@ -217,7 +217,7 @@ public class DefsTest extends SchemaLoader
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
         assert store.directories.sstableLister().list().size() > 0;
 
         MigrationManager.announceColumnFamilyDrop(ks.name, cfm.cfName);
@@ -265,7 +265,7 @@ public class DefsTest extends SchemaLoader
         rm.apply();
         ColumnFamilyStore store = Table.open(newCf.ksName).getColumnFamilyStore(newCf.cfName);
         assert store != null;
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), ByteBufferUtil.bytes("col0")));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
@@ -290,7 +290,7 @@ public class DefsTest extends SchemaLoader
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
         assert store.directories.sstableLister().list().size() > 0;
 
         MigrationManager.announceKeyspaceDrop(ks.name);
@@ -373,7 +373,7 @@ public class DefsTest extends SchemaLoader
         rm.apply();
         ColumnFamilyStore store = Table.open(newKs.name).getColumnFamilyStore(newCf.cfName);
         assert store != null;
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), ByteBufferUtil.bytes("col0")));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
@@ -522,7 +522,7 @@ public class DefsTest extends SchemaLoader
         rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), 0);
         rm.apply();
         ColumnFamilyStore cfs = Table.open("Keyspace6").getColumnFamilyStore("Indexed1");
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
         ColumnFamilyStore indexedCfs = cfs.indexManager.getIndexForColumn(ByteBufferUtil.bytes("birthdate")).getIndexCfs();
         Descriptor desc = indexedCfs.getSSTables().iterator().next().descriptor;
 

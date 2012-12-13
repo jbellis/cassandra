@@ -84,7 +84,7 @@ public class CompactionsTest extends SchemaLoader
                        j > 0 ? 3 : 0); // let first column never expire, since deleting all columns does not produce sstable
             rm.apply();
         }
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
         assertEquals(1, store.getSSTables().size());
         long originalSize = store.getSSTables().iterator().next().uncompressedLength();
 
@@ -142,13 +142,13 @@ public class CompactionsTest extends SchemaLoader
                ByteBufferUtil.EMPTY_BYTE_BUFFER,
                FBUtilities.timestampMicros());
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         // shadow the subcolumn with a supercolumn tombstone
         rm = new RowMutation(TABLE1, key.key);
         rm.delete(new QueryPath("Super1", scName), FBUtilities.timestampMicros());
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         CompactionManager.instance.performMaximal(cfs);
         assertEquals(1, cfs.getSSTables().size());
@@ -192,7 +192,7 @@ public class CompactionsTest extends SchemaLoader
             rm.apply();
 
             if (i % 2 == 0)
-                cfs.forceBlockingFlush();
+                cfs.blockingFlushIfDirty();
         }
         Collection<SSTableReader> toCompact = cfs.getSSTables();
         assert toCompact.size() == 2;
@@ -206,7 +206,7 @@ public class CompactionsTest extends SchemaLoader
             rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
             rm.apply();
         }
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
         SSTableReader tmpSSTable = null;
         for (SSTableReader sstable : cfs.getSSTables())
             if (!toCompact.contains(sstable))
@@ -253,7 +253,7 @@ public class CompactionsTest extends SchemaLoader
         rm.add(new QueryPath(cfname, ByteBufferUtil.bytes("sc"), ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
 
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         Collection<SSTableReader> sstablesBefore = cfs.getSSTables();
 
@@ -268,7 +268,7 @@ public class CompactionsTest extends SchemaLoader
         ColumnFamily cf = cfs.getColumnFamily(filter);
         assert cf == null || cf.isEmpty() : "should be empty: " + cf;
 
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         Collection<SSTableReader> sstablesAfter = cfs.getSSTables();
         Collection<SSTableReader> toCompact = new ArrayList<SSTableReader>();
@@ -313,7 +313,7 @@ public class CompactionsTest extends SchemaLoader
                 rm.apply();
                 inserted.add(key);
             }
-            cfs.forceBlockingFlush();
+            cfs.blockingFlushIfDirty();
             assertMaxTimestamp(cfs, maxTimestampExpected);
             assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(cfs).size());
         }

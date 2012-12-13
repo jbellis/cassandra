@@ -172,7 +172,7 @@ public class Util
             rm.apply();
 
         ColumnFamilyStore store = Table.open(tablename).getColumnFamilyStore(cfid);
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
         return store;
     }
 

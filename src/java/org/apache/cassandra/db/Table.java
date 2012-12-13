@@ -23,9 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
@@ -292,7 +290,7 @@ public class Table
     // disassociate a cfs from this table instance.
     private void unloadCf(ColumnFamilyStore cfs) throws IOException
     {
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
         cfs.invalidate();
     }
 
@@ -413,7 +411,7 @@ public class Table
         List<Future<?>> futures = new ArrayList<Future<?>>();
         for (UUID cfId : columnFamilyStores.keySet())
         {
-            Future<?> future = columnFamilyStores.get(cfId).forceFlush();
+            Future<?> future = columnFamilyStores.get(cfId).flushIfDirty();
             if (future != null)
                 futures.add(future);
         }

@@ -54,7 +54,7 @@ public class TableTest extends SchemaLoader
     public static void reTest(ColumnFamilyStore cfs, Runnable verify) throws Exception
     {
         verify.run();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
         verify.run();
     }
 
@@ -155,7 +155,7 @@ public class TableTest extends SchemaLoader
         rm.apply();
 
         validateGetSliceNoMatch(table);
-        table.getColumnFamilyStore("Standard2").forceBlockingFlush();
+        table.getColumnFamilyStore("Standard2").blockingFlushIfDirty();
         validateGetSliceNoMatch(table);
 
         Collection<SSTableReader> ssTables = table.getColumnFamilyStore("Standard2").getSSTables();
@@ -239,7 +239,7 @@ public class TableTest extends SchemaLoader
             rm.apply();
         }
 
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         for (int i = 10; i < 20; i++)
         {
@@ -379,7 +379,7 @@ public class TableTest extends SchemaLoader
         cf.addColumn(column("col6", "val6", 1L));
         rm.add(cf);
         rm.apply();
-        cfStore.forceBlockingFlush();
+        cfStore.blockingFlushIfDirty();
 
         rm = new RowMutation("Keyspace1", ROW.key);
         cf = ColumnFamily.create("Keyspace1", "Standard1");
@@ -425,7 +425,7 @@ public class TableTest extends SchemaLoader
             cf.addColumn(column("col" + i, ("v" + i), 1L));
         rm.add(cf);
         rm.apply();
-        cfStore.forceBlockingFlush();
+        cfStore.blockingFlushIfDirty();
 
         validateSliceLarge(cfStore);
 

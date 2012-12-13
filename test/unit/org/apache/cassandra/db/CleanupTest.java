@@ -155,7 +155,7 @@ public class CleanupTest extends SchemaLoader
             rm.applyUnsafe();
         }
 
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
     }
 
     protected List<Long> getMaxTimestampList(ColumnFamilyStore cfs)

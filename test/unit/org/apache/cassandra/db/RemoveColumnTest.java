@@ -48,7 +48,7 @@ public class RemoveColumnTest extends SchemaLoader
         rm = new RowMutation("Keyspace1", dk.key);
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);

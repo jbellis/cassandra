@@ -30,8 +30,6 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.Test;
 
-import org.apache.cassandra.io.sstable.SSTableReader;
-
 public class CollationControllerTest extends SchemaLoader
 {
     @Test
@@ -48,7 +46,7 @@ public class CollationControllerTest extends SchemaLoader
         rm = new RowMutation("Keyspace1", dk.key);
         rm.add(path, ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
         
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
@@ -61,13 +59,13 @@ public class CollationControllerTest extends SchemaLoader
         rm.add(path, ByteBufferUtil.bytes("zxcv"), 20);
         rm.apply();
         
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         // add yet one more mutation
         rm = new RowMutation("Keyspace1", dk.key);
         rm.add(path, ByteBufferUtil.bytes("foobar"), 30);
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         // A NamesQueryFilter goes down one code path (through collectTimeOrderedData())
         // It should only iterate the last flushed sstable, since it probably contains the most recent value for Column1

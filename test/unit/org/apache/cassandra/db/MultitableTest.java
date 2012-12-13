@@ -55,8 +55,8 @@ public class MultitableTest extends SchemaLoader
         rm.add(cf);
         rm.apply();
 
-        table1.getColumnFamilyStore("Standard1").forceBlockingFlush();
-        table2.getColumnFamilyStore("Standard1").forceBlockingFlush();
+        table1.getColumnFamilyStore("Standard1").blockingFlushIfDirty();
+        table2.getColumnFamilyStore("Standard1").blockingFlushIfDirty();
 
         assertColumns(Util.getColumnFamily(table1, dk, "Standard1"), "col1");
         assertColumns(Util.getColumnFamily(table2, dk, "Standard1"), "col2");

@@ -50,19 +50,19 @@ public class RangeTombstoneTest extends SchemaLoader
         for (int i = 0; i < 40; i += 2)
             add(rm, i, 0);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         rm = new RowMutation(KSNAME, ByteBufferUtil.bytes(key));
         cf = rm.addOrGet(CFNAME);
         delete(cf, 10, 22, 1);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         rm = new RowMutation(KSNAME, ByteBufferUtil.bytes(key));
         for (int i = 1; i < 40; i += 2)
             add(rm, i, 2);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         rm = new RowMutation(KSNAME, ByteBufferUtil.bytes(key));
         cf = rm.addOrGet(CFNAME);
@@ -112,25 +112,25 @@ public class RangeTombstoneTest extends SchemaLoader
         for (int i = 0; i < 20; i++)
             add(rm, i, 0);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         rm = new RowMutation(KSNAME, ByteBufferUtil.bytes(key));
         cf = rm.addOrGet(CFNAME);
         delete(cf, 5, 15, 1);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         rm = new RowMutation(KSNAME, ByteBufferUtil.bytes(key));
         cf = rm.addOrGet(CFNAME);
         delete(cf, 5, 10, 1);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         rm = new RowMutation(KSNAME, ByteBufferUtil.bytes(key));
         cf = rm.addOrGet(CFNAME);
         delete(cf, 5, 8, 2);
         rm.apply();
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         QueryPath path = new QueryPath(CFNAME);
         cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dk(key), path));

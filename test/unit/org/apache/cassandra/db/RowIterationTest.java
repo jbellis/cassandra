@@ -56,7 +56,7 @@ public class RowIterationTest extends SchemaLoader
             rm.apply();
             inserted.add(key);
         }
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
         assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(store).size());
     }
 
@@ -74,7 +74,7 @@ public class RowIterationTest extends SchemaLoader
         rm.add(new QueryPath(CF_NAME, null, ByteBufferUtil.bytes("c")), ByteBufferUtil.bytes("values"), 0L);
         DeletionInfo delInfo1 = rm.getColumnFamilies().iterator().next().deletionInfo();
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         // Delete row in second sstable with higher timestamp
         rm = new RowMutation(TABLE1, key.key);
@@ -83,7 +83,7 @@ public class RowIterationTest extends SchemaLoader
         DeletionInfo delInfo2 = rm.getColumnFamilies().iterator().next().deletionInfo();
         assert delInfo2.getTopLevelDeletion().markedForDeleteAt == 1L;
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         ColumnFamily cf = Util.getRangeSlice(store).iterator().next().cf;
         assert cf.deletionInfo().equals(delInfo2);
@@ -101,7 +101,7 @@ public class RowIterationTest extends SchemaLoader
         RowMutation rm = new RowMutation(TABLE1, key.key);
         rm.delete(new QueryPath(CF_NAME, null, null), 0);
         rm.apply();
-        store.forceBlockingFlush();
+        store.blockingFlushIfDirty();
 
         ColumnFamily cf = Util.getRangeSlice(store).iterator().next().cf;
         assert cf != null;

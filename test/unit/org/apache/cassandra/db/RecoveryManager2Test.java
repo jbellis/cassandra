@@ -59,7 +59,7 @@ public class RecoveryManager2Test extends SchemaLoader
         Table table1 = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table1.getColumnFamilyStore("Standard1");
         logger.debug("forcing flush");
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
 
         logger.debug("begin manual replay");
         // replay the commit log (nothing on Standard1 should be replayed since everything was flushed, so only the row on Standard2

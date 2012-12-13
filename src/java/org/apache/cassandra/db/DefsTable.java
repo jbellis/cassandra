@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,7 +44,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * SCHEMA_{KEYSPACES, COLUMNFAMILIES, COLUMNS}_CF are used to store Keyspace/ColumnFamily attributes to make schema
@@ -242,7 +240,7 @@ public class DefsTable
             mutation.apply();
         }
         // flush immediately because we read schema before replaying the commitlog
-        cfs.forceBlockingFlush();
+        cfs.blockingFlushIfDirty();
     }
 
     public static ByteBuffer searchComposite(String name, boolean start)
@@ -623,7 +621,7 @@ public class DefsTable
 
     private static void flushSchemaCF(String cfName)
     {
-        SystemTable.schemaCFS(cfName).forceBlockingFlush();
+        SystemTable.schemaCFS(cfName).blockingFlushIfDirty();
     }
 
     private static ByteBuffer toUTF8Bytes(UUID version)

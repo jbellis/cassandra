@@ -32,7 +32,6 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.Futures;
 
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.tracing.Tracing;
@@ -637,7 +636,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         });
     }
 
-    public Future<?> forceFlush()
+    public Future<?> flushIfDirty()
     {
         // during index build, 2ary index memtables can be dirty even if parent is not.  if so,
         // we want flushLargestMemtables to flush the 2ary index ones too.
@@ -654,9 +653,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return switchMemtable();
     }
 
-    public void forceBlockingFlush()
+    public void blockingFlushIfDirty()
     {
-        Future<?> future = forceFlush();
+        Future<?> future = flushIfDirty();
         if (future != null)
             FBUtilities.waitOnFuture(future);
     }
@@ -1519,7 +1518,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void snapshot(String snapshotName)
     {
-        forceBlockingFlush();
+        blockingFlushIfDirty();
         snapshotWithoutFlush(snapshotName);
     }
 
@@ -1672,7 +1671,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (DatabaseDescriptor.isAutoSnapshot())
         {
             // flush the CF being truncated before forcing the new segment
-            forceBlockingFlush();
+            blockingFlushIfDirty();
 
             // sleep a little to make sure that our truncatedAt comes after any sstable
             // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
