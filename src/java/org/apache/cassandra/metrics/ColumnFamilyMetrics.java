@@ -98,14 +98,14 @@ public class ColumnFamilyMetrics
         {
             public Long value()
             {
-                return cfs.getDataTracker().getMemtable().getOperations();
+                return cfs.getDataTracker().getReadOnlyMemtable().getOperations();
             }
         });
         memtableDataSize = Metrics.newGauge(factory.createMetricName("MemtableDataSize"), new Gauge<Long>()
         {
             public Long value()
             {
-                return cfs.getDataTracker().getMemtable().getLiveSize();
+                return cfs.getDataTracker().getReadOnlyMemtable().getLiveSize();
             }
         });
         memtableSwitchCount = Metrics.newCounter(factory.createMetricName("MemtableSwitchCount"));
@@ -161,8 +161,7 @@ public class ColumnFamilyMetrics
         {
             public Integer value()
             {
-                // TODO this actually isn't a good measure of pending tasks
-                return Table.switchLock.getQueueLength();
+                return cfs.getDataTracker().getReadOnlyMemtable().getReferenceCount() - 1;
             }
         });
         liveSSTableCount = Metrics.newGauge(factory.createMetricName("LiveSSTableCount"), new Gauge<Integer>()

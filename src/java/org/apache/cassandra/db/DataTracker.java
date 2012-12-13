@@ -54,7 +54,17 @@ public class DataTracker
         this.init();
     }
 
-    public Memtable getMemtable()
+    public Memtable getAndReferenceMemtable()
+    {
+        while (true)
+        {
+            Memtable memtable = view.get().memtable;
+            if (memtable.acquireReference())
+                return memtable;
+        }
+    }
+
+    public Memtable getReadOnlyMemtable()
     {
         return view.get().memtable;
     }
@@ -94,10 +104,9 @@ public class DataTracker
     /**
      * Switch the current memtable.
      * This atomically adds the current memtable to the memtables pending
-     * flush and replace it with a fresh memtable.
+     * flush (if it is dirty) and replaces it with a fresh memtable.
      *
-     * @return the previous current memtable (the one added to the pending
-     * flush)
+     * @return the previously active memtable (the one added to the pending flush collection)
      */
     public Memtable switchMemtable()
     {
@@ -113,24 +122,8 @@ public class DataTracker
         }
         while (!view.compareAndSet(currentView, newView));
 
+        toFlushMemtable.releaseReference();
         return toFlushMemtable;
-    }
-
-    /**
-     * Renew the current memtable without putting the old one for a flush.
-     * Used when we flush but a memtable is clean (in which case we must
-     * change it because it was frozen).
-     */
-    public void renewMemtable()
-    {
-        Memtable newMemtable = new Memtable(cfstore);
-        View currentView, newView;
-        do
-        {
-            currentView = view.get();
-            newView = currentView.renewMemtable(newMemtable);
-        }
-        while (!view.compareAndSet(currentView, newView));
     }
 
     public void replaceFlushed(Memtable memtable, SSTableReader sstable)
@@ -502,11 +495,6 @@ public class DataTracker
         {
             Set<Memtable> newPending = ImmutableSet.<Memtable>builder().addAll(memtablesPendingFlush).add(memtable).build();
             return new View(newMemtable, newPending, sstables, compacting, intervalTree);
-        }
-
-        public View renewMemtable(Memtable newMemtable)
-        {
-            return new View(newMemtable, memtablesPendingFlush, sstables, compacting, intervalTree);
         }
 
         public View replaceFlushed(Memtable flushedMemtable, SSTableReader newSSTable)

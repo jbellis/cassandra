@@ -21,6 +21,7 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Function;
@@ -31,8 +32,10 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.util.DiskAwareRunnable;
+
+import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.io.util.DiskAwareRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
-import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,11 +47,14 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.filter.AbstractColumnIterator;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.io.util.DiskAwareRunnable;
 import org.apache.cassandra.utils.SlabAllocator;
+import org.github.jamm.MemoryMeter;
 
 public class Memtable
 {
@@ -104,6 +110,8 @@ public class Memtable
 
     volatile static Memtable activelyMeasuring;
 
+    private final AtomicInteger references = new AtomicInteger(1);
+    private volatile boolean dirty = false;
     private final AtomicLong currentSize = new AtomicLong(0);
     private final AtomicLong currentOperations = new AtomicLong(0);
 
@@ -167,6 +175,32 @@ public class Memtable
         return currentOperations.get();
     }
 
+    public boolean acquireReference()
+    {
+        while (true)
+        {
+            int n = references.get();
+            if (n <= 0)
+                return false;
+            if (references.compareAndSet(n, n + 1))
+            {
+                dirty = true;
+                return true;
+            }
+        }
+    }
+
+    public void releaseReference()
+    {
+        references.decrementAndGet();
+        assert references.get() >= 0 : "Reference counter " +  references.get() + " for " + cfs.name;
+    }
+
+    public int getReferenceCount()
+    {
+        return references.get();
+    }
+
     /**
      * Should only be called by ColumnFamilyStore.apply.  NOT a public API.
      * (CFS handles locking to avoid submitting an op
@@ -174,6 +208,7 @@ public class Memtable
     */
     void put(DecoratedKey key, ColumnFamily columnFamily, SecondaryIndexManager.Updater indexer)
     {
+        assert references.get() > 0;
         resolve(key, columnFamily, indexer);
     }
 
@@ -324,7 +359,7 @@ public class Memtable
 
     public boolean isClean()
     {
-        return rows.isEmpty();
+        return !dirty;
     }
 
     /**
