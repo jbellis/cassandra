@@ -53,14 +53,6 @@ public class Table
 
     private static final Logger logger = LoggerFactory.getLogger(Table.class);
 
-    /**
-     * accesses to CFS.memtable should acquire this for thread safety.
-     * CFS.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
-     * <p/>
-     * (Enabling fairness in the RRWL is observed to decrease throughput, so we leave it off.)
-     */
-    public static final ReentrantReadWriteLock switchLock = new ReentrantReadWriteLock();
-
     // It is possible to call Table.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
     static
@@ -364,36 +356,25 @@ public class Table
      */
     public void apply(RowMutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        if (!mutation.getTable().equals(Tracing.TRACE_KS))
-            Tracing.trace("Acquiring switchLock read lock");
-
         // write the mutation to the commitlog and memtables
-        switchLock.readLock().lock();
-        try
+        if (writeCommitLog)
         {
-            if (writeCommitLog)
-            {
-                Tracing.trace("Appending to commitlog");
-                CommitLog.instance.add(mutation);
-            }
-
-            DecoratedKey key = StorageService.getPartitioner().decorateKey(mutation.key());
-            for (ColumnFamily cf : mutation.getColumnFamilies())
-            {
-                ColumnFamilyStore cfs = columnFamilyStores.get(cf.id());
-                if (cfs == null)
-                {
-                    logger.error("Attempting to mutate non-existant column family " + cf.id());
-                    continue;
-                }
-
-                Tracing.trace("Adding to {} memtable", cf.metadata().cfName);
-                cfs.apply(key, cf, updateIndexes ? cfs.indexManager.updaterFor(key, true) : SecondaryIndexManager.nullUpdater);
-            }
+            Tracing.trace("Appending to commitlog");
+            CommitLog.instance.add(mutation);
         }
-        finally
+
+        DecoratedKey key = StorageService.getPartitioner().decorateKey(mutation.key());
+        for (ColumnFamily cf : mutation.getColumnFamilies())
         {
-            switchLock.readLock().unlock();
+            ColumnFamilyStore cfs = columnFamilyStores.get(cf.id());
+            if (cfs == null)
+            {
+                logger.error("Attempting to mutate non-existant column family " + cf.id());
+                continue;
+            }
+
+            Tracing.trace("Adding to {} memtable", cf.metadata().cfName);
+            cfs.apply(key, cf, updateIndexes ? cfs.indexManager.updaterFor(key, true) : SecondaryIndexManager.nullUpdater);
         }
     }
 
@@ -414,30 +395,22 @@ public class Table
 
         Collection<SecondaryIndex> indexes = cfs.indexManager.getIndexesByNames(idxNames);
 
-        switchLock.readLock().lock();
-        try
+        // Our index lock is per-row, but we don't want to hold writes for too long, so for large rows
+        // we release the lock between pages
+        SliceQueryPager pager = new SliceQueryPager(cfs, key, ColumnSlice.ALL_COLUMNS_ARRAY);
+        while (pager.hasNext())
         {
-            // Our index lock is per-row, but we don't want to hold writes for too long, so for large rows
-            // we release the lock between pages
-            SliceQueryPager pager = new SliceQueryPager(cfs, key, ColumnSlice.ALL_COLUMNS_ARRAY);
-            while (pager.hasNext())
+            synchronized (cfs.table.indexLockFor(key.key))
             {
-                synchronized (cfs.table.indexLockFor(key.key))
+                ColumnFamily cf = pager.next();
+                ColumnFamily cf2 = cf.cloneMeShallow();
+                for (IColumn column : cf)
                 {
-                    ColumnFamily cf = pager.next();
-                    ColumnFamily cf2 = cf.cloneMeShallow();
-                    for (IColumn column : cf)
-                    {
-                        if (cfs.indexManager.indexes(column.name(), indexes))
-                            cf2.addColumn(column);
-                    }
-                    cfs.indexManager.indexRow(key.key, cf2);
+                    if (cfs.indexManager.indexes(column.name(), indexes))
+                        cf2.addColumn(column);
                 }
+                cfs.indexManager.indexRow(key.key, cf2);
             }
-        }
-        finally
-        {
-            switchLock.readLock().unlock();
         }
     }
 

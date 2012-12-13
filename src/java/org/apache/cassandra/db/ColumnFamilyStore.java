@@ -35,7 +35,6 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
 
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
@@ -71,7 +70,6 @@ import org.apache.cassandra.metrics.ColumnFamilyMetrics;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 
 import static org.apache.cassandra.config.CFMetaData.Caching;
@@ -80,18 +78,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
-    /*
-     * maybeSwitchMemtable puts Memtable.getSortedContents on the writer executor.  When the write is complete,
-     * we turn the writer into an SSTableReader and add it to ssTables where it is available for reads.
-     *
-     * There are two other things that maybeSwitchMemtable does.
-     * First, it puts the Memtable into memtablesPendingFlush, where it stays until the flush is complete
-     * and it's been added as an SSTableReader to ssTables_.  Second, it adds an entry to commitLogUpdater
-     * that waits for the flush to complete, then calls onMemtableFlush.  This allows multiple flushes
-     * to happen simultaneously on multicore systems, while still calling onMF in the correct order,
-     * which is necessary for replay in case of a restart since CommitLog assumes that when onMF is
-     * called, all data up to the given context has been persisted to SSTables.
-     */
     private static final ExecutorService flushWriter
             = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
                                                StageManager.KEEPALIVE,
@@ -157,34 +143,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         indexManager.reload();
 
         // If the CF comparator has changed, we need to change the memtable,
-        // because the old one still aliases the previous comparator. We don't
-        // call forceFlush() because it can skip the switch if the memtable is
-        // clean, which we don't want here. Also, because there can be a race
-        // between the time we acquire the current memtable and we flush it
-        // (another thread can have flushed it first), we attempt the switch
-        // until we know the memtable has the current comparator.
-        try
-        {
-            while (true)
-            {
-                AbstractType comparator = metadata.comparator;
-                Memtable memtable = getMemtableThreadSafe();
-                if (memtable.initialComparator == comparator)
-                    break;
-
-                Future future = maybeSwitchMemtable(getMemtableThreadSafe(), true);
-                if (future != null)
-                    future.get();
-            }
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        // because the old one still aliases the previous comparator.
+        if (data.getReadOnlyMemtable().initialComparator != metadata.comparator)
+            switchMemtable();
     }
 
     private void maybeReloadCompactionStrategy()
@@ -610,96 +571,70 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return desc.filenameFor(Component.DATA);
     }
 
-    /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
-    public Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog)
+    /*
+     * switchMemtable puts Memtable.getSortedContents on the writer executor.  When the write is complete,
+     * we turn the writer into an SSTableReader and add it to ssTables where it is available for reads.
+     *
+     * There are two other things that switchMemtable does.
+     * First, it puts the Memtable into memtablesPendingFlush, where it stays until the flush is complete
+     * and it's been added as an SSTableReader to ssTables_.  Second, it adds an entry to commitLogUpdater
+     * that waits for the flush to complete, then calls onMemtableFlush.  This allows multiple flushes
+     * to happen simultaneously on multicore systems, while still calling onMF in the correct order,
+     * which is necessary for replay in case of a restart since CommitLog assumes that when onMF is
+     * called, all data up to the given context has been persisted to SSTables.
+     *
+     * This method will block briefly while it waits for memtables to finish any in-progress writes.
+     */
+    public Future<?> switchMemtable()
     {
-        if (oldMemtable.isFrozen())
+        final Future<ReplayPosition> ctx = CommitLog.instance.getContext();
+
+        // submit flushes for the memtable for any indexed sub-cfses, and our own
+        final List<Memtable> memtables = new ArrayList<Memtable>();
+        // don't assume that this.memtable is dirty; forceFlush can bring us here during index build even if it is not
+        for (ColumnFamilyStore cfs : concatWithIndexes())
         {
-            logger.debug("memtable is already frozen; another thread must be flushing it");
-            return null;
+            Memtable mt = cfs.data.switchMemtable();
+            if ((!mt.isClean()))
+                memtables.add(mt);
+        }
+        final CountDownLatch latch = new CountDownLatch(memtables.size());
+        for (Memtable memtable : memtables)
+        {
+            while (memtable.getReferenceCount() > 0)
+                FBUtilities.sleep(0);
+            logger.info("Enqueuing flush of {}", memtable);
+            memtable.flushAndSignal(latch, flushWriter, ctx);
         }
 
-        /*
-         * If we can get the writelock, that means no new updates can come in and
-         * all ongoing updates to memtables have completed. We can get the tail
-         * of the log and use it as the starting position for log replay on recovery.
-         *
-         * This is why we Table.switchLock needs to be global instead of per-Table:
-         * we need to schedule discardCompletedSegments calls in the same order as their
-         * contexts (commitlog position) were read, even though the flush executor
-         * is multithreaded.
-         */
-        Table.switchLock.writeLock().lock();
-        try
+        if (metric.memtableSwitchCount.count() == Long.MAX_VALUE)
+            metric.memtableSwitchCount.clear();
+        metric.memtableSwitchCount.inc();
+
+        // when all the memtables have been written, including for indexes, mark the flush in the commitlog header.
+        // a second executor makes sure the onMemtableFlushes get called in the right order,
+        // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
+        logger.info("Submitting postFlush stuff:\n" + Arrays.toString(Thread.currentThread().getStackTrace()));
+        return postFlushExecutor.submit(new WrappedRunnable()
         {
-            if (oldMemtable.isFrozen())
+            public void runMayThrow() throws InterruptedException, ExecutionException
             {
-                logger.debug("memtable is already frozen; another thread must be flushing it");
-                return null;
-            }
+                latch.await();
 
-            assert getMemtableThreadSafe() == oldMemtable;
-            final Future<ReplayPosition> ctx = writeCommitLog ? CommitLog.instance.getContext() : Futures.immediateFuture(ReplayPosition.NONE);
-
-            // submit the memtable for any indexed sub-cfses, and our own.
-            final List<ColumnFamilyStore> icc = new ArrayList<ColumnFamilyStore>();
-            // don't assume that this.memtable is dirty; forceFlush can bring us here during index build even if it is not
-            for (ColumnFamilyStore cfs : concatWithIndexes())
-            {
-                Memtable mt = cfs.getMemtableThreadSafe();
-                if (!mt.isClean() && !mt.isFrozen())
+                if (!memtables.isEmpty())
                 {
-                    // We need to freeze indexes too because they can be concurrently flushed too (#3547)
-                    mt.freeze();
-                    icc.add(cfs);
-                }
-            }
-            final CountDownLatch latch = new CountDownLatch(icc.size());
-            for (ColumnFamilyStore cfs : icc)
-            {
-                Memtable memtable = cfs.data.switchMemtable();
-                logger.info("Enqueuing flush of {}", memtable);
-                memtable.flushAndSignal(latch, flushWriter, ctx);
-            }
-
-            if (metric.memtableSwitchCount.count() == Long.MAX_VALUE)
-                metric.memtableSwitchCount.clear();
-            metric.memtableSwitchCount.inc();
-
-            // when all the memtables have been written, including for indexes, mark the flush in the commitlog header.
-            // a second executor makes sure the onMemtableFlushes get called in the right order,
-            // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
-            return postFlushExecutor.submit(new WrappedRunnable()
-            {
-                public void runMayThrow() throws InterruptedException, ExecutionException
-                {
-                    latch.await();
-
-                    if (!icc.isEmpty())
+                    // only necessary when memtables are dirty
+                    for (SecondaryIndex index : indexManager.getIndexesNotBackedByCfs())
                     {
-                        //only valid when memtables exist
-
-                        for (SecondaryIndex index : indexManager.getIndexesNotBackedByCfs())
-                        {
-                            // flush any non-cfs backed indexes
-                            logger.info("Flushing SecondaryIndex {}", index);
-                            index.forceBlockingFlush();
-                        }
-                    }
-
-                    if (writeCommitLog)
-                    {
-                        // if we're not writing to the commit log, we are replaying the log, so marking
-                        // the log header with "you can discard anything written before the context" is not valid
-                        CommitLog.instance.discardCompletedSegments(metadata.cfId, ctx.get());
+                        // flush any non-cfs backed indexes
+                        logger.info("Flushing SecondaryIndex {}", index);
+                        index.forceBlockingFlush();
                     }
                 }
-            });
-        }
-        finally
-        {
-            Table.switchLock.writeLock().unlock();
-        }
+
+                CommitLog.instance.discardCompletedSegments(metadata.cfId, ctx.get());
+            }
+        });
     }
 
     public Future<?> forceFlush()
@@ -708,7 +643,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // we want flushLargestMemtables to flush the 2ary index ones too.
         boolean clean = true;
         for (ColumnFamilyStore cfs : concatWithIndexes())
-            clean &= cfs.getMemtableThreadSafe().isClean();
+            clean &= cfs.data.getReadOnlyMemtable().isClean();
 
         if (clean)
         {
@@ -716,7 +651,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return null;
         }
 
-        return maybeSwitchMemtable(getMemtableThreadSafe(), true);
+        return switchMemtable();
     }
 
     public void forceBlockingFlush() throws ExecutionException, InterruptedException
@@ -765,8 +700,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         long start = System.nanoTime();
 
-        Memtable mt = getMemtableThreadSafe();
-        mt.put(key, columnFamily, indexer);
+        Memtable mt = data.getAndReferenceMemtable();
+        try
+        {
+            mt.put(key, columnFamily, indexer);
+        }
+        finally
+        {
+            mt.releaseReference();
+        }
         maybeUpdateRowCache(key, columnFamily);
         metric.writeLatency.addNano(System.nanoTime() - start);
 
@@ -1044,21 +986,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public int getMemtableSwitchCount()
     {
         return (int) metric.memtableSwitchCount.count();
-    }
-
-    /**
-     * get the current memtable in a threadsafe fashion.  note that simply "return memtable_" is
-     * incorrect; you need to lock to introduce a thread safe happens-before ordering.
-     *
-     * do NOT use this method to do either a put or get on the memtable object, since it could be
-     * flushed in the meantime (and its executor terminated).
-     *
-     * also do NOT make this method public or it will really get impossible to reason about these things.
-     * @return
-     */
-    private Memtable getMemtableThreadSafe()
-    {
-        return data.getMemtable();
     }
 
     /**
@@ -1777,22 +1704,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         else
         {
             // just nuke the memtable data w/o writing to disk first
-            Table.switchLock.writeLock().lock();
-            try
-            {
-                for (ColumnFamilyStore cfs : concatWithIndexes())
-                {
-                    Memtable mt = cfs.getMemtableThreadSafe();
-                    if (!mt.isClean() && !mt.isFrozen())
-                    {
-                        mt.cfs.data.renewMemtable();
-                    }
-                }
-            }
-            finally
-            {
-                Table.switchLock.writeLock().unlock();
-            }
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.data.switchMemtable();
         }
 
         long truncatedAt = System.currentTimeMillis();

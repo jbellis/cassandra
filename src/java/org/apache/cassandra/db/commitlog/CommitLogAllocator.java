@@ -298,17 +298,7 @@ public class CommitLogAllocator
             {
                 String keypace = Schema.instance.getCF(dirtyCFId).left;
                 final ColumnFamilyStore cfs = Table.open(keypace).getColumnFamilyStore(dirtyCFId);
-                // flush shouldn't run on the commitlog executor, since it acquires Table.switchLock,
-                // which may already be held by a thread waiting for the CL executor (via getContext),
-                // causing deadlock
-                Runnable runnable = new Runnable()
-                {
-                    public void run()
-                    {
-                        cfs.forceFlush();
-                    }
-                };
-                StorageService.optionalTasks.execute(runnable);
+                cfs.forceFlush();
             }
         }
     }
