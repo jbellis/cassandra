@@ -100,7 +100,7 @@ public class Memtable
         public IColumn apply(IColumn c)
         {
             return c.localCopy(cfs, allocator);
-        };
+        }
     };
 
     // Record the comparator of the CFS at the creation of the memtable. This

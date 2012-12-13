@@ -231,19 +231,8 @@ public abstract class SecondaryIndex
         {
             public void run()
             {
-                try
-                {
-                    baseCfs.forceBlockingFlush();
-                    buildIndexBlocking();
-                }
-                catch (ExecutionException e)
-                {
-                    throw new RuntimeException(e);
-                }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
+                baseCfs.forceBlockingFlush();
+                buildIndexBlocking();
             }
         };
         FutureTask<?> f = new FutureTask<Object>(runnable, null);

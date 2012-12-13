@@ -23,6 +23,7 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -86,9 +87,9 @@ public class BatchlogManager implements BatchlogManagerMBean
             throw new RuntimeException(e);
         }
 
-        Runnable runnable = new WrappedRunnable()
+        Runnable runnable = new Runnable()
         {
-            public void runMayThrow() throws ExecutionException, InterruptedException
+            public void run()
             {
                 replayAllFailedBatches();
             }
@@ -119,9 +120,9 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     public void forceBatchlogReplay()
     {
-        Runnable runnable = new WrappedRunnable()
+        Runnable runnable = new Runnable()
         {
-            public void runMayThrow() throws ExecutionException, InterruptedException
+            public void run()
             {
                 replayAllFailedBatches();
             }
@@ -163,7 +164,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         return ByteBuffer.wrap(bos.toByteArray());
     }
 
-    private void replayAllFailedBatches() throws ExecutionException, InterruptedException
+    private void replayAllFailedBatches()
     {
         if (!isReplaying.compareAndSet(false, true))
             return;
@@ -266,7 +267,7 @@ public class BatchlogManager implements BatchlogManagerMBean
     }
 
     /** force flush + compaction to reclaim space from replayed batches */
-    private void cleanup() throws ExecutionException, InterruptedException
+    private void cleanup()
     {
         ColumnFamilyStore cfs = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.BATCHLOG_CF);
         cfs.forceBlockingFlush();
@@ -274,6 +275,9 @@ public class BatchlogManager implements BatchlogManagerMBean
         for (SSTableReader sstr : cfs.getSSTables())
             descriptors.add(sstr.descriptor);
         if (!descriptors.isEmpty()) // don't pollute the logs if there is nothing to compact.
-            CompactionManager.instance.submitUserDefined(cfs, descriptors, Integer.MAX_VALUE).get();
+        {
+            Future<?> future = CompactionManager.instance.submitUserDefined(cfs, descriptors, Integer.MAX_VALUE);
+            FBUtilities.waitOnFuture(future);
+        }
     }
 }

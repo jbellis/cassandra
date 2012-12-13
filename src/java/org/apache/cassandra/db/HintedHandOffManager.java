@@ -162,23 +162,16 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         {
             public void run()
             {
-                try
-                {
-                    logger.info("Deleting any stored hints for " + endpoint);
-                    rm.apply();
-                    compact();
-                }
-                catch (Exception e)
-                {
-                    logger.warn("Could not delete hints for " + endpoint + ": " + e);
-                }
+                logger.info("Deleting any stored hints for " + endpoint);
+                rm.apply();
+                compact();
             }
         };
         StorageService.optionalTasks.execute(runnable);
     }
 
     @VisibleForTesting
-    protected Future<?> compact() throws ExecutionException, InterruptedException
+    protected Future<?> compact()
     {
         final ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.HINTS_CF);
         hintStore.forceBlockingFlush();

@@ -242,18 +242,7 @@ public class DefsTable
             mutation.apply();
         }
         // flush immediately because we read schema before replaying the commitlog
-        try
-        {
-            cfs.forceBlockingFlush();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException("Could not flush after fixing schema timestamps", e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        cfs.forceBlockingFlush();
     }
 
     public static ByteBuffer searchComposite(String name, boolean start)
@@ -634,10 +623,7 @@ public class DefsTable
 
     private static void flushSchemaCF(String cfName)
     {
-        Future<?> flush = SystemTable.schemaCFS(cfName).forceFlush();
-
-        if (flush != null)
-            FBUtilities.waitOnFuture(flush);
+        SystemTable.schemaCFS(cfName).forceBlockingFlush();
     }
 
     private static ByteBuffer toUTF8Bytes(UUID version)
