@@ -25,18 +25,9 @@ import org.apache.cassandra.io.sstable.SSTableWriter;
 
 public class LeveledCompactionTask extends CompactionTask
 {
-    private final int sstableSizeInMB;
-
     public LeveledCompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, final int gcBefore, int sstableSizeInMB)
     {
-        super(cfs, sstables, gcBefore);
-        this.sstableSizeInMB = sstableSizeInMB;
-    }
-
-    @Override
-    protected boolean newSSTableSegmentThresholdReached(SSTableWriter writer)
-    {
-        return writer.getOnDiskFilePointer() > sstableSizeInMB * 1024L * 1024L;
+        super(cfs, sstables, gcBefore, sstableSizeInMB * 1024L * 1024L);
     }
 
     @Override
