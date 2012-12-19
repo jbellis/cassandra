@@ -48,7 +48,6 @@ public class CompactionTask extends DiskAwareRunnable
     protected final int gcBefore;
     private final Set<SSTableReader> toCompact;
     protected final ColumnFamilyStore cfs;
-    protected final Collection<SSTableReader> sstables;
     private final long maxSSTableSize;
 
     protected boolean isUserDefined;
@@ -65,7 +64,6 @@ public class CompactionTask extends DiskAwareRunnable
         this.gcBefore = gcBefore;
         toCompact = new HashSet<SSTableReader>(sstables);
         this.cfs = cfs;
-        this.sstables = sstables;
         this.maxSSTableSize = maxSSTableSize;
     }
 
@@ -93,18 +91,14 @@ public class CompactionTask extends DiskAwareRunnable
 
     public boolean reduceScopeForLimitedSpace()
     {
-        if (partialCompactionsAcceptable() && toCompact.size() > 1)
-        {
-            // Try again w/o the largest one.
-            logger.warn("insufficient space to compact all requested files " + StringUtils.join(toCompact, ", "));
-            // Note that we have removed files that are still marked as compacting.
-            // This suboptimal but ok since the caller will unmark all the sstables at the end.
-            return toCompact.remove(cfs.getMaxSizeFile(toCompact));
-        }
-        else
-        {
+        if (!partialCompactionsAcceptable() || toCompact.size() <= 1)
             return false;
-        }
+
+        logger.warn("insufficient space to compact all requested files " + StringUtils.join(toCompact, ", "));
+        SSTableReader largest = cfs.getMaxSizeFile(toCompact);
+        cfs.getDataTracker().unmarkCompacting(Collections.singleton(largest));
+        toCompact.remove(largest);
+        return true;
     }
 
     /**
@@ -116,7 +110,7 @@ public class CompactionTask extends DiskAwareRunnable
     {
         // The collection of sstables passed may be empty (but not null); even if
         // it is not empty, it may compact down to nothing if all rows are deleted.
-        assert sstables != null && dataDirectory != null;
+        assert dataDirectory != null;
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.columnFamily);
@@ -282,7 +276,7 @@ public class CompactionTask extends DiskAwareRunnable
 
     public void unmarkSSTables()
     {
-        cfs.getDataTracker().unmarkCompacting(sstables);
+        cfs.getDataTracker().unmarkCompacting(toCompact);
     }
 
     public CompactionTask setUserDefined(boolean isUserDefined)
@@ -299,6 +293,6 @@ public class CompactionTask extends DiskAwareRunnable
 
     public String toString()
     {
-        return "CompactionTask(" + sstables + ")";
+        return "CompactionTask(" + toCompact + ")";
     }
 }
