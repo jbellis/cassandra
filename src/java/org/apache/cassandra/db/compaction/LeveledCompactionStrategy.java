@@ -97,7 +97,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
      * the only difference between background and maximal in LCS is that maximal is still allowed
      * (by explicit user request) even when compaction is disabled.
      */
-    public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    public CompactionTask getNextBackgroundTask(int gcBefore)
     {
         if (cfs.isCompactionDisabled())
             return null;
@@ -105,7 +105,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         return getMaximalTask(gcBefore);
     }
 
-    public synchronized AbstractCompactionTask getMaximalTask(int gcBefore)
+    public synchronized CompactionTask getMaximalTask(int gcBefore)
     {
         Collection<SSTableReader> sstables = manifest.getCompactionCandidates();
         OperationType op = OperationType.COMPACTION;
@@ -133,7 +133,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         return newTask;
     }
 
-    public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
+    public CompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
     {
         throw new UnsupportedOperationException("LevelDB compaction strategy does not allow user-specified compactions");
     }

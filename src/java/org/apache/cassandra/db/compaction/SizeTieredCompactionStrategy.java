@@ -75,7 +75,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         cfs.setCompactionThresholds(cfs.metadata.getMinCompactionThreshold(), cfs.metadata.getMaxCompactionThreshold());
     }
 
-    public synchronized AbstractCompactionTask getNextBackgroundTask(final int gcBefore)
+    public synchronized CompactionTask getNextBackgroundTask(final int gcBefore)
     {
         if (cfs.isCompactionDisabled())
         {
@@ -146,12 +146,12 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         return new SizeTieredCompactionTask(cfs, smallestBucket, gcBefore, maxSSTableSize);
     }
 
-    public AbstractCompactionTask getMaximalTask(final int gcBefore)
+    public CompactionTask getMaximalTask(final int gcBefore)
     {
         return cfs.getSSTables().isEmpty() ? null : new CompactionTask(cfs, filterSuspectSSTables(cfs.getSSTables()), gcBefore);
     }
 
-    public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore)
+    public CompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore)
     {
         return new CompactionTask(cfs, sstables, gcBefore).setUserDefined(true);
     }

@@ -54,7 +54,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CompactionMetrics;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
@@ -182,7 +181,7 @@ public class CompactionManager implements CompactionManagerMBean
                 }
 
                 AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
-                AbstractCompactionTask task = strategy.getNextBackgroundTask(getDefaultGcBefore(cfs));
+                CompactionTask task = strategy.getNextBackgroundTask(getDefaultGcBefore(cfs));
                 if (task == null)
                 {
                     logger.debug("No tasks available");
@@ -329,7 +328,7 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.writeLock().lock();
                 try
                 {
-                    AbstractCompactionTask task = cfStore.getCompactionStrategy().getMaximalTask(gcBefore);
+                    CompactionTask task = cfStore.getCompactionStrategy().getMaximalTask(gcBefore);
                     if (task == null)
                         return;
                     try
@@ -434,7 +433,7 @@ public class CompactionManager implements CompactionManagerMBean
                             try
                             {
                                 AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
-                                AbstractCompactionTask task = strategy.getUserDefinedTask(sstables, gcBefore);
+                                CompactionTask task = strategy.getUserDefinedTask(sstables, gcBefore);
                                 task.execute(metrics);
                             }
                             finally

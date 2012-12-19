@@ -36,20 +36,29 @@ import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorSt
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.io.util.DiskAwareRunnable;
 import org.apache.cassandra.utils.CloseableIterator;
 
-public class CompactionTask extends AbstractCompactionTask
+public class CompactionTask extends DiskAwareRunnable
 {
     protected static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
-    protected final int gcBefore;
+
     protected static long totalBytesCompacted = 0;
-    private Set<SSTableReader> toCompact;
+
+    protected final int gcBefore;
+    private final Set<SSTableReader> toCompact;
+    protected final ColumnFamilyStore cfs;
+    protected final Collection<SSTableReader> sstables;
+
+    protected boolean isUserDefined;
+    protected OperationType compactionType;
     private CompactionExecutorStatsCollector collector;
 
     public CompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, final int gcBefore)
     {
-        super(cfs, sstables);
+        this.cfs = cfs;
         this.gcBefore = gcBefore;
+        this.sstables = sstables;
         toCompact = new HashSet<SSTableReader>(sstables);
     }
 
@@ -263,5 +272,27 @@ public class CompactionTask extends AbstractCompactionTask
                 max = sstable.maxDataAge;
         }
         return max;
+    }
+
+    public void unmarkSSTables()
+    {
+        cfs.getDataTracker().unmarkCompacting(sstables);
+    }
+
+    public CompactionTask setUserDefined(boolean isUserDefined)
+    {
+        this.isUserDefined = isUserDefined;
+        return this;
+    }
+
+    public CompactionTask setCompactionType(OperationType compactionType)
+    {
+        this.compactionType = compactionType;
+        return this;
+    }
+
+    public String toString()
+    {
+        return "CompactionTask(" + sstables + ")";
     }
 }
