@@ -50,7 +50,6 @@ public class CompactionTask extends DiskAwareRunnable
     protected final ColumnFamilyStore cfs;
     private final long maxSSTableSize;
 
-    protected boolean isUserDefined;
     protected OperationType compactionType;
     private CompactionExecutorStatsCollector collector;
 
@@ -255,7 +254,7 @@ public class CompactionTask extends DiskAwareRunnable
 
     protected boolean partialCompactionsAcceptable()
     {
-        return !isUserDefined;
+        return true;
     }
 
     protected boolean newSSTableSegmentThresholdReached(SSTableWriter writer)
@@ -277,12 +276,6 @@ public class CompactionTask extends DiskAwareRunnable
     public void unmarkSSTables()
     {
         cfs.getDataTracker().unmarkCompacting(toCompact);
-    }
-
-    public CompactionTask setUserDefined(boolean isUserDefined)
-    {
-        this.isUserDefined = isUserDefined;
-        return this;
     }
 
     public CompactionTask setCompactionType(OperationType compactionType)

@@ -282,8 +282,7 @@ public class CompactionManager implements CompactionManagerMBean
                 {
                     // SSTables are marked by the caller
                     // NOTE: it is important that the task create one and only one sstable, even for Leveled compaction (see LeveledManifest.replace())
-                    CompactionTask task = new CompactionTask(cfs, Collections.singletonList(sstable), NO_GC);
-                    task.setUserDefined(true);
+                    CompactionTask task = new UserDefinedCompactionTask(cfs, Collections.singletonList(sstable), NO_GC);
                     task.setCompactionType(OperationType.UPGRADE_SSTABLES);
                     task.execute(metrics);
                 }
