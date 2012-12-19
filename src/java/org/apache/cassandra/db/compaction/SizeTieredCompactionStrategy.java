@@ -143,7 +143,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             return null;
         }
 
-        return new SizeTieredCompactionTask(cfs, smallestBucket, gcBefore, maxSSTableSize);
+        return new CompactionTask(cfs, smallestBucket, gcBefore, maxSSTableSize);
     }
 
     public CompactionTask getMaximalTask(final int gcBefore)

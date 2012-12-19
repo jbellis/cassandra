@@ -49,6 +49,7 @@ public class CompactionTask extends DiskAwareRunnable
     private final Set<SSTableReader> toCompact;
     protected final ColumnFamilyStore cfs;
     protected final Collection<SSTableReader> sstables;
+    private final long maxSSTableSize;
 
     protected boolean isUserDefined;
     protected OperationType compactionType;
@@ -56,10 +57,16 @@ public class CompactionTask extends DiskAwareRunnable
 
     public CompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, final int gcBefore)
     {
-        this.cfs = cfs;
+        this(cfs, sstables, gcBefore, Long.MAX_VALUE);
+    }
+
+    public CompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, long maxSSTableSize)
+    {
         this.gcBefore = gcBefore;
-        this.sstables = sstables;
         toCompact = new HashSet<SSTableReader>(sstables);
+        this.cfs = cfs;
+        this.sstables = sstables;
+        this.maxSSTableSize = maxSSTableSize;
     }
 
     public static synchronized long addToTotalBytesCompacted(long bytesCompacted)
@@ -257,10 +264,9 @@ public class CompactionTask extends DiskAwareRunnable
         return !isUserDefined;
     }
 
-    // extensibility point for other strategies that may want to limit the upper bounds of the sstable segment size
     protected boolean newSSTableSegmentThresholdReached(SSTableWriter writer)
     {
-        return false;
+        return writer.getOnDiskFilePointer() >= maxSSTableSize;
     }
 
     public static long getMaxDataAge(Collection<SSTableReader> sstables)
