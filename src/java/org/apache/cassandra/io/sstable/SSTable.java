@@ -278,7 +278,7 @@ public abstract class SSTable
     public String toString()
     {
         return getClass().getSimpleName() + "(" +
-               "path='" + getFilename() + '\'' +
+               "path='" + getFilename() + "\', size=" + bytesOnDisk() +
                ')';
     }
 

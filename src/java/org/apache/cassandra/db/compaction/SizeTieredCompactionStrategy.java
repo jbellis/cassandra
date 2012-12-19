@@ -31,16 +31,19 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(SizeTieredCompactionStrategy.class);
     protected static final long DEFAULT_MIN_SSTABLE_SIZE = 50L * 1024L * 1024L;
+    protected static final long DEFAULT_MAX_SSTABLE_SIZE = Long.MAX_VALUE;
     protected static final double DEFAULT_BUCKET_LOW = 0.5;
     protected static final double DEFAULT_BUCKET_HIGH = 1.5;
     protected static final String MIN_SSTABLE_SIZE_KEY = "min_sstable_size";
     protected static final String BUCKET_LOW_KEY = "bucket_low";
     protected static final String BUCKET_HIGH_KEY = "bucket_high";
+    protected static final String MAX_SSTABLE_SIZE_KEY = "max_sstable_size";
 
     protected long minSSTableSize;
     protected double bucketLow;
     protected double bucketHigh;
     protected volatile int estimatedRemainingTasks;
+    protected long maxSSTableSize;
 
     public SizeTieredCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -48,6 +51,8 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         this.estimatedRemainingTasks = 0;
         String optionValue = options.get(MIN_SSTABLE_SIZE_KEY);
         minSSTableSize = optionValue == null ? DEFAULT_MIN_SSTABLE_SIZE : Long.parseLong(optionValue);
+        optionValue = options.get(MAX_SSTABLE_SIZE_KEY);
+        maxSSTableSize = optionValue == null ? DEFAULT_MAX_SSTABLE_SIZE : Long.parseLong(optionValue);
         optionValue = options.get(BUCKET_LOW_KEY);
         bucketLow = optionValue == null ? DEFAULT_BUCKET_LOW : Double.parseDouble(optionValue);
         optionValue = options.get(BUCKET_HIGH_KEY);
@@ -57,6 +62,15 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             logger.warn("Bucket low/high marks for {} incorrect, using defaults.", cfs.getColumnFamilyName());
             bucketLow = DEFAULT_BUCKET_LOW;
             bucketHigh = DEFAULT_BUCKET_HIGH;
+        }
+        if (minSSTableSize <= 0) {
+        	logger.warn("Minimum sstable size for {} must be greater then zero, using defaults.", cfs.getColumnFamilyName());
+        	minSSTableSize = DEFAULT_MIN_SSTABLE_SIZE;
+        }
+        if (maxSSTableSize < minSSTableSize * bucketHigh)
+        {
+        	logger.warn("Maximum sstable size for {} incorrect, must be at least {} bytes.", cfs.getColumnFamilyName(), minSSTableSize * bucketHigh);
+        	maxSSTableSize = DEFAULT_MAX_SSTABLE_SIZE;
         }
         cfs.setCompactionThresholds(cfs.metadata.getMinCompactionThreshold(), cfs.metadata.getMaxCompactionThreshold());
     }
@@ -79,6 +93,9 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         {
             if (bucket.size() < cfs.getMinimumCompactionThreshold())
                 continue;
+
+            if (avgSize(bucket) > maxSSTableSize * bucketLow)
+            	continue;
 
             Collections.sort(bucket, new Comparator<SSTableReader>()
             {
@@ -118,14 +135,6 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
                     return 1;
                 return 0;
             }
-
-            private long avgSize(List<SSTableReader> sstables)
-            {
-                long n = 0;
-                for (SSTableReader sstable : sstables)
-                    n += sstable.bytesOnDisk();
-                return n / sstables.size();
-            }
         });
 
         if (!cfs.getDataTracker().markCompacting(smallestBucket))
@@ -134,7 +143,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             return null;
         }
 
-        return new CompactionTask(cfs, smallestBucket, gcBefore);
+        return new SizeTieredCompactionTask(cfs, smallestBucket, gcBefore, maxSSTableSize);
     }
 
     public AbstractCompactionTask getMaximalTask(final int gcBefore)
@@ -224,7 +233,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public long getMaxSSTableSize()
     {
-        return Long.MAX_VALUE;
+        return maxSSTableSize;
     }
 
     public String toString()
@@ -232,5 +241,17 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         return String.format("SizeTieredCompactionStrategy[%s/%s]",
             cfs.getMinimumCompactionThreshold(),
             cfs.getMaximumCompactionThreshold());
+    }
+
+    /**
+     * Get average sstable size
+     * @param sstables list of sstables
+     */
+    private static long avgSize(List<SSTableReader> sstables)
+    {
+        long n = 0;
+        for (SSTableReader sstable : sstables)
+            n += sstable.bytesOnDisk();
+        return n / sstables.size();
     }
 }
