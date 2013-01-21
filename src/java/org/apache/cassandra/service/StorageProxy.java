@@ -885,6 +885,10 @@ public class StorageProxy implements StorageProxyMBean
                 readCallbacks[i] = exec;
             }
 
+            AbstractReadExecutor.sortByExpectedLatency(readCallbacks);
+            for (AbstractReadExecutor exec: readCallbacks)
+                exec.speculate();
+
             // read results and make a second pass for any digest mismatches
             List<ReadCommand> repairCommands = null;
             List<ReadCallback<ReadResponse, Row>> repairResponseHandlers = null;

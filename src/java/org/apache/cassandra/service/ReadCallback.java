@@ -84,29 +84,37 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         return new ReadCallback(newResolver, consistencyLevel, blockfor, command, table, endpoints);
     }
 
-    public TResolved get() throws ReadTimeoutException, DigestMismatchException, IOException
+    public boolean await(long interimTimeout)
     {
-        long timeout = command.getTimeout() - (System.currentTimeMillis() - startTime);
-        boolean success;
+        long timeout = interimTimeout - (System.currentTimeMillis() - startTime);
         try
         {
-            success = condition.await(timeout, TimeUnit.MILLISECONDS);
+            return condition.await(timeout, TimeUnit.MILLISECONDS);
         }
         catch (InterruptedException ex)
         {
             throw new AssertionError(ex);
         }
+    }
 
-        if (!success)
-            throw new ReadTimeoutException(consistencyLevel, received.get(), blockfor, resolver.isDataPresent());
-
+    public TResolved get() throws ReadTimeoutException, DigestMismatchException, IOException
+    {
+        long timeout = command.getTimeout() - (System.currentTimeMillis() - startTime);
+        // if not signaled then wait longer till command timeout before throwing an exception.
+        if (!condition.isSignaled() && !await(timeout))
+        {
+            ReadTimeoutException ex = new ReadTimeoutException(consistencyLevel, received.get(), blockfor, resolver.isDataPresent());
+            if (logger.isDebugEnabled())
+                logger.debug("Read timeout: {}", ex.toString());
+            throw ex;
+        }
         return blockfor == 1 ? resolver.getData() : resolver.resolve();
     }
 
     public void response(MessageIn<TMessage> message)
     {
-        resolver.preprocess(message);
-        int n = waitingFor(message)
+        boolean hasAdded = resolver.preprocess(message);
+        int n = (waitingFor(message) && hasAdded)
               ? received.incrementAndGet()
               : received.get();
         if (n >= blockfor && resolver.isDataPresent())
