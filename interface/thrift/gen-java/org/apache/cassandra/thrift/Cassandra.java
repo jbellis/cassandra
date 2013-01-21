@@ -5,29 +5,7 @@
  *  @generated
  */
 package org.apache.cassandra.thrift;
-/*
- * 
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
- */
 
-
-import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.thrift.scheme.IScheme;
 import org.apache.thrift.scheme.SchemeFactory;
 import org.apache.thrift.scheme.StandardScheme;
@@ -4572,14 +4550,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_auth_request = true && (isSetAuth_request());
-      builder.append(present_auth_request);
-      if (present_auth_request)
-        builder.append(auth_request);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(login_args other) {
@@ -4990,19 +4961,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_authnx = true && (isSetAuthnx());
-      builder.append(present_authnx);
-      if (present_authnx)
-        builder.append(authnx);
-
-      boolean present_authzx = true && (isSetAuthzx());
-      builder.append(present_authzx);
-      if (present_authzx)
-        builder.append(authzx);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(login_result other) {
@@ -5401,14 +5360,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_keyspace = true && (isSetKeyspace());
-      builder.append(present_keyspace);
-      if (present_keyspace)
-        builder.append(keyspace);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(set_keyspace_args other) {
@@ -5755,14 +5707,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(set_keyspace_result other) {
@@ -6266,24 +6211,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_key = true && (isSetKey());
-      builder.append(present_key);
-      if (present_key)
-        builder.append(key);
-
-      boolean present_column_path = true && (isSetColumn_path());
-      builder.append(present_column_path);
-      if (present_column_path)
-        builder.append(column_path);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(get_args other) {
@@ -6945,34 +6873,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_nfe = true && (isSetNfe());
-      builder.append(present_nfe);
-      if (present_nfe)
-        builder.append(nfe);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(get_result other) {
@@ -7710,29 +7611,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_key = true && (isSetKey());
-      builder.append(present_key);
-      if (present_key)
-        builder.append(key);
-
-      boolean present_column_parent = true && (isSetColumn_parent());
-      builder.append(present_column_parent);
-      if (present_column_parent)
-        builder.append(column_parent);
-
-      boolean present_predicate = true && (isSetPredicate());
-      builder.append(present_predicate);
-      if (present_predicate)
-        builder.append(predicate);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(get_slice_args other) {
@@ -8397,29 +8276,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(get_slice_result other) {
@@ -9143,29 +9000,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_key = true && (isSetKey());
-      builder.append(present_key);
-      if (present_key)
-        builder.append(key);
-
-      boolean present_column_parent = true && (isSetColumn_parent());
-      builder.append(present_column_parent);
-      if (present_column_parent)
-        builder.append(column_parent);
-
-      boolean present_predicate = true && (isSetPredicate());
-      builder.append(present_predicate);
-      if (present_predicate)
-        builder.append(predicate);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(get_count_args other) {
@@ -9812,29 +9647,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true;
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(get_count_result other) {
@@ -10533,29 +10346,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_keys = true && (isSetKeys());
-      builder.append(present_keys);
-      if (present_keys)
-        builder.append(keys);
-
-      boolean present_column_parent = true && (isSetColumn_parent());
-      builder.append(present_column_parent);
-      if (present_column_parent)
-        builder.append(column_parent);
-
-      boolean present_predicate = true && (isSetPredicate());
-      builder.append(present_predicate);
-      if (present_predicate)
-        builder.append(predicate);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(multiget_slice_args other) {
@@ -11262,29 +11053,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(multiget_slice_result other) {
@@ -12057,29 +11826,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_keys = true && (isSetKeys());
-      builder.append(present_keys);
-      if (present_keys)
-        builder.append(keys);
-
-      boolean present_column_parent = true && (isSetColumn_parent());
-      builder.append(present_column_parent);
-      if (present_column_parent)
-        builder.append(column_parent);
-
-      boolean present_predicate = true && (isSetPredicate());
-      builder.append(present_predicate);
-      if (present_predicate)
-        builder.append(predicate);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(multiget_count_args other) {
@@ -12782,29 +12529,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(multiget_count_result other) {
@@ -13521,29 +13246,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_column_parent = true && (isSetColumn_parent());
-      builder.append(present_column_parent);
-      if (present_column_parent)
-        builder.append(column_parent);
-
-      boolean present_predicate = true && (isSetPredicate());
-      builder.append(present_predicate);
-      if (present_predicate)
-        builder.append(predicate);
-
-      boolean present_range = true && (isSetRange());
-      builder.append(present_range);
-      if (present_range)
-        builder.append(range);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(get_range_slices_args other) {
@@ -14213,29 +13916,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(get_range_slices_result other) {
@@ -14959,29 +14640,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_column_family = true && (isSetColumn_family());
-      builder.append(present_column_family);
-      if (present_column_family)
-        builder.append(column_family);
-
-      boolean present_range = true && (isSetRange());
-      builder.append(present_range);
-      if (present_range)
-        builder.append(range);
-
-      boolean present_start_column = true && (isSetStart_column());
-      builder.append(present_start_column);
-      if (present_start_column)
-        builder.append(start_column);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(get_paged_slice_args other) {
@@ -15641,29 +15300,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(get_paged_slice_result other) {
@@ -16376,29 +16013,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_column_parent = true && (isSetColumn_parent());
-      builder.append(present_column_parent);
-      if (present_column_parent)
-        builder.append(column_parent);
-
-      boolean present_index_clause = true && (isSetIndex_clause());
-      builder.append(present_index_clause);
-      if (present_index_clause)
-        builder.append(index_clause);
-
-      boolean present_column_predicate = true && (isSetColumn_predicate());
-      builder.append(present_column_predicate);
-      if (present_column_predicate)
-        builder.append(column_predicate);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(get_indexed_slices_args other) {
@@ -17068,29 +16683,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(get_indexed_slices_result other) {
@@ -17814,29 +17407,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_key = true && (isSetKey());
-      builder.append(present_key);
-      if (present_key)
-        builder.append(key);
-
-      boolean present_column_parent = true && (isSetColumn_parent());
-      builder.append(present_column_parent);
-      if (present_column_parent)
-        builder.append(column_parent);
-
-      boolean present_column = true && (isSetColumn());
-      builder.append(present_column);
-      if (present_column)
-        builder.append(column);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(insert_args other) {
@@ -18422,24 +17993,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(insert_result other) {
@@ -19088,29 +18642,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_key = true && (isSetKey());
-      builder.append(present_key);
-      if (present_key)
-        builder.append(key);
-
-      boolean present_column_parent = true && (isSetColumn_parent());
-      builder.append(present_column_parent);
-      if (present_column_parent)
-        builder.append(column_parent);
-
-      boolean present_column = true && (isSetColumn());
-      builder.append(present_column);
-      if (present_column)
-        builder.append(column);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(add_args other) {
@@ -19696,24 +19228,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(add_result other) {
@@ -20364,29 +19879,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_key = true && (isSetKey());
-      builder.append(present_key);
-      if (present_key)
-        builder.append(key);
-
-      boolean present_column_path = true && (isSetColumn_path());
-      builder.append(present_column_path);
-      if (present_column_path)
-        builder.append(column_path);
-
-      boolean present_timestamp = true;
-      builder.append(present_timestamp);
-      if (present_timestamp)
-        builder.append(timestamp);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(remove_args other) {
@@ -20971,24 +20464,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(remove_result other) {
@@ -21578,24 +21054,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_key = true && (isSetKey());
-      builder.append(present_key);
-      if (present_key)
-        builder.append(key);
-
-      boolean present_path = true && (isSetPath());
-      builder.append(present_path);
-      if (present_path)
-        builder.append(path);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(remove_counter_args other) {
@@ -22139,24 +21598,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(remove_counter_result other) {
@@ -22719,19 +22161,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_mutation_map = true && (isSetMutation_map());
-      builder.append(present_mutation_map);
-      if (present_mutation_map)
-        builder.append(mutation_map);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(batch_mutate_args other) {
@@ -23343,24 +22773,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(batch_mutate_result other) {
@@ -23923,19 +23336,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_mutation_map = true && (isSetMutation_map());
-      builder.append(present_mutation_map);
-      if (present_mutation_map)
-        builder.append(mutation_map);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(atomic_batch_mutate_args other) {
@@ -24547,24 +23948,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(atomic_batch_mutate_result other) {
@@ -25006,14 +24390,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_cfname = true && (isSetCfname());
-      builder.append(present_cfname);
-      if (present_cfname)
-        builder.append(cfname);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(truncate_args other) {
@@ -25478,24 +24855,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(truncate_result other) {
@@ -25872,9 +25232,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_schema_versions_args other) {
@@ -26273,19 +25631,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_schema_versions_result other) {
@@ -26687,9 +26033,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_keyspaces_args other) {
@@ -27079,19 +26423,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_keyspaces_result other) {
@@ -27457,9 +26789,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_cluster_name_args other) {
@@ -27770,14 +27100,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_cluster_name_result other) {
@@ -28066,9 +27389,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_version_args other) {
@@ -28379,14 +27700,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_version_result other) {
@@ -28740,14 +28054,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_keyspace = true && (isSetKeyspace());
-      builder.append(present_keyspace);
-      if (present_keyspace)
-        builder.append(keyspace);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_ring_args other) {
@@ -29173,19 +28480,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_ring_result other) {
@@ -29551,9 +28846,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_token_map_args other) {
@@ -29948,19 +29241,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_token_map_result other) {
@@ -30330,9 +29611,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_partitioner_args other) {
@@ -30643,14 +29922,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_partitioner_result other) {
@@ -30939,9 +30211,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_snitch_args other) {
@@ -31252,14 +30522,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_snitch_result other) {
@@ -31613,14 +30876,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_keyspace = true && (isSetKeyspace());
-      builder.append(present_keyspace);
-      if (present_keyspace)
-        builder.append(keyspace);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_keyspace_args other) {
@@ -32085,24 +31341,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_nfe = true && (isSetNfe());
-      builder.append(present_nfe);
-      if (present_nfe)
-        builder.append(nfe);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_keyspace_result other) {
@@ -32726,29 +31965,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_cfName = true && (isSetCfName());
-      builder.append(present_cfName);
-      if (present_cfName)
-        builder.append(cfName);
-
-      boolean present_start_token = true && (isSetStart_token());
-      builder.append(present_start_token);
-      if (present_start_token)
-        builder.append(start_token);
-
-      boolean present_end_token = true && (isSetEnd_token());
-      builder.append(present_end_token);
-      if (present_end_token)
-        builder.append(end_token);
-
-      boolean present_keys_per_split = true;
-      builder.append(present_keys_per_split);
-      if (present_keys_per_split)
-        builder.append(keys_per_split);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_splits_args other) {
@@ -33282,19 +32499,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_splits_result other) {
@@ -33658,9 +32863,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(trace_next_query_args other) {
@@ -33982,14 +33185,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(trace_next_query_result other) {
@@ -34522,29 +33718,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_cfName = true && (isSetCfName());
-      builder.append(present_cfName);
-      if (present_cfName)
-        builder.append(cfName);
-
-      boolean present_start_token = true && (isSetStart_token());
-      builder.append(present_start_token);
-      if (present_start_token)
-        builder.append(start_token);
-
-      boolean present_end_token = true && (isSetEnd_token());
-      builder.append(present_end_token);
-      if (present_end_token)
-        builder.append(end_token);
-
-      boolean present_keys_per_split = true;
-      builder.append(present_keys_per_split);
-      if (present_keys_per_split)
-        builder.append(keys_per_split);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_splits_ex_args other) {
@@ -35078,19 +34252,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(describe_splits_ex_result other) {
@@ -35521,14 +34683,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_cf_def = true && (isSetCf_def());
-      builder.append(present_cf_def);
-      if (present_cf_def)
-        builder.append(cf_def);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(system_add_column_family_args other) {
@@ -35998,24 +35153,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_sde = true && (isSetSde());
-      builder.append(present_sde);
-      if (present_sde)
-        builder.append(sde);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(system_add_column_family_result other) {
@@ -36455,14 +35593,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_column_family = true && (isSetColumn_family());
-      builder.append(present_column_family);
-      if (present_column_family)
-        builder.append(column_family);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(system_drop_column_family_args other) {
@@ -36927,24 +36058,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_sde = true && (isSetSde());
-      builder.append(present_sde);
-      if (present_sde)
-        builder.append(sde);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(system_drop_column_family_result other) {
@@ -37384,14 +36498,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_ks_def = true && (isSetKs_def());
-      builder.append(present_ks_def);
-      if (present_ks_def)
-        builder.append(ks_def);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(system_add_keyspace_args other) {
@@ -37861,24 +36968,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_sde = true && (isSetSde());
-      builder.append(present_sde);
-      if (present_sde)
-        builder.append(sde);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(system_add_keyspace_result other) {
@@ -38318,14 +37408,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_keyspace = true && (isSetKeyspace());
-      builder.append(present_keyspace);
-      if (present_keyspace)
-        builder.append(keyspace);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(system_drop_keyspace_args other) {
@@ -38790,24 +37873,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_sde = true && (isSetSde());
-      builder.append(present_sde);
-      if (present_sde)
-        builder.append(sde);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(system_drop_keyspace_result other) {
@@ -39247,14 +38313,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_ks_def = true && (isSetKs_def());
-      builder.append(present_ks_def);
-      if (present_ks_def)
-        builder.append(ks_def);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(system_update_keyspace_args other) {
@@ -39724,24 +38783,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_sde = true && (isSetSde());
-      builder.append(present_sde);
-      if (present_sde)
-        builder.append(sde);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(system_update_keyspace_result other) {
@@ -40181,14 +39223,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_cf_def = true && (isSetCf_def());
-      builder.append(present_cf_def);
-      if (present_cf_def)
-        builder.append(cf_def);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(system_update_column_family_args other) {
@@ -40658,24 +39693,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_sde = true && (isSetSde());
-      builder.append(present_sde);
-      if (present_sde)
-        builder.append(sde);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(system_update_column_family_result other) {
@@ -41201,19 +40219,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_query = true && (isSetQuery());
-      builder.append(present_query);
-      if (present_query)
-        builder.append(query);
-
-      boolean present_compression = true && (isSetCompression());
-      builder.append(present_compression);
-      if (present_compression)
-        builder.append(compression.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(execute_cql_query_args other) {
@@ -41833,34 +40839,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      boolean present_sde = true && (isSetSde());
-      builder.append(present_sde);
-      if (present_sde)
-        builder.append(sde);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(execute_cql_query_result other) {
@@ -42552,24 +41531,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_query = true && (isSetQuery());
-      builder.append(present_query);
-      if (present_query)
-        builder.append(query);
-
-      boolean present_compression = true && (isSetCompression());
-      builder.append(present_compression);
-      if (present_compression)
-        builder.append(compression.getValue());
-
-      boolean present_consistency = true && (isSetConsistency());
-      builder.append(present_consistency);
-      if (present_consistency)
-        builder.append(consistency.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(execute_cql3_query_args other) {
@@ -43226,34 +42188,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      boolean present_sde = true && (isSetSde());
-      builder.append(present_sde);
-      if (present_sde)
-        builder.append(sde);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(execute_cql3_query_result other) {
@@ -43870,19 +42805,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_query = true && (isSetQuery());
-      builder.append(present_query);
-      if (present_query)
-        builder.append(query);
-
-      boolean present_compression = true && (isSetCompression());
-      builder.append(present_compression);
-      if (present_compression)
-        builder.append(compression.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(prepare_cql_query_args other) {
@@ -44325,19 +43248,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(prepare_cql_query_result other) {
@@ -44825,19 +43736,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_query = true && (isSetQuery());
-      builder.append(present_query);
-      if (present_query)
-        builder.append(query);
-
-      boolean present_compression = true && (isSetCompression());
-      builder.append(present_compression);
-      if (present_compression)
-        builder.append(compression.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(prepare_cql3_query_args other) {
@@ -45280,19 +44179,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(prepare_cql3_query_result other) {
@@ -45777,19 +44664,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_itemId = true;
-      builder.append(present_itemId);
-      if (present_itemId)
-        builder.append(itemId);
-
-      boolean present_values = true && (isSetValues());
-      builder.append(present_values);
-      if (present_values)
-        builder.append(values);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(execute_prepared_cql_query_args other) {
@@ -46438,34 +45313,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      boolean present_sde = true && (isSetSde());
-      builder.append(present_sde);
-      if (present_sde)
-        builder.append(sde);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(execute_prepared_cql_query_result other) {
@@ -47154,24 +46002,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_itemId = true;
-      builder.append(present_itemId);
-      if (present_itemId)
-        builder.append(itemId);
-
-      boolean present_values = true && (isSetValues());
-      builder.append(present_values);
-      if (present_values)
-        builder.append(values);
-
-      boolean present_consistency = true && (isSetConsistency());
-      builder.append(present_consistency);
-      if (present_consistency)
-        builder.append(consistency.getValue());
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(execute_prepared_cql3_query_args other) {
@@ -47857,34 +46688,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_success = true && (isSetSuccess());
-      builder.append(present_success);
-      if (present_success)
-        builder.append(success);
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      boolean present_sde = true && (isSetSde());
-      builder.append(present_sde);
-      if (present_sde)
-        builder.append(sde);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(execute_prepared_cql3_query_result other) {
@@ -48415,14 +47219,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_version = true && (isSetVersion());
-      builder.append(present_version);
-      if (present_version)
-        builder.append(version);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(set_cql_version_args other) {
@@ -48769,14 +47566,7 @@ public class Cassandra {
 
     @Override
     public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      return builder.toHashCode();
+      return 0;
     }
 
     public int compareTo(set_cql_version_result other) {

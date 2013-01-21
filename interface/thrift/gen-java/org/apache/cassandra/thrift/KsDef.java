@@ -5,29 +5,7 @@
  *  @generated
  */
 package org.apache.cassandra.thrift;
-/*
- * 
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
- */
 
-
-import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.thrift.scheme.IScheme;
 import org.apache.thrift.scheme.SchemeFactory;
 import org.apache.thrift.scheme.StandardScheme;
@@ -596,39 +574,7 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
 
   @Override
   public int hashCode() {
-    HashCodeBuilder builder = new HashCodeBuilder();
-
-    boolean present_name = true && (isSetName());
-    builder.append(present_name);
-    if (present_name)
-      builder.append(name);
-
-    boolean present_strategy_class = true && (isSetStrategy_class());
-    builder.append(present_strategy_class);
-    if (present_strategy_class)
-      builder.append(strategy_class);
-
-    boolean present_strategy_options = true && (isSetStrategy_options());
-    builder.append(present_strategy_options);
-    if (present_strategy_options)
-      builder.append(strategy_options);
-
-    boolean present_replication_factor = true && (isSetReplication_factor());
-    builder.append(present_replication_factor);
-    if (present_replication_factor)
-      builder.append(replication_factor);
-
-    boolean present_cf_defs = true && (isSetCf_defs());
-    builder.append(present_cf_defs);
-    if (present_cf_defs)
-      builder.append(cf_defs);
-
-    boolean present_durable_writes = true && (isSetDurable_writes());
-    builder.append(present_durable_writes);
-    if (present_durable_writes)
-      builder.append(durable_writes);
-
-    return builder.toHashCode();
+    return 0;
   }
 
   public int compareTo(KsDef other) {

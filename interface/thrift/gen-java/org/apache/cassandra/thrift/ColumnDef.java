@@ -5,29 +5,7 @@
  *  @generated
  */
 package org.apache.cassandra.thrift;
-/*
- * 
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
- */
 
-
-import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.thrift.scheme.IScheme;
 import org.apache.thrift.scheme.SchemeFactory;
 import org.apache.thrift.scheme.StandardScheme;
@@ -530,34 +508,7 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
 
   @Override
   public int hashCode() {
-    HashCodeBuilder builder = new HashCodeBuilder();
-
-    boolean present_name = true && (isSetName());
-    builder.append(present_name);
-    if (present_name)
-      builder.append(name);
-
-    boolean present_validation_class = true && (isSetValidation_class());
-    builder.append(present_validation_class);
-    if (present_validation_class)
-      builder.append(validation_class);
-
-    boolean present_index_type = true && (isSetIndex_type());
-    builder.append(present_index_type);
-    if (present_index_type)
-      builder.append(index_type.getValue());
-
-    boolean present_index_name = true && (isSetIndex_name());
-    builder.append(present_index_name);
-    if (present_index_name)
-      builder.append(index_name);
-
-    boolean present_index_options = true && (isSetIndex_options());
-    builder.append(present_index_options);
-    if (present_index_options)
-      builder.append(index_options);
-
-    return builder.toHashCode();
+    return 0;
   }
 
   public int compareTo(ColumnDef other) {

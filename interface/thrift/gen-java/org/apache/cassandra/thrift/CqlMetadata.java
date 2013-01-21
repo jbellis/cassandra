@@ -5,29 +5,7 @@
  *  @generated
  */
 package org.apache.cassandra.thrift;
-/*
- * 
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
- */
 
-
-import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.thrift.scheme.IScheme;
 import org.apache.thrift.scheme.SchemeFactory;
 import org.apache.thrift.scheme.StandardScheme;
@@ -476,29 +454,7 @@ public class CqlMetadata implements org.apache.thrift.TBase<CqlMetadata, CqlMeta
 
   @Override
   public int hashCode() {
-    HashCodeBuilder builder = new HashCodeBuilder();
-
-    boolean present_name_types = true && (isSetName_types());
-    builder.append(present_name_types);
-    if (present_name_types)
-      builder.append(name_types);
-
-    boolean present_value_types = true && (isSetValue_types());
-    builder.append(present_value_types);
-    if (present_value_types)
-      builder.append(value_types);
-
-    boolean present_default_name_type = true && (isSetDefault_name_type());
-    builder.append(present_default_name_type);
-    if (present_default_name_type)
-      builder.append(default_name_type);
-
-    boolean present_default_value_type = true && (isSetDefault_value_type());
-    builder.append(present_default_value_type);
-    if (present_default_value_type)
-      builder.append(default_value_type);
-
-    return builder.toHashCode();
+    return 0;
   }
 
   public int compareTo(CqlMetadata other) {
