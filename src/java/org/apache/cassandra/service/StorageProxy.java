@@ -868,7 +868,7 @@ public class StorageProxy implements StorageProxyMBean
         do
         {
             List<ReadCommand> commands = commandsToRetry.isEmpty() ? initialCommands : commandsToRetry;
-            AbstractReadExecutor[] readCallbacks = new AbstractReadExecutor[commands.size()];
+            AbstractReadExecutor[] readExecutors = new AbstractReadExecutor[commands.size()];
 
             if (!commandsToRetry.isEmpty())
                 logger.debug("Retrying {} commands", commandsToRetry.size());
@@ -882,17 +882,17 @@ public class StorageProxy implements StorageProxyMBean
 
                 AbstractReadExecutor exec = AbstractReadExecutor.getReadExecutor(command, consistency_level);
                 exec.executeAsync();
-                readCallbacks[i] = exec;
+                readExecutors[i] = exec;
             }
 
-            AbstractReadExecutor.sortByExpectedLatency(readCallbacks);
-            for (AbstractReadExecutor exec: readCallbacks)
+            AbstractReadExecutor.sortByExpectedLatency(readExecutors);
+            for (AbstractReadExecutor exec: readExecutors)
                 exec.speculate();
 
             // read results and make a second pass for any digest mismatches
             List<ReadCommand> repairCommands = null;
             List<ReadCallback<ReadResponse, Row>> repairResponseHandlers = null;
-            for (AbstractReadExecutor exec: readCallbacks)
+            for (AbstractReadExecutor exec: readExecutors)
             {
                 try
                 {
