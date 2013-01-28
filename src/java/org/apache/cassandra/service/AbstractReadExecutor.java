@@ -63,9 +63,10 @@ public abstract class AbstractReadExecutor
         this.resolver = new RowDigestResolver(command.table, command.key);
         this.handler = new ReadCallback<ReadResponse, Row>(resolver, consistency_level, command, endpoints);
         this.command = command;
+        this.cfs = cfs;
+
         handler.assureSufficientLiveNodes();
         assert !handler.endpoints.isEmpty();
-        this.cfs = cfs;
     }
 
     void executeAsync()
@@ -135,22 +136,25 @@ public abstract class AbstractReadExecutor
         }
     }
 
-    public static void sortByExpectedLatency(AbstractReadExecutor[] execs) {
-        Arrays.sort(execs, new Comparator<AbstractReadExecutor>()
+    public static final Comparator<AbstractReadExecutor> latencyComparator = new Comparator<AbstractReadExecutor>()
+    {
+        public int compare(AbstractReadExecutor o1, AbstractReadExecutor o2)
         {
-            public int compare(AbstractReadExecutor o1, AbstractReadExecutor o2)
-            {
-                long a = o1.cfs.sampleLatency;
-                long b = o2.cfs.sampleLatency;
-                // if sample latency is disabled push it to the bottom 
-                if (a == 0)
-                    return 1;
-                else if (b == 0)
-                    return -1;
-                return Longs.compare(a, b);
-            }
-        });
+            long a = o1.cfs.sampleLatency;
+            long b = o2.cfs.sampleLatency;
+            // if sample latency is disabled push it to the bottom
+            if (a == 0)
+                return 1;
+            else if (b == 0)
+                return -1;
+            return Longs.compare(a, b);
+        }
+    };
+    public static void sortByExpectedLatency(AbstractReadExecutor[] executors)
+    {
+        Arrays.sort(executors, latencyComparator);
     }
+
     private static class DefaultReadExecutor extends AbstractReadExecutor
     {
         DefaultReadExecutor(ReadCommand command, ConsistencyLevel consistency_level, ColumnFamilyStore cfs) throws UnavailableException
