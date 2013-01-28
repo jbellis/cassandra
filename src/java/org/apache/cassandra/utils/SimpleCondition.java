@@ -26,7 +26,7 @@ import java.util.concurrent.locks.Condition;
 // _after_ signal(), it will work as desired.)
 public class SimpleCondition implements Condition
 {
-    volatile boolean set;
+    private boolean set;
 
     public synchronized void await() throws InterruptedException
     {
@@ -64,7 +64,7 @@ public class SimpleCondition implements Condition
         notifyAll();
     }
 
-    public boolean isSignaled()
+    public synchronized boolean isSignaled()
     {
         return set;
     }

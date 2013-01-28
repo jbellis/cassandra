@@ -100,8 +100,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
     public TResolved get() throws ReadTimeoutException, DigestMismatchException, IOException
     {
         long timeout = command.getTimeout() - (System.currentTimeMillis() - startTime);
-        // if not signaled then wait longer till command timeout before throwing an exception.
-        if (!condition.isSignaled() && !await(timeout))
+        if (!await(timeout))
         {
             ReadTimeoutException ex = new ReadTimeoutException(consistencyLevel, received.get(), blockfor, resolver.isDataPresent());
             if (logger.isDebugEnabled())
