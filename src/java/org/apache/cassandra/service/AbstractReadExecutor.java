@@ -26,7 +26,6 @@ import java.util.List;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ReadCommand;
@@ -54,14 +53,17 @@ public abstract class AbstractReadExecutor
     protected final List<InetAddress> endpoints;
     protected final ColumnFamilyStore cfs;
 
-    AbstractReadExecutor(ReadCommand command, ConsistencyLevel consistency_level, ColumnFamilyStore cfs) throws UnavailableException
+    AbstractReadExecutor(ColumnFamilyStore cfs,
+                         ReadCommand command,
+                         ConsistencyLevel consistency_level,
+                         List<InetAddress> allReplicas,
+                         List<InetAddress> queryTargets)
+    throws UnavailableException
     {
-        Table table = Table.open(command.table);
-        this.unfiltered = StorageProxy.getLiveSortedEndpoints(table, command.key);
-        CFMetaData cfm = Schema.instance.getCFMetaData(command.getKeyspace(), command.getColumnFamilyName());
-        this.endpoints = consistency_level.filterForQuery(table, unfiltered, cfm.newReadRepairDecision());
+        unfiltered = allReplicas;
+        this.endpoints = queryTargets;
         this.resolver = new RowDigestResolver(command.table, command.key);
-        this.handler = new ReadCallback<ReadResponse, Row>(resolver, consistency_level, command, endpoints);
+        this.handler = new ReadCallback<ReadResponse, Row>(resolver, consistency_level, command, this.endpoints);
         this.command = command;
         this.cfs = cfs;
 
@@ -123,16 +125,22 @@ public abstract class AbstractReadExecutor
 
     public static AbstractReadExecutor getReadExecutor(ReadCommand command, ConsistencyLevel consistency_level) throws UnavailableException
     {
-        ColumnFamilyStore cfs = Table.open(command.table).getColumnFamilyStore(command.getColumnFamilyName());
+        Table table = Table.open(command.table);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(command.getColumnFamilyName());
+        List<InetAddress> allReplicas = StorageProxy.getLiveSortedEndpoints(table, command.key);
+        List<InetAddress> queryTargets = consistency_level.filterForQuery(table, allReplicas, cfs.metadata.newReadRepairDecision());
+
         switch (cfs.metadata.getSpeculativeRetry().type)
         {
-        case ALWAYS:
-            return new SpeculateAlwaysExecutor(command, consistency_level, cfs);
-        case PERCENTILE:
-        case CUSTOM:
-            return new SpeculativeReadExecutor(command, consistency_level, cfs);
-        default:
-            return new DefaultReadExecutor(command, consistency_level, cfs);
+            case ALWAYS:
+                return new SpeculateAlwaysExecutor(cfs, command, consistency_level, allReplicas, queryTargets);
+            case PERCENTILE:
+            case CUSTOM:
+                return queryTargets.size() < allReplicas.size()
+                       ? new SpeculativeReadExecutor(cfs, command, consistency_level, allReplicas, queryTargets)
+                       : new DefaultReadExecutor(cfs, command, consistency_level, allReplicas, queryTargets);
+            default:
+                return new DefaultReadExecutor(cfs, command, consistency_level, allReplicas, queryTargets);
         }
     }
 
@@ -157,42 +165,40 @@ public abstract class AbstractReadExecutor
 
     private static class DefaultReadExecutor extends AbstractReadExecutor
     {
-        DefaultReadExecutor(ReadCommand command, ConsistencyLevel consistency_level, ColumnFamilyStore cfs) throws UnavailableException
+        public DefaultReadExecutor(ColumnFamilyStore cfs, ReadCommand command, ConsistencyLevel consistency_level, List<InetAddress> allReplicas, List<InetAddress> queryTargets) throws UnavailableException
         {
-            super(command, consistency_level, cfs);
+            super(cfs, command, consistency_level, allReplicas, queryTargets);
         }
     }
 
     private static class SpeculativeReadExecutor extends AbstractReadExecutor
     {
-        public SpeculativeReadExecutor(ReadCommand command, ConsistencyLevel consistency_level, ColumnFamilyStore cfs) throws UnavailableException
+        public SpeculativeReadExecutor(ColumnFamilyStore cfs, ReadCommand command, ConsistencyLevel consistency_level, List<InetAddress> allReplicas, List<InetAddress> queryTargets) throws UnavailableException
         {
-            super(command, consistency_level, cfs);
+            super(cfs, command, consistency_level, allReplicas, queryTargets);
+            assert handler.endpoints.size() < unfiltered.size();
         }
 
         @Override
         void speculate()
         {
             long expectedLatency = cfs.sampleLatency;
+            // no latency information, or we're overloaded
             if (expectedLatency == 0 || expectedLatency > command.getTimeout())
                 return;
 
             if (!handler.await(expectedLatency))
             {
-                InetAddress endpoint;
-                if (unfiltered.size() > handler.endpoints.size())
-                    endpoint = unfiltered.get(handler.endpoints.size()); // read != RR
-                else if (unfiltered.size() > 1)
-                    endpoint = unfiltered.get(1); // read == RR, re-send data read to a different node.
-                else
-                    return;
+                InetAddress endpoint = unfiltered.get(handler.endpoints.size());
 
+                // could be waiting on the data, or on enough digests
                 ReadCommand scommand = command;
-                if (resolver.getData() != null) // check if we have to send digest request
+                if (resolver.getData() != null)
                 {
                     scommand = command.copy();
                     scommand.setDigestQuery(true);
                 }
+
                 logger.trace("Speculating read retry on {}", endpoint);
                 MessagingService.instance().sendRR(scommand.createMessage(), endpoint, handler);
                 cfs.metric.speculativeRetry.inc();
@@ -202,9 +208,9 @@ public abstract class AbstractReadExecutor
 
     private static class SpeculateAlwaysExecutor extends AbstractReadExecutor
     {
-        public SpeculateAlwaysExecutor(ReadCommand command, ConsistencyLevel consistency_level, ColumnFamilyStore cfs) throws UnavailableException
+        public SpeculateAlwaysExecutor(ColumnFamilyStore cfs, ReadCommand command, ConsistencyLevel consistency_level, List<InetAddress> allReplicas, List<InetAddress> queryTargets) throws UnavailableException
         {
-            super(command, consistency_level, cfs);
+            super(cfs, command, consistency_level, allReplicas, queryTargets);
         }
 
         @Override
