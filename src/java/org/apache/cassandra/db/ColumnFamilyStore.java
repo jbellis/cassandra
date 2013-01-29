@@ -116,7 +116,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private final AtomicLong liveRatioComputedAt = new AtomicLong(32);
 
     public final ColumnFamilyMetrics metric;
-    public volatile long sampleLatency = 0;
+    public volatile long sampleLatency = Long.MAX_VALUE;
 
     public void reload()
     {
@@ -330,17 +330,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 SpeculativeRetry retryPolicy = ColumnFamilyStore.this.metadata.getSpeculativeRetry();
                 switch (retryPolicy.type)
                 {
-                case PERCENTILE:
-                    double percentile = retryPolicy.value / 100d;
-                    // get percentile and convert it to MS insted of dealing with micro
-                    sampleLatency = (long) (metric.readLatency.latency.getSnapshot().getValue(percentile) / 1000);
-                    break;
-                case CUSTOM:
-                    sampleLatency = retryPolicy.value;
-                    break;
-                default:
-                    sampleLatency = 0;
-                    break;
+                    case PERCENTILE:
+                        double percentile = retryPolicy.value / 100d;
+                        // get percentile and convert it to MS insted of dealing with micro
+                        sampleLatency = (long) (metric.readLatency.latency.getSnapshot().getValue(percentile) / 1000);
+                        break;
+                    case CUSTOM:
+                        sampleLatency = retryPolicy.value;
+                        break;
+                    default:
+                        sampleLatency = Long.MAX_VALUE;
+                        break;
                 }
             }
         }, 30, 30, TimeUnit.SECONDS);

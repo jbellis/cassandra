@@ -148,14 +148,7 @@ public abstract class AbstractReadExecutor
     {
         public int compare(AbstractReadExecutor o1, AbstractReadExecutor o2)
         {
-            long a = o1.cfs.sampleLatency;
-            long b = o2.cfs.sampleLatency;
-            // if sample latency is disabled push it to the bottom
-            if (a == 0)
-                return 1;
-            else if (b == 0)
-                return -1;
-            return Longs.compare(a, b);
+            return Longs.compare(o1.cfs.sampleLatency, o2.cfs.sampleLatency);
         }
     };
     public static void sortByExpectedLatency(AbstractReadExecutor[] executors)
@@ -182,12 +175,11 @@ public abstract class AbstractReadExecutor
         @Override
         void speculate()
         {
-            long expectedLatency = cfs.sampleLatency;
             // no latency information, or we're overloaded
-            if (expectedLatency == 0 || expectedLatency > command.getTimeout())
+            if (cfs.sampleLatency > command.getTimeout())
                 return;
 
-            if (!handler.await(expectedLatency))
+            if (!handler.await(cfs.sampleLatency))
             {
                 InetAddress endpoint = unfiltered.get(handler.endpoints.size());
 
