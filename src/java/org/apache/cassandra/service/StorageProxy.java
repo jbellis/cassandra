@@ -37,7 +37,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
@@ -885,7 +884,6 @@ public class StorageProxy implements StorageProxyMBean
                 readExecutors[i] = exec;
             }
 
-            AbstractReadExecutor.sortByExpectedLatency(readExecutors);
             for (AbstractReadExecutor exec: readExecutors)
                 exec.speculate();
 

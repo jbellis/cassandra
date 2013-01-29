@@ -144,32 +144,6 @@ public abstract class AbstractReadExecutor
         }
     }
 
-    public static final Comparator<AbstractReadExecutor> latencyComparator = new Comparator<AbstractReadExecutor>()
-    {
-        public int compare(AbstractReadExecutor o1, AbstractReadExecutor o2)
-        {
-            return Longs.compare(o1.cfs.sampleLatency, o2.cfs.sampleLatency);
-        }
-    };
-
-    /**
-     * Sorts @param executors with the expected-quickest
-     */
-    public static void sortByExpectedLatency(AbstractReadExecutor[] executors)
-    {
-        if (executors.length <= 1)
-            return;
-        for (int i = 0; i < executors.length; i++)
-        {
-            AbstractReadExecutor executor = executors[i];
-            if (executor instanceof SpeculativeReadExecutor)
-            {
-                Arrays.sort(executors, latencyComparator);
-                return;
-            }
-        }
-    }
-
     private static class DefaultReadExecutor extends AbstractReadExecutor
     {
         public DefaultReadExecutor(ColumnFamilyStore cfs, ReadCommand command, ConsistencyLevel consistency_level, List<InetAddress> allReplicas, List<InetAddress> queryTargets) throws UnavailableException
