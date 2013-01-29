@@ -126,7 +126,7 @@ public abstract class AbstractReadExecutor
     public static AbstractReadExecutor getReadExecutor(ReadCommand command, ConsistencyLevel consistency_level) throws UnavailableException
     {
         Table table = Table.open(command.table);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(command.getColumnFamilyName());
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(command.cfName);
         List<InetAddress> allReplicas = StorageProxy.getLiveSortedEndpoints(table, command.key);
         List<InetAddress> queryTargets = consistency_level.filterForQuery(table, allReplicas, cfs.metadata.newReadRepairDecision());
 
@@ -151,9 +151,23 @@ public abstract class AbstractReadExecutor
             return Longs.compare(o1.cfs.sampleLatency, o2.cfs.sampleLatency);
         }
     };
+
+    /**
+     * Sorts @param executors with the expected-quickest
+     */
     public static void sortByExpectedLatency(AbstractReadExecutor[] executors)
     {
-        Arrays.sort(executors, latencyComparator);
+        if (executors.length <= 1)
+            return;
+        for (int i = 0; i < executors.length; i++)
+        {
+            AbstractReadExecutor executor = executors[i];
+            if (executor instanceof SpeculativeReadExecutor)
+            {
+                Arrays.sort(executors, latencyComparator);
+                return;
+            }
+        }
     }
 
     private static class DefaultReadExecutor extends AbstractReadExecutor
