@@ -195,7 +195,7 @@ public class SystemTable
             return null;
 
         UUID compactionId = UUIDGen.getTimeUUID();
-        String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, inputs) VALUES ('%s', '%s', '%s', {%s})";
+        String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, inputs) VALUES (%s, '%s', '%s', {%s})";
         Iterable<Integer> generations = Iterables.transform(toCompact, new Function<SSTableReader, Integer>()
         {
             public Integer apply(SSTableReader sstable)
@@ -212,7 +212,7 @@ public class SystemTable
     {
         assert taskId != null;
 
-        String req = "DELETE FROM system.%s WHERE id = '%s'";
+        String req = "DELETE FROM system.%s WHERE id = %s";
         processInternal(String.format(req, COMPACTION_LOG, taskId));
         forceBlockingFlush(COMPACTION_LOG);
     }
