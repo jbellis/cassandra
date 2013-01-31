@@ -420,18 +420,39 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
-     * Remove unfinished compaction leftovers from specified columnfamily's data dir.
+     * Replacing compacted sstables is atomic as far as observers of DataTracker are concerned, but not on the
+     * filesystem: first the new sstables are renamed to "live" status (i.e., the tmp marker is removed), then
+     * their ancestors are removed.
+     *
+     * If an unclean shutdown happens at the right time, we can thus end up with both the new ones and their
+     * ancestors "live" in the system.  This is harmless for normal data, but for counters it can cause overcounts.
+     *
+     * To prevent this, we record sstables being compacted in the system keyspace.  If we find unfinished
+     * compactions, we remove the new ones (since those may be incomplete -- under LCS, we may create multiple
+     * sstables from any given ancestor).
      */
     public static void removeUnfinishedCompactionLeftovers(String keyspace, String columnfamily, Set<Integer> unfinishedGenerations)
     {
         Directories directories = Directories.create(keyspace, columnfamily);
+
+        // sanity-check unfinishedGenerations
         Set<Integer> allGenerations = new HashSet<Integer>();
         for (Descriptor desc : directories.sstableLister().list().keySet())
             allGenerations.add(desc.generation);
+        if (!allGenerations.containsAll(unfinishedGenerations))
+        {
+            throw new IllegalStateException("Unfinished compactions reference missing sstables."
+                                            + " This should never happen since compactions are marked finished before we start removing the old sstables.");
+        }
+
+        // remove new sstables from compactions that didn't complete, and compute
+        // set of ancestors that shouldn't exist anymore
+        Set<Integer> completedAncestors = new HashSet<Integer>();
         for (Map.Entry<Descriptor, Set<Component>> sstableFiles : directories.sstableLister().list().entrySet())
         {
             Descriptor desc = sstableFiles.getKey();
             Set<Component> components = sstableFiles.getValue();
+
             SSTableMetadata meta;
             try
             {
@@ -441,13 +462,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 throw new FSReadError(e, desc.filenameFor(Component.STATS));
             }
+
             Set<Integer> ancestors = meta.ancestors;
-            if (!ancestors.isEmpty() &&
-                        allGenerations.containsAll(ancestors) &&
-                        unfinishedGenerations.containsAll(ancestors))
+            if (!ancestors.isEmpty() && unfinishedGenerations.containsAll(ancestors))
             {
                 SSTable.delete(desc, components);
             }
+            else
+            {
+                completedAncestors.addAll(ancestors);
+            }
+        }
+
+        // remove old sstables from compactions that did complete
+        for (Map.Entry<Descriptor, Set<Component>> sstableFiles : directories.sstableLister().list().entrySet())
+        {
+            Descriptor desc = sstableFiles.getKey();
+            Set<Component> components = sstableFiles.getValue();
+
+            if (completedAncestors.contains(desc.generation))
+                SSTable.delete(desc, components);
         }
     }
 
