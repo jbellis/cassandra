@@ -33,10 +33,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
-
-import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.tracing.TraceState;
-import org.apache.cassandra.tracing.Tracing;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,9 +41,10 @@ import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.cache.RowCacheSentinel;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
@@ -56,6 +53,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ExtendedFilter;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.index.SecondaryIndex;
@@ -63,6 +61,7 @@ import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -243,34 +242,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             Directories.SSTableLister sstableFiles = directories.sstableLister().skipTemporary(true);
             Collection<SSTableReader> sstables = SSTableReader.batchOpen(sstableFiles.list().entrySet(), metadata, this.partitioner);
-
-            if (metadata.getDefaultValidator().isCommutative())
-            {
-                // Filter non-compacted sstables, remove compacted ones
-                Set<Integer> compactedSSTables = new HashSet<Integer>();
-                for (SSTableReader sstable : sstables)
-                    compactedSSTables.addAll(sstable.getAncestors());
-
-                Set<SSTableReader> liveSSTables = new HashSet<SSTableReader>();
-                for (SSTableReader sstable : sstables)
-                {
-                    if (compactedSSTables.contains(sstable.descriptor.generation))
-                    {
-                        logger.info("{} is already compacted and will be removed.", sstable);
-                        sstable.markCompacted(); // we need to mark as compacted to be deleted
-                        sstable.releaseReference(); // this amount to deleting the sstable
-                    }
-                    else
-                    {
-                        liveSSTables.add(sstable);
-                    }
-                }
-                data.addInitialSSTables(liveSSTables);
-            }
-            else
-            {
-                data.addInitialSSTables(sstables);
-            }
+            data.addInitialSSTables(sstables);
         }
 
         if (caching == Caching.ALL || caching == Caching.KEYS_ONLY)
@@ -444,6 +416,38 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             for (ColumnDefinition def : cfm.getColumn_metadata().values())
                 scrubDataDirectories(table, cfm.indexColumnFamilyName(def));
+        }
+    }
+
+    /**
+     * Remove unfinished compaction leftovers from specified columnfamily's data dir.
+     */
+    public static void removeUnfinishedCompactionLeftovers(String keyspace, String columnfamily, Set<Integer> unfinishedGenerations)
+    {
+        Directories directories = Directories.create(keyspace, columnfamily);
+        Set<Integer> allGenerations = new HashSet<Integer>();
+        for (Descriptor desc : directories.sstableLister().list().keySet())
+            allGenerations.add(desc.generation);
+        for (Map.Entry<Descriptor, Set<Component>> sstableFiles : directories.sstableLister().list().entrySet())
+        {
+            Descriptor desc = sstableFiles.getKey();
+            Set<Component> components = sstableFiles.getValue();
+            SSTableMetadata meta;
+            try
+            {
+                meta = SSTableMetadata.serializer.deserialize(desc);
+            }
+            catch (IOException e)
+            {
+                throw new FSReadError(e, desc.filenameFor(Component.STATS));
+            }
+            Set<Integer> ancestors = meta.ancestors;
+            if (!ancestors.isEmpty() &&
+                        allGenerations.containsAll(ancestors) &&
+                        unfinishedGenerations.containsAll(ancestors))
+            {
+                SSTable.delete(desc, components);
+            }
         }
     }
 
