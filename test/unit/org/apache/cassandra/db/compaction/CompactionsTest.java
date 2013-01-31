@@ -283,7 +283,7 @@ public class CompactionsTest extends SchemaLoader
     @Test
     public void testCompactionLog() throws Exception
     {
-        SystemTable.discardCompactionLogs();
+        SystemTable.discardCompactionsInProgress();
         SetMultimap<Pair<String, String>, Integer> compactionLogs = SystemTable.getUnfinishedCompactions();
         assert compactionLogs.isEmpty();
 

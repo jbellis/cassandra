@@ -212,7 +212,7 @@ public class CassandraDaemon
         {
             ColumnFamilyStore.removeUnfinishedCompactionLeftovers(kscf.left, kscf.right, unfinishedCompactions.get(kscf));
         }
-        SystemTable.discardCompactionLogs();
+        SystemTable.discardCompactionsInProgress();
 
         // initialize keyspaces
         for (String table : Schema.instance.getTables())

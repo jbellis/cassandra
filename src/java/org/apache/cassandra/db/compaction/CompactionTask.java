@@ -239,7 +239,10 @@ public class CompactionTask extends AbstractCompactionTask
                 throw new RuntimeException(e);
             }
 
-            SystemTable.finishCompaction(taskId);
+            // point of no return -- the new sstables are live on disk; next we'll start deleting the old ones
+            // (in replaceCompactedSSTables)
+            if (taskId != null)
+                SystemTable.finishCompaction(taskId);
 
             if (collector != null)
                 collector.finishCompaction(ci);

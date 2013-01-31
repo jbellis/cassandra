@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
@@ -30,28 +29,25 @@ import com.google.common.base.Function;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
-import com.google.common.collect.Sets;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.avro.ipc.ByteBufferInputStream;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Constants;
@@ -75,7 +71,7 @@ public class SystemTable
     public static final String SCHEMA_KEYSPACES_CF = "schema_keyspaces";
     public static final String SCHEMA_COLUMNFAMILIES_CF = "schema_columnfamilies";
     public static final String SCHEMA_COLUMNS_CF = "schema_columns";
-    public static final String COMPACTION_LOG = "compaction_log";
+    public static final String COMPACTION_LOG = "compactions_in_progress";
 
     @Deprecated
     public static final String OLD_STATUS_CF = "LocationInfo";
@@ -214,12 +210,11 @@ public class SystemTable
 
     public static void finishCompaction(UUID taskId)
     {
-        if (taskId != null)
-        {
-            String req = "DELETE FROM system.%s WHERE id = '%s'";
-            processInternal(String.format(req, COMPACTION_LOG, taskId));
-            forceBlockingFlush(COMPACTION_LOG);
-        }
+        assert taskId != null;
+
+        String req = "DELETE FROM system.%s WHERE id = '%s'";
+        processInternal(String.format(req, COMPACTION_LOG, taskId));
+        forceBlockingFlush(COMPACTION_LOG);
     }
 
     /**
@@ -231,10 +226,8 @@ public class SystemTable
         UntypedResultSet resultSet = processInternal(String.format(req, COMPACTION_LOG));
 
         SetMultimap<Pair<String, String>, Integer> unfinishedCompactions = HashMultimap.create();
-        Iterator<UntypedResultSet.Row> rows = resultSet.iterator();
-        while (rows.hasNext())
+        for (UntypedResultSet.Row row : resultSet)
         {
-            UntypedResultSet.Row row = rows.next();
             String keyspace = row.getString("keyspace_name");
             String columnfamily = row.getString("columnfamily_name");
             Set<Integer> inputs = row.getSet("inputs", Int32Type.instance);
@@ -244,7 +237,7 @@ public class SystemTable
         return unfinishedCompactions;
     }
 
-    public static void discardCompactionLogs()
+    public static void discardCompactionsInProgress()
     {
         ColumnFamilyStore compactionLog = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(COMPACTION_LOG);
         try
