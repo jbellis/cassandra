@@ -30,6 +30,7 @@ import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.io.util.BlockingArrayQueue;
 import org.apache.cassandra.io.util.DiskAwareRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 import org.github.jamm.MemoryMeter;
@@ -70,7 +71,7 @@ public class Memtable
             = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
                                                StageManager.KEEPALIVE,
                                                TimeUnit.SECONDS,
-                                               new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getFlushQueueSize()),
+                                               new BlockingArrayQueue<Runnable>(DatabaseDescriptor.getFlushQueueSize()),
                                                new NamedThreadFactory("FlushWriter"),
                                                "internal");
 

@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import com.google.common.collect.AbstractIterator;
 
@@ -46,7 +47,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
 
     private final String table;
     private List<InetAddress> sources;
-    protected final Collection<MessageIn<RangeSliceReply>> responses = new LinkedBlockingQueue<MessageIn<RangeSliceReply>>();;
+    protected final Collection<MessageIn<RangeSliceReply>> responses = new ConcurrentLinkedQueue<MessageIn<RangeSliceReply>>();
     public final List<IAsyncResult> repairResults = new ArrayList<IAsyncResult>();
 
     public RangeSliceResponseResolver(String table)

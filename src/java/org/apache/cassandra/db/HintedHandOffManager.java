@@ -52,6 +52,7 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.util.BlockingArrayQueue;
 import org.apache.cassandra.metrics.HintedHandoffMetrics;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageOut;
@@ -106,7 +107,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     private final ThreadPoolExecutor executor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getMaxHintsThread(),
                                                                                  Integer.MAX_VALUE,
                                                                                  TimeUnit.SECONDS,
-                                                                                 new LinkedBlockingQueue<Runnable>(),
+                                                                                 new BlockingArrayQueue<Runnable>(),
                                                                                  new NamedThreadFactory("HintedHandoff", Thread.MIN_PRIORITY), "internal");
 
     public void start()

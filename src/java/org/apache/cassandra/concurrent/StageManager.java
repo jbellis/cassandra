@@ -23,11 +23,11 @@ import java.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.io.util.BlockingArrayQueue;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.*;
-import org.apache.cassandra.utils.FBUtilities;
 
 
 /**
@@ -84,7 +84,7 @@ public class StageManager
         return new JMXEnabledThreadPoolExecutor(numThreads,
                                                 KEEPALIVE,
                                                 TimeUnit.SECONDS,
-                                                new LinkedBlockingQueue<Runnable>(),
+                                                new BlockingArrayQueue<Runnable>(),
                                                 new NamedThreadFactory(stage.getJmxName()),
                                                 stage.getJmxType());
     }
@@ -94,7 +94,7 @@ public class StageManager
         return new JMXConfigurableThreadPoolExecutor(numThreads,
                                                      KEEPALIVE,
                                                      TimeUnit.SECONDS,
-                                                     new LinkedBlockingQueue<Runnable>(),
+                                                     new BlockingArrayQueue<Runnable>(),
                                                      new NamedThreadFactory(stage.getJmxName()),
                                                      stage.getJmxType());
     }
@@ -104,7 +104,7 @@ public class StageManager
         return new JMXConfigurableThreadPoolExecutor(numThreads,
                                                      KEEPALIVE,
                                                      TimeUnit.SECONDS,
-                                                     new LinkedBlockingQueue<Runnable>(maxTasksBeforeBlock),
+                                                     new BlockingArrayQueue<Runnable>(),
                                                      new NamedThreadFactory(stage.getJmxName()),
                                                      stage.getJmxType());
     }

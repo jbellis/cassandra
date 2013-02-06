@@ -52,6 +52,7 @@ import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.util.BlockingArrayQueue;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -967,7 +968,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         private CompactionExecutor(int threadCount, String name)
         {
-            this(threadCount, threadCount, name, new LinkedBlockingQueue<Runnable>());
+            this(threadCount, threadCount, name, new BlockingArrayQueue<Runnable>());
         }
 
         public CompactionExecutor()

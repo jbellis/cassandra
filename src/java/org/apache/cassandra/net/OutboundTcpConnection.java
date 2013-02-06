@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.io.util.BlockingArrayQueue;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -53,8 +54,8 @@ public class OutboundTcpConnection extends Thread
 
     // sending thread reads from "active" (one of queue1, queue2) until it is empty.
     // then it swaps it with "backlog."
-    private volatile BlockingQueue<QueuedMessage> backlog = new LinkedBlockingQueue<QueuedMessage>();
-    private volatile BlockingQueue<QueuedMessage> active = new LinkedBlockingQueue<QueuedMessage>();
+    private volatile BlockingQueue<QueuedMessage> backlog = new BlockingArrayQueue<QueuedMessage>();
+    private volatile BlockingQueue<QueuedMessage> active = new BlockingArrayQueue<QueuedMessage>();
 
     private final OutboundTcpConnectionPool poolReference;
 

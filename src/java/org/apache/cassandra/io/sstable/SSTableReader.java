@@ -223,7 +223,7 @@ public class SSTableReader extends SSTable
                                                       final CFMetaData metadata,
                                                       final IPartitioner partitioner)
     {
-        final Collection<SSTableReader> sstables = new LinkedBlockingQueue<SSTableReader>();
+        final Collection<SSTableReader> sstables = new ConcurrentLinkedQueue<SSTableReader>();
 
         ExecutorService executor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("SSTableBatchOpen", FBUtilities.getAvailableProcessors());
         for (final Map.Entry<Descriptor, Set<Component>> entry : entries)

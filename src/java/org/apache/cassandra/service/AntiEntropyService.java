@@ -45,6 +45,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.BlockingArrayQueue;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.streaming.StreamingRepairTask;
@@ -95,7 +96,7 @@ public class AntiEntropyService
         executor = new JMXConfigurableThreadPoolExecutor(4,
                                                          60,
                                                          TimeUnit.SECONDS,
-                                                         new LinkedBlockingQueue<Runnable>(),
+                                                         new BlockingArrayQueue<Runnable>(),
                                                          new NamedThreadFactory("AntiEntropySessions"),
                                                          "internal");
     }

@@ -185,8 +185,8 @@ public class PBSPredictor implements PBSPredictorMBean
     }
 
     // used for LRU replacement
-    private final Queue<String> writeMessageIds = new LinkedBlockingQueue<String>();
-    private final Queue<String> readMessageIds = new LinkedBlockingQueue<String>();
+    private final Queue<String> writeMessageIds = new ConcurrentLinkedQueue<String>();
+    private final Queue<String> readMessageIds = new ConcurrentLinkedQueue<String>();
 
     private final Map<String, MessageLatencyCollection> messageIdToWriteLats = new ConcurrentHashMap<String, MessageLatencyCollection>();
     private final Map<String, MessageLatencyCollection> messageIdToReadLats = new ConcurrentHashMap<String, MessageLatencyCollection>();

@@ -37,6 +37,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.ICountableColumnIterator;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
+import org.apache.cassandra.io.util.BlockingArrayQueue;
 import org.apache.cassandra.utils.*;
 
 /**
@@ -267,7 +268,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
     private static class Deserializer extends AbstractIterator<RowContainer> implements CloseableIterator<RowContainer>
     {
-        private final LinkedBlockingQueue<RowContainer> queue = new LinkedBlockingQueue<RowContainer>(1);
+        private final BlockingQueue<RowContainer> queue = new BlockingArrayQueue<RowContainer>(1);
         private static final RowContainer finished = new RowContainer((Row) null);
         private Condition condition;
         private final ICompactionScanner scanner;
