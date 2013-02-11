@@ -328,8 +328,9 @@ public class BlockingArrayQueue<E> extends AbstractList<E> implements BlockingQu
     public boolean offer(E o, long timeout, TimeUnit unit) throws InterruptedException
     {
         // The mechanism to await and signal when the queue is full is not implemented
-        if (!offer(o))
-            throw new AssertionError("BlockingArrayQueue only blocks on dequeue");
+        if (offer(o))
+            return true;
+        throw new AssertionError("BlockingArrayQueue only blocks on dequeue");
     }
 
     @SuppressWarnings("unchecked")
