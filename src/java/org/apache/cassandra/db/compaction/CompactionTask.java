@@ -92,6 +92,15 @@ public class CompactionTask extends AbstractCompactionTask
         // it is not empty, it may compact down to nothing if all rows are deleted.
         assert sstables != null && sstableDirectory != null;
 
+        // Note that the current compaction strategy, is not necessarily the one this task was created under.
+        // This should be harmless; see comments to CFS.maybeReloadCompactionStrategy.
+        AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
+        if (!strategy.isActive())
+        {
+            logger.debug("Compactions are paused; aborting");
+            return;
+        }
+
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.name);
 
@@ -110,7 +119,6 @@ public class CompactionTask extends AbstractCompactionTask
         long startTime = System.currentTimeMillis();
         long totalkeysWritten = 0;
 
-        AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
         long estimatedTotalKeys = Math.max(cfs.metadata.getIndexInterval(), SSTableReader.getApproximateKeyCount(toCompact, cfs.metadata));
         long estimatedSSTables = Math.max(1, SSTable.getTotalBytes(toCompact) / strategy.getMaxSSTableSize());
         long keysPerSSTable = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);

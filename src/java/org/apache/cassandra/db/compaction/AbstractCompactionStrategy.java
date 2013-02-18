@@ -53,6 +53,8 @@ public abstract class AbstractCompactionStrategy
     protected float tombstoneThreshold;
     protected long tombstoneCompactionInterval;
 
+    private volatile boolean isActive = true;
+
     protected AbstractCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
         assert cfs != null;
@@ -77,11 +79,28 @@ public abstract class AbstractCompactionStrategy
         }
     }
 
+    public void pause()
+    {
+        isActive = false;
+    }
+
+    public void resume()
+    {
+        isActive = true;
+    }
+
+    public boolean isActive()
+    {
+        return isActive;
+    }
+
     /**
      * Releases any resources if this strategy is shutdown (when the CFS is reloaded after a schema change).
-     * Default is to do nothing.
      */
-    public void shutdown() { }
+    public void shutdown()
+    {
+        isActive = false;
+    }
 
     /**
      * @param gcBefore throw away tombstones older than this

@@ -32,6 +32,7 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Callables;
 import com.google.common.util.concurrent.Futures;
 
 import org.apache.cassandra.db.compaction.LeveledManifest;
@@ -152,16 +153,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (metadata.compactionStrategyClass.equals(compactionStrategy.getClass()) && metadata.compactionStrategyOptions.equals(compactionStrategy.options))
             return;
 
-        // TODO is there a way to avoid locking here?
-        CompactionManager.instance.getCompactionLock().lock();
-        try
+        // synchronize vs runWithCompactionsDisabled calling pause/resume.  otherwise, letting old compactions
+        // finish should be harmless and possibly useful.
+        synchronized (this)
         {
             compactionStrategy.shutdown();
             compactionStrategy = metadata.createCompactionStrategyInstance(this);
-        }
-        finally
-        {
-            CompactionManager.instance.getCompactionLock().unlock();
         }
     }
 
@@ -1815,12 +1812,65 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
 
-        long truncatedAt = System.currentTimeMillis();
+        final long truncatedAt = System.currentTimeMillis();
         if (DatabaseDescriptor.isAutoSnapshot())
             snapshot(Table.getTimestampedSnapshotName(name));
 
-        return CompactionManager.instance.submitTruncate(this, truncatedAt);
+        Runnable truncateRunnable = new Runnable()
+        {
+            public void run()
+            {
+                ReplayPosition replayAfter = discardSSTables(truncatedAt);
+
+                for (SecondaryIndex index : indexManager.getIndexes())
+                    index.truncate(truncatedAt);
+
+                SystemTable.saveTruncationPosition(ColumnFamilyStore.this, replayAfter);
+
+                for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
+                {
+                    if (key.cfId == metadata.cfId)
+                        CacheService.instance.rowCache.remove(key);
+                }
+            }
+        };
+
+        runWithCompactionsDisabled(Executors.callable(truncateRunnable));
+        return Futures.immediateFuture(null);
     }
+
+    public <V> V runWithCompactionsDisabled(Callable<V> callable)
+    {
+        // synchronize so that concurrent invocations don't re-enable compactions partway through unexpectedly
+        synchronized (this)
+        {
+            logger.debug("Cancelling in-progress compactions for {}", metadata.cfName);
+
+            getCompactionStrategy().pause();
+            try
+            {
+                CompactionManager.instance.interruptCompactionFor(Collections.singleton(metadata));
+                while (CompactionManager.instance.isCompacting(metadata))
+                    FBUtilities.sleep(100);
+
+                assert data.getCompacting().isEmpty();
+
+                try
+                {
+                    return callable.call();
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+            finally
+            {
+                getCompactionStrategy().resume();
+            }
+        }
+    }
+
 
     public long getBloomFilterFalsePositives()
     {
@@ -1858,6 +1908,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void disableAutoCompaction()
     {
+        // we don't use CompactionStrategy.pause since we don't want users flipping that on and off
+        // during runWithCompactionsDisabled
         minCompactionThreshold.set(0);
         maxCompactionThreshold.set(0);
     }
@@ -2076,7 +2128,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
-     * Discard all SSTables that were created before given timestamp. Caller is responsible to obtain compactionLock.
+     * Discard all SSTables that were created before given timestamp.
+     *
+     * Caller should first ensure that comapctions have quiesced.
      *
      * @param truncatedAt The timestamp of the truncation
      *                    (all SSTables before that timestamp are going be marked as compacted)

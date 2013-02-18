@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -557,7 +556,7 @@ public class DefsTable
         KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
         String snapshotName = Table.getTimestampedSnapshotName(ksName);
 
-        CompactionManager.instance.stopCompactionFor(ksm.cfMetaData().values());
+        CompactionManager.instance.interruptCompactionFor(ksm.cfMetaData().values());
 
         // remove all cfs from the table instance.
         for (CFMetaData cfm : ksm.cfMetaData().values())
@@ -596,7 +595,7 @@ public class DefsTable
         Schema.instance.purge(cfm);
         Schema.instance.setTableDefinition(makeNewKeyspaceDefinition(ksm, cfm));
 
-        CompactionManager.instance.stopCompactionFor(Arrays.asList(cfm));
+        CompactionManager.instance.interruptCompactionFor(Arrays.asList(cfm));
 
         if (!StorageService.instance.isClientMode())
         {
