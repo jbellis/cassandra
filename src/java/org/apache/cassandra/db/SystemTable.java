@@ -50,6 +50,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.thrift.cassandraConstants;
 import org.apache.cassandra.utils.*;
 
@@ -73,6 +74,7 @@ public class SystemTable
     public static final String SCHEMA_COLUMNFAMILIES_CF = "schema_columnfamilies";
     public static final String SCHEMA_COLUMNS_CF = "schema_columns";
     public static final String COMPACTION_LOG = "compactions_in_progress";
+    public static final String PAXOS_CF = "paxos";
 
     @Deprecated
     public static final String OLD_STATUS_CF = "LocationInfo";
@@ -792,5 +794,36 @@ public class SystemTable
                                                         Integer.MAX_VALUE);
 
         return new Row(key, result);
+    }
+
+    public static PaxosState loadPaxosState(int id)
+    {
+        String req = "SELECT * FROM system.%s WHERE id = %d";
+        UntypedResultSet results = processInternal(String.format(req, PAXOS_CF, id));
+        if (results.isEmpty())
+            return new PaxosState(id);
+        UntypedResultSet.Row row = results.one();
+        return new PaxosState(id,
+                              row.getUUID("in_progress_ballot"),
+                              row.getUUID("most_recent_committed"),
+                              Row.fromBytes(row.getBytes("proposal")));
+    }
+
+    public static void savePaxosPromise(int id, UUID ballot)
+    {
+        String req = "UPDATE %s USING TIMESTAMP %d SET in_progress_ballot = %s WHERE id = %d ";
+        processInternal(String.format(req, PAXOS_CF, UUIDGen.unixTimestamp(ballot), ballot, id));
+    }
+
+    public static void savePaxosProposal(int id, UUID ballot, Row proposal)
+    {
+        String req = "UPDATE %s USING TIMESTAMP %d SET proposal = %s WHERE id = %d";
+        processInternal(String.format(req, PAXOS_CF, UUIDGen.unixTimestamp(ballot), proposal.toBytes(), id));
+    }
+
+    public static void savePaxosCommit(int id, UUID ballot)
+    {
+        String req = "UPDATE %s USING TIMESTAMP %d SET proposal = null, most_recent_committed = %s WHERE id = %d";
+        processInternal(String.format(req, PAXOS_CF, UUIDGen.unixTimestamp(ballot), ballot, id));
     }
 }
