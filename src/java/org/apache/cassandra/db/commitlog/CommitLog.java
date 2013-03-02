@@ -184,11 +184,11 @@ public class CommitLog implements CommitLogMBean
     /**
      * Add a RowMutation to the commit log.
      *
-     * @param rm the RowMutation to add to the log
+     * @param entry the RowMutation to add to the log
      */
-    public void add(RowMutation rm)
+    public void add(ICommitLogEntry entry)
     {
-        executor.add(new LogRecordAdder(rm));
+        executor.add(new LogRecordAdder(entry));
     }
 
     /**
@@ -334,16 +334,16 @@ public class CommitLog implements CommitLogMBean
     // without breaking the fragile CheaterFutureTask in BatchCLES.
     class LogRecordAdder implements Callable, Runnable
     {
-        final RowMutation rowMutation;
+        final ICommitLogEntry entry;
 
-        LogRecordAdder(RowMutation rm)
+        LogRecordAdder(ICommitLogEntry entry)
         {
-            this.rowMutation = rm;
+            this.entry = entry;
         }
 
         public void run()
         {
-            long totalSize = RowMutation.serializer.serializedSize(rowMutation, MessagingService.current_version) + CommitLogSegment.ENTRY_OVERHEAD_SIZE;
+            long totalSize = entry.size() + CommitLogSegment.ENTRY_OVERHEAD_SIZE;
             if (totalSize > DatabaseDescriptor.getCommitLogSegmentSize())
             {
                 logger.warn("Skipping commitlog append of extremely large mutation ({} bytes)", totalSize);
@@ -358,9 +358,10 @@ public class CommitLog implements CommitLogMBean
                 // (Do this here instead of in the recycle call so we can get a head start on the archive.)
                 archiver.maybeArchive(oldSegment.getPath(), oldSegment.getName());
             }
+
             try
             {
-                activeSegment.write(rowMutation);
+                activeSegment.write(entry);
             }
             catch (IOException e)
             {
