@@ -89,7 +89,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
      */
     public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
-        if (cfs.isCompactionDisabled())
+        if (!isActive() || cfs.isCompactionDisabled())
             return null;
 
         return getMaximalTask(gcBefore);

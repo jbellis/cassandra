@@ -133,6 +133,9 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
+        if (!isActive())
+            return null;
+
         while (true)
         {
             List<SSTableReader> smallestBucket = getNextBackgroundSSTables(gcBefore);
@@ -151,14 +154,13 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         {
             public CompactionTask call() throws Exception
             {
-                while (true)
-                {
-                    Set<SSTableReader> sstables = cfs.getUncompactingSSTables();
-                    if (sstables.isEmpty())
-                        return null;
-                    if (cfs.getDataTracker().markCompacting(sstables))
-                        return new CompactionTask(cfs, filterSuspectSSTables(cfs.getSSTables()), gcBefore);
-                }
+                assert cfs.getDataTracker().getCompacting().isEmpty() : cfs.getDataTracker().getCompacting();
+                Collection<SSTableReader> sstables = filterSuspectSSTables(cfs.getSSTables());
+                if (sstables.isEmpty())
+                    return null;
+                boolean success = cfs.getDataTracker().markCompacting(sstables);
+                assert success : "something marked things compacting during a major compaction";
+                return new CompactionTask(cfs, sstables, gcBefore);
             }
         };
         return cfs.runWithCompactionsDisabled(callable);

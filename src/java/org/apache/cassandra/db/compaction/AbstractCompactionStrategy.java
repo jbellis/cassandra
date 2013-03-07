@@ -79,11 +79,19 @@ public abstract class AbstractCompactionStrategy
         }
     }
 
+    /**
+     * For internal, temporary suspension of background compactions so that we can do exceptional
+     * things like truncate or major compaction
+     */
     public void pause()
     {
         isActive = false;
     }
 
+    /**
+     * For internal, temporary suspension of background compactions so that we can do exceptional
+     * things like truncate or major compaction
+     */
     public void resume()
     {
         isActive = true;
