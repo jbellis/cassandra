@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import javax.management.*;
 
+import com.google.common.base.Function;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -1844,8 +1845,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             getCompactionStrategy().pause();
             try
             {
-                CompactionManager.instance.interruptCompactionFor(Collections.singleton(metadata));
-                while (CompactionManager.instance.isCompacting(metadata))
+                Function<ColumnFamilyStore, CFMetaData> f = new Function<ColumnFamilyStore, CFMetaData>()
+                {
+                    public CFMetaData apply(ColumnFamilyStore cfs)
+                    {
+                        return cfs.metadata;
+                    }
+                };
+                Iterable<CFMetaData> allMetadata = Iterables.transform(concatWithIndexes(), f);
+                CompactionManager.instance.interruptCompactionFor(allMetadata);
+                while (CompactionManager.instance.isCompacting(allMetadata))
                     FBUtilities.sleep(100);
 
                 assert data.getCompacting().isEmpty();

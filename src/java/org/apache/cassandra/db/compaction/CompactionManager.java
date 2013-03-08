@@ -26,10 +26,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.base.Throwables;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ConcurrentHashMultiset;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multiset;
+import com.google.common.collect.*;
 import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +38,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionInfo.Holder;
 import org.apache.cassandra.db.index.SecondaryIndexBuilder;
 import org.apache.cassandra.dht.Bounds;
@@ -131,11 +129,11 @@ public class CompactionManager implements CompactionManagerMBean
         return futures;
     }
 
-    public boolean isCompacting(CFMetaData metadata)
+    public boolean isCompacting(Iterable<CFMetaData> columnFamilies)
     {
         for (Holder holder : CompactionMetrics.getCompactions())
         {
-            if (holder.getCompactionInfo().getCFMetaData() == metadata)
+            if (Iterables.contains(columnFamilies, holder.getCompactionInfo().getCFMetaData()))
                 return true;
         }
         return false;
@@ -985,17 +983,18 @@ public class CompactionManager implements CompactionManagerMBean
      *
      * @param columnFamilies The ColumnFamilies to try to stop compaction upon.
      */
-    public void interruptCompactionFor(Collection<CFMetaData> columnFamilies)
+    public void interruptCompactionFor(Iterable<CFMetaData> columnFamilies)
     {
         assert columnFamilies != null;
 
+        // interrupt in-progress compactions
         for (Holder compactionHolder : CompactionMetrics.getCompactions())
         {
             CompactionInfo info = compactionHolder.getCompactionInfo();
             if (info.getTaskType() == OperationType.VALIDATION)
                 continue;
 
-            if (columnFamilies.contains(info.getCFMetaData()))
+            if (Iterables.contains(columnFamilies, info.getCFMetaData()))
                 compactionHolder.stop(); // signal compaction to stop
         }
     }
