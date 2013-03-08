@@ -1762,9 +1762,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         //
         // Bonus complication: since we store replay position in sstable metadata,
         // truncating those sstables means we will replay any CL segments from the
-        // beginning if we restart before they are discarded for normal reasons
-        // post-truncate.  So we need to create a "dummy" sstable containing
-        // only the replay position.  This is done by CompactionManager.submitTruncate.
+        // beginning if we restart before they [the CL segments] are discarded for
+        // normal reasons post-truncate.  To prevent this, we store truncation
+        // position in the System keyspace.
         logger.debug("truncating {}", name);
 
         if (DatabaseDescriptor.isAutoSnapshot())
@@ -1808,14 +1808,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
 
-        final long truncatedAt = System.currentTimeMillis();
-        if (DatabaseDescriptor.isAutoSnapshot())
-            snapshot(Table.getTimestampedSnapshotName(name));
-
         Runnable truncateRunnable = new Runnable()
         {
             public void run()
             {
+                final long truncatedAt = System.currentTimeMillis();
+                if (DatabaseDescriptor.isAutoSnapshot())
+                    snapshot(Table.getTimestampedSnapshotName(name));
+
                 ReplayPosition replayAfter = discardSSTables(truncatedAt);
 
                 for (SecondaryIndex index : indexManager.getIndexes())
