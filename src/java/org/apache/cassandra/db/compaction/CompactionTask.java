@@ -225,15 +225,6 @@ public class CompactionTask extends AbstractCompactionTask
         {
             controller.close();
 
-            try
-            {
-                iter.close();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-
             // point of no return -- the new sstables are live on disk; next we'll start deleting the old ones
             // (in replaceCompactedSSTables)
             if (taskId != null)
@@ -241,6 +232,17 @@ public class CompactionTask extends AbstractCompactionTask
 
             if (collector != null)
                 collector.finishCompaction(ci);
+
+            try
+            {
+                // We don't expect this to throw, but just in case, we do it after the cleanup above, to make sure
+                // we don't end up with compaction information hanging around indefinitely in limbo.
+                iter.close();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
         cfs.replaceCompactedSSTables(toCompact, sstables, compactionType);
