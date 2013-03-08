@@ -614,18 +614,7 @@ public class CompactionManager implements CompactionManagerMBean
         else
         {
             // flush first so everyone is validating data that is as similar as possible
-            try
-            {
-                StorageService.instance.forceTableFlush(cfs.table.getName(), cfs.name);
-            }
-            catch (ExecutionException e)
-            {
-                throw new IOException(e);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
+            StorageService.instance.forceTableFlush(cfs.table.getName(), cfs.name);
 
             // we don't mark validating sstables as compacting in DataTracker, so we have to mark them referenced
             // instead so they won't be cleaned up if they do get compacted during the validation

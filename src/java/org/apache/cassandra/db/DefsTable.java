@@ -209,21 +209,9 @@ public class DefsTable
 
         logger.info("Fixing timestamps of schema ColumnFamily " + columnFamily + "...");
 
-        try
-        {
-            cfs.truncate().get();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        cfs.truncateBlocking();
 
         long microTimestamp = now.getTime() * 1000;
-
         for (Row row : rows)
         {
             if (Schema.invalidSchemaRow(row))
@@ -240,18 +228,7 @@ public class DefsTable
             mutation.apply();
         }
         // flush immediately because we read schema before replaying the commitlog
-        try
-        {
-            cfs.forceBlockingFlush();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException("Could not flush after fixing schema timestamps", e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        cfs.forceBlockingFlush();
     }
 
     public static ByteBuffer searchComposite(String name, boolean start)
