@@ -113,14 +113,14 @@ public class CompactionManager implements CompactionManagerMBean
         if (count > 0 && executor.getActiveCount() >= executor.getMaximumPoolSize())
         {
             logger.debug("Background compaction is still running for {}.{} ({} remaining). Skipping",
-                         new Object[] { cfs.table.getName(), cfs.name, count});
+                         cfs.table.getName(), cfs.name, count);
             return Collections.emptyList();
         }
 
         logger.debug("Scheduling a background task check for {}.{} with {}",
-                     new Object[] { cfs.table.getName(),
-                                   cfs.name,
-                                   cfs.getCompactionStrategy().getClass().getSimpleName()});
+                     cfs.table.getName(),
+                     cfs.name,
+                     cfs.getCompactionStrategy().getClass().getSimpleName());
         List<Future<?>> futures = new ArrayList<Future<?>>();
         // if we have room for more compactions, then fill up executor
         while (executor.getActiveCount() + futures.size() < executor.getMaximumPoolSize())
