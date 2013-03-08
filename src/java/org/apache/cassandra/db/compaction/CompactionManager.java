@@ -992,6 +992,8 @@ public class CompactionManager implements CompactionManagerMBean
         for (Holder compactionHolder : CompactionMetrics.getCompactions())
         {
             CompactionInfo info = compactionHolder.getCompactionInfo();
+            if (info.getTaskType() == OperationType.VALIDATION)
+                continue;
 
             if (columnFamilies.contains(info.getCFMetaData()))
                 compactionHolder.stop(); // signal compaction to stop

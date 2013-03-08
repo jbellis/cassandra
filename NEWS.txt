@@ -20,7 +20,7 @@ Upgrading
 Operations
 ----------
     - Major compactions, cleanup, scrub, and upgradesstables will interrupt 
-      any in-progress compactions when invoked.
+      any in-progress compactions (but not repair validations) when invoked.
 
 
 1.2.3
