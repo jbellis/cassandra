@@ -1853,7 +1853,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     }
                 };
                 Iterable<CFMetaData> allMetadata = Iterables.transform(concatWithIndexes(), f);
-                CompactionManager.instance.interruptCompactionFor(allMetadata);
+                CompactionManager.instance.interruptCompactionFor(allMetadata, false);
                 while (CompactionManager.instance.isCompacting(allMetadata))
                     FBUtilities.sleep(100);
 

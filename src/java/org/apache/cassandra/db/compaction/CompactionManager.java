@@ -982,8 +982,9 @@ public class CompactionManager implements CompactionManagerMBean
      * Note that this method does not wait indefinitely for all compactions to finish, maximum wait time is 30 secs.
      *
      * @param columnFamilies The ColumnFamilies to try to stop compaction upon.
+     * @param interruptRepairs
      */
-    public void interruptCompactionFor(Iterable<CFMetaData> columnFamilies)
+    public void interruptCompactionFor(Iterable<CFMetaData> columnFamilies, boolean interruptRepairs)
     {
         assert columnFamilies != null;
 
