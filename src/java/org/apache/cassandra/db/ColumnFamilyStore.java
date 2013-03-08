@@ -1818,7 +1818,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 ReplayPosition replayAfter = discardSSTables(truncatedAt);
 
                 for (SecondaryIndex index : indexManager.getIndexes())
-                    index.truncate(truncatedAt);
+                    index.truncateBlocking(truncatedAt);
 
                 SystemTable.saveTruncationPosition(ColumnFamilyStore.this, replayAfter);
 

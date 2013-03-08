@@ -140,7 +140,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         indexCfs.invalidate();
     }
 
-    public void truncate(long truncatedAt)
+    public void truncateBlocking(long truncatedAt)
     {
         indexCfs.discardSSTables(truncatedAt);
     }

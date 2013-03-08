@@ -164,7 +164,7 @@ public abstract class SecondaryIndex
      *
      * @param truncatedAt The truncation timestamp, all data before that timestamp should be rejected.
      */
-    public abstract void truncate(long truncatedAt);
+    public abstract void truncateBlocking(long truncatedAt);
 
     /**
      * Builds the index using the data in the underlying CFS
