@@ -150,20 +150,8 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public AbstractCompactionTask getMaximalTask(final int gcBefore)
     {
-        Callable<CompactionTask> callable = new Callable<CompactionTask>()
-        {
-            public CompactionTask call() throws Exception
-            {
-                assert cfs.getDataTracker().getCompacting().isEmpty() : cfs.getDataTracker().getCompacting();
-                Collection<SSTableReader> sstables = filterSuspectSSTables(cfs.getSSTables());
-                if (sstables.isEmpty())
-                    return null;
-                boolean success = cfs.getDataTracker().markCompacting(sstables);
-                assert success : "something marked things compacting during a major compaction";
-                return new CompactionTask(cfs, sstables, gcBefore);
-            }
-        };
-        return cfs.runWithCompactionsDisabled(callable);
+        Collection<SSTableReader> sstables = cfs.markAllCompacting();
+        return new CompactionTask(cfs, sstables, gcBefore);
     }
 
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore)

@@ -58,7 +58,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
 
 /**
  * A singleton which manages a private executor of ongoing compactions.
- *
+ * <p/>
  * Scheduling for compaction is accomplished by swapping sstables to be compacted into
  * a set via DataTracker. New scheduling attempts will ignore currently compacting
  * sstables.
@@ -74,7 +74,8 @@ public class CompactionManager implements CompactionManagerMBean
 
     // A thread local that tells us if the current thread is owned by the compaction manager. Used
     // by CounterContext to figure out if it should log a warning for invalid counter shards.
-    public static final ThreadLocal<Boolean> isCompactionManager = new ThreadLocal<Boolean>() {
+    public static final ThreadLocal<Boolean> isCompactionManager = new ThreadLocal<Boolean>()
+    {
         @Override
         protected Boolean initialValue()
         {
@@ -186,20 +187,11 @@ public class CompactionManager implements CompactionManagerMBean
 
     private void performAllSSTableOperation(final ColumnFamilyStore cfs, final AllSSTablesOperation operation) throws InterruptedException, ExecutionException
     {
+        final Collection<SSTableReader> sstables = cfs.markAllCompacting();
         Callable<Object> runnable = new Callable<Object>()
         {
             public Object call() throws IOException
             {
-                Collection<SSTableReader> sstables;
-                while (true)
-                {
-                    sstables = cfs.getDataTracker().getUncompactingSSTables();
-                    if (sstables.isEmpty())
-                        return this;
-                    if (cfs.getDataTracker().markCompacting(sstables))
-                        break;
-                }
-
                 operation.perform(cfs, sstables);
                 cfs.getDataTracker().unmarkCompacting(sstables);
                 return this;
@@ -464,9 +456,9 @@ public class CompactionManager implements CompactionManagerMBean
             long totalkeysWritten = 0;
 
             int expectedBloomFilterSize = Math.max(cfs.metadata.getIndexInterval(),
-                                                   (int)(SSTableReader.getApproximateKeyCount(Arrays.asList(sstable),cfs.metadata)));
+                                                   (int) (SSTableReader.getApproximateKeyCount(Arrays.asList(sstable), cfs.metadata)));
             if (logger.isDebugEnabled())
-              logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
+                logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
             SSTableWriter writer = null;
             SSTableReader newSstable = null;
@@ -514,12 +506,12 @@ public class CompactionManager implements CompactionManagerMBean
                                 OnDiskAtom column = row.next();
                                 if (column instanceof CounterColumn)
                                     renewer.maybeRenew((CounterColumn) column);
-                                if (column instanceof Column && cfs.indexManager.indexes((Column)column))
+                                if (column instanceof Column && cfs.indexManager.indexes((Column) column))
                                 {
                                     if (indexedColumnsInRow == null)
                                         indexedColumnsInRow = new ArrayList<Column>();
 
-                                    indexedColumnsInRow.add((Column)column);
+                                    indexedColumnsInRow.add((Column) column);
                                 }
                             }
 
@@ -566,8 +558,8 @@ public class CompactionManager implements CompactionManagerMBean
                 long dTime = System.currentTimeMillis() - startTime;
                 long startsize = sstable.onDiskLength();
                 long endsize = newSstable.onDiskLength();
-                double ratio = (double)endsize / (double)startsize;
-                logger.info(String.format(format, writer.getFilename(), startsize, endsize, (int)(ratio*100), totalkeysWritten, dTime));
+                double ratio = (double) endsize / (double) startsize;
+                logger.info(String.format(format, writer.getFilename(), startsize, endsize, (int) (ratio * 100), totalkeysWritten, dTime));
             }
 
             // flush to ensure we don't lose the tombstones on a restart, since they are not commitlog'd
@@ -617,7 +609,7 @@ public class CompactionManager implements CompactionManagerMBean
             // this at a different time (that's the whole purpose of repair with snaphsot). So instead we take the creation
             // time of the snapshot, which should give us roughtly the same time on each replica (roughtly being in that case
             // 'as good as in the non-snapshot' case)
-            gcBefore = (int)(cfs.getSnapshotCreationTime(validator.request.sessionid) / 1000) - cfs.metadata.getGcGraceSeconds();
+            gcBefore = (int) (cfs.getSnapshotCreationTime(validator.request.sessionid) / 1000) - cfs.metadata.getGcGraceSeconds();
         }
         else
         {
@@ -811,7 +803,7 @@ public class CompactionManager implements CompactionManagerMBean
         @Override
         public void afterExecute(Runnable r, Throwable t)
         {
-            super.afterExecute(r,t);
+            super.afterExecute(r, t);
 
             if (t == null)
                 t = DebuggableThreadPoolExecutor.extractThrowable(r);
@@ -842,6 +834,7 @@ public class CompactionManager implements CompactionManagerMBean
     public interface CompactionExecutorStatsCollector
     {
         void beginCompaction(CompactionInfo.Holder ci);
+
         void finishCompaction(CompactionInfo.Holder ci);
     }
 
@@ -924,6 +917,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         private final SSTableReader sstable;
         private final SSTableScanner scanner;
+
         public CleanupInfo(SSTableReader sstable, SSTableScanner scanner)
         {
             this.sstable = sstable;

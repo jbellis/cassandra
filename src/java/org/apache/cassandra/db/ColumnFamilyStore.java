@@ -32,10 +32,10 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.Callables;
 import com.google.common.util.concurrent.Futures;
 
-import org.apache.cassandra.db.compaction.LeveledManifest;
+import org.apache.cassandra.db.compaction.*;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,10 +52,6 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -1872,6 +1868,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
+    public Collection<SSTableReader> markAllCompacting()
+    {
+        Callable<Collection<SSTableReader>> callable = new Callable<Collection<SSTableReader>>()
+        {
+            public Collection<SSTableReader> call() throws Exception
+            {
+                assert data.getCompacting().isEmpty() : data.getCompacting();
+                Collection<SSTableReader> sstables = AbstractCompactionStrategy.filterSuspectSSTables(getSSTables());
+                if (sstables.isEmpty())
+                    return null;
+                boolean success = data.markCompacting(sstables);
+                assert success : "something marked things compacting while compactions are disabled";
+                return sstables;
+            }
+        };
+
+        return runWithCompactionsDisabled(callable);
+    }
 
     public long getBloomFilterFalsePositives()
     {
