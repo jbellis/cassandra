@@ -27,6 +27,7 @@ import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.ColumnIndex;
+import org.apache.cassandra.io.sstable.IIndexWriter;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.utils.Pair;
 
@@ -51,7 +52,7 @@ public abstract class AbstractCompactedRow implements Closeable
      *
      * write() may change internal state; it is NOT valid to call write() or update() a second time.
      */
-    public abstract Pair<Long, RowIndexEntry> write(long currentPosition, DataOutput out, SSTableWriter.IndexWriter iwriter) throws IOException;
+    public abstract Pair<Long, RowIndexEntry> write(long currentPosition, DataOutput out, IIndexWriter iwriter) throws IOException;
 
     /**
      * update @param digest with the data bytes of the row (not including row key or row size).

@@ -437,7 +437,7 @@ public class SSTableWriter extends SSTable
     /**
      * Encapsulates writing the index and filter for an SSTable. The state of this object is not valid until it has been closed.
      */
-    public class IndexWriter implements Closeable
+    public class IndexWriter implements IIndexWriter
     {
         private final SequentialWriter indexFile;
         public final SegmentedFile.Builder builder;

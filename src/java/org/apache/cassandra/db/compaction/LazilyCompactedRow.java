@@ -34,8 +34,8 @@ import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.ColumnStats;
+import org.apache.cassandra.io.sstable.IIndexWriter;
 import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Pair;
@@ -113,7 +113,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         this.columnsIndex = indexBuilder.build(this);
     }
 
-    public Pair<Long, RowIndexEntry> write(long currentPosition, DataOutput out, SSTableWriter.IndexWriter iwriter) throws IOException
+    public Pair<Long, RowIndexEntry> write(long currentPosition, DataOutput out, IIndexWriter iwriter) throws IOException
     {
         assert !closed;
 

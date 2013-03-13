@@ -36,10 +36,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.MappedFileDataInput;
 import org.apache.cassandra.net.MessagingService;
@@ -94,8 +91,8 @@ public class LazilyCompactedRowTest extends SchemaLoader
             AbstractCompactedRow row2 = iter2.next();
             DataOutputBuffer out1 = new DataOutputBuffer();
             DataOutputBuffer out2 = new DataOutputBuffer();
-            row1.write(0, out1, new SSTableWriter.IndexWriter(1));
-            row2.write(0, out2, new SSTableWriter.IndexWriter(1));
+            row1.write(0, out1, new FakeIndexWriter());
+            row2.write(0, out2, new FakeIndexWriter());
 
             File tmpFile1 = File.createTempFile("lcrt1", null);
             File tmpFile2 = File.createTempFile("lcrt2", null);
@@ -315,7 +312,6 @@ public class LazilyCompactedRowTest extends SchemaLoader
         assertBytes(cfs, Integer.MAX_VALUE);
     }
 
-
     private static class LazilyCompactingController extends CompactionController
     {
         public LazilyCompactingController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
@@ -342,5 +338,16 @@ public class LazilyCompactedRowTest extends SchemaLoader
         {
             return new PrecompactedRow(this, rows);
         }
+    }
+
+    private static class FakeIndexWriter implements IIndexWriter
+    {
+        public void append(DecoratedKey key, RowIndexEntry indexEntry) { }
+
+        public void mark() { }
+
+        public void resetAndTruncate() { }
+
+        public void close() throws IOException { }
     }
 }

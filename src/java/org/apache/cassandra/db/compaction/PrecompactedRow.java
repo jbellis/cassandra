@@ -27,8 +27,8 @@ import com.google.common.base.Functions;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.ColumnStats;
+import org.apache.cassandra.io.sstable.IIndexWriter;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
-import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.Pair;
@@ -128,7 +128,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         return cf;
     }
 
-    public Pair<Long, RowIndexEntry> write(long currentPosition, DataOutput out, SSTableWriter.IndexWriter iwriter) throws IOException
+    public Pair<Long, RowIndexEntry> write(long currentPosition, DataOutput out, IIndexWriter iwriter) throws IOException
     {
         assert compactedCf != null;
         DataOutputBuffer buffer = new DataOutputBuffer();
