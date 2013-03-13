@@ -134,7 +134,7 @@ public class SSTableWriter extends SSTable
         return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
     }
 
-    private void afterAppend(DecoratedKey decoratedKey, long dataPosition, DeletionInfo delInfo)
+    private void afterAppend(DecoratedKey decoratedKey, long dataPosition)
     {
         lastWrittenKey = decoratedKey;
         last = lastWrittenKey;
@@ -149,11 +149,14 @@ public class SSTableWriter extends SSTable
     public RowIndexEntry append(AbstractCompactedRow row)
     {
         long currentPosition = beforeAppend(row.key);
+        RowIndexEntry entry;
         try
         {
             ByteBufferUtil.writeWithShortLength(row.key.key, dataFile.stream);
             long dataStart = dataFile.getFilePointer();
-            long dataSize = row.write(dataFile.stream);
+            Pair<Long, RowIndexEntry> rowInfo = row.write(currentPosition, dataFile.stream, iwriter);
+            long dataSize = rowInfo.left;
+            entry = rowInfo.right;
             assert dataSize == dataFile.getFilePointer() - (dataStart + 8)
                    : "incorrect row data size " + dataSize + " written to " + dataFile.getPath() + "; correct is " + (dataFile.getFilePointer() - (dataStart + 8));
         }
@@ -162,9 +165,8 @@ public class SSTableWriter extends SSTable
             throw new FSWriteError(e, dataFile.getPath());
         }
         sstableMetadataCollector.update(dataFile.getFilePointer() - currentPosition, row.columnStats());
-        RowIndexEntry entry = RowIndexEntry.create(currentPosition, row.deletionInfo(), row.index());
-        iwriter.append(row.key, entry);
-        afterAppend(row.key, currentPosition, row.deletionInfo());
+
+        afterAppend(row.key, currentPosition);
         return entry;
     }
 
@@ -194,7 +196,7 @@ public class SSTableWriter extends SSTable
 
             RowIndexEntry entry = RowIndexEntry.create(startPosition, cf.deletionInfo(), index);
             iwriter.append(decoratedKey, entry);
-            afterAppend(decoratedKey, startPosition, cf.deletionInfo());
+            afterAppend(decoratedKey, startPosition);
         }
         catch (IOException e)
         {
@@ -295,7 +297,7 @@ public class SSTableWriter extends SSTable
         RowIndexEntry entry = RowIndexEntry.create(currentPosition, deletionInfo, columnIndexer.build());
         iwriter.append(key, entry);
 
-        afterAppend(key, currentPosition, deletionInfo);
+        afterAppend(key, currentPosition);
         return currentPosition;
     }
 
@@ -435,7 +437,7 @@ public class SSTableWriter extends SSTable
     /**
      * Encapsulates writing the index and filter for an SSTable. The state of this object is not valid until it has been closed.
      */
-    class IndexWriter implements Closeable
+    public class IndexWriter implements Closeable
     {
         private final SequentialWriter indexFile;
         public final SegmentedFile.Builder builder;

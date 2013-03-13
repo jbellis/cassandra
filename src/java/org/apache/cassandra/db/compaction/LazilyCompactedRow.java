@@ -35,8 +35,10 @@ import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.MergeIterator;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.StreamingHistogram;
 
 /**
@@ -111,7 +113,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         this.columnsIndex = indexBuilder.build(this);
     }
 
-    public long write(DataOutput out) throws IOException
+    public Pair<Long, RowIndexEntry> write(long currentPosition, DataOutput out, SSTableWriter.IndexWriter iwriter) throws IOException
     {
         assert !closed;
 
@@ -135,7 +137,10 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                : "originally calculated column size of " + columnSerializedSize + " but now it is " + secondPassColumnSize;
 
         close();
-        return dataSize;
+
+        RowIndexEntry entry = RowIndexEntry.create(currentPosition, emptyColumnFamily.deletionInfo(), columnsIndex);
+        iwriter.append(key, entry);
+        return Pair.create(dataSize, entry);
     }
 
     public void update(MessageDigest digest)
@@ -214,19 +219,6 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
             }
         }
         closed = true;
-    }
-
-    public DeletionInfo deletionInfo()
-    {
-        return emptyColumnFamily.deletionInfo();
-    }
-
-    /**
-     * @return the column index for this row.
-     */
-    public ColumnIndex index()
-    {
-        return columnsIndex;
     }
 
     private class Reducer extends MergeIterator.Reducer<OnDiskAtom, OnDiskAtom>

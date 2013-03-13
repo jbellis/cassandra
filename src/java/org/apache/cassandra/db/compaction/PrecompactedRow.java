@@ -28,8 +28,10 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
+import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.HeapAllocator;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * PrecompactedRow merges its rows in its constructor in memory.
@@ -37,7 +39,6 @@ import org.apache.cassandra.utils.HeapAllocator;
 public class PrecompactedRow extends AbstractCompactedRow
 {
     private final ColumnFamily compactedCf;
-    private ColumnIndex columnIndex;
 
     /** it is caller's responsibility to call removeDeleted + removeOldShards from the cf before calling this constructor */
     public PrecompactedRow(DecoratedKey key, ColumnFamily cf)
@@ -127,12 +128,12 @@ public class PrecompactedRow extends AbstractCompactedRow
         return cf;
     }
 
-    public long write(DataOutput out) throws IOException
+    public Pair<Long, RowIndexEntry> write(long currentPosition, DataOutput out, SSTableWriter.IndexWriter iwriter) throws IOException
     {
         assert compactedCf != null;
         DataOutputBuffer buffer = new DataOutputBuffer();
         ColumnIndex.Builder builder = new ColumnIndex.Builder(compactedCf, key.key, compactedCf.getColumnCount(), buffer);
-        columnIndex = builder.build(compactedCf);
+        ColumnIndex columnIndex = builder.build(compactedCf);
 
         TypeSizes typeSizes = TypeSizes.NATIVE;
         long delSize = DeletionTime.serializer.serializedSize(compactedCf.deletionInfo().getTopLevelDeletion(), typeSizes);
@@ -141,7 +142,10 @@ public class PrecompactedRow extends AbstractCompactedRow
         DeletionInfo.serializer().serializeForSSTable(compactedCf.deletionInfo(), out);
         out.writeInt(builder.writtenAtomCount());
         out.write(buffer.getData(), 0, buffer.getLength());
-        return dataSize;
+
+        RowIndexEntry entry = RowIndexEntry.create(currentPosition, compactedCf.deletionInfo(), columnIndex);
+        iwriter.append(key, entry);
+        return Pair.create(dataSize, entry);
     }
 
     public void update(MessageDigest digest)
@@ -180,19 +184,6 @@ public class PrecompactedRow extends AbstractCompactedRow
     public ColumnFamily getFullColumnFamily()
     {
         return compactedCf;
-    }
-
-    public DeletionInfo deletionInfo()
-    {
-        return compactedCf.deletionInfo();
-    }
-
-    /**
-     * @return the column index for this row.
-     */
-    public ColumnIndex index()
-    {
-        return columnIndex;
     }
 
     public void close() { }

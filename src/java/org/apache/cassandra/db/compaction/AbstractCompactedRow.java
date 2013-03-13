@@ -23,9 +23,12 @@ import java.io.IOException;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.ColumnIndex;
+import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * a CompactedRow is an object that takes a bunch of rows (keys + columnfamilies)
@@ -48,7 +51,7 @@ public abstract class AbstractCompactedRow implements Closeable
      *
      * write() may change internal state; it is NOT valid to call write() or update() a second time.
      */
-    public abstract long write(DataOutput out) throws IOException;
+    public abstract Pair<Long, RowIndexEntry> write(long currentPosition, DataOutput out, SSTableWriter.IndexWriter iwriter) throws IOException;
 
     /**
      * update @param digest with the data bytes of the row (not including row key or row size).
@@ -68,14 +71,4 @@ public abstract class AbstractCompactedRow implements Closeable
      * contain default values if computing them value would require extra effort we're not willing to make.
      */
     public abstract ColumnStats columnStats();
-
-    /**
-     * @return the compacted row deletion infos.
-     */
-    public abstract DeletionInfo deletionInfo();
-
-    /**
-     * @return the column index for this row.
-     */
-    public abstract ColumnIndex index();
 }
