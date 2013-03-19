@@ -1842,7 +1842,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             logger.debug("Cancelling in-progress compactions for {}", metadata.cfName);
 
-            getCompactionStrategy().pause();
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.getCompactionStrategy().pause();
             try
             {
                 Function<ColumnFamilyStore, CFMetaData> f = new Function<ColumnFamilyStore, CFMetaData>()
@@ -1870,7 +1871,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             finally
             {
-                getCompactionStrategy().resume();
+                for (ColumnFamilyStore cfs : concatWithIndexes())
+                    cfs.getCompactionStrategy().resume();
             }
         }
     }
