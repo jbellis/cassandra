@@ -131,9 +131,9 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         });
     }
 
-    public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    public synchronized AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
-        if (!isActive())
+        if (!isActive)
             return null;
 
         while (true)

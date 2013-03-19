@@ -95,11 +95,6 @@ public class CompactionTask extends AbstractCompactionTask
         // Note that the current compaction strategy, is not necessarily the one this task was created under.
         // This should be harmless; see comments to CFS.maybeReloadCompactionStrategy.
         AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
-        if (!strategy.isActive())
-        {
-            logger.debug("Compactions are paused; aborting");
-            return;
-        }
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.name);

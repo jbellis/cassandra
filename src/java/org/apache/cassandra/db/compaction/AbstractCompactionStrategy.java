@@ -53,7 +53,8 @@ public abstract class AbstractCompactionStrategy
     protected float tombstoneThreshold;
     protected long tombstoneCompactionInterval;
 
-    private volatile boolean isActive = true;
+    // accessors must synchronize.  See CASSANDRA-3430
+    protected boolean isActive = true;
 
     protected AbstractCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -83,7 +84,7 @@ public abstract class AbstractCompactionStrategy
      * For internal, temporary suspension of background compactions so that we can do exceptional
      * things like truncate or major compaction
      */
-    public void pause()
+    public synchronized void pause()
     {
         isActive = false;
     }
@@ -92,14 +93,9 @@ public abstract class AbstractCompactionStrategy
      * For internal, temporary suspension of background compactions so that we can do exceptional
      * things like truncate or major compaction
      */
-    public void resume()
+    public synchronized void resume()
     {
         isActive = true;
-    }
-
-    public boolean isActive()
-    {
-        return isActive;
     }
 
     /**
