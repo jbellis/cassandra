@@ -129,13 +129,11 @@ public class CompactionManager implements CompactionManagerMBean
         return futures;
     }
 
-    public boolean isCompacting(Iterable<CFMetaData> columnFamilies)
+    public boolean isCompacting(Iterable<ColumnFamilyStore> cfses)
     {
-        for (Holder holder : CompactionMetrics.getCompactions())
-        {
-            if (Iterables.contains(columnFamilies, holder.getCompactionInfo().getCFMetaData()))
+        for (ColumnFamilyStore cfs : cfses)
+            if (!cfs.getDataTracker().getCompacting().isEmpty())
                 return true;
-        }
         return false;
     }
 

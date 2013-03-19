@@ -1842,7 +1842,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             logger.debug("Cancelling in-progress compactions for {}", metadata.cfName);
 
-            for (ColumnFamilyStore cfs : concatWithIndexes())
+            Iterable<ColumnFamilyStore> selfWithIndexes = concatWithIndexes();
+            for (ColumnFamilyStore cfs : selfWithIndexes)
                 cfs.getCompactionStrategy().pause();
             try
             {
@@ -1853,12 +1854,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         return cfs.metadata;
                     }
                 };
-                Iterable<CFMetaData> allMetadata = Iterables.transform(concatWithIndexes(), f);
+                Iterable<CFMetaData> allMetadata = Iterables.transform(selfWithIndexes, f);
                 CompactionManager.instance.interruptCompactionFor(allMetadata, false);
-                while (CompactionManager.instance.isCompacting(allMetadata))
-                    FBUtilities.sleep(100);
 
-                assert data.getCompacting().isEmpty();
+                long start = System.currentTimeMillis();
+                while (System.currentTimeMillis() < start + 60000)
+                {
+                    if (CompactionManager.instance.isCompacting(selfWithIndexes))
+                        FBUtilities.sleep(100);
+                    else
+                        break;
+                }
+
+                for (ColumnFamilyStore cfs : selfWithIndexes)
+                {
+                    if (!cfs.getDataTracker().getCompacting().isEmpty())
+                    {
+                        logger.warn("Unable to cancel in-progress compactios for {}.  Probably there is an unusually large row in progress somewhere.  It is also possible that buggy code left some sstables compacting after it was done with them", metadata.cfName);
+                    }
+                }
 
                 try
                 {
@@ -1871,7 +1885,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             finally
             {
-                for (ColumnFamilyStore cfs : concatWithIndexes())
+                for (ColumnFamilyStore cfs : selfWithIndexes)
                     cfs.getCompactionStrategy().resume();
             }
         }
