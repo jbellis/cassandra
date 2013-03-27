@@ -399,7 +399,7 @@ public class ColumnFamily implements IRowCacheEntry, Iterable<Column>
     * return set may not have implementation for tailSet, headSet and subSet.
     * See ColumnNamesSet in ArrayBackedSortedColumns for more details.
     */
-    public SortedSet<ByteBuffer> getColumnNames()
+    public Iterable<ByteBuffer> getColumnNames()
     {
         return columns.getColumnNames();
     }

@@ -22,6 +22,7 @@ import java.util.*;
 
 import com.google.common.base.Function;
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.db.filter.ColumnSlice;
@@ -293,10 +294,15 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         columns.clear();
     }
 
-    public SortedSet<ByteBuffer> getColumnNames()
+    public Iterable<ByteBuffer> getColumnNames()
     {
-        // we could memoize the created set but it's unlikely we'll call this method a lot on the same object anyway
-        return new ColumnNamesSet();
+        return Iterables.transform(columns, new Function<Column, ByteBuffer>()
+        {
+            public ByteBuffer apply(Column column)
+            {
+                return column.name;
+            }
+        });
     }
 
     public Iterator<Column> iterator()
@@ -408,81 +414,6 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         public Iterator<Column> iterator()
         {
             return columns.iterator();
-        }
-    }
-
-    private class ColumnNamesSet extends AbstractSet<ByteBuffer> implements SortedSet<ByteBuffer>
-    {
-        public int size()
-        {
-            return columns.size();
-        }
-
-        public Iterator<ByteBuffer> iterator()
-        {
-            final Iterator<Column> outerIterator = ArrayBackedSortedColumns.this.iterator(); // handles reversed
-            return new Iterator<ByteBuffer>()
-            {
-                public boolean hasNext()
-                {
-                    return outerIterator.hasNext();
-                }
-
-                public ByteBuffer next()
-                {
-                    return outerIterator.next().name();
-                }
-
-                public void remove()
-                {
-                    outerIterator.remove();
-                }
-            };
-        }
-
-        public Comparator<ByteBuffer> comparator()
-        {
-            return getComparator();
-        }
-
-        public ByteBuffer first()
-        {
-            final ArrayBackedSortedColumns outerList = ArrayBackedSortedColumns.this;
-            if (outerList.isEmpty())
-                throw new NoSuchElementException();
-            return outerList.columns.get(outerList.reversed ? size() - 1 : 0).name();
-        }
-
-        public ByteBuffer last()
-        {
-            final ArrayBackedSortedColumns outerList = ArrayBackedSortedColumns.this;
-            if (outerList.isEmpty())
-                throw new NoSuchElementException();
-            return outerList.columns.get(outerList.reversed ? 0 : size() - 1).name();
-        }
-
-        /*
-         * It is fairly hard to implement headSet, tailSet and subSet so that they respect their specification.
-         * Namely, the part "The returned set is backed by this set, so changes in the returned set are reflected
-         * in this set, and vice-versa". Simply keeping a lower and upper index in the backing arrayList wouldn't
-         * ensure those property. Since we do not use those function so far, we prefer returning UnsupportedOperationException
-         * for now and revisit this when and if the need arise.
-         */
-        public SortedSet<ByteBuffer> headSet(ByteBuffer fromElement)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        // see headSet
-        public SortedSet<ByteBuffer> tailSet(ByteBuffer toElement)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        // see headSet
-        public SortedSet<ByteBuffer> subSet(ByteBuffer fromElement, ByteBuffer toElement)
-        {
-            throw new UnsupportedOperationException();
         }
     }
 }

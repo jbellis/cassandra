@@ -26,6 +26,8 @@ import java.util.*;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.apache.commons.lang.StringUtils;
@@ -242,7 +244,7 @@ public class TableTest extends SchemaLoader
             rm.apply();
 
             cf = cfs.getColumnFamily(ROW, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 1);
-            assertEquals(1, cf.getColumnNames().size());
+            assertEquals(1, Iterables.size(cf.getColumnNames()));
             assertEquals(i, cf.getColumnNames().iterator().next().getLong());
         }
     }
