@@ -161,11 +161,6 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         return map.get(name);
     }
 
-    public void removeColumn(ByteBuffer name)
-    {
-        map.remove(name);
-    }
-
     public void clear()
     {
         map.clear();

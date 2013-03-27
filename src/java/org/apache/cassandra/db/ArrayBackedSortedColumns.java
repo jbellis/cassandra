@@ -277,13 +277,6 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         return reversed ? new ForwardSortedCollection() : new ReverseSortedCollection();
     }
 
-    public void removeColumn(ByteBuffer name)
-    {
-        int pos = binarySearch(name);
-        if (pos >= 0)
-            columns.remove(pos);
-    }
-
     public int size()
     {
         return columns.size();
