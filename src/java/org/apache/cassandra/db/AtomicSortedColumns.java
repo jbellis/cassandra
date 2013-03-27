@@ -201,18 +201,6 @@ public class AtomicSortedColumns implements ISortedColumns
         return replaced;
     }
 
-    public void removeColumn(ByteBuffer name)
-    {
-        Holder current, modified;
-        do
-        {
-            current = ref.get();
-            modified = current.cloneMe();
-            modified.map.remove(name);
-        }
-        while (!ref.compareAndSet(current, modified));
-    }
-
     public void clear()
     {
         Holder current, modified;

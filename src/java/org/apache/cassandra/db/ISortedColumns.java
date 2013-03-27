@@ -88,11 +88,6 @@ public interface ISortedColumns extends Iterable<Column>
     public boolean replace(Column oldColumn, Column newColumn);
 
     /**
-     * Remove if present a column by name.
-     */
-    public void removeColumn(ByteBuffer name);
-
-    /**
      * Clear this column map, removing all columns.
      */
     public void clear();

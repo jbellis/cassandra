@@ -21,25 +21,22 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.SortedSet;
 import java.util.UUID;
 
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
-
-import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.utils.*;
-
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
 import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.sstable.ColumnStats;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.utils.*;
 
 public class ColumnFamily implements IRowCacheEntry, Iterable<Column>
 {
@@ -412,11 +409,6 @@ public class ColumnFamily implements IRowCacheEntry, Iterable<Column>
     public Collection<Column> getReverseSortedColumns()
     {
         return columns.getReverseSortedColumns();
-    }
-
-    public void remove(ByteBuffer columnName)
-    {
-        columns.removeColumn(columnName);
     }
 
     public int getColumnCount()
