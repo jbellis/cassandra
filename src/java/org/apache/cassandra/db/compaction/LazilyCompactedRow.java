@@ -256,8 +256,12 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
             {
                 Column column = (Column) current;
                 container.addColumn(column);
-                if (container.getColumn(column.name()) != column)
+                if (indexer != SecondaryIndexManager.nullUpdater
+                    && container.getColumn(column.name()) != column
+                    && !column.isMarkedForDelete())
+                {
                     indexer.remove(column);
+                }
             }
         }
 
