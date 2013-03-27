@@ -104,11 +104,10 @@ public interface ISortedColumns extends Iterable<Column>
     public Column getColumn(ByteBuffer name);
 
     /**
-     * Returns a set with the names of columns in this column map.
-     * The resulting set is sorted and the order is the one of the columns in
-     * this column map.
+     * Returns an iterable with the names of columns in this column map in the same order
+     * as the underlying columns themselves.
      */
-    public SortedSet<ByteBuffer> getColumnNames();
+    public Iterable<ByteBuffer> getColumnNames();
 
     /**
      * Returns the columns of this column map as a collection.

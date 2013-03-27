@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.SchemaLoader;
 import org.junit.Test;
 
@@ -88,7 +90,7 @@ public class ColumnFamilyTest extends SchemaLoader
             ByteBuffer val = cf.getColumn(ByteBufferUtil.bytes(cName)).value();
             assert new String(val.array(),val.position(),val.remaining()).equals(map.get(cName));
         }
-        assert cf.getColumnNames().size() == map.size();
+        assert Iterables.size(cf.getColumnNames()) == map.size();
     }
 
     @Test
