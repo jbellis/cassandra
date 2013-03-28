@@ -114,11 +114,6 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         return reconciledColumn.dataSize() - oldColumn.dataSize();
     }
 
-    public long addAllWithSizeDelta(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
-    {
-        throw new UnsupportedOperationException();
-    }
-
     /**
      * We need to go through each column in the column container and resolve it before adding
      */

@@ -139,6 +139,11 @@ public class AtomicSortedColumns extends ColumnFamily
         addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater);
     }
 
+    /**
+     *  This is only called by Memtable.resolve, so only AtomicSortedColumns needs to implement it.
+     *
+     *  @return the difference in size seen after merging the given columns
+     */
     public long addAllWithSizeDelta(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
     {
         /*
