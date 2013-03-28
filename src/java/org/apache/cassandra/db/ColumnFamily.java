@@ -193,18 +193,8 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
      *      addColumn(c, ...);
      *   </code>
      *  but is potentially faster.
-     *
-     *  This is only called by Memtable.resolve, so only AtomicSortedColumns need to implement it.  It is
-     *  part of this interface for convenience only.
-     *
-     *  @return the difference in size seen after merging the given columns
      */
-    public abstract long addAllWithSizeDelta(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer);
-
-    /**
-     * Adds the columns without necessarily computing the size delta
-     */
-    public abstract void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation);
+     public abstract void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation);
 
     /**
      * Replace oldColumn if present by newColumn.

@@ -190,11 +190,6 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
         return -mid - (result < 0 ? 1 : 2);
     }
 
-    public long addAllWithSizeDelta(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
-    {
-        throw new UnsupportedOperationException();
-    }
-
     public void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation)
     {
         delete(cm.deletionInfo());
