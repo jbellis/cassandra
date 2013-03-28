@@ -117,12 +117,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
 
     public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
     {
-        delete(cm.getDeletionInfo());
-        for (Column column : cm.getSortedColumns())
-            addColumn(transformation.apply(column), allocator, indexer);
-
-        // we don't use this for memtables, so we don't bother computing size
-        return Long.MIN_VALUE;
+        throw new UnsupportedOperationException();
     }
 
     /**
@@ -130,7 +125,9 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
      */
     public void addAll(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation)
     {
-        addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater);
+        delete(cm.getDeletionInfo());
+        for (Column column : cm.getSortedColumns())
+            addColumn(transformation.apply(column), allocator);
     }
 
     public boolean replace(Column oldColumn, Column newColumn)

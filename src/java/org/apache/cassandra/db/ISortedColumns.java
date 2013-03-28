@@ -67,9 +67,12 @@ public interface ISortedColumns extends Iterable<Column>
      * This is equivalent to:
      *   <code>
      *   for (Column c : cm)
-     *      add(c);
+     *      addColumn(c, ...);
      *   </code>
      *  but is potentially faster.
+     *
+     *  This is only called by Memtable.resolve, so only AtomicSortedColumns need to implement it.  It is
+     *  part of this interface for convenience only.
      *
      *  @return the difference in size seen after merging the given columns
      */
