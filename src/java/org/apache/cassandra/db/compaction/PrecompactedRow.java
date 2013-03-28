@@ -103,8 +103,10 @@ public class PrecompactedRow extends AbstractCompactedRow
     {
         assert !rows.isEmpty();
 
-        List<CloseableIterator<Column>> data = new ArrayList<CloseableIterator<Column>>(rows.size());
         final ColumnFamily returnCF = ColumnFamily.create(controller.cfs.metadata, ArrayBackedSortedColumns.factory());
+
+        // transform into iterators that MergeIterator will like, and apply row-level tombstones
+        List<CloseableIterator<Column>> data = new ArrayList<CloseableIterator<Column>>(rows.size());
         for (SSTableIdentityIterator row : rows)
         {
             try
@@ -119,9 +121,17 @@ public class PrecompactedRow extends AbstractCompactedRow
             }
         }
 
+        merge(returnCF, data, controller.cfs.indexManager.updaterFor(rows.get(0).getKey(), false));
+
+        return returnCF;
+    }
+
+    // returnCF should already have row-level tombstones applied
+    public static void merge(final ColumnFamily returnCF, List<CloseableIterator<Column>> data, final SecondaryIndexManager.Updater indexer)
+    {
         IDiskAtomFilter filter = new IdentityQueryFilter();
-        final SecondaryIndexManager.Updater indexer = controller.cfs.indexManager.updaterFor(rows.get(0).getKey(), false);
         Comparator<Column> fcomp = filter.getColumnComparator(returnCF.getComparator());
+
         MergeIterator.Reducer<Column, Column> reducer = new MergeIterator.Reducer<Column, Column>()
         {
             ColumnFamily container = returnCF.cloneMeShallow();
@@ -144,10 +154,9 @@ public class PrecompactedRow extends AbstractCompactedRow
                 return c;
             }
         };
+
         Iterator<Column> reduced = MergeIterator.get(data, fcomp, reducer);
         filter.collectReducedColumns(returnCF, reduced, CompactionManager.NO_GC);
-
-        return returnCF;
     }
 
     public long write(DataOutput out) throws IOException
