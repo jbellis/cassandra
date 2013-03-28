@@ -25,6 +25,7 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -37,58 +38,47 @@ import org.apache.cassandra.utils.Allocator;
  * main operations performed are iterating over the map and adding columns
  * (especially if insertion is in sorted order).
  */
-public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns implements ISortedColumns
+public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
 {
-    private final AbstractType<?> comparator;
     private final boolean reversed;
     private final ArrayList<Column> columns;
 
-    public static final ISortedColumns.Factory factory = new Factory()
+    public static final ColumnFamily.Factory factory = new Factory()
     {
-        public ISortedColumns create(AbstractType<?> comparator, boolean insertReversed)
+        public ColumnFamily create(CFMetaData metadata, boolean insertReversed)
         {
-            return new ArrayBackedSortedColumns(comparator, insertReversed);
+            return new ArrayBackedSortedColumns(metadata, insertReversed);
         }
 
-        public ISortedColumns fromSorted(SortedMap<ByteBuffer, Column> sortedMap, boolean insertReversed)
-        {
-            return new ArrayBackedSortedColumns(sortedMap.values(), (AbstractType<?>)sortedMap.comparator(), insertReversed);
-        }
     };
 
-    public static ISortedColumns.Factory factory()
+    public static ColumnFamily.Factory factory()
     {
         return factory;
     }
 
-    private ArrayBackedSortedColumns(AbstractType<?> comparator, boolean reversed)
+    private ArrayBackedSortedColumns(CFMetaData metadata, boolean reversed)
     {
-        super();
-        this.comparator = comparator;
+        super(metadata);
         this.reversed = reversed;
         this.columns = new ArrayList<Column>();
     }
 
-    private ArrayBackedSortedColumns(Collection<Column> columns, AbstractType<?> comparator, boolean reversed)
+    private ArrayBackedSortedColumns(Collection<Column> columns, CFMetaData metadata, boolean reversed)
     {
-        this.comparator = comparator;
+        super(metadata);
         this.reversed = reversed;
         this.columns = new ArrayList<Column>(columns);
     }
 
-    public ISortedColumns.Factory getFactory()
+    public ColumnFamily.Factory getFactory()
     {
         return factory();
     }
 
-    public AbstractType<?> getComparator()
+    public ColumnFamily cloneMe()
     {
-        return comparator;
-    }
-
-    public ISortedColumns cloneMe()
-    {
-        return new ArrayBackedSortedColumns(columns, comparator, reversed);
+        return new ArrayBackedSortedColumns(columns, metadata, reversed);
     }
 
     public boolean isInsertReversed()
@@ -98,7 +88,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
 
     private Comparator<ByteBuffer> internalComparator()
     {
-        return reversed ? comparator.reverseComparator : comparator;
+        return reversed ? getComparator().reverseComparator : getComparator();
     }
 
     public Column getColumn(ByteBuffer name)
@@ -126,7 +116,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         }
 
         // Fast path if inserting at the tail
-        int c = internalComparator().compare(columns.get(size() - 1).name(), column.name());
+        int c = internalComparator().compare(columns.get(getColumnCount() - 1).name(), column.name());
         // note that we want an assertion here (see addColumn javadoc), but we also want that if
         // assertion are disabled, addColumn works correctly with unsorted input
         assert c <= 0 : "Added column does not sort as the " + (reversed ? "first" : "last") + " column";
@@ -139,7 +129,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         else if (c == 0)
         {
             // Resolve against last
-            resolveAgainst(size() - 1, column, allocator);
+            resolveAgainst(getColumnCount() - 1, column, allocator);
         }
         else
         {
@@ -200,18 +190,18 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         return -mid - (result < 0 ? 1 : 2);
     }
 
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
+    public long addAllWithSizeDelta(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
     {
         throw new UnsupportedOperationException();
     }
 
-    public void addAll(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation)
+    public void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation)
     {
-        delete(cm.getDeletionInfo());
+        delete(cm.deletionInfo());
         if (cm.isEmpty())
             return;
 
-        Column[] copy = columns.toArray(new Column[size()]);
+        Column[] copy = columns.toArray(new Column[getColumnCount()]);
         int idx = 0;
         Iterator<Column> other = reversed ? cm.reverseIterator(ColumnSlice.ALL_COLUMNS_ARRAY) : cm.iterator();
         Column otherColumn = other.next();
@@ -234,7 +224,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
             else // c == 0
             {
                 columns.add(copy[idx]);
-                resolveAgainst(size() - 1, transformation.apply(otherColumn), allocator);
+                resolveAgainst(getColumnCount() - 1, transformation.apply(otherColumn), allocator);
                 idx++;
                 otherColumn = other.hasNext() ? other.next() : null;
             }
@@ -277,7 +267,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         return reversed ? new ForwardSortedCollection() : new ReverseSortedCollection();
     }
 
-    public int size()
+    public int getColumnCount()
     {
         return columns.size();
     }
@@ -305,12 +295,12 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
 
     public Iterator<Column> iterator(ColumnSlice[] slices)
     {
-        return new SlicesIterator(columns, comparator, slices, reversed);
+        return new SlicesIterator(columns, getComparator(), slices, reversed);
     }
 
     public Iterator<Column> reverseIterator(ColumnSlice[] slices)
     {
-        return new SlicesIterator(columns, comparator, slices, !reversed);
+        return new SlicesIterator(columns, getComparator(), slices, !reversed);
     }
 
     private static class SlicesIterator extends AbstractIterator<Column>
