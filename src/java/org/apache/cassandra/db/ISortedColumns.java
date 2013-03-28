@@ -40,7 +40,7 @@ import org.apache.cassandra.utils.Allocator;
 public interface ISortedColumns extends Iterable<Column>
 {
     /**
-     * Shallow cloning of the column map.
+     * Clones the column map.
      */
     public ISortedColumns cloneMe();
 
