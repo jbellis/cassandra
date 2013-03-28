@@ -21,7 +21,6 @@ package org.apache.cassandra.db;
  */
 
 
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.junit.Test;
@@ -30,12 +29,14 @@ import static org.junit.Assert.*;
 
 import com.google.common.base.Functions;
 
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.utils.HeapAllocator;
 
-public class ArrayBackedSortedColumnsTest
+public class ArrayBackedSortedColumnsTest extends SchemaLoader
 {
     @Test
     public void testAdd()
@@ -44,9 +45,14 @@ public class ArrayBackedSortedColumnsTest
         testAddInternal(true);
     }
 
+    private CFMetaData metadata()
+    {
+        return Schema.instance.getCFMetaData("Keyspace1", "Standard1");
+    }
+
     private void testAddInternal(boolean reversed)
     {
-        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
+        ColumnFamily map = ArrayBackedSortedColumns.factory().create(metadata(), reversed);
         int[] values = new int[]{ 1, 2, 2, 3 };
 
         for (int i = 0; i < values.length; ++i)
@@ -67,8 +73,8 @@ public class ArrayBackedSortedColumnsTest
 
     private void testAddAllInternal(boolean reversed)
     {
-        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
-        ISortedColumns map2 = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
+        ColumnFamily map = ArrayBackedSortedColumns.factory().create(metadata(), reversed);
+        ColumnFamily map2 = ArrayBackedSortedColumns.factory().create(metadata(), reversed);
 
         int[] values1 = new int[]{ 1, 3, 5, 6 };
         int[] values2 = new int[]{ 2, 4, 5, 6 };
@@ -99,7 +105,7 @@ public class ArrayBackedSortedColumnsTest
 
     private void testGetCollectionInternal(boolean reversed)
     {
-        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
+        ColumnFamily map = ArrayBackedSortedColumns.factory().create(metadata(), reversed);
         int[] values = new int[]{ 1, 2, 3, 5, 9 };
 
         List<Column> sorted = new ArrayList<Column>();
@@ -124,7 +130,7 @@ public class ArrayBackedSortedColumnsTest
 
     private void testIteratorInternal(boolean reversed)
     {
-        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
+        ColumnFamily map = ArrayBackedSortedColumns.factory().create(metadata(), reversed);
 
         int[] values = new int[]{ 1, 2, 3, 5, 9 };
 

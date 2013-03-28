@@ -17,16 +17,19 @@
  */
 package org.apache.cassandra.db;
 
-public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumns
+import org.apache.cassandra.config.CFMetaData;
+
+public abstract class AbstractThreadUnsafeSortedColumns extends ColumnFamily
 {
     private DeletionInfo deletionInfo;
 
-    public AbstractThreadUnsafeSortedColumns()
+    public AbstractThreadUnsafeSortedColumns(CFMetaData metadata)
     {
+        super(metadata);
         deletionInfo = DeletionInfo.LIVE;
     }
 
-    public DeletionInfo getDeletionInfo()
+    public DeletionInfo deletionInfo()
     {
         return deletionInfo;
     }
@@ -48,6 +51,6 @@ public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumn
 
     public boolean isEmpty()
     {
-        return size() == 0;
+        return getColumnCount() == 0;
     }
 }

@@ -154,7 +154,7 @@ public class SystemTable
             cols.add(ByteBufferUtil.bytes("Token"));
             QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBufferUtil.bytes("L")), OLD_STATUS_CF, cols);
             ColumnFamily oldCf = oldStatusCfs.getColumnFamily(filter);
-            Iterator<Column> oldColumns = oldCf.columns.iterator();
+            Iterator<Column> oldColumns = oldCf.iterator();
 
             String clusterName = null;
             try

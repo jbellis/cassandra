@@ -26,29 +26,26 @@ import java.util.TreeMap;
 
 import com.google.common.base.Function;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
-public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumns implements ISortedColumns
+public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
 {
     private final TreeMap<ByteBuffer, Column> map;
 
-    public static final ISortedColumns.Factory factory = new Factory()
+    public static final ColumnFamily.Factory factory = new Factory()
     {
-        public ISortedColumns create(AbstractType<?> comparator, boolean insertReversed)
+        public ColumnFamily create(CFMetaData metadata, boolean insertReversed)
         {
-            return new TreeMapBackedSortedColumns(comparator);
-        }
-
-        public ISortedColumns fromSorted(SortedMap<ByteBuffer, Column> sortedMap, boolean insertReversed)
-        {
-            return new TreeMapBackedSortedColumns(sortedMap);
+            assert !insertReversed;
+            return new TreeMapBackedSortedColumns(metadata);
         }
     };
 
-    public static ISortedColumns.Factory factory()
+    public static ColumnFamily.Factory factory()
     {
         return factory;
     }
@@ -58,24 +55,26 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         return (AbstractType<?>)map.comparator();
     }
 
-    private TreeMapBackedSortedColumns(AbstractType<?> comparator)
+    private TreeMapBackedSortedColumns(CFMetaData metadata)
     {
-        this.map = new TreeMap<ByteBuffer, Column>(comparator);
+        super(metadata);
+        this.map = new TreeMap<ByteBuffer, Column>(metadata.comparator);
     }
 
-    private TreeMapBackedSortedColumns(SortedMap<ByteBuffer, Column> columns)
+    private TreeMapBackedSortedColumns(CFMetaData metadata, SortedMap<ByteBuffer, Column> columns)
     {
+        super(metadata);
         this.map = new TreeMap<ByteBuffer, Column>(columns);
     }
 
-    public ISortedColumns.Factory getFactory()
+    public ColumnFamily.Factory getFactory()
     {
         return factory();
     }
 
-    public ISortedColumns cloneMe()
+    public ColumnFamily cloneMe()
     {
-        return new TreeMapBackedSortedColumns(map);
+        return new TreeMapBackedSortedColumns(metadata, map);
     }
 
     public boolean isInsertReversed()
@@ -115,7 +114,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         return reconciledColumn.dataSize() - oldColumn.dataSize();
     }
 
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
+    public long addAllWithSizeDelta(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
     {
         throw new UnsupportedOperationException();
     }
@@ -123,9 +122,9 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
     /**
      * We need to go through each column in the column container and resolve it before adding
      */
-    public void addAll(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation)
+    public void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation)
     {
-        delete(cm.getDeletionInfo());
+        delete(cm.deletionInfo());
         for (Column column : cm.getSortedColumns())
             addColumn(transformation.apply(column), allocator);
     }
@@ -163,7 +162,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         map.clear();
     }
 
-    public int size()
+    public int getColumnCount()
     {
         return map.size();
     }

@@ -178,7 +178,7 @@ public class DefsTable
             if (Schema.invalidSchemaRow(row))
                 continue;
 
-            for (Column column : row.cf.columns)
+            for (Column column : row.cf)
             {
                 Date columnDate = new Date(column.timestamp());
 
@@ -218,7 +218,7 @@ public class DefsTable
 
             RowMutation mutation = new RowMutation(Table.SYSTEM_KS, row.key.key);
 
-            for (Column column : row.cf.columns)
+            for (Column column : row.cf)
             {
                 if (column.isLive())
                     mutation.add(columnFamily, column.name(), column.value(), microTimestamp);
