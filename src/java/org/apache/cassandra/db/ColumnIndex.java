@@ -24,6 +24,7 @@ import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnIndex
 {
@@ -55,12 +56,16 @@ public class ColumnIndex
         private final DataOutput output;
         private final RangeTombstone.Tracker tombstoneTracker;
         private int atomCount;
+        private final ByteBuffer key;
+        private final boolean writeRowHeader;
+        private final DeletionInfo deletionInfo;
 
-        public Builder(ColumnFamily cf,
-                       ByteBuffer key,
-                       DataOutput output)
+        public Builder(ColumnFamily cf, ByteBuffer key, DataOutput output, boolean writeRowHeader)
         {
-            this.indexOffset = rowHeaderSize(key, cf.deletionInfo());
+            this.key = key;
+            this.writeRowHeader = writeRowHeader;
+            deletionInfo = cf.deletionInfo();
+            this.indexOffset = rowHeaderSize(key, deletionInfo);
             this.result = new ColumnIndex(new ArrayList<IndexHelper.IndexInfo>());
             this.output = output;
             this.tombstoneTracker = new RangeTombstone.Tracker(cf.getComparator());
@@ -76,9 +81,7 @@ public class ColumnIndex
             // TODO fix constantSize when changing the nativeconststs.
             int keysize = key.remaining();
             return typeSizes.sizeof((short) keysize) + keysize          // Row key
-                 + typeSizes.sizeof(0L)                                 // Row data size
-                 + DeletionTime.serializer.serializedSize(delInfo.getTopLevelDeletion(), typeSizes)
-                 + typeSizes.sizeof(0);                                 // Column count
+                 + DeletionTime.serializer.serializedSize(delInfo.getTopLevelDeletion(), typeSizes);
         }
 
         public RangeTombstone.Tracker tombstoneTracker()
@@ -139,8 +142,7 @@ public class ColumnIndex
             {
                 firstColumn = column;
                 startPosition = endPosition;
-                // TODO: have that use the firstColumn as min + make sure we
-                // optimize that on read
+                // TODO: have that use the firstColumn as min + make sure we optimize that on read
                 endPosition += tombstoneTracker.writeOpenedMarker(firstColumn, output, atomSerializer);
                 blockSize = 0; // We don't count repeated tombstone marker in the block size, to avoid a situation
                                // where we wouldn't make any problem because a block is filled by said marker
@@ -160,7 +162,14 @@ public class ColumnIndex
             }
 
             if (output != null)
+            {
+                if (writeRowHeader && lastColumn == null)
+                {
+                    ByteBufferUtil.writeWithShortLength(key, output);
+                    DeletionInfo.serializer().serializeForSSTable(deletionInfo, output);
+                }
                 atomSerializer.serializeForSSTable(column, output);
+            }
 
             // TODO: Should deal with removing unneeded tombstones
             tombstoneTracker.update(column);
