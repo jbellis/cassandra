@@ -116,8 +116,8 @@ public class LazilyCompactedRowTest extends SchemaLoader
             assertEquals(rowSize2 + 8, out2.getLength());
 
             // cf metadata
-            ColumnFamily cf1 = TreeMapBackedSortedColumns.factory().create(cfs.metadata, false);
-            ColumnFamily cf2 = TreeMapBackedSortedColumns.factory().create(cfs.metadata, false);
+            ColumnFamily cf1 = TreeMapBackedSortedColumns.factory().create(cfs.metadata);
+            ColumnFamily cf2 = TreeMapBackedSortedColumns.factory().create(cfs.metadata);
             cf1.delete(DeletionInfo.serializer().deserializeFromSSTable(in1, Descriptor.Version.CURRENT));
             cf2.delete(DeletionInfo.serializer().deserializeFromSSTable(in2, Descriptor.Version.CURRENT));
             assert cf1.deletionInfo().equals(cf2.deletionInfo());

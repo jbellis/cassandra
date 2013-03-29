@@ -182,8 +182,8 @@ public class StreamingTransferTest extends SchemaLoader
             public void mutate(String key, String col, long timestamp) throws Exception
             {
                 Map<String, ColumnFamily> entries = new HashMap<String, ColumnFamily>();
-                ColumnFamily cf = TreeMapBackedSortedColumns.factory().create(cfs.metadata, false);
-                ColumnFamily cfCleaned = TreeMapBackedSortedColumns.factory().create(cfs.metadata, false);
+                ColumnFamily cf = TreeMapBackedSortedColumns.factory().create(cfs.metadata);
+                ColumnFamily cfCleaned = TreeMapBackedSortedColumns.factory().create(cfs.metadata);
                 CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 1);
                 state.writeElement(CounterId.fromInt(2), 9L, 3L, true);
                 state.writeElement(CounterId.fromInt(4), 4L, 2L);

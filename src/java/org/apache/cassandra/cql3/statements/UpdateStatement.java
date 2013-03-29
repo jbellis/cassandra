@@ -212,7 +212,7 @@ public class UpdateStatement extends ModificationStatement
         validateKey(key);
 
         QueryProcessor.validateKey(key);
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory().create(Schema.instance.getCFMetaData(cfDef.cfm.ksName, cfDef.cfm.cfName), false);
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory().create(Schema.instance.getCFMetaData(cfDef.cfm.ksName, cfDef.cfm.cfName));
 
         // Inserting the CQL row marker (see #4361)
         // We always need to insert a marker, because of the following situation:

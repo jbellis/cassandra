@@ -77,13 +77,13 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 if (indexes.isEmpty())
                 {
                     setToRowStart(sstable, indexEntry, input);
-                    this.emptyColumnFamily = EmptyColumns.factory().create(sstable.metadata, false);
+                    this.emptyColumnFamily = EmptyColumns.factory().create(sstable.metadata);
                     emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, sstable.descriptor.version));
                     fetcher = new SimpleBlockFetcher();
                 }
                 else
                 {
-                    this.emptyColumnFamily = EmptyColumns.factory().create(sstable.metadata, false);
+                    this.emptyColumnFamily = EmptyColumns.factory().create(sstable.metadata);
                     emptyColumnFamily.delete(indexEntry.deletionInfo());
                     fetcher = new IndexedBlockFetcher(indexEntry.position);
                 }
@@ -93,7 +93,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 setToRowStart(sstable, indexEntry, input);
                 IndexHelper.skipBloomFilter(file);
                 this.indexes = IndexHelper.deserializeIndex(file);
-                this.emptyColumnFamily = EmptyColumns.factory().create(sstable.metadata, false);
+                this.emptyColumnFamily = EmptyColumns.factory().create(sstable.metadata);
                 emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, sstable.descriptor.version));
                 fetcher = indexes.isEmpty()
                         ? new SimpleBlockFetcher()

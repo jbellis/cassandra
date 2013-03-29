@@ -133,7 +133,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             ColumnFamilySerializer serializer = ColumnFamily.serializer;
             try
             {
-                cf = ArrayBackedSortedColumns.factory().create(sstable.metadata, false);
+                cf = ArrayBackedSortedColumns.factory().create(sstable.metadata);
                 cf.delete(DeletionInfo.serializer().deserializeFromSSTable(file, sstable.descriptor.version));
             }
             catch (Exception e)
@@ -143,7 +143,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         }
         else
         {
-            cf = ArrayBackedSortedColumns.factory().create(sstable.metadata, false);
+            cf = ArrayBackedSortedColumns.factory().create(sstable.metadata);
             cf.delete(indexEntry.deletionInfo());
         }
 
