@@ -141,7 +141,7 @@ public class ScrubTest extends SchemaLoader
         Table table = Table.open(TABLE);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF3);
 
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory().create(TABLE, CF3);
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(TABLE, CF3);
         cf.delete(new DeletionInfo(0, 1)); // expired tombstone
         RowMutation rm = new RowMutation(TABLE, ByteBufferUtil.bytes(1), cf);
         rm.applyUnsafe();
@@ -229,7 +229,7 @@ public class ScrubTest extends SchemaLoader
         {
             String key = String.valueOf(i);
             // create a row and update the birthdate value, test that the index query fetches the new version
-            ColumnFamily cf = TreeMapBackedSortedColumns.factory().create(TABLE, CF);
+            ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(TABLE, CF);
             cf.addColumn(column("c1", "1", 1L));
             cf.addColumn(column("c2", "2", 1L));
             RowMutation rm = new RowMutation(TABLE, ByteBufferUtil.bytes(key), cf);

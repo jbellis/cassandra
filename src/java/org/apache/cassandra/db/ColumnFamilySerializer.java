@@ -96,7 +96,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
         if (!in.readBoolean())
             return null;
 
-        ColumnFamily cf = ArrayBackedSortedColumns.factory().create(Schema.instance.getCFMetaData(deserializeCfId(in, version)));
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Schema.instance.getCFMetaData(deserializeCfId(in, version)));
         int expireBefore = (int) (System.currentTimeMillis() / 1000);
 
         if (cf.metadata().isSuper() && version < MessagingService.VERSION_20)

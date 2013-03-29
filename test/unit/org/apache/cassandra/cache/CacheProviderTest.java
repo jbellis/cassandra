@@ -100,7 +100,7 @@ public class CacheProviderTest extends SchemaLoader
 
     private ColumnFamily createCF()
     {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory().create(tableName, cfName);
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(tableName, cfName);
         cf.addColumn(column("vijay", "great", 1));
         cf.addColumn(column("awesome", "vijay", 1));
         return cf;

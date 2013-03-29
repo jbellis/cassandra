@@ -587,7 +587,7 @@ public class SystemTable
 
     public static void setIndexBuilt(String table, String indexName)
     {
-        ColumnFamily cf = ArrayBackedSortedColumns.factory().create(Table.SYSTEM_KS, INDEX_CF);
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Table.SYSTEM_KS, INDEX_CF);
         cf.addColumn(new Column(ByteBufferUtil.bytes(indexName), ByteBufferUtil.EMPTY_BYTE_BUFFER, FBUtilities.timestampMicros()));
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, ByteBufferUtil.bytes(table), cf);
         rm.apply();
@@ -663,7 +663,7 @@ public class SystemTable
     {
         ByteBuffer ip = ByteBuffer.wrap(FBUtilities.getBroadcastAddress().getAddress());
 
-        ColumnFamily cf = ArrayBackedSortedColumns.factory().create(Table.SYSTEM_KS, COUNTER_ID_CF);
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Table.SYSTEM_KS, COUNTER_ID_CF);
         cf.addColumn(new Column(newCounterId.bytes(), ip, now));
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, ALL_LOCAL_NODE_ID_KEY, cf);
         rm.apply();

@@ -52,7 +52,7 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
 
     private void testAddInternal(boolean reversed)
     {
-        ColumnFamily map = ArrayBackedSortedColumns.factory().create(metadata(), reversed);
+        ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
         int[] values = new int[]{ 1, 2, 2, 3 };
 
         for (int i = 0; i < values.length; ++i)
@@ -73,8 +73,8 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
 
     private void testAddAllInternal(boolean reversed)
     {
-        ColumnFamily map = ArrayBackedSortedColumns.factory().create(metadata(), reversed);
-        ColumnFamily map2 = ArrayBackedSortedColumns.factory().create(metadata(), reversed);
+        ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
+        ColumnFamily map2 = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
 
         int[] values1 = new int[]{ 1, 3, 5, 6 };
         int[] values2 = new int[]{ 2, 4, 5, 6 };
@@ -105,7 +105,7 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
 
     private void testGetCollectionInternal(boolean reversed)
     {
-        ColumnFamily map = ArrayBackedSortedColumns.factory().create(metadata(), reversed);
+        ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
         int[] values = new int[]{ 1, 2, 3, 5, 9 };
 
         List<Column> sorted = new ArrayList<Column>();
@@ -130,7 +130,7 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
 
     private void testIteratorInternal(boolean reversed)
     {
-        ColumnFamily map = ArrayBackedSortedColumns.factory().create(metadata(), reversed);
+        ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
 
         int[] values = new int[]{ 1, 2, 3, 5, 9 };
 

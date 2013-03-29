@@ -50,11 +50,6 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
         }
     };
 
-    public static ColumnFamily.Factory<ArrayBackedSortedColumns> factory()
-    {
-        return factory;
-    }
-
     private ArrayBackedSortedColumns(CFMetaData metadata, boolean reversed)
     {
         super(metadata);
@@ -71,7 +66,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
 
     public ColumnFamily.Factory getFactory()
     {
-        return factory();
+        return factory;
     }
 
     public ColumnFamily cloneMe()

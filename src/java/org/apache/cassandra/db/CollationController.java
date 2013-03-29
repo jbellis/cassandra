@@ -55,8 +55,8 @@ public class CollationController
         this.gcBefore = gcBefore;
 
         this.factory = mutableColumns
-                     ? AtomicSortedColumns.factory()
-                     : ArrayBackedSortedColumns.factory();
+                     ? AtomicSortedColumns.factory
+                     : ArrayBackedSortedColumns.factory;
     }
 
     public ColumnFamily getTopLevelColumns()
@@ -84,7 +84,7 @@ public class CollationController
         // which requires addAtom to happen in sorted order.  Then we use addAll to merge into the final collection,
         // which allows a (sorted) set of columns to be merged even if they are not uniformly sorted after the existing
         // ones.
-        ColumnFamily temp = ArrayBackedSortedColumns.factory().create(cfs.metadata, filter.filter.isReversed());
+        ColumnFamily temp = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
 
         try
         {
