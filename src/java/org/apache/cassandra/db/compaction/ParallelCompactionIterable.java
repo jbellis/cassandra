@@ -196,7 +196,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
             public ColumnFamily call() throws Exception
             {
-                final ColumnFamily returnCF = ColumnFamily.create(controller.cfs.metadata, ArrayBackedSortedColumns.factory());
+                final ColumnFamily returnCF = ArrayBackedSortedColumns.factory().create(controller.cfs.metadata, false);
 
                 List<CloseableIterator<Column>> data = new ArrayList<CloseableIterator<Column>>(rows.size());
                 for (Row row : rows)
