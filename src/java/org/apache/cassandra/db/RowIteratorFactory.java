@@ -85,7 +85,7 @@ public class RowIteratorFactory
             @Override
             protected void onKeyChange()
             {
-                this.returnCF = ColumnFamily.create(cfs.metadata);
+                this.returnCF = ArrayBackedSortedColumns.factory().create(cfs.metadata, false);
             }
 
             public void reduce(OnDiskAtomIterator current)

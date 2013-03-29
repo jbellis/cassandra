@@ -53,7 +53,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
 
     public static ColumnFamily create(UUID cfId)
     {
-        return create(Schema.instance.getCFMetaData(cfId));
+        return TreeMapBackedSortedColumns.factory().create(Schema.instance.getCFMetaData(cfId), false);
     }
 
     public static ColumnFamily create(UUID cfId, ColumnFamily.Factory factory)
@@ -63,12 +63,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
 
     public static ColumnFamily create(String tableName, String cfName)
     {
-        return create(Schema.instance.getCFMetaData(tableName, cfName));
-    }
-
-    public static ColumnFamily create(CFMetaData cfm)
-    {
-        return TreeMapBackedSortedColumns.factory().create(cfm, false);
+        return TreeMapBackedSortedColumns.factory().create(Schema.instance.getCFMetaData(tableName, cfName), false);
     }
 
     protected ColumnFamily(CFMetaData metadata)
@@ -267,7 +262,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
     public ColumnFamily diff(ColumnFamily cfComposite)
     {
         assert cfComposite.id().equals(id());
-        ColumnFamily cfDiff = ColumnFamily.create(metadata);
+        ColumnFamily cfDiff = TreeMapBackedSortedColumns.factory().create(metadata, false);
         cfDiff.delete(cfComposite.deletionInfo());
 
         // (don't need to worry about cfNew containing Columns that are shadowed by

@@ -116,7 +116,7 @@ public class RowMutation implements IMutation
         ColumnFamily cf = modifications.get(cfm.cfId);
         if (cf == null)
         {
-            cf = ColumnFamily.create(cfm);
+            cf = TreeMapBackedSortedColumns.factory().create(cfm, false);
             modifications.put(cfm.cfId, cf);
         }
         return cf;
