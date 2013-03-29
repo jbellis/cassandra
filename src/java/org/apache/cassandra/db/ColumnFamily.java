@@ -61,11 +61,6 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         return factory.create(Schema.instance.getCFMetaData(cfId));
     }
 
-    public static ColumnFamily create(String tableName, String cfName)
-    {
-        return TreeMapBackedSortedColumns.factory().create(Schema.instance.getCFMetaData(tableName, cfName));
-    }
-
     protected ColumnFamily(CFMetaData metadata)
     {
         this.metadata = metadata;
@@ -446,6 +441,11 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         public T create(CFMetaData metadata)
         {
             return create(metadata, false);
+        }
+
+        public T create(String keyspace, String cfName)
+        {
+            return create(Schema.instance.getCFMetaData(keyspace, cfName));
         }
     }
 }
