@@ -71,9 +71,9 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         this.metadata = metadata;
     }
 
-    public ColumnFamily cloneMeShallow(ColumnFamily.Factory factory, boolean reversedInsertOrder)
+    public <T extends ColumnFamily> T cloneMeShallow(ColumnFamily.Factory<T> factory, boolean reversedInsertOrder)
     {
-        ColumnFamily cf = factory.create(metadata, reversedInsertOrder);
+        T cf = factory.create(metadata, reversedInsertOrder);
         cf.delete(this);
         return cf;
     }
@@ -431,7 +431,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         return false;
     }
 
-    public interface Factory
+    public interface Factory <T extends ColumnFamily>
     {
         /**
          * Returns a (initially empty) column map whose columns are sorted
@@ -441,6 +441,6 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
          * allow optimizing for both forward and reversed slices. This does not matter for ThreadSafeSortedColumns.
          * Note that this is only an hint on how we expect to do insertion, this does not change the map sorting.
          */
-        public ColumnFamily create(CFMetaData metadata, boolean insertReversed);
+        public T create(CFMetaData metadata, boolean insertReversed);
     }
 }
