@@ -350,7 +350,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
             List<WriteResponseHandler> responseHandlers = Lists.newArrayList();
 
-            for (final Column hint : hintsPage.getSortedColumns())
+            for (final Column hint : hintsPage)
             {
                 // check if hints delivery has been paused during the process
                 if (hintedHandOffPaused)

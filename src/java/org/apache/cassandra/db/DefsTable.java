@@ -275,10 +275,9 @@ public class DefsTable
             org.apache.avro.Schema schema = org.apache.avro.Schema.parse(ByteBufferUtil.string(value));
 
             // deserialize keyspaces using schema
-            Collection<Column> columns = cf.getSortedColumns();
-            keyspaces = new ArrayList<KSMetaData>(columns.size());
+            keyspaces = new ArrayList<KSMetaData>(Iterables.size(cf));
 
-            for (Column column : columns)
+            for (Column column : cf)
             {
                 if (column.name().equals(DEFINITION_SCHEMA_COLUMN_NAME))
                     continue;

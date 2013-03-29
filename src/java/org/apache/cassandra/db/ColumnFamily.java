@@ -287,10 +287,12 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
     @Override
     public int hashCode()
     {
-        return new HashCodeBuilder(373, 75437)
+        HashCodeBuilder builder = new HashCodeBuilder(373, 75437)
                 .append(metadata)
-                .append(deletionInfo())
-                .append(getSortedColumns()).toHashCode();
+                .append(deletionInfo());
+        for (Column column : this)
+            builder.append(column);
+        return builder.hashCode();
     }
 
     @Override
@@ -317,7 +319,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         if (isMarkedForDelete())
             sb.append(" -").append(deletionInfo()).append("-");
 
-        sb.append(" [").append(getComparator().getColumnsString(getSortedColumns())).append("])");
+        sb.append(" [").append(getComparator().getColumnsString(this)).append("])");
         return sb.toString();
     }
 

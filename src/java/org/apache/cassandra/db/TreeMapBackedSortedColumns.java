@@ -120,7 +120,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
     public void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation)
     {
         delete(cm.deletionInfo());
-        for (Column column : cm.getSortedColumns())
+        for (Column column : cm)
             addColumn(transformation.apply(column), allocator);
     }
 

@@ -168,7 +168,7 @@ public class AtomicSortedColumns extends ColumnFamily
             DeletionInfo newDelInfo = current.deletionInfo.add(cm.deletionInfo());
             modified = new Holder(current.map.clone(), newDelInfo);
 
-            for (Column column : cm.getSortedColumns())
+            for (Column column : cm)
             {
                 sizeDelta += modified.addColumn(transformation.apply(column), allocator, indexer);
                 // bail early if we know we've been beaten
@@ -237,11 +237,6 @@ public class AtomicSortedColumns extends ColumnFamily
     public boolean isEmpty()
     {
         return ref.get().map.isEmpty();
-    }
-
-    public Iterator<Column> iterator()
-    {
-        return getSortedColumns().iterator();
     }
 
     public Iterator<Column> iterator(ColumnSlice[] slices)
