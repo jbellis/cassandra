@@ -99,7 +99,7 @@ public class DeleteStatement extends ModificationStatement
     throws InvalidRequestException
     {
         QueryProcessor.validateKey(key);
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory().create(Schema.instance.getCFMetaData(cfDef.cfm.ksName, columnFamily()), false);
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory().create(Schema.instance.getCFMetaData(cfDef.cfm.ksName, columnFamily()));
 
         if (toRemove.isEmpty() && builder.componentCount() == 0)
         {

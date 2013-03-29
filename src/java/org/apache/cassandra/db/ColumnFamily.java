@@ -53,17 +53,17 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
 
     public static ColumnFamily create(UUID cfId)
     {
-        return TreeMapBackedSortedColumns.factory().create(Schema.instance.getCFMetaData(cfId), false);
+        return TreeMapBackedSortedColumns.factory().create(Schema.instance.getCFMetaData(cfId));
     }
 
     public static ColumnFamily create(UUID cfId, ColumnFamily.Factory factory)
     {
-        return factory.create(Schema.instance.getCFMetaData(cfId), false);
+        return factory.create(Schema.instance.getCFMetaData(cfId));
     }
 
     public static ColumnFamily create(String tableName, String cfName)
     {
-        return TreeMapBackedSortedColumns.factory().create(Schema.instance.getCFMetaData(tableName, cfName), false);
+        return TreeMapBackedSortedColumns.factory().create(Schema.instance.getCFMetaData(tableName, cfName));
     }
 
     protected ColumnFamily(CFMetaData metadata)
@@ -262,7 +262,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
     public ColumnFamily diff(ColumnFamily cfComposite)
     {
         assert cfComposite.id().equals(id());
-        ColumnFamily cfDiff = TreeMapBackedSortedColumns.factory().create(metadata, false);
+        ColumnFamily cfDiff = TreeMapBackedSortedColumns.factory().create(metadata);
         cfDiff.delete(cfComposite.deletionInfo());
 
         // (don't need to worry about cfNew containing Columns that are shadowed by
@@ -431,7 +431,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         return false;
     }
 
-    public interface Factory <T extends ColumnFamily>
+    public abstract static class Factory <T extends ColumnFamily>
     {
         /**
          * Returns a (initially empty) column map whose columns are sorted
@@ -441,6 +441,11 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
          * allow optimizing for both forward and reversed slices. This does not matter for ThreadSafeSortedColumns.
          * Note that this is only an hint on how we expect to do insertion, this does not change the map sorting.
          */
-        public T create(CFMetaData metadata, boolean insertReversed);
+        public abstract T create(CFMetaData metadata, boolean insertReversed);
+
+        public T create(CFMetaData metadata)
+        {
+            return create(metadata, false);
+        }
     }
 }

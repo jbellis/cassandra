@@ -154,7 +154,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 IndexHelper.skipBloomFilter(inputWithTracker);
                 IndexHelper.skipIndex(inputWithTracker);
             }
-            columnFamily = EmptyColumns.factory().create(metadata, false);
+            columnFamily = EmptyColumns.factory().create(metadata);
             columnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(inputWithTracker, dataVersion));
 
             columnCount = inputWithTracker.readInt();
