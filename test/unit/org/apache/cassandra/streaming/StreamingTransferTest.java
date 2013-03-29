@@ -23,7 +23,6 @@ import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.Util;
 import static org.apache.cassandra.Util.column;
-import static org.apache.cassandra.Util.addMutation;
 
 import java.net.InetAddress;
 import java.sql.Date;
@@ -183,8 +182,8 @@ public class StreamingTransferTest extends SchemaLoader
             public void mutate(String key, String col, long timestamp) throws Exception
             {
                 Map<String, ColumnFamily> entries = new HashMap<String, ColumnFamily>();
-                ColumnFamily cf = ColumnFamily.create(cfs.metadata);
-                ColumnFamily cfCleaned = ColumnFamily.create(cfs.metadata);
+                ColumnFamily cf = TreeMapBackedSortedColumns.factory().create(cfs.metadata, false);
+                ColumnFamily cfCleaned = TreeMapBackedSortedColumns.factory().create(cfs.metadata, false);
                 CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 1);
                 state.writeElement(CounterId.fromInt(2), 9L, 3L, true);
                 state.writeElement(CounterId.fromInt(4), 4L, 2L);

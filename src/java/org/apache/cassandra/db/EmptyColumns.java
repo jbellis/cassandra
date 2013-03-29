@@ -87,6 +87,11 @@ public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
         return false;
     }
 
+    public static EmptyColumnsFactory factory()
+    {
+        return EmptyColumnsFactory.instance;
+    }
+
     public static class EmptyColumnsFactory implements ColumnFamily.Factory
     {
         public static final EmptyColumnsFactory instance = new EmptyColumnsFactory();
