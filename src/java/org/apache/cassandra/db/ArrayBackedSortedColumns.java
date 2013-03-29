@@ -31,7 +31,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
 /**
- * A ISortedColumns backed by an ArrayList.
+ * A ColumnFamily backed by an ArrayList.
  * This implementation is not synchronized and should only be used when
  * thread-safety is not required. This implementation makes sense when the
  * main operations performed are iterating over the map and adding columns
