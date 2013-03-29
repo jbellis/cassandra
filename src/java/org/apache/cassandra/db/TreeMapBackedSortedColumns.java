@@ -45,11 +45,6 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         }
     };
 
-    public static ColumnFamily.Factory<TreeMapBackedSortedColumns> factory()
-    {
-        return factory;
-    }
-
     public AbstractType<?> getComparator()
     {
         return (AbstractType<?>)map.comparator();
@@ -69,7 +64,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
 
     public ColumnFamily.Factory getFactory()
     {
-        return factory();
+        return factory;
     }
 
     public ColumnFamily cloneMe()

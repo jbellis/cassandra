@@ -48,11 +48,6 @@ public class UnsortedColumns extends AbstractThreadUnsafeSortedColumns
         }
     };
 
-    public static Factory<UnsortedColumns> factory()
-    {
-        return factory;
-    }
-
     private UnsortedColumns(CFMetaData metadata)
     {
         this(metadata, new ArrayList<Column>());

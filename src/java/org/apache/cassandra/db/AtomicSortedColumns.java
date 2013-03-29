@@ -58,11 +58,6 @@ public class AtomicSortedColumns extends ColumnFamily
         }
     };
 
-    public static ColumnFamily.Factory<AtomicSortedColumns> factory()
-    {
-        return factory;
-    }
-
     private AtomicSortedColumns(CFMetaData metadata)
     {
         this(metadata, new Holder(metadata.comparator));

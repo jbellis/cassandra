@@ -14,7 +14,7 @@ import org.apache.cassandra.utils.Allocator;
 
 public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
 {
-    private static Factory<EmptyColumns> factory = new Factory<EmptyColumns>()
+    public static final Factory<EmptyColumns> factory = new Factory<EmptyColumns>()
     {
         public EmptyColumns create(CFMetaData metadata, boolean insertReversed)
         {
@@ -22,11 +22,6 @@ public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
             return new EmptyColumns(metadata, DeletionInfo.LIVE);
         }
     };
-
-    public static Factory<EmptyColumns> factory()
-    {
-        return factory;
-    }
 
     public EmptyColumns(CFMetaData metadata, DeletionInfo info)
     {

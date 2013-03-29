@@ -91,7 +91,7 @@ public class TraceState
             public void runMayThrow() throws Exception
             {
                 CFMetaData cfMeta = CFMetaData.TraceEventsCf;
-                ColumnFamily cf = ArrayBackedSortedColumns.factory().create(cfMeta);
+                ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
                 Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("activity")), message);
                 Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("source")), FBUtilities.getBroadcastAddress());
                 Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("source_elapsed")), elapsed);

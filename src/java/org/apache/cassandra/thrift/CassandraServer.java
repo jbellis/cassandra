@@ -683,7 +683,7 @@ public class CassandraServer implements Cassandra.Iface
             if (metadata.isSuper())
                 name = CompositeType.build(column_parent.super_column, name);
 
-            ColumnFamily cf = ArrayBackedSortedColumns.factory().create(cState.getKeyspace(), column_parent.column_family);
+            ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cState.getKeyspace(), column_parent.column_family);
             cf.addColumn(name, column.value, column.timestamp, column.ttl);
             rm = new RowMutation(cState.getKeyspace(), key, cf);
         }

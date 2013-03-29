@@ -67,7 +67,7 @@ public class SSTableImportTest extends SchemaLoader
 
     private ColumnFamily cloneForAdditions(OnDiskAtomIterator iter)
     {
-        return iter.getColumnFamily().cloneMeShallow(ArrayBackedSortedColumns.factory(), false);
+        return iter.getColumnFamily().cloneMeShallow(ArrayBackedSortedColumns.factory, false);
     }
 
     private String resourcePath(String name) throws URISyntaxException
