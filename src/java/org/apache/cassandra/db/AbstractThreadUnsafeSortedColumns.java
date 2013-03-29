@@ -21,12 +21,17 @@ import org.apache.cassandra.config.CFMetaData;
 
 public abstract class AbstractThreadUnsafeSortedColumns extends ColumnFamily
 {
-    private DeletionInfo deletionInfo;
+    protected DeletionInfo deletionInfo;
 
     public AbstractThreadUnsafeSortedColumns(CFMetaData metadata)
     {
+        this(metadata, DeletionInfo.LIVE);
+    }
+
+    protected AbstractThreadUnsafeSortedColumns(CFMetaData metadata, DeletionInfo deletionInfo)
+    {
         super(metadata);
-        deletionInfo = DeletionInfo.LIVE;
+        this.deletionInfo = deletionInfo;
     }
 
     public DeletionInfo deletionInfo()
