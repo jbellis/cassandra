@@ -32,7 +32,6 @@ import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -59,7 +58,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
 
     public static ColumnFamily create(UUID cfId, ColumnFamily.Factory factory)
     {
-        return create(Schema.instance.getCFMetaData(cfId), factory);
+        return factory.create(Schema.instance.getCFMetaData(cfId), false);
     }
 
     public static ColumnFamily create(String tableName, String cfName)
@@ -69,12 +68,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
 
     public static ColumnFamily create(CFMetaData cfm)
     {
-        return create(cfm, TreeMapBackedSortedColumns.factory());
-    }
-
-    public static ColumnFamily create(CFMetaData cfm, ColumnFamily.Factory factory)
-    {
-        return factory.create(cfm, false);
+        return TreeMapBackedSortedColumns.factory().create(cfm, false);
     }
 
     protected ColumnFamily(CFMetaData metadata)
