@@ -36,16 +36,16 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
 {
     private final TreeMap<ByteBuffer, Column> map;
 
-    public static final ColumnFamily.Factory factory = new Factory()
+    public static final ColumnFamily.Factory<TreeMapBackedSortedColumns> factory = new Factory<TreeMapBackedSortedColumns>()
     {
-        public ColumnFamily create(CFMetaData metadata, boolean insertReversed)
+        public TreeMapBackedSortedColumns create(CFMetaData metadata, boolean insertReversed)
         {
             assert !insertReversed;
             return new TreeMapBackedSortedColumns(metadata);
         }
     };
 
-    public static ColumnFamily.Factory factory()
+    public static ColumnFamily.Factory<TreeMapBackedSortedColumns> factory()
     {
         return factory;
     }

@@ -14,6 +14,20 @@ import org.apache.cassandra.utils.Allocator;
 
 public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
 {
+    private static Factory<EmptyColumns> factory = new Factory<EmptyColumns>()
+    {
+        public EmptyColumns create(CFMetaData metadata, boolean insertReversed)
+        {
+            assert !insertReversed;
+            return new EmptyColumns(metadata, DeletionInfo.LIVE);
+        }
+    };
+
+    public static Factory<EmptyColumns> factory()
+    {
+        return factory;
+    }
+
     public EmptyColumns(CFMetaData metadata, DeletionInfo info)
     {
         super(metadata, info);
@@ -27,9 +41,9 @@ public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
     public void clear() {
     }
 
-    public Factory getFactory()
+    public Factory<EmptyColumns> getFactory()
     {
-        return EmptyColumnsFactory.instance;
+        return factory;
     }
 
     public void addColumn(Column column, Allocator allocator)
@@ -85,21 +99,5 @@ public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
     public boolean isInsertReversed()
     {
         return false;
-    }
-
-    public static EmptyColumnsFactory factory()
-    {
-        return EmptyColumnsFactory.instance;
-    }
-
-    public static class EmptyColumnsFactory implements ColumnFamily.Factory
-    {
-        public static final EmptyColumnsFactory instance = new EmptyColumnsFactory();
-
-        public ColumnFamily create(CFMetaData metadata, boolean insertReversed)
-        {
-            assert !insertReversed;
-            return new EmptyColumns(metadata, DeletionInfo.LIVE);
-        }
     }
 }

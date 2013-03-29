@@ -243,7 +243,7 @@ public class Memtable
 
         if (previous == null)
         {
-            AtomicSortedColumns empty = (AtomicSortedColumns) cf.cloneMeShallow(AtomicSortedColumns.factory(), false);
+            AtomicSortedColumns empty = cf.cloneMeShallow(AtomicSortedColumns.factory(), false);
             // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
             previous = rows.putIfAbsent(new DecoratedKey(key.token, allocator.clone(key.key)), empty);
             if (previous == null)

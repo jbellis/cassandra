@@ -50,15 +50,15 @@ public class AtomicSortedColumns extends ColumnFamily
 {
     private final AtomicReference<Holder> ref;
 
-    public static final ColumnFamily.Factory factory = new Factory()
+    public static final ColumnFamily.Factory<AtomicSortedColumns> factory = new Factory<AtomicSortedColumns>()
     {
-        public ColumnFamily create(CFMetaData metadata, boolean insertReversed)
+        public AtomicSortedColumns create(CFMetaData metadata, boolean insertReversed)
         {
             return new AtomicSortedColumns(metadata);
         }
     };
 
-    public static ColumnFamily.Factory factory()
+    public static ColumnFamily.Factory<AtomicSortedColumns> factory()
     {
         return factory;
     }

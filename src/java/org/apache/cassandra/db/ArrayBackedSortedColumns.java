@@ -27,7 +27,6 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
@@ -43,16 +42,15 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
     private final boolean reversed;
     private final ArrayList<Column> columns;
 
-    public static final ColumnFamily.Factory factory = new Factory()
+    public static final ColumnFamily.Factory<ArrayBackedSortedColumns> factory = new Factory<ArrayBackedSortedColumns>()
     {
-        public ColumnFamily create(CFMetaData metadata, boolean insertReversed)
+        public ArrayBackedSortedColumns create(CFMetaData metadata, boolean insertReversed)
         {
             return new ArrayBackedSortedColumns(metadata, insertReversed);
         }
-
     };
 
-    public static ColumnFamily.Factory factory()
+    public static ColumnFamily.Factory<ArrayBackedSortedColumns> factory()
     {
         return factory;
     }
