@@ -60,11 +60,6 @@ public abstract class AbstractCompactedRow implements Closeable
     public abstract void update(MessageDigest digest);
 
     /**
-     * @return true if there are no columns in the row AND there are no row-level tombstones to be preserved
-     */
-    public abstract boolean isEmpty();
-
-    /**
      * @return aggregate information about the columns in this row.  Some fields may
      * contain default values if computing them value would require extra effort we're not willing to make.
      */

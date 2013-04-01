@@ -174,7 +174,6 @@ public class PrecompactedRow extends AbstractCompactedRow
         try
         {
             DeletionInfo.serializer().serializeForSSTable(compactedCf.deletionInfo(), buffer);
-            buffer.writeInt(compactedCf.getColumnCount());
             digest.update(buffer.getData(), 0, buffer.getLength());
         }
         catch (IOException e)
@@ -182,11 +181,6 @@ public class PrecompactedRow extends AbstractCompactedRow
             throw new RuntimeException(e);
         }
         compactedCf.updateDigest(digest);
-    }
-
-    public boolean isEmpty()
-    {
-        return compactedCf == null;
     }
 
     public ColumnStats columnStats()

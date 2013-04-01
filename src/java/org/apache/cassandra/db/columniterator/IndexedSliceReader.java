@@ -127,7 +127,8 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             input.seek(indexEntry.position);
         }
         sstable.decodeKey(ByteBufferUtil.readWithShortLength(file));
-        SSTableReader.readRowSize(file, sstable.descriptor);
+        if (sstable.descriptor.version.hasRowLevelMetadata)
+            SSTableReader.readRowSize(file, sstable.descriptor);
     }
 
     public ColumnFamily getColumnFamily()
@@ -437,7 +438,8 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             // We remenber when we are whithin a slice to avoid some comparison
             boolean inSlice = false;
 
-            Iterator<OnDiskAtom> atomIterator = emptyColumnFamily.metadata().getOnDiskIterator(file, file.readInt(), sstable.descriptor.version);
+            int columnCount = sstable.descriptor.version.hasRowLevelMetadata ? file.readInt() : Integer.MAX_VALUE;
+            Iterator<OnDiskAtom> atomIterator = emptyColumnFamily.metadata().getOnDiskIterator(file, columnCount, sstable.descriptor.version);
             while (atomIterator.hasNext())
             {
                 OnDiskAtom column = atomIterator.next();

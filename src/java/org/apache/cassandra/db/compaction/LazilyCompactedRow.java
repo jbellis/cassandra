@@ -29,7 +29,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.ICountableColumnIterator;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -37,6 +36,7 @@ import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.StreamingHistogram;
 
@@ -55,7 +55,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
 {
     private static Logger logger = LoggerFactory.getLogger(LazilyCompactedRow.class);
 
-    private final List<? extends ICountableColumnIterator> rows;
+    private final List<? extends OnDiskAtomIterator> rows;
     private final CompactionController controller;
     private final boolean shouldPurge;
     private ColumnFamily emptyColumnFamily;
@@ -66,7 +66,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
     private final SecondaryIndexManager.Updater indexer;
     private long maxDelTimestamp;
 
-    public LazilyCompactedRow(CompactionController controller, List<? extends ICountableColumnIterator> rows)
+    public LazilyCompactedRow(CompactionController controller, List<? extends OnDiskAtomIterator> rows)
     {
         super(rows.get(0).getKey());
         this.rows = rows;
@@ -94,10 +94,24 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         ColumnIndex columnsIndex;
         try
         {
-            this.indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.key, out, true);
+            indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.key, out, true);
             columnsIndex = indexBuilder.build(this);
             if (columnsIndex.columnsIndex.isEmpty())
-                return null;
+            {
+                // ColumnIndex Builder doesn't write row header unless there are columns to write as well
+                boolean cfIrrelevant = shouldPurge
+                                       ? ColumnFamilyStore.removeDeletedCF(emptyColumnFamily, controller.gcBefore) == null
+                                       : !emptyColumnFamily.isMarkedForDelete(); // tombstones are relevant
+                if (cfIrrelevant)
+                {
+                    return null;
+                }
+                else
+                {
+                    ByteBufferUtil.writeWithShortLength(key.key, out);
+                    DeletionInfo.serializer().serializeForSSTable(emptyColumnFamily.deletionInfo(), out);
+                }
+            }
         }
         catch (IOException e)
         {
@@ -131,7 +145,6 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         try
         {
             DeletionInfo.serializer().serializeForSSTable(emptyColumnFamily.deletionInfo(), out);
-            out.writeInt(columnStats.columnCount);
             digest.update(out.getData(), 0, out.getLength());
         }
         catch (IOException e)
@@ -139,20 +152,12 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
             throw new AssertionError(e);
         }
 
+        // initialize indexBuilder for the benefit of its tombstoneTracker, used by our reducing iterator
+        indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.key, out, true);
         Iterator<OnDiskAtom> iter = iterator();
         while (iter.hasNext())
-        {
             iter.next().updateDigest(digest);
-        }
         close();
-    }
-
-    public boolean isEmpty()
-    {
-        boolean cfIrrelevant = shouldPurge
-                             ? ColumnFamilyStore.removeDeletedCF(emptyColumnFamily, controller.gcBefore) == null
-                             : !emptyColumnFamily.isMarkedForDelete(); // tombstones are relevant
-        return cfIrrelevant && columnStats.columnCount == 0;
     }
 
     public AbstractType<?> getComparator()
@@ -162,8 +167,6 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
 
     public Iterator<OnDiskAtom> iterator()
     {
-        for (ICountableColumnIterator row : rows)
-            row.reset();
         reducer = new Reducer();
         Iterator<OnDiskAtom> iter = MergeIterator.get(rows, getComparator().onDiskAtomComparator, reducer);
         return Iterators.filter(iter, Predicates.notNull());

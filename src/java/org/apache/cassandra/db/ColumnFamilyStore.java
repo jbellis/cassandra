@@ -1450,6 +1450,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             final CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(view.memtables, view.sstables, startWith, stopAt, filter, this);
 
+            // todo this could be pushed into SSTableScanner
             return new AbstractScanIterator()
             {
                 protected Row computeNext()
@@ -1468,7 +1469,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     if (!range.contains(key))
                         return computeNext();
 
-                    logger.trace("scanned {}", key);
+                    if (logger.isTraceEnabled())
+                        logger.trace("scanned {}", metadata.getKeyValidator().getString(key.key));
 
                     return current;
                 }

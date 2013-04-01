@@ -221,8 +221,6 @@ public class SSTableWriter extends SSTable
         }
 
         DeletionInfo deletionInfo = DeletionInfo.serializer().deserializeFromSSTable(in, descriptor.version);
-        int columnCount = in.readInt();
-
         try
         {
             DeletionInfo.serializer().serializeForSSTable(deletionInfo, dataFile.stream);
@@ -242,6 +240,7 @@ public class SSTableWriter extends SSTable
 
         ColumnIndex.Builder columnIndexer = new ColumnIndex.Builder(cf, key.key, dataFile.stream, false);
         OnDiskAtom.Serializer atomSerializer = Column.onDiskSerializer();
+        int columnCount = 0;
         while (true)
         {
             // deserialize column with PRESERVE_SIZE because we've written the dataSize based on the
@@ -249,6 +248,7 @@ public class SSTableWriter extends SSTable
             OnDiskAtom atom = atomSerializer.deserializeFromSSTable(in, ColumnSerializer.Flag.PRESERVE_SIZE, Integer.MIN_VALUE, Descriptor.Version.CURRENT);
             if (atom == null)
                 break;
+            columnCount++;
             if (atom instanceof CounterColumn)
                 atom = ((CounterColumn) atom).markDeltaToBeCleared();
 

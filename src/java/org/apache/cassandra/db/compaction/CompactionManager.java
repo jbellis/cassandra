@@ -462,9 +462,6 @@ public class CompactionManager implements CompactionManagerMBean
             if (logger.isDebugEnabled())
                 logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
-            SSTableWriter writer = null;
-            SSTableReader newSstable = null;
-
             logger.info("Cleaning up " + sstable);
             // Calculate the expected compacted filesize
             long expectedRangeFileSize = cfs.getExpectedCompactedFileSize(Arrays.asList(sstable), OperationType.CLEANUP);
@@ -478,6 +475,12 @@ public class CompactionManager implements CompactionManagerMBean
 
             CleanupInfo ci = new CleanupInfo(sstable, scanner);
             metrics.beginCompaction(ci);
+            SSTableWriter writer = createWriter(cfs,
+                                                OperationType.CLEANUP,
+                                                compactionFileLocation,
+                                                expectedBloomFilterSize,
+                                                Collections.singletonList(sstable));
+            SSTableReader newSstable = null;
             try
             {
                 while (scanner.hasNext())
@@ -488,11 +491,8 @@ public class CompactionManager implements CompactionManagerMBean
                     if (Range.isInRanges(row.getKey().token, ranges))
                     {
                         AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
-                        if (compactedRow.isEmpty())
-                            continue;
-                        writer = maybeCreateWriter(cfs, OperationType.CLEANUP, compactionFileLocation, expectedBloomFilterSize, writer, Collections.singletonList(sstable));
-                        writer.append(compactedRow);
-                        totalkeysWritten++;
+                        if (writer.append(compactedRow) != null)
+                            totalkeysWritten++;
                     }
                     else
                     {
@@ -535,13 +535,14 @@ public class CompactionManager implements CompactionManagerMBean
                     if ((rowsRead++ % 1000) == 0)
                         controller.mayThrottle(scanner.getCurrentPosition());
                 }
-                if (writer != null)
+                if (totalkeysWritten > 0)
                     newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
+                else
+                    writer.abort();
             }
             catch (Throwable e)
             {
-                if (writer != null)
-                    writer.abort();
+                writer.abort();
                 throw Throwables.propagate(e);
             }
             finally
@@ -571,19 +572,14 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    public static SSTableWriter maybeCreateWriter(ColumnFamilyStore cfs,
-                                                  OperationType compactionType,
-                                                  File compactionFileLocation,
-                                                  int expectedBloomFilterSize,
-                                                  SSTableWriter writer,
-                                                  Collection<SSTableReader> sstables)
+    public static SSTableWriter createWriter(ColumnFamilyStore cfs,
+                                             OperationType compactionType,
+                                             File compactionFileLocation,
+                                             int expectedBloomFilterSize,
+                                             Collection<SSTableReader> sstables)
     {
-        if (writer == null)
-        {
-            FileUtils.createDirectory(compactionFileLocation);
-            writer = cfs.createCompactionWriter(compactionType, expectedBloomFilterSize, compactionFileLocation, sstables);
-        }
-        return writer;
+        FileUtils.createDirectory(compactionFileLocation);
+        return cfs.createCompactionWriter(compactionType, expectedBloomFilterSize, compactionFileLocation, sstables);
     }
 
     /**
@@ -636,10 +632,7 @@ public class CompactionManager implements CompactionManagerMBean
                 if (ci.isStopRequested())
                     throw new CompactionInterruptedException(ci.getCompactionInfo());
                 AbstractCompactedRow row = iter.next();
-                if (row.isEmpty())
-                    row.close();
-                else
-                    validator.add(row);
+                validator.add(row);
             }
             validator.complete();
         }

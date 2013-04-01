@@ -1000,7 +1000,12 @@ public class SSTableReader extends SSTable
         return new SSTableScanner(this, filter);
     }
 
-   /**
+    public SSTableScanner getScanner(QueryFilter filter, RowPosition startWith)
+    {
+        return new SSTableScanner(this, filter, startWith);
+    }
+
+    /**
     * I/O SSTableScanner
     * @return A Scanner for seeking over the rows of the SSTable.
     */
@@ -1020,7 +1025,7 @@ public class SSTableReader extends SSTable
         if (range == null)
             return getScanner();
 
-        return new SSTableBoundedScanner(this, range);
+        return new SSTableScanner(this, null, range);
     }
 
     public FileDataInput getFileDataInput(long position)
