@@ -40,7 +40,6 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
     private final ByteBuffer finishColumn;
     private final AbstractType<?> comparator;
     private final ColumnFamily emptyColumnFamily;
-    private FileMark mark;
     private final Iterator<OnDiskAtom> atomIterator;
 
     public SimpleSliceReader(SSTableReader sstable, RowIndexEntry indexEntry, FileDataInput input, ByteBuffer finishColumn)
@@ -61,22 +60,25 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
                 this.needsClosing = false;
             }
 
-            // Skip key and data size
-            ByteBufferUtil.skipShortLength(file);
-            SSTableReader.readRowSize(file, sstable.descriptor);
+            ByteBufferUtil.skipShortLength(file); // row key
+            int columnCount = Integer.MAX_VALUE;
+            if (sstable.descriptor.version.hasRowLevelMetadata)
+            {
+                SSTableReader.readRowSize(file, sstable.descriptor);
+                columnCount = file.readInt();
+            }
 
             Descriptor.Version version = sstable.descriptor.version;
             if (!version.hasPromotedIndexes)
             {
-                if(sstable.descriptor.version.hasRowLevelBF)
+                if(sstable.descriptor.version.hasRowLevelMetadata)
                     IndexHelper.skipSSTableBloomFilter(file, version);
                 IndexHelper.skipIndex(file);
             }
 
             emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
-            emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
-            atomIterator = emptyColumnFamily.metadata().getOnDiskIterator(file, file.readInt(), version);
-            mark = file.mark();
+            emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, sstable.descriptor.version));
+            atomIterator = emptyColumnFamily.metadata().getOnDiskIterator(file, columnCount, sstable.descriptor.version);
         }
         catch (IOException e)
         {
@@ -90,20 +92,10 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
         if (!atomIterator.hasNext())
             return endOfData();
 
-        OnDiskAtom column;
-        try
-        {
-            file.reset(mark);
-            column = atomIterator.next();
-        }
-        catch (IOException e)
-        {
-            throw new CorruptSSTableException(e, file.getPath());
-        }
+        OnDiskAtom column = atomIterator.next();
         if (finishColumn.remaining() > 0 && comparator.compare(column.name(), finishColumn) > 0)
             return endOfData();
 
-        mark = file.mark();
         return column;
     }
 

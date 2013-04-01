@@ -114,7 +114,8 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
                                                              sstable.descriptor,
                                                              ByteBufferUtil.readWithShortLength(file));
             assert keyInDisk.equals(key) : String.format("%s != %s in %s", keyInDisk, key, file.getPath());
-            SSTableReader.readRowSize(file, sstable.descriptor);
+            if (sstable.descriptor.version.hasRowLevelMetadata)
+                SSTableReader.readRowSize(file, sstable.descriptor);
         }
 
         if (sstable.descriptor.version.hasPromotedIndexes)
@@ -124,10 +125,8 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         else
         {
             assert file != null;
-            if (sstable.descriptor.version.hasRowLevelBF)
-            {
+            if (sstable.descriptor.version.hasRowLevelMetadata)
                 IndexHelper.skipSSTableBloomFilter(file, sstable.descriptor.version);
-            }
             indexList = IndexHelper.deserializeIndex(file);
         }
 
@@ -151,9 +150,10 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         }
 
         List<OnDiskAtom> result = new ArrayList<OnDiskAtom>();
+        int columnCount = sstable.descriptor.version.hasRowLevelMetadata ? file.readInt() : Integer.MAX_VALUE;
         if (indexList.isEmpty())
         {
-            readSimpleColumns(file, columns, result);
+            readSimpleColumns(file, columns, result, columnCount);
         }
         else
         {
@@ -165,7 +165,6 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             else
             {
                 assert file != null;
-                file.readInt(); // column count
                 basePosition = file.getFilePointer();
             }
             readIndexedColumns(sstable.metadata, file, columns, indexList, basePosition, result);
@@ -175,9 +174,9 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         iter = result.iterator();
     }
 
-    private void readSimpleColumns(FileDataInput file, SortedSet<ByteBuffer> columnNames, List<OnDiskAtom> result) throws IOException
+    private void readSimpleColumns(FileDataInput file, SortedSet<ByteBuffer> columnNames, List<OnDiskAtom> result, int columnCount) throws IOException
     {
-        Iterator<OnDiskAtom> atomIterator = cf.metadata().getOnDiskIterator(file, file.readInt(), sstable.descriptor.version);
+        Iterator<OnDiskAtom> atomIterator = cf.metadata().getOnDiskIterator(file, columnCount, sstable.descriptor.version);
         int n = 0;
         while (atomIterator.hasNext())
         {

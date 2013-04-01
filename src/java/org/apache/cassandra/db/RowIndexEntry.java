@@ -100,7 +100,7 @@ public class RowIndexEntry
                     for (int i = 0; i < entries; i++)
                         columnsIndex.add(IndexHelper.IndexInfo.deserialize(in));
 
-                    if (version.hasRowLevelBF)
+                    if (version.hasRowLevelMetadata)
                         IndexHelper.skipBloomFilter(in, version.filterType);
                     return new IndexedEntry(position, delInfo, columnsIndex);
                 }

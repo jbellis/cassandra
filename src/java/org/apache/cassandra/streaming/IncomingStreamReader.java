@@ -152,27 +152,9 @@ public class IncomingStreamReader
                 {
                     in.reset(0);
                     key = SSTableReader.decodeKey(StorageService.getPartitioner(), localFile.desc, ByteBufferUtil.readWithShortLength(in));
-                    long dataSize = SSTableReader.readRowSize(in, localFile.desc);
 
-                    if (cfs.containsCachedRow(key) && remoteFile.type == OperationType.AES && dataSize <= DatabaseDescriptor.getInMemoryCompactionLimit())
-                    {
-                        // need to update row cache
-                        // Note: Because we won't just echo the columns, there is no need to use the PRESERVE_SIZE flag, contrarily to what appendFromStream does below
-                        SSTableIdentityIterator iter = new SSTableIdentityIterator(cfs.metadata, in, localFile.getFilename(), key, 0, dataSize, ColumnSerializer.Flag.FROM_REMOTE);
-                        PrecompactedRow row = new PrecompactedRow(controller, Collections.singletonList(iter));
-                        // We don't expire anything so the row shouldn't be empty
-                        assert !row.isEmpty();
-                        writer.append(row);
-
-                        // update cache
-                        ColumnFamily cf = row.getFullColumnFamily();
-                        cfs.maybeUpdateRowCache(key, cf);
-                    }
-                    else
-                    {
-                        writer.appendFromStream(key, cfs.metadata, dataSize, in);
-                        cfs.invalidateCachedRow(key);
-                    }
+                    writer.appendFromStream(key, cfs.metadata, in);
+                    cfs.invalidateCachedRow(key);
 
                     bytesRead += in.getBytesRead();
                     // when compressed, report total bytes of compressed chunks read since remoteFile.size is the sum of chunks transferred
