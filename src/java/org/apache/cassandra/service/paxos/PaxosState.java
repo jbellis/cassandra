@@ -48,13 +48,20 @@ public class PaxosState
         if (FBUtilities.timeComparator.compare(ballot, inProgressBallot) > 0)
         {
             logger.debug("promising ballot {}", ballot);
-            inProgressBallot = ballot;
-            return new PrepareResponse(true, mostRecentCommitted, ballot, acceptedProposal);
+            try
+            {
+                // return the pre-promise ballot so coordinator can pick the most recent in-progress value to resume
+                return new PrepareResponse(true, mostRecentCommitted, inProgressBallot, acceptedProposal);
+            }
+            finally
+            {
+                inProgressBallot = ballot;
+            }
         }
         else
         {
             logger.debug("promise rejected; {} is not sufficiently newer than {}", ballot, inProgressBallot);
-            return new PrepareResponse(true, mostRecentCommitted, inProgressBallot, acceptedProposal);
+            return new PrepareResponse(false, mostRecentCommitted, inProgressBallot, acceptedProposal);
         }
     }
 
@@ -86,10 +93,13 @@ public class PaxosState
 
             RowMutation rm = new RowMutation(proposal.table, proposal.key, proposal.columns);
             Table.open(proposal.table).apply(rm, true);
+            mostRecentCommitted = ballot;
             acceptedProposal = null;
         }
         else
         {
+            // a new coordinator extracted a promise from us before the old one issued its commit.
+            // (this means the new one should also issue a commit soon.)
             logger.debug("commit requested for {} but inProgressBallot is now {}", ballot, inProgressBallot);
         }
     }

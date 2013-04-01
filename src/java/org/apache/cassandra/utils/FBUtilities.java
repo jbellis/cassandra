@@ -75,12 +75,7 @@ public class FBUtilities
     {
         public int compare(UUID o1, UUID o2)
         {
-            if (o1.clockSequence() == o2.clockSequence())
-                return o1.getMostSignificantBits() == o2.getMostSignificantBits()
-                       ? Longs.compare(o1.getLeastSignificantBits(), o2.getLeastSignificantBits())
-                       : Longs.compare(o1.getMostSignificantBits(), o2.getMostSignificantBits());
-
-            return o1.clockSequence() - o2.clockSequence();
+            return Longs.compare(o1.timestamp(), o2.timestamp());
         }
     };
 
