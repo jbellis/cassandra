@@ -5,9 +5,8 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.UUID;
 
-import org.apache.cassandra.db.FQRow;
+import org.apache.cassandra.db.Row;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 public class PrepareResponse
@@ -17,9 +16,9 @@ public class PrepareResponse
     public final boolean promised;
     public final UUID mostRecentCommitted;
     public final UUID inProgressBallot;
-    public final FQRow inProgressUpdates;
+    public final Row inProgressUpdates;
 
-    public PrepareResponse(boolean promised, UUID mostRecentCommitted, UUID inProgressBallot, FQRow inProgressUpdates)
+    public PrepareResponse(boolean promised, UUID mostRecentCommitted, UUID inProgressBallot, Row inProgressUpdates)
     {
         this.promised = promised;
         this.mostRecentCommitted = mostRecentCommitted;
@@ -40,7 +39,9 @@ public class PrepareResponse
             out.writeBoolean(response.promised);
             UUIDSerializer.serializer.serialize(response.mostRecentCommitted, out, version);
             UUIDSerializer.serializer.serialize(response.inProgressBallot, out, version);
-            FQRow.serializer.serialize(response.inProgressUpdates, out, version);
+            out.writeBoolean(response.inProgressUpdates == null);
+            if (response.inProgressUpdates != null)
+                Row.serializer.serialize(response.inProgressUpdates, out, version);
         }
 
         public PrepareResponse deserialize(DataInput in, int version) throws IOException
@@ -48,7 +49,7 @@ public class PrepareResponse
             return new PrepareResponse(in.readBoolean(),
                                        UUIDSerializer.serializer.deserialize(in, version),
                                        UUIDSerializer.serializer.deserialize(in, version),
-                                       FQRow.serializer.deserialize(in, version));
+                                       in.readBoolean() ? null : Row.serializer.deserialize(in, version));
         }
 
         public long serializedSize(PrepareResponse response, int version)
@@ -56,7 +57,7 @@ public class PrepareResponse
             return 1
                    + UUIDSerializer.serializer.serializedSize(response.mostRecentCommitted, version)
                    + UUIDSerializer.serializer.serializedSize(response.inProgressBallot, version)
-                   + FQRow.serializer.serializedSize(response.inProgressUpdates, version);
+                   + (response.inProgressUpdates == null ? 1 : 1 +Row.serializer.serializedSize(response.inProgressUpdates, version));
         }
     }
 }

@@ -243,7 +243,7 @@ public class StorageProxy implements StorageProxyMBean
 
         // finish the paxos round w/ the desired updates
         // TODO turn null updates into delete?
-        FQRow proposal = new FQRow(table, key, updates);
+        Row proposal = new Row(key, updates);
         logger.debug("CAS precondition is met; proposing client-requested updates for {}", ballot);
         if (proposePaxos(ballot, proposal, liveEndpoints, 0))
         {
@@ -271,7 +271,7 @@ public class StorageProxy implements StorageProxyMBean
         return new PrepareResponse(callback.promised, callback.mostRecentCommitted, callback.inProgressBallot, callback.inProgressUpdates);
     }
 
-    private static boolean proposePaxos(UUID ballot, FQRow proposal, List<InetAddress> endpoints, int requiredParticipants)
+    private static boolean proposePaxos(UUID ballot, Row proposal, List<InetAddress> endpoints, int requiredParticipants)
     {
         ProposeCallback callback = new ProposeCallback(endpoints.size());
         ProposeRequest request = new ProposeRequest(ballot, proposal);
@@ -283,7 +283,7 @@ public class StorageProxy implements StorageProxyMBean
         return callback.getSuccessful() >= requiredParticipants;
     }
 
-    private static void commitPaxos(UUID ballot, FQRow proposal, List<InetAddress> endpoints)
+    private static void commitPaxos(UUID ballot, Row proposal, List<InetAddress> endpoints)
     {
         ProposeRequest request = new ProposeRequest(ballot, proposal);
         MessageOut<ProposeRequest> message = new MessageOut<ProposeRequest>(MessagingService.Verb.PAXOS_COMMIT, request, ProposeRequest.serializer);

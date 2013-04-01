@@ -11,9 +11,8 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.FQRow;
+import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ICommitLogEntry;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -25,9 +24,9 @@ public class ProposeRequest implements ICommitLogEntry
     public static final ProposeRequestSerializer serializer = new ProposeRequestSerializer();
 
     public final UUID ballot;
-    public final FQRow proposal;
+    public final Row proposal;
 
-    public ProposeRequest(UUID ballot, FQRow proposal)
+    public ProposeRequest(UUID ballot, Row proposal)
     {
         this.ballot = ballot;
         this.proposal = proposal;
@@ -59,7 +58,7 @@ public class ProposeRequest implements ICommitLogEntry
         {
             public void run()
             {
-                PaxosState state = PaxosState.stateFor(proposal.key);
+                PaxosState state = PaxosState.stateFor(proposal.key.key);
                 state.propose(ballot, proposal);
             }
         };
@@ -70,19 +69,19 @@ public class ProposeRequest implements ICommitLogEntry
         public void serialize(ProposeRequest proposal, DataOutput out, int version) throws IOException
         {
             UUIDSerializer.serializer.serialize(proposal.ballot, out, version);
-            FQRow.serializer.serialize(proposal.proposal, out, version);
+            Row.serializer.serialize(proposal.proposal, out, version);
         }
 
         public ProposeRequest deserialize(DataInput in, int version) throws IOException
         {
             return new ProposeRequest(UUIDSerializer.serializer.deserialize(in, version),
-                                     FQRow.serializer.deserialize(in, version));
+                                     Row.serializer.deserialize(in, version));
         }
 
         public long serializedSize(ProposeRequest proposal, int version)
         {
             return UUIDSerializer.serializer.serializedSize(proposal.ballot, version)
-                   + FQRow.serializer.serializedSize(proposal.proposal, version);
+                   + Row.serializer.serializedSize(proposal.proposal, version);
         }
     }
 }

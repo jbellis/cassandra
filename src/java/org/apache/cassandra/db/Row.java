@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -37,6 +38,11 @@ public class Row
         // cf may be null, indicating no data
         this.key = key;
         this.cf = cf;
+    }
+
+    public Row(ByteBuffer key, ColumnFamily updates)
+    {
+        this(StorageService.getPartitioner().decorateKey(key), updates);
     }
 
     @Override

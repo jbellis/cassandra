@@ -5,11 +5,10 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.FQRow;
+import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.FBUtilities;
@@ -37,7 +36,7 @@ public class PaxosState
 
     private UUID inProgressBallot = UUIDGen.minTimeUUID(0);
     public UUID mostRecentCommitted = UUIDGen.minTimeUUID(0);
-    public FQRow acceptedProposal;
+    public Row acceptedProposal;
 
     /**
      * If writing to CommitLog, caller should synchronize with this to make sure that commitlog replay
@@ -69,7 +68,7 @@ public class PaxosState
      * If writing to CommitLog, caller should synchronize with this to make sure that commitlog replay
      * order matches the order we apply live.
      */
-    public synchronized Boolean propose(UUID ballot, FQRow proposal)
+    public synchronized Boolean propose(UUID ballot, Row proposal)
     {
         if (inProgressBallot.equals(ballot))
         {
@@ -85,14 +84,14 @@ public class PaxosState
     /**
      * Caller does not need to update the commitlog; commit will log a RowMutation
      */
-    public synchronized void commit(UUID ballot, FQRow proposal)
+    public synchronized void commit(UUID ballot, Row proposal)
     {
         if (inProgressBallot.equals(ballot))
         {
             logger.debug("committing {} for {}", proposal, ballot);
 
-            RowMutation rm = new RowMutation(proposal.table, proposal.key, proposal.columns);
-            Table.open(proposal.table).apply(rm, true);
+            RowMutation rm = new RowMutation(proposal.key.key, proposal.cf);
+            Table.open(rm.getTable()).apply(rm, true);
             mostRecentCommitted = ballot;
             acceptedProposal = null;
         }

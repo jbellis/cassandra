@@ -5,7 +5,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.FQRow;
+import org.apache.cassandra.db.Row;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -17,7 +17,7 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
     public boolean promised = true;
     public UUID mostRecentCommitted = UUIDGen.minTimeUUID(0);
     public UUID inProgressBallot = UUIDGen.minTimeUUID(0);
-    public FQRow inProgressUpdates = null;
+    public Row inProgressUpdates = null;
 
     public PrepareCallback(int targets)
     {
