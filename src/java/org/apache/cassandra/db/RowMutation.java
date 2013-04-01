@@ -19,28 +19,22 @@ package org.apache.cassandra.db;
 
 import java.io.DataInput;
 import java.io.DataOutput;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.commitlog.ICommitLogEntry;
-import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.WrappedRunnable;
 
 // TODO convert this to a Builder pattern instead of encouraging RM.add directly,
 // which is less-efficient since we have to keep a mutable HashMap around
-public class RowMutation implements IMutation, ICommitLogEntry
+public class RowMutation implements IMutation
 {
     public static final RowMutationSerializer serializer = new RowMutationSerializer();
     public static final String FORWARD_TO = "FWD_TO";
@@ -213,75 +207,6 @@ public class RowMutation implements IMutation, ICommitLogEntry
     public MessageOut<RowMutation> createMessage(MessagingService.Verb verb)
     {
         return new MessageOut<RowMutation>(verb, this, serializer);
-    }
-
-    public long size()
-    {
-        return serializer.serializedSize(this, MessagingService.current_version);
-    }
-
-    public void write(DataOutputStream out) throws IOException
-    {
-        serializer.serialize(this, out, MessagingService.current_version);
-    }
-
-    public Type getType()
-    {
-        return Type.mutation;
-    }
-
-    public Runnable getReplayer(final long segment, final long entryLocation, final Map<UUID, ReplayPosition> cfPositions, final Set<Table> tablesRecovered, final AtomicInteger replayedCount)
-    {
-        return new WrappedRunnable()
-        {
-            protected void runMayThrow() throws Exception
-            {
-                if (Schema.instance.getKSMetaData(getTable()) == null)
-                    return;
-                if (pointInTimeExceeded())
-                    return;
-
-                final Table table = Table.open(getTable());
-                RowMutation newRm = new RowMutation(getTable(), key());
-
-                // Rebuild the row mutation, omitting column families that
-                // a) have already been flushed,
-                // b) are part of a cf that was dropped. Keep in mind that the cf.name() is suspect. do every thing based on the cfid instead.
-                for (ColumnFamily columnFamily : getColumnFamilies())
-                {
-                    if (Schema.instance.getCF(columnFamily.id()) == null)
-                        // null means the cf has been dropped
-                        continue;
-
-                    ReplayPosition rp = cfPositions.get(columnFamily.id());
-
-                    // replay if current segment is newer than last flushed one or,
-                    // if it is the last known segment, if we are after the replay position
-                    if (segment > rp.segment || (segment == rp.segment && entryLocation > rp.position))
-                    {
-                        newRm.add(columnFamily);
-                        replayedCount.incrementAndGet();
-                    }
-                }
-                if (!newRm.isEmpty())
-                {
-                    Table.open(newRm.getTable()).apply(newRm, false);
-                    tablesRecovered.add(table);
-                }
-            }
-
-            protected boolean pointInTimeExceeded()
-            {
-                long restoreTarget = CommitLog.instance.archiver.restorePointInTime;
-
-                for (ColumnFamily families : getColumnFamilies())
-                {
-                    if (families.maxTimestamp() > restoreTarget)
-                        return true;
-                }
-                return false;
-            }
-        };
     }
 
     public String toString()

@@ -28,19 +28,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Checksum;
 
 import com.google.common.collect.Ordering;
-import org.cliffc.high_scale_lib.NonBlockingHashSet;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.service.paxos.PrepareRequest;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.PureJavaCrc32;
+import org.apache.cassandra.utils.WrappedRunnable;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 public class CommitLogReplayer
 {
@@ -148,7 +151,6 @@ public class CommitLogReplayer
 
                 long claimedCRC32;
                 int serializedSize;
-                ICommitLogEntry.Type type;
                 try
                 {
                     // any of the reads may hit EOF
@@ -166,9 +168,7 @@ public class CommitLogReplayer
                     if (serializedSize < 10)
                         break;
 
-                    long typeAndChecksum = reader.readLong();
-                    int claimedSizeChecksum = (int) (typeAndChecksum);
-                    type = ICommitLogEntry.Type.fromOrdinal((int) (typeAndChecksum >>> 32));
+                    long claimedSizeChecksum = reader.readLong();
                     checksum.reset();
                     if (CommitLogDescriptor.current_version < CommitLogDescriptor.VERSION_20)
                         checksum.update(serializedSize);
@@ -176,7 +176,8 @@ public class CommitLogReplayer
                         FBUtilities.updateChecksumInt(checksum, serializedSize);
 
                     if (checksum.getValue() != claimedSizeChecksum)
-                        break; // entry wasn't synced correctly/fully. that's ok.
+                        break; // entry wasn't synced correctly/fully. that's
+                               // ok.
 
                     if (serializedSize > buffer.length)
                         buffer = new byte[(int) (1.2 * serializedSize)];
@@ -196,13 +197,75 @@ public class CommitLogReplayer
                     continue;
                 }
 
-                ICommitLogEntry entry = deserializeForReplay(buffer, type, serializedSize, version);
-                if (entry == null)
+                /* deserialize the commit log entry */
+                FastByteArrayInputStream bufIn = new FastByteArrayInputStream(buffer, 0, serializedSize);
+                RowMutation rm;
+                try
+                {
+                    // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
+                    // the current version. so do make sure the CL is drained prior to upgrading a node.
+                    rm = RowMutation.serializer.deserialize(new DataInputStream(bufIn), version, ColumnSerializer.Flag.LOCAL);
+                }
+                catch (UnknownColumnFamilyException ex)
+                {
+                    if (ex.cfId == null)
+                        continue;
+                    AtomicInteger i = invalidMutations.get(ex.cfId);
+                    if (i == null)
+                    {
+                        i = new AtomicInteger(1);
+                        invalidMutations.put(ex.cfId, i);
+                    }
+                    else
+                        i.incrementAndGet();
                     continue;
+                }
 
-                logger.debug("replaying {}", entry);
+                if (logger.isDebugEnabled())
+                    logger.debug(String.format("replaying mutation for %s.%s: %s", rm.getTable(), ByteBufferUtil.bytesToHex(rm.key()), "{" + StringUtils.join(rm.getColumnFamilies().iterator(), ", ")
+                            + "}"));
+
                 final long entryLocation = reader.getFilePointer();
-                futures.add(StageManager.getStage(Stage.MUTATION).submit(entry.getReplayer(segment, entryLocation, cfPositions, tablesRecovered, replayedCount)));
+                final RowMutation frm = rm;
+                Runnable runnable = new WrappedRunnable()
+                {
+                    public void runMayThrow() throws IOException
+                    {
+                        if (Schema.instance.getKSMetaData(frm.getTable()) == null)
+                            return;
+                        if (pointInTimeExceeded(frm))
+                            return;
+
+                        final Table table = Table.open(frm.getTable());
+                        RowMutation newRm = new RowMutation(frm.getTable(), frm.key());
+
+                        // Rebuild the row mutation, omitting column families that 
+                        // a) have already been flushed,
+                        // b) are part of a cf that was dropped. Keep in mind that the cf.name() is suspect. do every thing based on the cfid instead.
+                        for (ColumnFamily columnFamily : frm.getColumnFamilies())
+                        {
+                            if (Schema.instance.getCF(columnFamily.id()) == null)
+                                // null means the cf has been dropped
+                                continue;
+
+                            ReplayPosition rp = cfPositions.get(columnFamily.id());
+
+                            // replay if current segment is newer than last flushed one or, 
+                            // if it is the last known segment, if we are after the replay position
+                            if (segment > rp.segment || (segment == rp.segment && entryLocation > rp.position))
+                            {
+                                newRm.add(columnFamily);
+                                replayedCount.incrementAndGet();
+                            }
+                        }
+                        if (!newRm.isEmpty())
+                        {
+                            Table.open(newRm.getTable()).apply(newRm, false);
+                            tablesRecovered.add(table);
+                        }
+                    }
+                };
+                futures.add(StageManager.getStage(Stage.MUTATION).submit(runnable));
                 if (futures.size() > MAX_OUTSTANDING_REPLAY_COUNT)
                 {
                     FBUtilities.waitOnFutures(futures);
@@ -217,32 +280,15 @@ public class CommitLogReplayer
         }
     }
 
-    private ICommitLogEntry deserializeForReplay(byte[] buffer, ICommitLogEntry.Type type, int serializedSize, int version) throws IOException
+    protected boolean pointInTimeExceeded(RowMutation frm)
     {
-        DataInputStream in = new DataInputStream(new FastByteArrayInputStream(buffer, 0, serializedSize));
-        try
-        {
-            // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
-            // the current version. so do make sure the CL is drained prior to upgrading a node.
-            if (type == ICommitLogEntry.Type.mutation)
-                return RowMutation.serializer.deserialize(in, version, ColumnSerializer.Flag.LOCAL);
-            // else if (type == ICommitLogEntry.Type.paxosPrepare)
-                return PrepareRequest.serializer.deserialize(in, version);
+        long restoreTarget = CommitLog.instance.archiver.restorePointInTime;
 
-        }
-        catch (UnknownColumnFamilyException ex)
+        for (ColumnFamily families : frm.getColumnFamilies())
         {
-            if (ex.cfId == null)
-                return null;
-            AtomicInteger i = invalidMutations.get(ex.cfId);
-            if (i == null)
-            {
-                i = new AtomicInteger(1);
-                invalidMutations.put(ex.cfId, i);
-            }
-            else
-                i.incrementAndGet();
-            return null;
+            if (families.maxTimestamp() > restoreTarget)
+                return true;
         }
+        return false;
     }
 }

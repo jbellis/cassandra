@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -21,11 +22,12 @@ public class PaxosState
     private static final int STATE_BUCKETS = 1024;
 
     private static final Map<Integer, PaxosState> states;
+
     static
     {
         ImmutableMap.Builder<Integer, PaxosState> builder = ImmutableMap.builder();
         for (int i = 0; i < STATE_BUCKETS; i++)
-            builder.put(i, new PaxosState());
+            builder.put(i, SystemTable.loadPaxosState(i));
         states = builder.build();
     }
 
@@ -34,9 +36,23 @@ public class PaxosState
         return states.get(key.hashCode() % STATE_BUCKETS);
     }
 
-    private UUID inProgressBallot = UUIDGen.minTimeUUID(0);
-    public UUID mostRecentCommitted = UUIDGen.minTimeUUID(0);
+    private int id;
+    private UUID inProgressBallot;
+    public UUID mostRecentCommitted;
     public Row acceptedProposal;
+
+    public PaxosState(int id)
+    {
+        this(id, UUIDGen.minTimeUUID(0), UUIDGen.minTimeUUID(0), null);
+    }
+
+    public PaxosState(int id, UUID inProgressBallot, UUID mostRecentCommitted, Row acceptedProposal)
+    {
+        this.id = id;
+        this.inProgressBallot = inProgressBallot;
+        this.mostRecentCommitted = mostRecentCommitted;
+        this.acceptedProposal = acceptedProposal;
+    }
 
     /**
      * If writing to CommitLog, caller should synchronize with this to make sure that commitlog replay
@@ -55,6 +71,7 @@ public class PaxosState
             finally
             {
                 inProgressBallot = ballot;
+                SystemTable.savePaxosPromise(id, ballot);
             }
         }
         else
@@ -74,6 +91,7 @@ public class PaxosState
         {
             logger.debug("accepting {} for {}", ballot, proposal);
             acceptedProposal = proposal;
+            SystemTable.savePaxosProposal(id, ballot, proposal);
             return true;
         }
 
@@ -94,6 +112,7 @@ public class PaxosState
             Table.open(rm.getTable()).apply(rm, true);
             mostRecentCommitted = ballot;
             acceptedProposal = null;
+            SystemTable.savePaxosCommit(id, ballot);
         }
         else
         {

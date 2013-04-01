@@ -30,6 +30,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Checksum;
 
+import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -188,9 +189,9 @@ public class CommitLogSegment
     /**
      * mark all of the column families we're modifying as dirty at this position
      */
-    private void markDirty(Iterable<ColumnFamily> columnFamilies, ReplayPosition repPos)
+    private void markDirty(RowMutation rowMutation, ReplayPosition repPos)
     {
-        for (ColumnFamily columnFamily : columnFamilies)
+        for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
         {
             // check for null cfm in case a cl write goes through after the cf is
             // defined but before a new segment is created.
@@ -209,27 +210,24 @@ public class CommitLogSegment
    /**
      * Appends a row mutation onto the commit log.  Requres that hasCapacityFor has already been checked.
      *
-     *
-    * @param   entry   the operation to append to the commit log.
-    * @return  the position of the appended mutation
+     * @param   mutation   the mutation to append to the commit log.
+     * @return  the position of the appended mutation
      */
-    public ReplayPosition write(ICommitLogEntry entry) throws IOException
+    public ReplayPosition write(RowMutation mutation) throws IOException
     {
         assert !closed;
         ReplayPosition repPos = getContext();
-        markDirty(entry.getColumnFamilies(), repPos);
+        markDirty(mutation, repPos);
 
         checksum.reset();
 
         // checksummed length
-        int length = (int) entry.size();
+        int length = (int) RowMutation.serializer.serializedSize(mutation, MessagingService.current_version);
         bufferStream.writeInt(length);
-        int lengthChecksum = (int) checksum.getValue();
-        long typeAndChecksum = (entry.getType().ordinal() << 32) | (lengthChecksum & 0xFFFFFFFFL);
-        buffer.putLong(typeAndChecksum);
+        buffer.putLong(checksum.getValue());
 
-        // checksummed operation
-        entry.write(bufferStream);
+        // checksummed mutation
+        RowMutation.serializer.serialize(mutation, bufferStream, MessagingService.current_version);
         buffer.putLong(checksum.getValue());
 
         if (buffer.remaining() >= 4)

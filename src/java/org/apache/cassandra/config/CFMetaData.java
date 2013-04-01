@@ -52,7 +52,6 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.LZ4Compressor;
-import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.tracing.Tracing;
@@ -242,6 +241,13 @@ public final class CFMetaData
                                                                  + "columnfamily_name text,"
                                                                  + "inputs set<int>"
                                                                  + ") WITH COMMENT='unfinished compactions'");
+
+    public static final CFMetaData PaxosCF = compile(18, "CREATE TABLE " + SystemTable.PAXOS_CF + " ("
+                                                                 + "id int PRIMARY KEY,"
+                                                                 + "in_progress_ballot timeuuid,"
+                                                                 + "most_recent_committed timeuuid,"
+                                                                 + "propsal blob"
+                                                                 + ") WITH COMMENT='in-progress paxos proposals'");
 
     public enum Caching
     {

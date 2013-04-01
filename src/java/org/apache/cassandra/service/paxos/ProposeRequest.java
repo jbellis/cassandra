@@ -2,24 +2,14 @@ package org.apache.cassandra.service.paxos;
 
 import java.io.DataInput;
 import java.io.DataOutput;
-import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.commitlog.ICommitLogEntry;
-import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.UUIDSerializer;
 
-public class ProposeRequest implements ICommitLogEntry
+public class ProposeRequest
 {
     public static final ProposeRequestSerializer serializer = new ProposeRequestSerializer();
 
@@ -30,38 +20,6 @@ public class ProposeRequest implements ICommitLogEntry
     {
         this.ballot = ballot;
         this.proposal = proposal;
-    }
-
-    public long size()
-    {
-        return serializer.serializedSize(this, MessagingService.current_version);
-    }
-
-    public Iterable<ColumnFamily> getColumnFamilies()
-    {
-        return Collections.emptyList();
-    }
-
-    public void write(DataOutputStream out) throws IOException
-    {
-        serializer.serialize(this, out, MessagingService.current_version);
-    }
-
-    public Type getType()
-    {
-        return Type.paxosPropose;
-    }
-
-    public Runnable getReplayer(long segment, long entryLocation, Map<UUID, ReplayPosition> cfPositions, Set<Table> tablesRecovered, AtomicInteger replayedCount)
-    {
-        return new Runnable()
-        {
-            public void run()
-            {
-                PaxosState state = PaxosState.stateFor(proposal.key.key);
-                state.propose(ballot, proposal);
-            }
-        };
     }
 
     public static class ProposeRequestSerializer implements IVersionedSerializer<ProposeRequest>
