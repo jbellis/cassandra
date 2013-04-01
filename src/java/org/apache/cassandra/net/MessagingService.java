@@ -123,11 +123,11 @@ public final class MessagingService implements MessagingServiceMBean
         PAXOS_PREPARE,
         PAXOS_PROPOSE,
         PAXOS_COMMIT,
+        // remember to add new verbs at the end, since we serialize by ordinal
         UNUSED_1,
         UNUSED_2,
         UNUSED_3,
         ;
-        // remember to add new verbs at the end, since we serialize by ordinal
     }
 
     public static final EnumMap<MessagingService.Verb, Stage> verbStages = new EnumMap<MessagingService.Verb, Stage>(MessagingService.Verb.class)

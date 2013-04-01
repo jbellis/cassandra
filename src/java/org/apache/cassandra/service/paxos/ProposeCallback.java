@@ -23,7 +23,7 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
         logger.debug("Propose response {} from {}", msg.payload, msg.from);
 
         if (msg.payload)
-            successful.addAndGet(1);
+            successful.incrementAndGet();
         latch.countDown();
     }
 
