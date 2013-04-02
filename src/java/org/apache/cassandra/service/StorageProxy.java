@@ -212,7 +212,7 @@ public class StorageProxy implements StorageProxyMBean
 
         // prepare
         logger.debug("Preparing {}", ballot);
-        PrepareResponse summary = preparePaxos(ballot, key, liveEndpoints, requiredParticipants);
+        PrepareCallback summary = preparePaxos(ballot, key, liveEndpoints, requiredParticipants);
         if (!summary.promised)
         {
             logger.debug("Some replicas have already promised a higher ballot than ours; aborting");
@@ -256,8 +256,8 @@ public class StorageProxy implements StorageProxyMBean
         return false;
     }
 
-    private static PrepareResponse preparePaxos(UUID ballot, ByteBuffer key, List<InetAddress> endpoints, int requiredParticipants)
-    throws WriteTimeoutException
+    private static PrepareCallback preparePaxos(UUID ballot, ByteBuffer key, List<InetAddress> endpoints, int requiredParticipants)
+            throws WriteTimeoutException, UnavailableException
     {
         PrepareCallback callback = new PrepareCallback(endpoints.size());
         PrepareRequest request = new PrepareRequest(ballot, key);
@@ -265,10 +265,17 @@ public class StorageProxy implements StorageProxyMBean
         for (InetAddress target : endpoints)
             MessagingService.instance().sendRR(message, target, callback);
         callback.await();
+
         if (callback.getResponseCount() < requiredParticipants)
             throw new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, callback.getResponseCount(), endpoints.size());
 
-        return new PrepareResponse(callback.promised, callback.mostRecentCommitted, callback.inProgressBallot, callback.inProgressUpdates);
+        // Require that a majority of the nodes that participated in the last commit be present.
+        // This prevents replicas from diverging fatally over time.  An example is presented at
+        // https://issues.apache.org/jira/browse/CASSANDRA-5062?focusedCommentId=13619810&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13619810
+        if (!callback.mostRecentCommitHasQuorum(requiredParticipants))
+            throw new UnavailableException(ConsistencyLevel.SERIAL, requiredParticipants, endpoints.size());
+
+        return callback;
     }
 
     private static boolean proposePaxos(UUID ballot, Row proposal, List<InetAddress> endpoints, int requiredParticipants)
