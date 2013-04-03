@@ -38,20 +38,21 @@ public class PaxosState
 
     private int id;
     private UUID inProgressBallot;
-    public UUID mostRecentCommitted;
-    public Row acceptedProposal;
+    private Row acceptedProposal;
+    private Commit mostRecentCommit;
+
 
     public PaxosState(int id)
     {
-        this(id, UUIDGen.minTimeUUID(0), UUIDGen.minTimeUUID(0), null);
+        this(id, UUIDGen.minTimeUUID(0), null, Commit.emptyCommit());
     }
 
-    public PaxosState(int id, UUID inProgressBallot, UUID mostRecentCommitted, Row acceptedProposal)
+    public PaxosState(int id, UUID inProgressBallot, Row acceptedProposal, Commit mostRecentCommit)
     {
         this.id = id;
         this.inProgressBallot = inProgressBallot;
-        this.mostRecentCommitted = mostRecentCommitted;
         this.acceptedProposal = acceptedProposal;
+        this.mostRecentCommit = mostRecentCommit;
     }
 
     /**
@@ -66,7 +67,7 @@ public class PaxosState
             try
             {
                 // return the pre-promise ballot so coordinator can pick the most recent in-progress value to resume
-                return new PrepareResponse(true, mostRecentCommitted, inProgressBallot, acceptedProposal);
+                return new PrepareResponse(true, inProgressBallot, acceptedProposal, mostRecentCommit);
             }
             finally
             {
@@ -77,7 +78,7 @@ public class PaxosState
         else
         {
             logger.debug("promise rejected; {} is not sufficiently newer than {}", ballot, inProgressBallot);
-            return new PrepareResponse(false, mostRecentCommitted, inProgressBallot, acceptedProposal);
+            return new PrepareResponse(false, inProgressBallot, acceptedProposal, mostRecentCommit);
         }
     }
 
@@ -110,9 +111,9 @@ public class PaxosState
 
             RowMutation rm = new RowMutation(proposal.key.key, proposal.cf);
             Table.open(rm.getTable()).apply(rm, true);
-            mostRecentCommitted = ballot;
+            mostRecentCommit = new Commit(ballot, proposal);
             acceptedProposal = null;
-            SystemTable.savePaxosCommit(id, ballot);
+            SystemTable.savePaxosCommit(id, ballot, proposal);
         }
         else
         {

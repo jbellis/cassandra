@@ -245,8 +245,9 @@ public final class CFMetaData
     public static final CFMetaData PaxosCF = compile(18, "CREATE TABLE " + SystemTable.PAXOS_CF + " ("
                                                                  + "id int PRIMARY KEY,"
                                                                  + "in_progress_ballot timeuuid,"
-                                                                 + "most_recent_committed timeuuid,"
-                                                                 + "propsal blob"
+                                                                 + "propsal blob,"
+                                                                 + "most_recent_commit_at timeuuid,"
+                                                                 + "most_recent_commit blob"
                                                                  + ") WITH COMMENT='in-progress paxos proposals'");
 
     public enum Caching

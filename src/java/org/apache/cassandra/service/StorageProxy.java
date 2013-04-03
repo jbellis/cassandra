@@ -218,9 +218,12 @@ public class StorageProxy implements StorageProxyMBean
             logger.debug("Some replicas have already promised a higher ballot than ours; aborting");
             return false;
         }
+        Iterable<InetAddress> missingMRC = summary.replicasMissingMostRecentCommit();
+        if (Iterables.size(missingMRC) > 0)
+            commitPaxos(ballot, summary.mostRecentCommit.update, missingMRC);
 
         // complete earlier, in-progress rounds if necessary
-        if (summary.inProgressUpdates != null && FBUtilities.timeComparator.compare(summary.inProgressBallot, summary.mostRecentCommitted) >= 0)
+        if (summary.inProgressUpdates != null && FBUtilities.timeComparator.compare(summary.inProgressBallot, summary.mostRecentCommit.ballot) >= 0)
         {
             logger.debug("Finishing incomplete update {} for paxos round {}", summary.inProgressUpdates, summary.inProgressBallot);
             if (proposePaxos(ballot, summary.inProgressUpdates, liveEndpoints, 0))
@@ -290,7 +293,7 @@ public class StorageProxy implements StorageProxyMBean
         return callback.getSuccessful() >= requiredParticipants;
     }
 
-    private static void commitPaxos(UUID ballot, Row proposal, List<InetAddress> endpoints)
+    private static void commitPaxos(UUID ballot, Row proposal, Iterable<InetAddress> endpoints)
     {
         ProposeRequest request = new ProposeRequest(ballot, proposal);
         MessageOut<ProposeRequest> message = new MessageOut<ProposeRequest>(MessagingService.Verb.PAXOS_COMMIT, request, ProposeRequest.serializer);

@@ -1,11 +1,11 @@
 package org.apache.cassandra.service.paxos;
 
-import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.net.InetAddress;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,10 +19,11 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
     private static final Logger logger = LoggerFactory.getLogger(PrepareCallback.class);
 
     public boolean promised = true;
-    public UUID mostRecentCommitted = UUIDGen.minTimeUUID(0);
+    public Commit mostRecentCommit = Commit.emptyCommit();
     public UUID inProgressBallot = UUIDGen.minTimeUUID(0);
     public Row inProgressUpdates = null;
 
+    private Map<InetAddress, Commit> commitsByReplica = new HashMap<InetAddress, Commit>();
     private SortedMap<UUID, AtomicInteger> sharedCommits = new TreeMap<UUID, AtomicInteger>(FBUtilities.timeComparator);
 
     public PrepareCallback(int targets)
@@ -36,17 +37,18 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
         logger.debug("Prepare response {} from {}", response, message.from);
 
         promised &= response.promised;
+        commitsByReplica.put(message.from, response.mostRecentCommit);
 
-        AtomicInteger mrc = sharedCommits.get(response.mostRecentCommitted);
+        AtomicInteger mrc = sharedCommits.get(response.mostRecentCommit.ballot);
         if (mrc == null)
         {
             mrc = new AtomicInteger(0);
-            sharedCommits.put(response.mostRecentCommitted, mrc);
+            sharedCommits.put(response.mostRecentCommit.ballot, mrc);
         }
         mrc.incrementAndGet();
 
-        if (response.mostRecentCommitted.timestamp() > mostRecentCommitted.timestamp())
-            mostRecentCommitted = response.mostRecentCommitted;
+        if (response.mostRecentCommit.ballot.timestamp() > mostRecentCommit.ballot.timestamp())
+            mostRecentCommit = response.mostRecentCommit;
 
         if (response.inProgressBallot.timestamp() > inProgressBallot.timestamp())
         {
@@ -60,5 +62,16 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
     public boolean mostRecentCommitHasQuorum(int required)
     {
         return sharedCommits.get(sharedCommits.lastKey()).get() >= required;
+    }
+
+    public Iterable<InetAddress> replicasMissingMostRecentCommit()
+    {
+        return Iterables.filter(commitsByReplica.keySet(), new Predicate<InetAddress>()
+        {
+            public boolean apply(InetAddress inetAddress)
+            {
+                return commitsByReplica.get(inetAddress).ballot != mostRecentCommit.ballot;
+            }
+        });
     }
 }
