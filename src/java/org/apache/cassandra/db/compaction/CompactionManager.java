@@ -27,7 +27,6 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.*;
-import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -241,13 +240,7 @@ public class CompactionManager implements CompactionManagerMBean
                 // Sort the column families in order of SSTable size, so cleanup of smaller CFs
                 // can free up space for larger ones
                 List<SSTableReader> sortedSSTables = new ArrayList<SSTableReader>(sstables);
-                Collections.sort(sortedSSTables, new Comparator<SSTableReader>()
-                {
-                    public int compare(SSTableReader o1, SSTableReader o2)
-                    {
-                        return Longs.compare(o1.onDiskLength(), o2.onDiskLength());
-                    }
-                });
+                Collections.sort(sortedSSTables, new SSTableReader.SizeComparator());
 
                 doCleanupCompaction(store, sortedSSTables, renewer);
             }

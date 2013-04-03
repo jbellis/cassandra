@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.*;
 
+import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1284,6 +1285,14 @@ public class SSTableReader extends SSTable
         finally
         {
             FileUtils.closeQuietly(file);
+        }
+    }
+
+    public static class SizeComparator implements Comparator<SSTableReader>
+    {
+        public int compare(SSTableReader o1, SSTableReader o2)
+        {
+            return Longs.compare(o1.onDiskLength(), o2.onDiskLength());
         }
     }
 }
