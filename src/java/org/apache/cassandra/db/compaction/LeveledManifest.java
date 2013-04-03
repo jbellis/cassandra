@@ -538,20 +538,14 @@ public class LeveledManifest
 
     public int getNextLevel(Collection<SSTableReader> sstables, OperationType operationType)
     {
+        assert operationType == OperationType.COMPACTION;
+
         int maximumLevel = Integer.MIN_VALUE;
         int minimumLevel = Integer.MAX_VALUE;
         for (SSTableReader sstable : sstables)
         {
             maximumLevel = Math.max(sstable.getSSTableLevel(), maximumLevel);
             minimumLevel = Math.min(sstable.getSSTableLevel(), minimumLevel);
-        }
-        switch(operationType)
-        {
-            case SCRUB:
-            case TOMBSTONE_COMPACTION:
-            case CLEANUP:
-            case UPGRADE_SSTABLES:
-                return minimumLevel;
         }
 
         int newLevel;
