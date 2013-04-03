@@ -34,11 +34,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Pair;
 
 public class LeveledManifest
 {
@@ -243,10 +243,16 @@ public class LeveledManifest
         // LevelDB's way around this is to simply block writes if L0 compaction falls behind.
         // We don't have that luxury.
         //
-        // So instead, we force compacting higher levels first.  This may not minimize the number
-        // of reads done as quickly in the short term, but it minimizes the i/o needed to compact
-        // optimially which gives us a long term win.
-        for (int i = generations.length - 1; i >= 0; i--)
+        // So instead, we
+        // 1) force compacting higher levels first, which minimizes the i/o needed to compact
+        //    optimially which gives us a long term win, and
+        // 2) if L0 falls behind, we will size-tiered compact it to reduce read overhead until
+        //    we can catch up on the higher levels.
+        //
+        // This isn't a magic wand -- if you are consistently writing too fast for LCS to keep
+        // up, you're still screwed.  But if instead you have intermittent bursts of activity,
+        // it can help a lot.
+        for (int i = generations.length - 1; i > 0; i--)
         {
             List<SSTableReader> sstables = generations[i];
             if (sstables.isEmpty())
@@ -257,10 +263,23 @@ public class LeveledManifest
             double score = (double)SSTableReader.getTotalBytes(remaining) / (double)maxBytesForLevel(i);
             logger.debug("Compaction score for level {} is {}", i, score);
 
-            // L0 gets a special case that if we don't have anything more important to do,
-            // we'll go ahead and compact if we have more than one sstable
-            if (score > 1.001 || (i == 0 && sstables.size() > 1))
+            if (score > 1.001)
             {
+                // before proceeding with a higher level, let's see if L0 is far enough behind to warrant STCS
+                if (generations[0].size() > MAX_COMPACTING_L0)
+                {
+                    Set<SSTableReader> candidates = cfs.getUncompactingSSTables();
+                    List<Pair<SSTableReader,Long>> pairs = SizeTieredCompactionStrategy.createSSTableAndLengthPairs(AbstractCompactionStrategy.filterSuspectSSTables(candidates));
+                    List<List<SSTableReader>> buckets = SizeTieredCompactionStrategy.getBuckets(pairs,
+                                                                                                SizeTieredCompactionStrategy.DEFAULT_BUCKET_HIGH,
+                                                                                                SizeTieredCompactionStrategy.DEFAULT_BUCKET_LOW,
+                                                                                                SizeTieredCompactionStrategy.DEFAULT_MIN_SSTABLE_SIZE);
+                    List<SSTableReader> mostInteresting = SizeTieredCompactionStrategy.mostInterestingBucket(buckets, 4, 32);
+                    if (!mostInteresting.isEmpty())
+                        return mostInteresting;
+                }
+
+                // L0 is fine, proceed with this level
                 Collection<SSTableReader> candidates = getCandidatesFor(i);
                 if (logger.isDebugEnabled())
                     logger.debug("Compaction candidates for L{} are {}", i, toString(candidates));
@@ -269,7 +288,8 @@ public class LeveledManifest
             }
         }
 
-        return Collections.emptyList();
+        // Higher levels are happy, time for a standard, non-STCS L0 compaction
+        return generations[0].isEmpty() ? Collections.<SSTableReader>emptyList() : getCandidatesFor(0);
     }
 
     public synchronized int getLevelSize(int i)
@@ -296,7 +316,7 @@ public class LeveledManifest
                 if (!generations[i].isEmpty())
                 {
                     logger.debug("L{} contains {} SSTables ({} bytes) in {}",
-                            new Object[] {i, generations[i].size(), SSTableReader.getTotalBytes(generations[i]), this});
+                                 i, generations[i].size(), SSTableReader.getTotalBytes(generations[i]), this);
                 }
             }
         }
