@@ -283,7 +283,12 @@ public class CompactionTask extends AbstractCompactionTask
                                  keysPerSSTable,
                                  cfs.metadata,
                                  cfs.partitioner,
-                                 SSTableMetadata.createCollector(toCompact, cfs.getCompactionStrategy().getNextLevel(toCompact, compactionType)));
+                                 SSTableMetadata.createCollector(toCompact, getLevel()));
+    }
+
+    protected int getLevel()
+    {
+        return 0;
     }
 
     protected boolean partialCompactionsAcceptable()

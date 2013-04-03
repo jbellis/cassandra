@@ -220,10 +220,10 @@ public class LeveledManifest
     }
 
     /**
-     * @return highest-priority sstables to compact
-     * If no compactions are necessary, will return an empty list.  Never returns null.
+     * @return highest-priority sstables to compact, and level to compact them to
+     * If no compactions are necessary, will return null
      */
-    public synchronized Collection<SSTableReader> getCompactionCandidates()
+    public synchronized Pair<? extends Collection<SSTableReader>, Integer> getCompactionCandidates()
     {
         // LevelDB gives each level a score of how much data it contains vs its ideal amount, and
         // compacts the level with the highest score. But this falls apart spectacularly once you
@@ -276,7 +276,7 @@ public class LeveledManifest
                                                                                                 SizeTieredCompactionStrategy.DEFAULT_MIN_SSTABLE_SIZE);
                     List<SSTableReader> mostInteresting = SizeTieredCompactionStrategy.mostInterestingBucket(buckets, 4, 32);
                     if (!mostInteresting.isEmpty())
-                        return mostInteresting;
+                        return Pair.create(mostInteresting, 0);
                 }
 
                 // L0 is fine, proceed with this level
@@ -284,12 +284,17 @@ public class LeveledManifest
                 if (logger.isDebugEnabled())
                     logger.debug("Compaction candidates for L{} are {}", i, toString(candidates));
                 if (!candidates.isEmpty())
-                    return candidates;
+                    return Pair.create(candidates, getNextLevel(candidates));
             }
         }
 
         // Higher levels are happy, time for a standard, non-STCS L0 compaction
-        return generations[0].isEmpty() ? Collections.<SSTableReader>emptyList() : getCandidatesFor(0);
+        if (generations[0].isEmpty())
+            return null;
+        Collection<SSTableReader> candidates = getCandidatesFor(0);
+        if (candidates.isEmpty())
+            return null;
+        return Pair.create(candidates, getNextLevel(candidates));
     }
 
     public synchronized int getLevelSize(int i)
@@ -532,14 +537,12 @@ public class LeveledManifest
         }
 
         logger.debug("Estimating {} compactions to do for {}.{}",
-                     new Object[] {Arrays.toString(estimated), cfs.table.getName(), cfs.name });
+                     Arrays.toString(estimated), cfs.table.getName(), cfs.name);
         return Ints.checkedCast(tasks);
     }
 
-    public int getNextLevel(Collection<SSTableReader> sstables, OperationType operationType)
+    public int getNextLevel(Collection<SSTableReader> sstables)
     {
-        assert operationType == OperationType.COMPACTION;
-
         int maximumLevel = Integer.MIN_VALUE;
         int minimumLevel = Integer.MAX_VALUE;
         for (SSTableReader sstable : sstables)
