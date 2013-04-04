@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 import java.util.*;
 import java.util.Map.Entry;
 
+import com.google.common.collect.Iterables;
 import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -176,10 +177,10 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         return estimatedRemainingTasks;
     }
 
-    public static List<Pair<SSTableReader, Long>> createSSTableAndLengthPairs(Collection<SSTableReader> collection)
+    public static List<Pair<SSTableReader, Long>> createSSTableAndLengthPairs(Iterable<SSTableReader> sstables)
     {
-        List<Pair<SSTableReader, Long>> tableLengthPairs = new ArrayList<Pair<SSTableReader, Long>>(collection.size());
-        for(SSTableReader table: collection)
+        List<Pair<SSTableReader, Long>> tableLengthPairs = new ArrayList<Pair<SSTableReader, Long>>(Iterables.size(sstables));
+        for(SSTableReader table: sstables)
             tableLengthPairs.add(Pair.create(table, table.onDiskLength()));
         return tableLengthPairs;
     }

@@ -268,7 +268,7 @@ public class LeveledManifest
                 // before proceeding with a higher level, let's see if L0 is far enough behind to warrant STCS
                 if (generations[0].size() > MAX_COMPACTING_L0)
                 {
-                    Set<SSTableReader> candidates = cfs.getUncompactingSSTables();
+                    Iterable<SSTableReader> candidates = cfs.getDataTracker().getUncompactingSSTables(generations[0]);
                     List<Pair<SSTableReader,Long>> pairs = SizeTieredCompactionStrategy.createSSTableAndLengthPairs(AbstractCompactionStrategy.filterSuspectSSTables(candidates));
                     List<List<SSTableReader>> buckets = SizeTieredCompactionStrategy.getBuckets(pairs,
                                                                                                 SizeTieredCompactionStrategy.DEFAULT_BUCKET_HIGH,
