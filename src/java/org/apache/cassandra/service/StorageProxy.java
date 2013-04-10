@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
@@ -198,6 +199,8 @@ public class StorageProxy implements StorageProxyMBean
     public static boolean cas(String table, String cfName, ByteBuffer key, ColumnFamily expected, ColumnFamily updates)
     throws UnavailableException, IOException, IsBootstrappingException, ReadTimeoutException, WriteTimeoutException
     {
+        CFMetaData metadata = Schema.instance.getCFMetaData(table, cfName);
+
         long timedOut = System.currentTimeMillis() + DatabaseDescriptor.getCasContentionTimeout();
         while (System.currentTimeMillis() < timedOut)
         {
@@ -215,7 +218,7 @@ public class StorageProxy implements StorageProxyMBean
 
             // prepare
             logger.debug("Preparing {}", ballot);
-            Commit toPrepare = Commit.newPrepare(key, ballot);
+            Commit toPrepare = Commit.newPrepare(key, metadata, ballot);
             PrepareCallback summary = preparePaxos(toPrepare, liveEndpoints, requiredParticipants);
             if (!summary.promised)
             {
@@ -294,7 +297,7 @@ public class StorageProxy implements StorageProxyMBean
     private static PrepareCallback preparePaxos(Commit toPrepare, List<InetAddress> endpoints, int requiredParticipants)
     throws WriteTimeoutException, UnavailableException
     {
-        PrepareCallback callback = new PrepareCallback(toPrepare.key, requiredParticipants);
+        PrepareCallback callback = new PrepareCallback(toPrepare.key, toPrepare.update.metadata(), requiredParticipants);
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PREPARE, toPrepare, Commit.serializer);
         for (InetAddress target : endpoints)
             MessagingService.instance().sendRR(message, target, callback);

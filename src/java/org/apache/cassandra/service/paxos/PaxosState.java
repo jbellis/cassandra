@@ -5,6 +5,7 @@ import java.nio.ByteBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
@@ -28,9 +29,9 @@ public class PaxosState
     private final Commit inProgressCommit;
     private final Commit mostRecentCommit;
 
-    public PaxosState(ByteBuffer key)
+    public PaxosState(ByteBuffer key, CFMetaData metadata)
     {
-        this(Commit.emptyCommit(key), Commit.emptyCommit(key));
+        this(Commit.emptyCommit(key, metadata), Commit.emptyCommit(key, metadata));
     }
 
     public PaxosState(Commit inProgressCommit, Commit mostRecentCommit)
@@ -46,7 +47,7 @@ public class PaxosState
     {
         synchronized (lockFor(toPrepare.key))
         {
-            PaxosState state = SystemTable.loadPaxosState(toPrepare.key);
+            PaxosState state = SystemTable.loadPaxosState(toPrepare.key, toPrepare.update.metadata());
             if (toPrepare.isAfter(state.inProgressCommit))
             {
                 logger.debug("promising ballot {}", toPrepare.ballot);
@@ -66,7 +67,7 @@ public class PaxosState
     {
         synchronized (lockFor(proposal.key))
         {
-            PaxosState state = SystemTable.loadPaxosState(proposal.key);
+            PaxosState state = SystemTable.loadPaxosState(proposal.key, proposal.update.metadata());
             if (proposal.hasBallot(state.inProgressCommit.ballot))
             {
                 logger.debug("accepting {}", proposal);
@@ -83,7 +84,7 @@ public class PaxosState
     {
         synchronized (lockFor(proposal.key))
         {
-            PaxosState state = SystemTable.loadPaxosState(proposal.key);
+            PaxosState state = SystemTable.loadPaxosState(proposal.key, proposal.update.metadata());
             if (proposal.hasBallot(state.inProgressCommit.ballot))
             {
                 logger.debug("committing {}", proposal);

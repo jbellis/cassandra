@@ -2,17 +2,16 @@ package org.apache.cassandra.service.paxos;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
 
 public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
 {
@@ -24,12 +23,12 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
 
     private Map<InetAddress, Commit> commitsByReplica = new HashMap<InetAddress, Commit>();
 
-    public PrepareCallback(ByteBuffer key, int targets)
+    public PrepareCallback(ByteBuffer key, CFMetaData metadata, int targets)
     {
         super(targets);
         // need to inject the right key in the empty commit so comparing with empty commits in the reply works as expected
-        mostRecentCommit = Commit.emptyCommit(key);
-        inProgressCommit = Commit.emptyCommit(key);
+        mostRecentCommit = Commit.emptyCommit(key, metadata);
+        inProgressCommit = Commit.emptyCommit(key, metadata);
     }
 
     public synchronized void response(MessageIn<PrepareResponse> message)

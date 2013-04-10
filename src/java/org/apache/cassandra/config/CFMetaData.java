@@ -244,11 +244,13 @@ public final class CFMetaData
                                                                  + ") WITH COMMENT='unfinished compactions'");
 
     public static final CFMetaData PaxosCf = compile(18, "CREATE TABLE " + SystemTable.PAXOS_CF + " ("
-                                                                 + "row_key blob PRIMARY KEY,"
+                                                                 + "row_key blob,"
+                                                                 + "cf_id UUID,"
                                                                  + "in_progress_ballot timeuuid,"
                                                                  + "proposal blob,"
                                                                  + "most_recent_commit_at timeuuid,"
-                                                                 + "most_recent_commit blob"
+                                                                 + "most_recent_commit blob,"
+                                                                 + "PRIMARY KEY (row_key, cf_id)"
                                                                  + ") WITH COMMENT='in-progress paxos proposals'");
 
     public enum Caching

@@ -8,8 +8,10 @@ import java.nio.ByteBuffer;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.EmptyColumns;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -28,15 +30,16 @@ public class Commit
     {
         assert key != null;
         assert ballot != null;
+        assert update != null;
 
         this.key = key;
         this.ballot = ballot;
         this.update = update;
     }
 
-    public static Commit newPrepare(ByteBuffer key, UUID ballot)
+    public static Commit newPrepare(ByteBuffer key, CFMetaData metadata, UUID ballot)
     {
-        return new Commit(key, ballot, null);
+        return new Commit(key, ballot, EmptyColumns.factory.create(metadata));
     }
 
     public Commit makeProposal(ColumnFamily update)
@@ -44,9 +47,9 @@ public class Commit
         return new Commit(key, ballot, updatesWithPaxosTime(update, ballot));
     }
 
-    public static Commit emptyCommit(ByteBuffer key)
+    public static Commit emptyCommit(ByteBuffer key, CFMetaData metadata)
     {
-        return new Commit(key, UUIDGen.minTimeUUID(0), null);
+        return new Commit(key, UUIDGen.minTimeUUID(0), EmptyColumns.factory.create(metadata));
     }
 
     public boolean isAfter(Commit other)
@@ -72,9 +75,9 @@ public class Commit
 
         Commit commit = (Commit) o;
 
-        if (ballot != null ? !ballot.equals(commit.ballot) : commit.ballot != null) return false;
-        if (key != null ? !key.equals(commit.key) : commit.key != null) return false;
-        if (update != null ? !update.equals(commit.update) : commit.update != null) return false;
+        if (!ballot.equals(commit.ballot)) return false;
+        if (!key.equals(commit.key)) return false;
+        if (!update.equals(commit.update)) return false;
 
         return true;
     }
