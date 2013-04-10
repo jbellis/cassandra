@@ -217,7 +217,10 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
     /**
      * Returns true if this map is empty, false otherwise.
      */
-    public abstract boolean isEmpty();
+    public boolean isEmpty()
+    {
+        return deletionInfo().isLive() && getColumnCount() == 0;
+    }
 
     /**
      * Returns an iterator over the columns of this map that returns only the matching @param slices.

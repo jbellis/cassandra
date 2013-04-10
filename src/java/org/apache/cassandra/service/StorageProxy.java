@@ -233,7 +233,7 @@ public class StorageProxy implements StorageProxyMBean
 
             // If we have an in-progress ballot greater than the MRC we know, then it's an in-progress round that
             // needs to be completed, so do it.
-            if (inProgress.update != null && inProgress.isAfter(mostRecent))
+            if (!inProgress.update.isEmpty() && inProgress.isAfter(mostRecent))
             {
                 logger.debug("Finishing incomplete paxos round {}", inProgress);
                 if (proposePaxos(inProgress, liveEndpoints, requiredParticipants))
@@ -249,6 +249,7 @@ public class StorageProxy implements StorageProxyMBean
             Iterable<InetAddress> missingMRC = summary.replicasMissingMostRecentCommit();
             if (Iterables.size(missingMRC) > 0)
             {
+                logger.debug("Repairing replicas that missed the most recent commit");
                 commitPaxos(mostRecent, missingMRC);
                 // TODO: provided commits don't invalid the prepare we just did above (which they don't), we could just wait
                 // for all the missingMRC to acknowledge this commit and then move on with proposing our value. But that means
