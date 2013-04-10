@@ -817,10 +817,11 @@ public class SystemTable
 
     public static void savePaxosPromise(Commit promise)
     {
-        String req = "UPDATE %s USING TIMESTAMP %d SET in_progress_ballot = %s WHERE row_key = 0x%s AND cf_id = %s";
+        String req = "UPDATE %s USING TIMESTAMP %d AND TTL %d SET in_progress_ballot = %s WHERE row_key = 0x%s AND cf_id = %s";
         processInternal(String.format(req,
                                       PAXOS_CF,
                                       UUIDGen.microsTimestamp(promise.ballot),
+                                      promise.update.metadata().getGcGraceSeconds(),
                                       promise.ballot,
                                       ByteBufferUtil.bytesToHex(promise.key),
                                       promise.update.id()));
@@ -828,9 +829,10 @@ public class SystemTable
 
     public static void savePaxosProposal(Commit commit)
     {
-        processInternal(String.format("UPDATE %s USING TIMESTAMP %d SET proposal = 0x%s WHERE row_key = 0x%s AND cf_id = %s",
+        processInternal(String.format("UPDATE %s USING TIMESTAMP %d AND TTL %d SET proposal = 0x%s WHERE row_key = 0x%s AND cf_id = %s",
                                       PAXOS_CF,
                                       UUIDGen.microsTimestamp(commit.ballot),
+                                      commit.update.metadata().getGcGraceSeconds(),
                                       ByteBufferUtil.bytesToHex(commit.update.toBytes()),
                                       ByteBufferUtil.bytesToHex(commit.key),
                                       commit.update.id()));
@@ -838,9 +840,10 @@ public class SystemTable
 
     public static void savePaxosCommit(Commit commit)
     {
-        processInternal(String.format("UPDATE %s USING TIMESTAMP %d SET proposal = null, most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s",
+        processInternal(String.format("UPDATE %s USING TIMESTAMP %d AND TTL %d SET proposal = null, most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s",
                                       PAXOS_CF,
                                       UUIDGen.microsTimestamp(commit.ballot),
+                                      commit.update.metadata().getGcGraceSeconds(),
                                       commit.ballot,
                                       ByteBufferUtil.bytesToHex(commit.update.toBytes()),
                                       ByteBufferUtil.bytesToHex(commit.key),
