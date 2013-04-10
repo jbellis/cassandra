@@ -1,17 +1,13 @@
 package org.apache.cassandra.service.paxos;
 
 import java.nio.ByteBuffer;
-import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
 
 public class PaxosState
 {
@@ -39,6 +35,9 @@ public class PaxosState
 
     public PaxosState(Commit inProgressCommit, Commit mostRecentCommit)
     {
+        assert inProgressCommit.key == mostRecentCommit.key;
+        assert inProgressCommit.update.metadata() == inProgressCommit.update.metadata();
+
         this.inProgressCommit = inProgressCommit;
         this.mostRecentCommit = mostRecentCommit;
     }

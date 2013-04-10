@@ -3,10 +3,11 @@ package org.apache.cassandra.service.paxos;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.UUID;
+import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 public class PrepareResponse
@@ -19,6 +20,9 @@ public class PrepareResponse
 
     public PrepareResponse(boolean promised, Commit inProgressCommit, Commit mostRecentCommit)
     {
+        assert inProgressCommit.key == mostRecentCommit.key;
+        assert inProgressCommit.update.metadata() == mostRecentCommit.update.metadata();
+
         this.promised = promised;
         this.mostRecentCommit = mostRecentCommit;
         this.inProgressCommit = inProgressCommit;
@@ -35,22 +39,34 @@ public class PrepareResponse
         public void serialize(PrepareResponse response, DataOutput out, int version) throws IOException
         {
             out.writeBoolean(response.promised);
-            Commit.serializer.serialize(response.inProgressCommit, out, version);
-            Commit.serializer.serialize(response.mostRecentCommit, out, version);
+            ByteBufferUtil.writeWithShortLength(response.inProgressCommit.key, out);
+            UUIDSerializer.serializer.serialize(response.inProgressCommit.ballot, out, version);
+            ColumnFamily.serializer.serialize(response.inProgressCommit.update, out, version);
+            UUIDSerializer.serializer.serialize(response.mostRecentCommit.ballot, out, version);
+            ColumnFamily.serializer.serialize(response.mostRecentCommit.update, out, version);
         }
 
         public PrepareResponse deserialize(DataInput in, int version) throws IOException
         {
-            return new PrepareResponse(in.readBoolean(),
-                                       Commit.serializer.deserialize(in, version),
-                                       Commit.serializer.deserialize(in, version));
+            boolean success = in.readBoolean();
+            ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
+            return new PrepareResponse(success,
+                                       new Commit(key,
+                                                  UUIDSerializer.serializer.deserialize(in, version),
+                                                  ColumnFamily.serializer.deserialize(in, version)),
+                                       new Commit(key,
+                                                  UUIDSerializer.serializer.deserialize(in, version),
+                                                  ColumnFamily.serializer.deserialize(in, version)));
         }
 
         public long serializedSize(PrepareResponse response, int version)
         {
             return 1
-                   + Commit.serializer.serializedSize(response.inProgressCommit, version)
-                   + Commit.serializer.serializedSize(response.mostRecentCommit, version);
+                   + 2 + response.inProgressCommit.key.remaining()
+                   + UUIDSerializer.serializer.serializedSize(response.inProgressCommit.ballot, version)
+                   + ColumnFamily.serializer.serializedSize(response.inProgressCommit.update, version)
+                   + UUIDSerializer.serializer.serializedSize(response.mostRecentCommit.ballot, version)
+                   + ColumnFamily.serializer.serializedSize(response.mostRecentCommit.update, version);
         }
     }
 }
