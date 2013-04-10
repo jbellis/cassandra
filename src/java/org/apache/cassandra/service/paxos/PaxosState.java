@@ -68,7 +68,7 @@ public class PaxosState
         synchronized (lockFor(proposal.key))
         {
             PaxosState state = SystemTable.loadPaxosState(proposal.key, proposal.update.metadata());
-            if (proposal.hasBallot(state.inProgressCommit.ballot))
+            if (proposal.hasBallot(state.inProgressCommit.ballot) || proposal.isAfter(state.inProgressCommit))
             {
                 logger.debug("accepting {}", proposal);
                 SystemTable.savePaxosProposal(proposal);
@@ -82,23 +82,19 @@ public class PaxosState
 
     public static void commit(Commit proposal)
     {
+        // There is no guarantee we will see commits in the right order, because messages
+        // can get delayed, so a proposal can be older than our current most recent ballot/commit.
+        // Committing it is however always safe due to column timestamps, so always do it. However,
+        // if our current in-progress ballot is strictly greater than the proposal one, we shouldn't
+        // erase the in-progress update.
+        logger.debug("committing {}", proposal);
+        RowMutation rm = proposal.makeMutation();
+        Table.open(rm.getTable()).apply(rm, true);
+
         synchronized (lockFor(proposal.key))
         {
             PaxosState state = SystemTable.loadPaxosState(proposal.key, proposal.update.metadata());
-            if (proposal.hasBallot(state.inProgressCommit.ballot))
-            {
-                logger.debug("committing {}", proposal);
-
-                RowMutation rm = proposal.makeMutation();
-                Table.open(rm.getTable()).apply(rm, true);
-                SystemTable.savePaxosCommit(proposal);
-            }
-            else
-            {
-                // a new coordinator extracted a promise from us before the old one issued its commit.
-                // (this means the new one should also issue a commit soon.)
-                logger.debug("commit requested for {} but inProgress is now {}", proposal, state.inProgressCommit);
-            }
+            SystemTable.savePaxosCommit(proposal, !state.inProgressCommit.isAfter(proposal));
         }
     }
 }

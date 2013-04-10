@@ -838,9 +838,12 @@ public class SystemTable
                                       commit.update.id()));
     }
 
-    public static void savePaxosCommit(Commit commit)
+    public static void savePaxosCommit(Commit commit, boolean eraseInProgressProposal)
     {
-        processInternal(String.format("UPDATE %s USING TIMESTAMP %d AND TTL %d SET proposal = null, most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s",
+        String preserveCql = "UPDATE %s USING TIMESTAMP %d AND TTL %d SET most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s";
+        // identical except adds proposal = null
+        String eraseCql = "UPDATE %s USING TIMESTAMP %d AND TTL %d SET proposal = null, most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s";
+        processInternal(String.format(eraseInProgressProposal ? eraseCql : preserveCql,
                                       PAXOS_CF,
                                       UUIDGen.microsTimestamp(commit.ballot),
                                       commit.update.metadata().getGcGraceSeconds(),
