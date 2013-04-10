@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.util.UUID;
 import java.nio.ByteBuffer;
 
+import com.google.common.base.Objects;
+
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
@@ -61,6 +63,25 @@ public class Commit
     {
         assert update != null;
         return new RowMutation(key, update);
+    }
+
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Commit commit = (Commit) o;
+
+        if (ballot != null ? !ballot.equals(commit.ballot) : commit.ballot != null) return false;
+        if (key != null ? !key.equals(commit.key) : commit.key != null) return false;
+        if (update != null ? !update.equals(commit.update) : commit.update != null) return false;
+
+        return true;
+    }
+
+    public int hashCode()
+    {
+        return Objects.hashCode(key, ballot, update);
     }
 
     private static ColumnFamily updatesWithPaxosTime(ColumnFamily updates, UUID ballot)

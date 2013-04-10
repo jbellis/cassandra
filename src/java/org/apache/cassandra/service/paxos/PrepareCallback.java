@@ -1,6 +1,7 @@
 package org.apache.cassandra.service.paxos;
 
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Predicate;
@@ -18,14 +19,17 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
     private static final Logger logger = LoggerFactory.getLogger(PrepareCallback.class);
 
     public boolean promised = true;
-    public Commit mostRecentCommit = Commit.emptyCommit(null);
-    public Commit inProgressCommit = Commit.emptyCommit(null);
+    public Commit mostRecentCommit;
+    public Commit inProgressCommit;
 
     private Map<InetAddress, Commit> commitsByReplica = new HashMap<InetAddress, Commit>();
 
-    public PrepareCallback(int targets)
+    public PrepareCallback(ByteBuffer key, int targets)
     {
         super(targets);
+        // need to inject the right key in the empty commit so comparing with empty commits in the reply works as expected
+        mostRecentCommit = Commit.emptyCommit(key);
+        inProgressCommit = Commit.emptyCommit(key);
     }
 
     public synchronized void response(MessageIn<PrepareResponse> message)

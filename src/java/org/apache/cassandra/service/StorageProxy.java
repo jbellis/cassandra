@@ -294,7 +294,7 @@ public class StorageProxy implements StorageProxyMBean
     private static PrepareCallback preparePaxos(Commit toPrepare, List<InetAddress> endpoints, int requiredParticipants)
     throws WriteTimeoutException, UnavailableException
     {
-        PrepareCallback callback = new PrepareCallback(requiredParticipants);
+        PrepareCallback callback = new PrepareCallback(toPrepare.key, requiredParticipants);
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PREPARE, toPrepare, Commit.serializer);
         for (InetAddress target : endpoints)
             MessagingService.instance().sendRR(message, target, callback);
