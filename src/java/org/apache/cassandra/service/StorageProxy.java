@@ -197,7 +197,7 @@ public class StorageProxy implements StorageProxyMBean
      * @return true if the operation succeeds in updating the row
      */
     public static boolean cas(String table, String cfName, ByteBuffer key, ColumnFamily expected, ColumnFamily updates)
-    throws UnavailableException, IOException, IsBootstrappingException, ReadTimeoutException, WriteTimeoutException
+    throws UnavailableException, IOException, IsBootstrappingException, ReadTimeoutException, WriteTimeoutException, InvalidRequestException
     {
         CFMetaData metadata = Schema.instance.getCFMetaData(table, cfName);
 
@@ -1002,7 +1002,7 @@ public class StorageProxy implements StorageProxyMBean
      * a specific set of column names from a given column family.
      */
     public static List<Row> read(List<ReadCommand> commands, ConsistencyLevel consistency_level)
-    throws UnavailableException, IsBootstrappingException, ReadTimeoutException
+    throws UnavailableException, IsBootstrappingException, ReadTimeoutException, InvalidRequestException, WriteTimeoutException
     {
         if (StorageService.instance.isBootstrapMode() && !systemTableQuery(commands))
         {
@@ -1010,11 +1010,37 @@ public class StorageProxy implements StorageProxyMBean
             ClientRequestMetrics.readUnavailables.inc();
             throw new IsBootstrappingException();
         }
+
         long startTime = System.nanoTime();
         List<Row> rows = null;
         try
         {
-            rows = fetchRows(commands, consistency_level);
+            if (consistency_level == ConsistencyLevel.SERIAL)
+            {
+                // make sure any in-progress paxos writes are done (i.e., committed to a majority of replicas), before performing a quorum read
+                if (commands.size() > 1)
+                    throw new InvalidRequestException("SERIAL consistency may only be requested for one row at a time");
+
+                ReadCommand command = commands.get(0);
+                CFMetaData metadata = Schema.instance.getCFMetaData(command.table, command.cfName);
+
+                long timedOut = System.currentTimeMillis() + DatabaseDescriptor.getCasContentionTimeout();
+                while (System.currentTimeMillis() < timedOut)
+                {
+                    Pair<List<InetAddress>, Integer> p = getPaxosParticipants(command.table, command.key);
+                    List<InetAddress> liveEndpoints = p.left;
+                    int requiredParticipants = p.right;
+
+                    if (beginAndRepairPaxos(command.key, metadata, liveEndpoints, requiredParticipants) != null)
+                        break;
+                }
+
+                rows = fetchRows(commands, ConsistencyLevel.QUORUM);
+            }
+            else
+            {
+                rows = fetchRows(commands, consistency_level);
+            }
         }
         catch (UnavailableException e)
         {
