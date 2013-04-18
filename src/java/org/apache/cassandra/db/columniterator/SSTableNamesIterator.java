@@ -113,7 +113,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         if (version.hasPromotedRowTombstones && !rowEntry.columnsIndex().isEmpty())
         {
             // skip the row header entirely
-            cf.delete(rowEntry.deletionInfo());
+            cf.delete(new DeletionInfo(rowEntry.deletionTime()));
 
             readIndexedColumns(sstable.metadata, file, columns, rowEntry.columnsIndex(), rowEntry.position, result);
             iter = result.iterator();
@@ -134,7 +134,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         if (sstable.descriptor.version.hasPromotedIndexes)
         {
             indexList = rowEntry.columnsIndex();
-            cf.delete(rowEntry.deletionInfo());
+            // we'll get row deletion time from the row header below
         }
         else
         {

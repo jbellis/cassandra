@@ -52,24 +52,23 @@ public class RowIndexEntry
         return 0;
     }
 
-    // TODO only store DeletionTime
-    public static RowIndexEntry create(long position, DeletionInfo deletionInfo, ColumnIndex index)
+    public static RowIndexEntry create(long position, DeletionTime deletion, ColumnIndex index)
     {
-        assert deletionInfo != null;
+        assert deletion != null;
         assert index != null;
 
-        if (index.columnsIndex.size() > 1 || deletionInfo.getTopLevelDeletion() != DeletionTime.LIVE)
+        if (index.columnsIndex.size() > 1 || deletion != DeletionTime.LIVE)
             return new IndexedEntry(position,
-                                    deletionInfo,
+                                    deletion,
                                     index.columnsIndex.isEmpty() ? Collections.<IndexHelper.IndexInfo>emptyList() : index.columnsIndex,
                                     index.columnsIndex.isEmpty() ? AlwaysPresentFilter.instance : index.bloomFilter);
         else
             return new RowIndexEntry(position);
     }
 
-    public DeletionInfo deletionInfo()
+    public DeletionTime deletionTime()
     {
-        return DeletionInfo.LIVE;
+        return DeletionTime.LIVE;
     }
 
     public List<IndexHelper.IndexInfo> columnsIndex()
@@ -87,10 +86,10 @@ public class RowIndexEntry
         public void serialize(RowIndexEntry rie, DataOutput dos) throws IOException
         {
             dos.writeLong(rie.position);
-            if (!rie.columnsIndex().isEmpty() || rie.deletionInfo().getTopLevelDeletion() != DeletionTime.LIVE)
+            if (!rie.columnsIndex().isEmpty() || rie.deletionTime() != DeletionTime.LIVE)
             {
                 dos.writeInt(rie.promotedSize());
-                DeletionInfo.serializer().serializeForSSTable(rie.deletionInfo(), dos);
+                DeletionTime.serializer.serialize(rie.deletionTime(), dos);
                 dos.writeInt(rie.columnsIndex().size());
                 for (IndexHelper.IndexInfo info : rie.columnsIndex())
                     info.serialize(dos);
@@ -112,7 +111,7 @@ public class RowIndexEntry
             int size = dis.readInt();
             if (size > 0)
             {
-                DeletionInfo delInfo = DeletionInfo.serializer().deserializeFromSSTable(dis, version);
+                DeletionTime deletion = DeletionTime.serializer.deserialize(dis);
                 int entries = dis.readInt();
                 List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
                 for (int i = 0; i < entries; i++)
@@ -120,7 +119,7 @@ public class RowIndexEntry
                 IFilter bf = entries == 0
                              ? AlwaysPresentFilter.instance
                              : FilterFactory.deserialize(dis, version.filterType, false);
-                return new IndexedEntry(position, delInfo, columnsIndex, bf);
+                return new IndexedEntry(position, deletion, columnsIndex, bf);
             }
             else
             {
@@ -150,24 +149,24 @@ public class RowIndexEntry
      */
     private static class IndexedEntry extends RowIndexEntry
     {
-        private final DeletionInfo deletionInfo;
+        private final DeletionTime deletion;
         private final List<IndexHelper.IndexInfo> columnsIndex;
         private final IFilter bloomFilter;
 
-        private IndexedEntry(long position, DeletionInfo deletionInfo, List<IndexHelper.IndexInfo> columnsIndex, IFilter bloomFilter)
+        private IndexedEntry(long position, DeletionTime deletion, List<IndexHelper.IndexInfo> columnsIndex, IFilter bloomFilter)
         {
             super(position);
-            assert deletionInfo != null;
+            assert deletion != null;
             assert columnsIndex != null;
-            this.deletionInfo = deletionInfo;
+            this.deletion = deletion;
             this.columnsIndex = columnsIndex;
             this.bloomFilter = bloomFilter;
         }
 
         @Override
-        public DeletionInfo deletionInfo()
+        public DeletionTime deletionTime()
         {
-            return deletionInfo;
+            return deletion;
         }
 
         @Override
@@ -186,7 +185,7 @@ public class RowIndexEntry
         public int promotedSize()
         {
             TypeSizes typeSizes = TypeSizes.NATIVE;
-            long size = DeletionTime.serializer.serializedSize(deletionInfo.getTopLevelDeletion(), typeSizes);
+            long size = DeletionTime.serializer.serializedSize(deletion, typeSizes);
             size += typeSizes.sizeof(columnsIndex.size()); // number of entries
             for (IndexHelper.IndexInfo info : columnsIndex)
                 size += info.serializedSize(typeSizes);

@@ -82,7 +82,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             {
                 // skip the row header entirely
                 indexes = rowEntry.columnsIndex();
-                emptyColumnFamily.delete(rowEntry.deletionInfo());
+                emptyColumnFamily.delete(new DeletionInfo(rowEntry.deletionTime()));
                 fetcher = new IndexedBlockFetcher(rowEntry.position);
                 return;
             }
@@ -104,7 +104,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             if (version.hasPromotedIndexes)
             {
                 indexes = rowEntry.columnsIndex();
-                emptyColumnFamily.delete(rowEntry.deletionInfo());
+                // we'll get row deletion time from the row header below
             }
             else
             {

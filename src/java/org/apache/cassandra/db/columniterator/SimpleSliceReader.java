@@ -75,11 +75,7 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
             emptyColumnFamily = ColumnFamily.create(sstable.metadata);
 
             Descriptor.Version version = sstable.descriptor.version;
-            if (version.hasPromotedIndexes)
-            {
-                emptyColumnFamily.delete(rowEntry.deletionInfo());
-            }
-            else
+            if (!version.hasPromotedIndexes)
             {
                 IndexHelper.skipSSTableBloomFilter(file, version);
                 IndexHelper.skipIndex(file);
