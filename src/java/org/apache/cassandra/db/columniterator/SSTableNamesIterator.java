@@ -111,7 +111,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         List<IndexHelper.IndexInfo> indexList;
 
         // If the entry is not indexed or the index is not promoted, read from the row start
-        if (!indexEntry.isIndexed())
+        if (indexEntry.columnsIndex().isEmpty())
         {
             if (file == null)
                 file = createFileDataInput(indexEntry.position);
@@ -127,7 +127,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
 
         if (sstable.descriptor.version.hasPromotedIndexes)
         {
-            bf = indexEntry.isIndexed() ? indexEntry.bloomFilter() : null;
+            bf = !indexEntry.columnsIndex().isEmpty() ? indexEntry.bloomFilter() : null;
             indexList = indexEntry.columnsIndex();
         }
         else
@@ -137,7 +137,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             indexList = IndexHelper.deserializeIndex(file);
         }
 
-        if (!indexEntry.isIndexed())
+        if (indexEntry.columnsIndex().isEmpty())
         {
             // we can stop early if bloom filter says none of the columns actually exist -- but,
             // we can't stop before initializing the cf above, in case there's a relevant tombstone
