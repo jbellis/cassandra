@@ -61,7 +61,7 @@ public class RowIndexEntry
             return new IndexedEntry(position,
                                     deletion,
                                     index.columnsIndex.isEmpty() ? Collections.<IndexHelper.IndexInfo>emptyList() : index.columnsIndex,
-                                    index.columnsIndex.isEmpty() ? AlwaysPresentFilter.instance : index.bloomFilter);
+                                    AlwaysPresentFilter.instance);
         else
             return new RowIndexEntry(position);
     }
@@ -93,8 +93,6 @@ public class RowIndexEntry
                 dos.writeInt(rie.columnsIndex().size());
                 for (IndexHelper.IndexInfo info : rie.columnsIndex())
                     info.serialize(dos);
-                if (!rie.columnsIndex().isEmpty())
-                    FilterFactory.serialize(rie.bloomFilter(), dos);
             }
             else
             {
@@ -116,10 +114,9 @@ public class RowIndexEntry
                 List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
                 for (int i = 0; i < entries; i++)
                     columnsIndex.add(IndexHelper.IndexInfo.deserialize(dis));
-                IFilter bf = entries == 0
-                             ? AlwaysPresentFilter.instance
-                             : FilterFactory.deserialize(dis, version.filterType, false);
-                return new IndexedEntry(position, deletion, columnsIndex, bf);
+                if (!version.hasPromotedRowTombstones && entries > 0)
+                    FilterFactory.deserialize(dis, version.filterType, false);
+                return new IndexedEntry(position, deletion, columnsIndex, AlwaysPresentFilter.instance);
             }
             else
             {
