@@ -108,7 +108,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             }
             else
             {
-                IndexHelper.skipSSTableBloomFilter(file, version);
+                IndexHelper.skipBloomFilter(file);
                 indexes = IndexHelper.deserializeIndex(file);
             }
             emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));

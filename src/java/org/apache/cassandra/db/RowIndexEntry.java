@@ -28,8 +28,6 @@ import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.AlwaysPresentFilter;
-import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -62,8 +60,7 @@ public class RowIndexEntry implements IMeasurableMemory
         if (index.columnsIndex.size() > 1 || deletion != DeletionTime.LIVE)
             return new IndexedEntry(position,
                                     deletion,
-                                    index.columnsIndex.isEmpty() ? Collections.<IndexHelper.IndexInfo>emptyList() : index.columnsIndex,
-                                    AlwaysPresentFilter.instance);
+                                    index.columnsIndex.isEmpty() ? Collections.<IndexHelper.IndexInfo>emptyList() : index.columnsIndex);
         else
             return new RowIndexEntry(position);
     }
@@ -76,11 +73,6 @@ public class RowIndexEntry implements IMeasurableMemory
     public List<IndexHelper.IndexInfo> columnsIndex()
     {
         return Collections.emptyList();
-    }
-
-    public IFilter bloomFilter()
-    {
-        return AlwaysPresentFilter.instance;
     }
 
     public long memorySize()
@@ -122,9 +114,9 @@ public class RowIndexEntry implements IMeasurableMemory
                 List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
                 for (int i = 0; i < entries; i++)
                     columnsIndex.add(IndexHelper.IndexInfo.deserialize(dis));
-                if (!version.hasPromotedRowTombstones && entries > 0)
+                    if (version.hasRowLevelBF)
                     FilterFactory.deserialize(dis, version.filterType, false);
-                return new IndexedEntry(position, deletion, columnsIndex, AlwaysPresentFilter.instance);
+                return new IndexedEntry(position, deletion, columnsIndex);
             }
             else
             {
@@ -156,16 +148,14 @@ public class RowIndexEntry implements IMeasurableMemory
     {
         private final DeletionTime deletion;
         private final List<IndexHelper.IndexInfo> columnsIndex;
-        private final IFilter bloomFilter;
 
-        private IndexedEntry(long position, DeletionTime deletion, List<IndexHelper.IndexInfo> columnsIndex, IFilter bloomFilter)
+        private IndexedEntry(long position, DeletionTime deletion, List<IndexHelper.IndexInfo> columnsIndex)
         {
             super(position);
             assert deletion != null;
             assert columnsIndex != null;
             this.deletion = deletion;
             this.columnsIndex = columnsIndex;
-            this.bloomFilter = bloomFilter;
         }
 
         @Override
@@ -181,12 +171,6 @@ public class RowIndexEntry implements IMeasurableMemory
         }
 
         @Override
-        public IFilter bloomFilter()
-        {
-            return bloomFilter;
-        }
-
-        @Override
         public int promotedSize()
         {
             TypeSizes typeSizes = TypeSizes.NATIVE;
@@ -195,7 +179,6 @@ public class RowIndexEntry implements IMeasurableMemory
             for (IndexHelper.IndexInfo info : columnsIndex)
                 size += info.serializedSize(typeSizes);
 
-            size += bloomFilter instanceof AlwaysPresentFilter ? 0 : FilterFactory.serializedSize(bloomFilter);
             assert size <= Integer.MAX_VALUE;
             return (int)size;
         }
