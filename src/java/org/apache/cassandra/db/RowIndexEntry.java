@@ -114,7 +114,7 @@ public class RowIndexEntry implements IMeasurableMemory
                 List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
                 for (int i = 0; i < entries; i++)
                     columnsIndex.add(IndexHelper.IndexInfo.deserialize(dis));
-                    if (version.hasRowLevelBF)
+                if (version.hasRowLevelBF)
                     FilterFactory.deserialize(dis, version.filterType, false);
                 return new IndexedEntry(position, deletion, columnsIndex);
             }

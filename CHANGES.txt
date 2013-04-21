@@ -40,7 +40,6 @@ Merged from 1.1
  * cassandra-all 1.2.0 pom missing netty dependency (CASSANDRA-5392)
  * Fix writetime/ttl functions on null values (CASSANDRA-5341)
  * Fix NPE during cql3 select with token() (CASSANDRA-5404)
- * IndexHelper.skipBloomFilters won't skip non-SHA filters (CASSANDRA-5385)
  * cqlsh: Print maps ordered by key, sort sets (CASSANDRA-5413)
  * Add null syntax support in CQL3 for inserts (CASSANDRA-3783)
  * Allow unauthenticated set_keyspace() calls (CASSANDRA-5423)
