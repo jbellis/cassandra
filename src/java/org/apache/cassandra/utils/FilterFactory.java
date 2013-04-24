@@ -37,7 +37,9 @@ public class FilterFactory
 
     public enum Type
     {
-        SHA, MURMUR2, MURMUR3
+        _SHA, // unused
+        MURMUR2,
+        MURMUR3
     }
 
     public static void serialize(IFilter bf, DataOutput output) throws IOException
@@ -49,9 +51,6 @@ public class FilterFactory
     {
         switch (type)
         {
-            case SHA:
-                LegacyBloomFilter.serializer.serialize((LegacyBloomFilter) bf, output);
-                break;
             case MURMUR2:
                 Murmur2BloomFilter.serializer.serialize((Murmur2BloomFilter) bf, output);
                 break;
@@ -65,8 +64,6 @@ public class FilterFactory
     {
         switch (type)
         {
-            case SHA:
-                return LegacyBloomFilter.serializer.deserialize(input);
             case MURMUR2:
                 return Murmur2BloomFilter.serializer.deserialize(input, offheap);
             default:
@@ -83,8 +80,6 @@ public class FilterFactory
     {
         switch (type)
         {
-            case SHA:
-                return LegacyBloomFilter.serializer.serializedSize((LegacyBloomFilter) bf);
             case MURMUR2:
                 return Murmur2BloomFilter.serializer.serializedSize((Murmur2BloomFilter) bf, TYPE_SIZES);
             default:

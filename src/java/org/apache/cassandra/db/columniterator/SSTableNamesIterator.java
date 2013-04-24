@@ -113,11 +113,9 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             else
                 file.seek(indexEntry.position);
 
-            DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.partitioner,
-                                                             sstable.descriptor,
-                                                             ByteBufferUtil.readWithShortLength(file));
+            DecoratedKey keyInDisk = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(file));
             assert keyInDisk.equals(key) : String.format("%s != %s in %s", keyInDisk, key, file.getPath());
-            SSTableReader.readRowSize(file, sstable.descriptor);
+            file.readLong();
         }
 
         if (sstable.descriptor.version.hasPromotedIndexes)
