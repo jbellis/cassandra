@@ -112,10 +112,6 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
      */
     private static void maybeScheduleSchemaPull(final UUID theirVersion, final InetAddress endpoint)
     {
-        // Can't request migrations from nodes with versions younger than 1.1.7
-        if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_117)
-            return;
-
         if (Gossiper.instance.isFatClient(endpoint))
             return;
 
@@ -360,14 +356,11 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         // and due to broken timestamps in versions prior to 1.1.7
         for (InetAddress node : liveEndpoints)
         {
-            if (MessagingService.instance().getVersion(node) >= MessagingService.VERSION_117)
-            {
-                if (logger.isDebugEnabled())
-                    logger.debug("Requesting schema from " + node);
+            if (logger.isDebugEnabled())
+                logger.debug("Requesting schema from " + node);
 
-                FBUtilities.waitOnFuture(StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(node)));
-                break;
-            }
+            FBUtilities.waitOnFuture(StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(node)));
+            break;
         }
 
         logger.info("Local schema reset is complete.");
