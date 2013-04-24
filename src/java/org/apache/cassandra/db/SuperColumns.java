@@ -69,7 +69,7 @@ public class SuperColumns
             List<DeletionTime> delTimes = delInfo.rangeCovering(entry.getKey());
             assert delTimes.size() <= 1; // We're supposed to have either no deletion, or a full SC deletion.
             DeletionInfo scDelInfo = delTimes.isEmpty() ? DeletionInfo.LIVE : new DeletionInfo(delTimes.get(0));
-            DeletionInfo.serializer().serialize(scDelInfo, out, MessagingService.VERSION_10);
+            DeletionTime.serializer.serialize(scDelInfo.getTopLevelDeletion(), out);
 
             out.writeInt(entry.getValue().size());
             for (Column subColumn : entry.getValue())
@@ -129,7 +129,7 @@ public class SuperColumns
             List<DeletionTime> delTimes = delInfo.rangeCovering(entry.getKey());
             assert delTimes.size() <= 1; // We're supposed to have either no deletion, or a full SC deletion.
             DeletionInfo scDelInfo = delTimes.isEmpty() ? DeletionInfo.LIVE : new DeletionInfo(delTimes.get(0));
-            size += DeletionInfo.serializer().serializedSize(scDelInfo, MessagingService.VERSION_10);
+            size += DeletionTime.serializer.serializedSize(scDelInfo.getTopLevelDeletion(), TypeSizes.NATIVE);
 
             size += typeSizes.sizeof(entry.getValue().size());
             for (Column subColumn : entry.getValue())
@@ -177,7 +177,7 @@ public class SuperColumns
                 ++read;
 
                 scName = ByteBufferUtil.readWithShortLength(in);
-                DeletionInfo delInfo = DeletionInfo.serializer().deserialize(in, MessagingService.VERSION_10, null);
+                DeletionInfo delInfo = new DeletionInfo(DeletionTime.serializer.deserialize(in));
                 assert !delInfo.rangeIterator().hasNext(); // We assume no range tombstone (there was no way to insert some in a SCF in 1.2)
 
                 /* read the number of columns */
