@@ -27,15 +27,6 @@ import static org.junit.Assert.*;
 public class DescriptorTest
 {
     @Test
-    public void testLegacy()
-    {
-        Descriptor descriptor = Descriptor.fromFilename("Keyspace1-userActionUtilsKey-9-Data.db");
-
-        assert descriptor.version.equals(Descriptor.Version.LEGACY);
-        assert descriptor.version.filterType == FilterFactory.Type.SHA;
-    }
-
-    @Test
     public void testVersion()
     {
         // letter only
@@ -45,12 +36,6 @@ public class DescriptorTest
         // multiple letters
         desc = Descriptor.fromFilename("Keyspace1-Standard1-ha-1-Data.db");
         assert "ha".equals(desc.version.toString());
-
-        // hypothetical two-letter g version
-        desc = Descriptor.fromFilename("Keyspace1-Standard1-gz-1-Data.db");
-        assert "gz".equals(desc.version.toString());
-        assert !desc.version.tracksMaxTimestamp;
-        assert !desc.version.tracksMinTimestamp;
     }
 
     @Test

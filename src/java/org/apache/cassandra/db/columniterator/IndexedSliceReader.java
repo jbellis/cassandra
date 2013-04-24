@@ -124,8 +124,8 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             this.file = input;
             input.seek(indexEntry.position);
         }
-        sstable.decodeKey(ByteBufferUtil.readWithShortLength(file));
-        SSTableReader.readRowSize(file, sstable.descriptor);
+        sstable.decorateKey(ByteBufferUtil.readWithShortLength(file));
+        file.readLong();
     }
 
     public ColumnFamily getColumnFamily()

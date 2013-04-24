@@ -63,34 +63,6 @@ public class SerializationsTest extends AbstractSerializationsTester
         in.close();
     }
 
-    private void testLegacyBloomFilterWrite() throws IOException
-    {
-        LegacyBloomFilter a = LegacyBloomFilter.getFilter(1000000, 1000);
-        LegacyBloomFilter b = LegacyBloomFilter.getFilter(1000000, 0.0001);
-        for (int i = 0; i < 100; i++)
-        {
-            ByteBuffer key = StorageService.getPartitioner().getTokenFactory().toByteArray(StorageService.getPartitioner().getRandomToken());
-            a.add(key);
-            b.add(key);
-        }
-        DataOutputStream out = getOutput("utils.LegacyBloomFilter.bin");
-        FilterFactory.serialize(a, out, FilterFactory.Type.SHA);
-        FilterFactory.serialize(b, out, FilterFactory.Type.SHA);
-        out.close();
-    }
-
-    @Test
-    public void testLegacyBloomFilterRead() throws IOException
-    {
-        // We never write out a new LBF.  Copy the data file from 0.7 instead.
-        // if (EXECUTE_WRITES)
-        //      testLegacyBloomFilterWrite();
-        
-        DataInputStream in = getInput("utils.LegacyBloomFilter.bin");
-        assert FilterFactory.deserialize(in, FilterFactory.Type.SHA, false) != null;
-        in.close();
-    }
-
     private void testEstimatedHistogramWrite() throws IOException
     {
         EstimatedHistogram hist0 = new EstimatedHistogram();
