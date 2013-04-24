@@ -118,16 +118,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             file.readLong();
         }
 
-        if (sstable.descriptor.version.hasPromotedIndexes)
-        {
-            indexList = indexEntry.columnsIndex();
-        }
-        else
-        {
-            assert file != null;
-            IndexHelper.skipBloomFilter(file);
-            indexList = IndexHelper.deserializeIndex(file);
-        }
+        indexList = indexEntry.columnsIndex();
 
         if (!indexEntry.isIndexed())
         {
@@ -155,18 +146,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         }
         else
         {
-            long basePosition;
-            if (sstable.descriptor.version.hasPromotedIndexes)
-            {
-                basePosition = indexEntry.position;
-            }
-            else
-            {
-                assert file != null;
-                file.readInt(); // column count
-                basePosition = file.getFilePointer();
-            }
-            readIndexedColumns(sstable.metadata, file, columns, indexList, basePosition, result);
+            readIndexedColumns(sstable.metadata, file, columns, indexList, indexEntry.position, result);
         }
 
         // create an iterator view of the columns we read

@@ -66,11 +66,6 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
             file.readLong();
 
             Descriptor.Version version = sstable.descriptor.version;
-            if (!version.hasPromotedIndexes)
-            {
-                IndexHelper.skipBloomFilter(file);
-                IndexHelper.skipIndex(file);
-            }
 
             emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
             emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));

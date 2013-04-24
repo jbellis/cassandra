@@ -22,7 +22,6 @@ import java.util.StringTokenizer;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.io.sstable.Component.separator;
@@ -47,10 +46,6 @@ public class Descriptor
         // This needs to be at the begining for initialization sake
         public static final String current_version = "ja";
 
-        // ia (1.2.0): column indexes are promoted to the index file
-        //             records estimated histogram of deletion times in tombstones
-        //             bloom filter (keys and columns) upgraded to Murmur3
-        // ib (1.2.1): tracks min client timestamp in metadata component
         // ic (1.2.5): omits per-row bloom filter of column names
         // ja (2.0.0): super columns are serialized as composites (note that there is no real format change,
         //               this is mostly a marker to know if we should expect super columns or not. We do need
@@ -64,28 +59,17 @@ public class Descriptor
         private final String version;
 
         public final boolean isLatestVersion;
-        public final boolean tracksTombstones;
-        public final boolean hasPromotedIndexes;
-        public final FilterFactory.Type filterType;
         public final boolean hasSuperColumns;
         public final boolean tracksMaxLocalDeletionTime;
         public final boolean hasBloomFilterFPChance;
-        public final boolean hasRowLevelBF;
 
         public Version(String version)
         {
             this.version = version;
             tracksMaxLocalDeletionTime = version.compareTo("ja") >= 0;
-            tracksTombstones = version.compareTo("ia") >= 0;
-            hasPromotedIndexes = version.compareTo("ia") >= 0;
             isLatestVersion = version.compareTo(current_version) == 0;
-            if (version.compareTo("ia") < 0)
-                filterType = FilterFactory.Type.MURMUR2;
-            else
-                filterType = FilterFactory.Type.MURMUR3;
             hasSuperColumns = version.compareTo("ja") < 0;
             hasBloomFilterFPChance = version.compareTo("ja") >= 0;
-            hasRowLevelBF = version.compareTo("ic") < 0;
         }
 
         /**
