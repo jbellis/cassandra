@@ -415,9 +415,7 @@ public class SSTableMetadata
             Set<Integer> ancestors = new HashSet<Integer>(nbAncestors);
             for (int i = 0; i < nbAncestors; i++)
                 ancestors.add(in.readInt());
-            StreamingHistogram tombstoneHistogram = desc.version.tracksTombstones
-                                                   ? StreamingHistogram.serializer.deserialize(in)
-                                                   : defaultTombstoneDropTimeHistogram();
+            StreamingHistogram tombstoneHistogram = StreamingHistogram.serializer.deserialize(in);
             int sstableLevel = 0;
 
             if (loadSSTableLevel && in.available() > 0)

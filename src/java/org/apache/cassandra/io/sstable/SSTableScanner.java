@@ -98,7 +98,7 @@ public class SSTableScanner implements ICompactionScanner
                 }
                 else
                 {
-                    RowIndexEntry.serializer.skip(ifile, sstable.descriptor.version);
+                    RowIndexEntry.serializer.skip(ifile);
                 }
             }
             exhausted = true;
