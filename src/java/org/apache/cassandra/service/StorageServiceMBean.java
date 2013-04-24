@@ -234,12 +234,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void scrub(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
 
     /**
-     * Rewrite all sstables to the latest version.
-     * Unlike scrub, it doesn't skip bad rows and do not snapshot sstables first.
-     */
-    public void upgradeSSTables(String tableName, boolean excludeCurrentVersion, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
-
-    /**
      * Flush all memtables for the given column families, or all columnfamilies for the given table
      * if none are explicitly listed.
      * @param tableName

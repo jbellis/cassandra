@@ -3,6 +3,8 @@ package org.apache.cassandra.io.sstable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -11,6 +13,8 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
@@ -18,6 +22,12 @@ import static org.junit.Assert.assertTrue;
 
 public class SSTableMetadataTest extends SchemaLoader
 {
+    @BeforeClass
+    public static void setup() throws ConfigurationException
+    {
+        StorageService.instance.initServer();
+    }
+
     @Test
     public void testTrackMaxDeletionTime() throws ExecutionException, InterruptedException
     {

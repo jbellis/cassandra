@@ -37,10 +37,10 @@ import static junit.framework.Assert.*;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.expiringColumn;
-import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -403,6 +403,7 @@ public class TableTest extends SchemaLoader
     @Test
     public void testGetSliceFromLarge() throws Throwable
     {
+        StorageService.instance.initServer();
         // tests slicing against 1000 columns in an sstable
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");

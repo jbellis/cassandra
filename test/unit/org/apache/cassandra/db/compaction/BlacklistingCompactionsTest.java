@@ -16,6 +16,7 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static junit.framework.Assert.assertEquals;
@@ -50,6 +51,7 @@ public class BlacklistingCompactionsTest extends SchemaLoader
 
     public void testBlacklisting(String compactionStrategy) throws Exception
     {
+        StorageService.instance.initServer();
         // this test does enough rows to force multiple block indexes to be used
         Table table = Table.open(KEYSPACE);
         final ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");

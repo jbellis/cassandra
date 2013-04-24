@@ -25,7 +25,6 @@ public enum OperationType
     ROW_CACHE_SAVE("Row cache save"),
     CLEANUP("Cleanup"),
     SCRUB("Scrub"),
-    UPGRADE_SSTABLES("Upgrade sstables"),
     INDEX_BUILD("Secondary index build"),
     /** Compaction for tombstone removal */
     TOMBSTONE_COMPACTION("Tombstone Compaction"),

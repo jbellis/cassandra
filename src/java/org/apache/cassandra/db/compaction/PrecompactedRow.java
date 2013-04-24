@@ -193,6 +193,11 @@ public class PrecompactedRow extends AbstractCompactedRow
         compactedCf.updateDigest(digest);
     }
 
+    public Iterator<Column> iterator()
+    {
+        return compactedCf.iterator();
+    }
+
     public boolean isEmpty()
     {
         return compactedCf == null;

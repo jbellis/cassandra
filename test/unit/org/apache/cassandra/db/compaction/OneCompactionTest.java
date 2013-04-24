@@ -25,6 +25,7 @@ import java.util.HashSet;
 
 import org.apache.cassandra.Util;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
@@ -32,13 +33,21 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.exceptions.ConfigurationException;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
 public class OneCompactionTest extends SchemaLoader
 {
+    @Before
+    public void setup() throws ConfigurationException
+    {
+        StorageService.instance.initServer();   
+    }
+
     private void testCompaction(String columnFamilyName, int insertsPerTable) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.instance.disableAutoCompaction();

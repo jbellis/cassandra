@@ -88,7 +88,6 @@ public class NodeCmd
         options.addOption(LOCAL_DC_REPAIR_OPT, false, "only repair against nodes in the same datacenter");
         options.addOption(START_TOKEN_OPT, true, "token at which repair range starts");
         options.addOption(END_TOKEN_OPT, true, "token at which repair range ends");
-        options.addOption(UPGRADE_ALL_SSTABLE_OPT, false, "includes sstables that are already on the most recent version during upgradesstables");
     }
 
     public NodeCmd(NodeProbe probe)
@@ -149,7 +148,6 @@ public class NodeCmd
         STATUSTHRIFT,
         STOP,
         TPSTATS,
-        UPGRADESSTABLES,
         VERSION,
         DESCRIBERING,
         RANGEKEYSAMPLE,
@@ -1124,7 +1122,6 @@ public class NodeCmd
                 case REPAIR  :
                 case FLUSH   :
                 case SCRUB   :
-                case UPGRADESSTABLES   :
                 case DISABLEAUTOCOMPACTION:
                 case ENABLEAUTOCOMPACTION:
                     optionalKSandCFs(command, cmd, arguments, probe);
@@ -1358,11 +1355,6 @@ public class NodeCmd
                 case SCRUB :
                     try { probe.scrub(keyspace, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occurred while scrubbing keyspace " + keyspace); }
-                    break;
-                case UPGRADESSTABLES :
-                    boolean excludeCurrentVersion = !cmd.hasOption(UPGRADE_ALL_SSTABLE_OPT.left);
-                    try { probe.upgradeSSTables(keyspace, excludeCurrentVersion, columnFamilies); }
-                    catch (ExecutionException ee) { err(ee, "Error occurred while upgrading the sstables for keyspace " + keyspace); }
                     break;
                 case ENABLEAUTOCOMPACTION:
                     probe.enableAutoCompaction(keyspace, columnFamilies);

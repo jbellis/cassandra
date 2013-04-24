@@ -21,6 +21,7 @@ import java.io.Closeable;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.security.MessageDigest;
+import java.util.Iterator;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.sstable.ColumnStats;
@@ -78,4 +79,6 @@ public abstract class AbstractCompactedRow implements Closeable
      * @return the column index for this row.
      */
     public abstract ColumnIndex index();
+
+    public abstract Iterator iterator();
 }

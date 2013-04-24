@@ -15,8 +15,10 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import static org.junit.Assert.assertEquals;
@@ -74,8 +76,9 @@ public class TTLExpiryTest extends SchemaLoader
     }
 
     @Test
-    public void testNoExpire() throws ExecutionException, InterruptedException
+    public void testNoExpire() throws ExecutionException, InterruptedException, ConfigurationException
     {
+        StorageService.instance.initServer();
         ColumnFamilyStore cfs = Table.open("Keyspace1").getColumnFamilyStore("Standard1");
         cfs.disableAutoCompaction();
         cfs.metadata.gcGraceSeconds(0);

@@ -74,7 +74,6 @@ public class BootStrapper
         }
 
         streamer.fetch();
-        StorageService.instance.finishBootstrapping();
     }
 
     /**

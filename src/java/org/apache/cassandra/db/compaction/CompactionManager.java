@@ -51,6 +51,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.CounterId;
+import org.apache.cassandra.utils.CounterId.OneShotRenewer;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -232,28 +233,6 @@ public class CompactionManager implements CompactionManagerMBean
             public void perform(ColumnFamilyStore store, Iterable<SSTableReader> sstables) throws IOException
             {
                 doScrub(store, sstables);
-            }
-        });
-    }
-
-    public void performSSTableRewrite(ColumnFamilyStore cfStore, final boolean excludeCurrentVersion) throws InterruptedException, ExecutionException
-    {
-        performAllSSTableOperation(cfStore, new AllSSTablesOperation()
-        {
-            public void perform(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables)
-            {
-                for (final SSTableReader sstable : sstables)
-                {
-                    if (excludeCurrentVersion && sstable.descriptor.version.equals(Descriptor.Version.CURRENT))
-                        continue;
-
-                    // SSTables are marked by the caller
-                    // NOTE: it is important that the task create one and only one sstable, even for Leveled compaction (see LeveledManifest.replace())
-                    CompactionTask task = new CompactionTask(cfs, Collections.singletonList(sstable), NO_GC);
-                    task.setUserDefined(true);
-                    task.setCompactionType(OperationType.UPGRADE_SSTABLES);
-                    task.execute(metrics);
-                }
             }
         });
     }
@@ -522,34 +501,9 @@ public class CompactionManager implements CompactionManagerMBean
                         {
                             if (indexedColumnsInRow != null)
                                 indexedColumnsInRow.clear();
-
-                            while (row.hasNext())
-                            {
-                                OnDiskAtom column = row.next();
-                                if (column instanceof CounterColumn)
-                                    renewer.maybeRenew((CounterColumn) column);
-                                if (column instanceof Column && cfs.indexManager.indexes((Column) column))
-                                {
-                                    if (indexedColumnsInRow == null)
-                                        indexedColumnsInRow = new ArrayList<Column>();
-
-                                    indexedColumnsInRow.add((Column) column);
-                                }
-                            }
-
-                            if (indexedColumnsInRow != null && !indexedColumnsInRow.isEmpty())
-                            {
-                                // acquire memtable lock here because secondary index deletion may cause a race. See CASSANDRA-3712
-                                Table.switchLock.readLock().lock();
-                                try
-                                {
-                                    cfs.indexManager.deleteFromIndexes(row.getKey(), indexedColumnsInRow);
-                                }
-                                finally
-                                {
-                                    Table.switchLock.readLock().unlock();
-                                }
-                            }
+                            else
+                                indexedColumnsInRow = new ArrayList<Column>();
+                            rmIdxRenewCounter(cfs, row.getKey(), row, renewer);
                         }
                     }
                 }
@@ -586,6 +540,36 @@ public class CompactionManager implements CompactionManagerMBean
             cfs.indexManager.flushIndexesBlocking();
 
             cfs.replaceCompactedSSTables(Arrays.asList(sstable), results, OperationType.CLEANUP);
+        }
+    }
+
+    public static void rmIdxRenewCounter(ColumnFamilyStore cfs, DecoratedKey key, Iterator<OnDiskAtom> row, OneShotRenewer renewer)
+    {
+        List<Column> indexedColumns = null;
+        while (row.hasNext())
+        {
+            OnDiskAtom column = row.next();
+            if (column instanceof CounterColumn)
+                renewer.maybeRenew((CounterColumn) column);
+            if (column instanceof Column && cfs.indexManager.indexes((Column)column))
+            {
+                indexedColumns = new ArrayList<Column>();
+                indexedColumns.add((Column) column);
+            }
+        }
+
+        if (indexedColumns != null && !indexedColumns.isEmpty())
+        {
+            // acquire memtable lock here because secondary index deletion may cause a race. See CASSANDRA-3712
+            Table.switchLock.readLock().lock();
+            try
+            {
+                cfs.indexManager.deleteFromIndexes(key, indexedColumns);
+            }
+            finally
+            {
+                Table.switchLock.readLock().unlock();
+            }
         }
     }
 

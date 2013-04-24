@@ -19,37 +19,51 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import junit.framework.Assert;
 
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.Util;
 
 import static junit.framework.Assert.assertEquals;
 import static org.apache.cassandra.db.TableTest.assertColumns;
+
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 
 public class CompactionsPurgeTest extends SchemaLoader
 {
+    private static final Logger logger = LoggerFactory.getLogger(CompactionsPurgeTest.class);
     public static final String TABLE1 = "Keyspace1";
     public static final String TABLE2 = "Keyspace2";
 
     @Test
-    public void testMajorCompactionPurge() throws IOException, ExecutionException, InterruptedException
+    public void testMajorCompactionPurge() throws Exception
     {
+        StorageService.instance.initServer();
         CompactionManager.instance.disableAutoCompaction();
 
         Table table = Table.open(TABLE1);
@@ -89,6 +103,94 @@ public class CompactionsPurgeTest extends SchemaLoader
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName));
         assertColumns(cf, "5");
         assert cf.getColumn(ByteBufferUtil.bytes(String.valueOf(5))) != null;
+    }
+
+    @Test
+    public void testCleanupDuringCompaction() throws Exception
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Table table = Table.open(TABLE1);
+        String cfName = "Standard1";
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        // inserts
+        for (int i = 0; i < 10; i++)
+        {
+            DecoratedKey key = Util.dk("key" + i);
+            RowMutation rm = new RowMutation(TABLE1, key.key);
+            rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+            rm.apply();
+        }
+        cfs.forceBlockingFlush();
+
+        List<Row> rows = Util.getRangeSlice(cfs);
+        Assert.assertNotSame(0, rows.size());
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        final byte[] tk1 = new byte[] {2}, tk2 = new byte[] {1};
+        tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
+        tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
+        CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE).get();
+        tmd.removeEndpoint(InetAddress.getByName("127.0.0.2"));
+        rows = Util.getRangeSlice(cfs);
+        assertEquals(0, rows.size());
+    }
+
+    @Test
+    public void testCleanupDuringRangeMovement() throws Exception
+    {
+        byte[] tk0 = new byte[] { 0 }, tk1 = new byte[] { 1 }, tk2 = new byte[] { 2 };
+        CompactionManager.instance.disableAutoCompaction();
+        Table table = Table.open(TABLE1);
+        String cfName = "Standard1";
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        // inserts
+        for (int i = 0; i < 10; i++)
+        {
+            DecoratedKey key = Util.dk("key" + i);
+            RowMutation rm = new RowMutation(TABLE1, key.key);
+            rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+            rm.apply();
+        }
+        cfs.forceBlockingFlush();
+
+        List<Row> rows = Util.getRangeSlice(cfs);
+        Assert.assertNotSame(0, rows.size());
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        tmd.clearUnsafe();
+
+        // test if node streaming is not dropping the data.
+        tmd.addBootstrapToken(new BytesToken(tk0), InetAddress.getByName("127.0.0.3"));
+        tmd.updateNormalToken(new BytesToken(tk2), FBUtilities.getBroadcastAddress());
+        StorageService.calculatePendingRanges(table.getReplicationStrategy(), table.getName());
+        logger.info("Range movement scheduled for: {}", tmd.getPendingRanges(table.getName()));
+        CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE).get();
+        tmd.removeEndpoint(InetAddress.getByName("127.0.0.3"));
+        rows = Util.getRangeSlice(cfs);
+        assertEquals(10, rows.size());
+
+        // test that we are not dropping the data during local bootstrap
+        tmd.clearUnsafe();
+        StorageService.instance.startBootstrapping();
+        tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.3"));
+        tmd.addBootstrapToken(new BytesToken(tk0), FBUtilities.getBroadcastAddress());
+        StorageService.calculatePendingRanges(table.getReplicationStrategy(), table.getName());
+        logger.info("Range movement scheduled for: {}", tmd.getPendingRanges(table.getName()));
+        CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE).get();
+        tmd.removeEndpoint(InetAddress.getByName("127.0.0.3"));
+        rows = Util.getRangeSlice(cfs);
+        assertEquals(10, rows.size());
+
+        // test if node which is not bootstrapping is actually dropping the data.
+        tmd.clearUnsafe();
+        tmd.addBootstrapToken(new BytesToken(tk0), InetAddress.getByName("127.0.0.3"));
+        tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.2"));
+        tmd.updateNormalToken(new BytesToken(tk2), FBUtilities.getBroadcastAddress());
+        StorageService.calculatePendingRanges(table.getReplicationStrategy(), table.getName());
+        logger.info("Range movement scheduled for: {}", tmd.getPendingRanges(table.getName()));
+        CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE).get();
+        tmd.removeEndpoint(InetAddress.getByName("127.0.0.2"));
+        tmd.removeEndpoint(InetAddress.getByName("127.0.0.3"));
+        rows = Util.getRangeSlice(cfs);
+        assertEquals(0, rows.size());
     }
 
     @Test

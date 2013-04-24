@@ -30,8 +30,17 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorStatsCollector;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableMetadata;
+import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.CounterId;
 
 public class CompactionTask extends AbstractCompactionTask
 {
@@ -128,6 +137,11 @@ public class CompactionTask extends AbstractCompactionTask
         CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
         Map<DecoratedKey, RowIndexEntry> cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
 
+        boolean isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
+        boolean hasIndexes = !cfs.indexManager.getIndexes().isEmpty();
+        List<Range<Token>> ranges = getNodeRange();
+        CounterId.OneShotRenewer renewer = new CounterId.OneShotRenewer();
+
         // we can't preheat until the tracker has been set. This doesn't happen until we tell the cfs to
         // replace the old entries.  Track entries to preheat here until then.
         Map<Descriptor, Map<DecoratedKey, RowIndexEntry>> cachedKeyMap =  new HashMap<Descriptor, Map<DecoratedKey, RowIndexEntry>>();
@@ -166,6 +180,13 @@ public class CompactionTask extends AbstractCompactionTask
                 // If the row is cached, we call removeDeleted on at read time it to have coherent query returns,
                 // but if the row is not pushed out of the cache, obsolete tombstones will persist indefinitely.
                 controller.removeDeletedInCache(row.key);
+
+                if (cfs.table.metadata.strategyClass != LocalStrategy.class && !isInRanges(row.key.token, ranges))
+                {
+                    if (hasIndexes || isCommutative)
+                        CompactionManager.rmIdxRenewCounter(cfs, row.key, row.iterator(), renewer);
+                    continue;
+                }
 
                 RowIndexEntry indexEntry = writer.append(row);
                 totalkeysWritten++;
@@ -289,6 +310,26 @@ public class CompactionTask extends AbstractCompactionTask
     protected int getLevel()
     {
         return 0;
+    }
+
+    private List<Range<Token>> getNodeRange()
+    {
+        List<Range<Token>> ranges = new ArrayList<Range<Token>>(StorageService.instance.getLocalRanges(cfs.table.getName()));
+        Collection<Range<Token>> pending = StorageService.instance.getPendingRanges(cfs.table.getName());
+        for (Range<Token> range : pending)
+            if (Range.isInRanges(range.right, ranges))
+                ranges.add(range); // include PendingRanges so we don't accidentally delete data.
+        return ranges;
+    }
+
+    private static boolean isInRanges(Token token, List<Range<Token>> ranges)
+    {
+        if (ranges.isEmpty())
+        {
+            assert StorageService.instance.isBootstrapMode() : "Nodes range cannot be empty";
+            return true;
+        }
+        return Range.isInRanges(token, ranges);
     }
 
     protected boolean partialCompactionsAcceptable()
