@@ -84,15 +84,12 @@ public class Descriptor
 
         public boolean isCompatible()
         {
-            return version.charAt(0) <= CURRENT.version.charAt(0);
+            return version.compareTo("ic") >= 0 && version.charAt(0) <= CURRENT.version.charAt(0);
         }
 
         public boolean isStreamCompatible()
         {
-            // we could add compatibility for earlier versions with the new single-pass streaming
-            // (see SSTableWriter.appendFromStream) but versions earlier than 0.7.1 don't have the
-            // MessagingService version awareness anyway so there's no point.
-            return isCompatible() && version.charAt(0) >= 'i';
+            return isCompatible() && version.charAt(0) >= 'j';
         }
 
         @Override
