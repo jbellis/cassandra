@@ -221,34 +221,6 @@ public class SSTableReaderTest extends SchemaLoader
     }
 
     @Test
-    public void testPersistentStatisticsFromOlderIndexedSSTable() throws IOException, ExecutionException, InterruptedException
-    {
-        // copy legacy indexed sstables
-        String root = System.getProperty("legacy-sstable-root");
-        assert root != null;
-        File rootDir = new File(root + File.separator + "hb" + File.separator + "Keyspace1");
-        assert rootDir.isDirectory();
-
-        File destDir = Directories.create("Keyspace1", "Indexed1").getDirectoryForNewSSTables(0);
-        assert destDir != null;
-
-        FileUtils.createDirectory(destDir);
-        for (File srcFile : rootDir.listFiles())
-        {
-            if (!srcFile.getName().startsWith("Indexed1"))
-                continue;
-            File destFile = new File(destDir, srcFile.getName());
-            CLibrary.createHardLink(srcFile, destFile);
-
-            assert destFile.exists() : destFile.getAbsoluteFile();
-        }
-        ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Indexed1");
-
-        // check if opening and querying works
-        assertIndexQueryWorks(store);
-    }
-
-    @Test
     public void testOpeningSSTable() throws Exception
     {
         String ks = "Keyspace1";
