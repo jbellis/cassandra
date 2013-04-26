@@ -73,7 +73,7 @@ public interface OnDiskAtom
         {
             ByteBuffer name = ByteBufferUtil.readWithShortLength(in);
             if (name.remaining() <= 0)
-                throw ColumnSerializer.CorruptColumnException.create(in, name);
+                return null;
 
             int b = in.readUnsignedByte();
             if ((b & ColumnSerializer.RANGE_TOMBSTONE_MASK) != 0)
