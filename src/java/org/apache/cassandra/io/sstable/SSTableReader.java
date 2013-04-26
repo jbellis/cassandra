@@ -344,7 +344,7 @@ public class SSTableReader extends SSTable
         try
         {
             stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER))));
-            bf = FilterFactory.deserialize(stream, FilterFactory.Type.MURMUR3, true);
+            bf = FilterFactory.deserialize(stream, true);
         }
         finally
         {
@@ -542,7 +542,7 @@ public class SSTableReader extends SSTable
 
     public long getBloomFilterSerializedSize()
     {
-        return FilterFactory.serializedSize(bf, FilterFactory.Type.MURMUR3);
+        return FilterFactory.serializedSize(bf);
     }
 
     /**
