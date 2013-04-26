@@ -1050,11 +1050,6 @@ public class SSTableReader extends SSTable
         }
     }
 
-    public DecoratedKey decorateKey(ByteBuffer bytes)
-    {
-        return partitioner.decorateKey(bytes);
-    }
-
     /**
      * TODO: Move someplace reusable
      */

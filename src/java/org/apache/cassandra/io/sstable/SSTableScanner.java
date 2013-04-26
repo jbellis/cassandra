@@ -85,7 +85,7 @@ public class SSTableScanner implements ICompactionScanner
             while (!ifile.isEOF())
             {
                 long startPosition = ifile.getFilePointer();
-                DecoratedKey indexDecoratedKey = sstable.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
+                DecoratedKey indexDecoratedKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                 int comparison = indexDecoratedKey.compareTo(seekKey);
                 if (comparison >= 0)
                 {
@@ -169,7 +169,7 @@ public class SSTableScanner implements ICompactionScanner
                 assert !dfile.isEOF();
 
                 // Read data header
-                DecoratedKey key = sstable.decorateKey(ByteBufferUtil.readWithShortLength(dfile));
+                DecoratedKey key = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(dfile));
                 long dataSize = dfile.readLong();
                 long dataStart = dfile.getFilePointer();
                 finishedAt = dataStart + dataSize;
@@ -217,7 +217,7 @@ public class SSTableScanner implements ICompactionScanner
 
                 if (row == null)
                 {
-                    currentKey = sstable.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
+                    currentKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                     currentEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor.version);
                 }
                 else
@@ -233,7 +233,7 @@ public class SSTableScanner implements ICompactionScanner
                 }
                 else
                 {
-                    nextKey = sstable.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
+                    nextKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                     nextEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor.version);
                 }
 
