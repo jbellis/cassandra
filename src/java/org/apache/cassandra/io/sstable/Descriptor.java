@@ -53,6 +53,7 @@ public class Descriptor
         //               into this new format)
         //             tracks max local deletiontime in sstable metadata
         //             records bloom_filter_fp_chance in metadata component
+        //             remove data size and column count from data file (CASSANDRA-4180)
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -62,6 +63,7 @@ public class Descriptor
         public final boolean hasSuperColumns;
         public final boolean tracksMaxLocalDeletionTime;
         public final boolean hasBloomFilterFPChance;
+        public final boolean hasRowSizeAndColumnCount;
 
         public Version(String version)
         {
@@ -70,6 +72,7 @@ public class Descriptor
             isLatestVersion = version.compareTo(current_version) == 0;
             hasSuperColumns = version.compareTo("ja") < 0;
             hasBloomFilterFPChance = version.compareTo("ja") >= 0;
+            hasRowSizeAndColumnCount = version.compareTo("ja") < 0;
         }
 
         /**
