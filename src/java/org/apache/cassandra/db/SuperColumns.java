@@ -34,7 +34,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SuperColumns
@@ -379,7 +378,7 @@ public class SuperColumns
                 CompositeType.Builder builder = type.builder().add(bb);
                 slices[i++] = new ColumnSlice(builder.build(), builder.buildAsEndOfRange());
             }
-            return new SliceQueryFilter(slices, false, slices.length, 1, 1);
+            return new SliceQueryFilter(slices, false, slices.length, 1);
         }
         else
         {

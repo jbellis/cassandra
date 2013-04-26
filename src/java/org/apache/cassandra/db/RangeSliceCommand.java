@@ -131,37 +131,6 @@ public class RangeSliceCommand implements IReadCommand
         return keyspace;
     }
 
-    // Convert to a equivalent IndexScanCommand for backward compatibility sake
-    public IndexScanCommand toIndexScanCommand()
-    {
-        assert row_filter != null && !row_filter.isEmpty();
-        if (countCQL3Rows || isPaging)
-            throw new IllegalStateException("Cannot proceed with range query as the remote end has a version < 1.1. Please update the full cluster first.");
-
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace, column_family);
-        try
-        {
-            if (!ThriftValidation.validateFilterClauses(cfm, row_filter))
-                throw new IllegalStateException("Cannot proceed with non-indexed query as the remote end has a version < 1.1. Please update the full cluster first.");
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        RowPosition start = range.left;
-        ByteBuffer startKey = ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        if (start instanceof DecoratedKey)
-        {
-            startKey = ((DecoratedKey)start).key;
-        }
-
-        IndexClause clause = new IndexClause(row_filter, startKey, maxResults);
-        // IndexScanCommand is deprecated so don't bother
-        SlicePredicate pred = RangeSliceCommandSerializer.asSlicePredicate(predicate);
-        return new IndexScanCommand(keyspace, column_family, clause, pred, range);
-    }
-
     public long getTimeout()
     {
         return DatabaseDescriptor.getRangeRpcTimeout();
@@ -211,14 +180,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                 ByteBufferUtil.write(sc, out);
         }
 
-        if (version < MessagingService.VERSION_12)
-        {
-            FBUtilities.serialize(new TSerializer(new TBinaryProtocol.Factory()), asSlicePredicate(sliceCommand.predicate), out);
-        }
-        else
-        {
-            IDiskAtomFilter.Serializer.instance.serialize(sliceCommand.predicate, out, version);
-        }
+        IDiskAtomFilter.Serializer.instance.serialize(sliceCommand.predicate, out, version);
 
         if (sliceCommand.row_filter == null)
         {
@@ -229,16 +191,9 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             out.writeInt(sliceCommand.row_filter.size());
             for (IndexExpression expr : sliceCommand.row_filter)
             {
-                if (version < MessagingService.VERSION_12)
-                {
-                    FBUtilities.serialize(new TSerializer(new TBinaryProtocol.Factory()), expr, out);
-                }
-                else
-                {
-                    ByteBufferUtil.writeWithShortLength(expr.column_name, out);
-                    out.writeInt(expr.op.getValue());
-                    ByteBufferUtil.writeWithShortLength(expr.value, out);
-                }
+                ByteBufferUtil.writeWithShortLength(expr.column_name, out);
+                out.writeInt(expr.op.getValue());
+                ByteBufferUtil.writeWithShortLength(expr.value, out);
             }
         }
         AbstractBounds.serializer.serialize(sliceCommand.range, out, version);
@@ -277,16 +232,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                 comparator = metadata.comparator;
             }
 
-            if (version < MessagingService.VERSION_12)
-            {
-                SlicePredicate pred = new SlicePredicate();
-                FBUtilities.deserialize(new TDeserializer(new TBinaryProtocol.Factory()), pred, in);
-                predicate = ThriftValidation.asIFilter(pred, metadata, superColumn);
-            }
-            else
-            {
-                predicate = IDiskAtomFilter.Serializer.instance.deserialize(in, version, comparator);
-            }
+            predicate = IDiskAtomFilter.Serializer.instance.deserialize(in, version, comparator);
 
             if (metadata.cfType == ColumnFamilyType.Super)
                 predicate = SuperColumns.fromSCFilter((CompositeType)metadata.comparator, superColumn, predicate);
@@ -302,17 +248,9 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         for (int i = 0; i < filterCount; i++)
         {
             IndexExpression expr;
-            if (version < MessagingService.VERSION_12)
-            {
-                expr = new IndexExpression();
-                FBUtilities.deserialize(new TDeserializer(new TBinaryProtocol.Factory()), expr, in);
-            }
-            else
-            {
-                expr = new IndexExpression(ByteBufferUtil.readWithShortLength(in),
-                                           IndexOperator.findByValue(in.readInt()),
-                                           ByteBufferUtil.readWithShortLength(in));
-            }
+            expr = new IndexExpression(ByteBufferUtil.readWithShortLength(in),
+                                       IndexOperator.findByValue(in.readInt()),
+                                       ByteBufferUtil.readWithShortLength(in));
             rowFilter.add(expr);
         }
         AbstractBounds<RowPosition> range = AbstractBounds.serializer.deserialize(in, version).toRowBounds();
@@ -351,25 +289,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             }
         }
 
-        if (version < MessagingService.VERSION_12)
-        {
-            TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
-            try
-            {
-                int predicateLength = ser.serialize(asSlicePredicate(filter)).length;
-                if (version < MessagingService.VERSION_12)
-                    size += TypeSizes.NATIVE.sizeof(predicateLength);
-                size += predicateLength;
-            }
-            catch (TException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-        else
-        {
-            size += IDiskAtomFilter.Serializer.instance.serializedSize(filter, version);
-        }
+        size += IDiskAtomFilter.Serializer.instance.serializedSize(filter, version);
 
         if (rsc.row_filter == null)
         {
@@ -380,25 +300,9 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             size += TypeSizes.NATIVE.sizeof(rsc.row_filter.size());
             for (IndexExpression expr : rsc.row_filter)
             {
-                if (version < MessagingService.VERSION_12)
-                {
-                    try
-                    {
-                        int filterLength = new TSerializer(new TBinaryProtocol.Factory()).serialize(expr).length;
-                        size += TypeSizes.NATIVE.sizeof(filterLength);
-                        size += filterLength;
-                    }
-                    catch (TException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                }
-                else
-                {
-                    size += TypeSizes.NATIVE.sizeofWithShortLength(expr.column_name);
-                    size += TypeSizes.NATIVE.sizeof(expr.op.getValue());
-                    size += TypeSizes.NATIVE.sizeofWithLength(expr.value);
-                }
+                size += TypeSizes.NATIVE.sizeofWithShortLength(expr.column_name);
+                size += TypeSizes.NATIVE.sizeof(expr.op.getValue());
+                size += TypeSizes.NATIVE.sizeofWithLength(expr.value);
             }
         }
         size += AbstractBounds.serializer.serializedSize(rsc.range, version);

@@ -206,7 +206,6 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.GOSSIP_DIGEST_SYN, GossipDigestSyn.serializer);
         put(Verb.DEFINITIONS_UPDATE, MigrationManager.MigrationsSerializer.instance);
         put(Verb.TRUNCATE, Truncation.serializer);
-        put(Verb.INDEX_SCAN, IndexScanCommand.serializer);
         put(Verb.REPLICATION_FINISHED, null);
         put(Verb.COUNTER_MUTATION, CounterMutation.serializer);
         put(Verb.ECHO, EchoMessage.serializer);

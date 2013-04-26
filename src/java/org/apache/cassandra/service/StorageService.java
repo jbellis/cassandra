@@ -238,7 +238,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.READ_REPAIR, new ReadRepairVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.READ, new ReadVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.RANGE_SLICE, new RangeSliceVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.INDEX_SCAN, new IndexScanVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.COUNTER_MUTATION, new CounterMutationVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.TRUNCATE, new TruncateVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.PAXOS_PREPARE, new PrepareVerbHandler());
@@ -1643,19 +1642,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     protected long extractExpireTime(String[] pieces, int version)
     {
-        if (version < MessagingService.VERSION_12)
-        {
-            if (pieces.length >= 3)
-                return Long.parseLong(pieces[2]);
-            else
-                return 0L;
-        } else
-        {
-            if (VersionedValue.STATUS_LEFT.equals(pieces[0]))
-                return Long.parseLong(pieces[1]);
-            else
-                return Long.parseLong(pieces[2]);
-        }
+        if (VersionedValue.STATUS_LEFT.equals(pieces[0]))
+            return Long.parseLong(pieces[1]);
+        else
+            return Long.parseLong(pieces[2]);
     }
 
     /**
