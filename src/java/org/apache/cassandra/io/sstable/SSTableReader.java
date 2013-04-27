@@ -366,8 +366,9 @@ public class SSTableReader extends SSTable
             if (recreatebloom)
                 bf = LegacyBloomFilter.getFilter(estimatedKeys, 15);
 
+            IndexSummaryBuilder summaryBuilder = null;
             if (!summaryLoaded)
-                indexSummary = new IndexSummary(estimatedKeys);
+                summaryBuilder = new IndexSummaryBuilder(estimatedKeys);
 
             long indexPosition;
             while (readIndex && (indexPosition = primaryIndex.getFilePointer()) != indexSize)
@@ -385,20 +386,23 @@ public class SSTableReader extends SSTable
                 // if summary was already read from disk we don't want to re-populate it using primary index
                 if (!summaryLoaded)
                 {
-                    indexSummary.maybeAddEntry(decoratedKey, indexPosition);
+                    summaryBuilder.maybeAddEntry(decoratedKey, indexPosition);
                     ibuilder.addPotentialBoundary(indexPosition);
                     dbuilder.addPotentialBoundary(indexEntry.position);
                 }
             }
+
+            if (!summaryLoaded)
+                indexSummary = summaryBuilder.build();
         }
         finally
         {
             FileUtils.closeQuietly(primaryIndex);
         }
+
         first = getMinimalKey(first);
         last = getMinimalKey(last);
         // finalize the load.
-        indexSummary.complete();
         // finalize the state of the reader
         ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
         dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
