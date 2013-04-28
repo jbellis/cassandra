@@ -19,19 +19,22 @@ package org.apache.cassandra.io.sstable;
 
 import java.util.ArrayList;
 
+import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class IndexSummaryBuilder
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexSummaryBuilder.class);
 
     private final ArrayList<Long> positions;
-    private final ArrayList<DecoratedKey> keys;
+    private final ArrayList<byte[]> keys;
     private long keysWritten = 0;
 
     public IndexSummaryBuilder(long expectedKeys)
@@ -42,18 +45,19 @@ public class IndexSummaryBuilder
             // that's a _lot_ of keys, and a very low interval
             int effectiveInterval = (int) Math.ceil((double) Integer.MAX_VALUE / expectedKeys);
             expectedEntries = expectedKeys / effectiveInterval;
+            assert expectedEntries <= Integer.MAX_VALUE : expectedEntries;
             logger.warn("Index interval of {} is too low for {} expected keys; using interval of {} instead",
                         DatabaseDescriptor.getIndexInterval(), expectedKeys, effectiveInterval);
         }
         positions = new ArrayList<Long>((int)expectedEntries);
-        keys = new ArrayList<DecoratedKey>((int)expectedEntries);
+        keys = new ArrayList<byte[]>((int)expectedEntries);
     }
 
     public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexPosition)
     {
         if (keysWritten % DatabaseDescriptor.getIndexInterval() == 0)
         {
-            keys.add(SSTable.getMinimalKey(decoratedKey));
+            keys.add(ByteBufferUtil.getArray(decoratedKey.key));
             positions.add(indexPosition);
         }
         keysWritten++;
@@ -61,9 +65,12 @@ public class IndexSummaryBuilder
         return this;
     }
 
-    public IndexSummary build()
+    public IndexSummary build(IPartitioner partitioner)
     {
-        keys.trimToSize();
-        return new IndexSummary(keys, Longs.toArray(positions));
+        byte[][] keysArray = new byte[keys.size()][];
+        for (int i = 0; i < keys.size(); i++)
+            keysArray[i] = keys.get(i);
+
+        return new IndexSummary(partitioner, keysArray, Longs.toArray(positions));
     }
 }

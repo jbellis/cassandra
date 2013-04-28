@@ -346,7 +346,7 @@ public class SSTableWriter extends SSTable
                                                            partitioner,
                                                            ifile,
                                                            dfile,
-                                                           iwriter.summary.build(),
+                                                           iwriter.summary.build(partitioner),
                                                            iwriter.bf,
                                                            maxDataAge,
                                                            sstableMetadata);
