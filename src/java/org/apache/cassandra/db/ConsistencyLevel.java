@@ -277,7 +277,7 @@ public enum ConsistencyLevel
                 requireNetworkTopologyStrategy(table);
                 break;
             case SERIAL:
-                throw new InvalidRequestException("You must use CAS for serializable writes");
+                throw new InvalidRequestException("You must use conditional updates for serializable writes");
         }
     }
 
