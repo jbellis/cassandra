@@ -1048,7 +1048,7 @@ public class StorageProxy implements StorageProxyMBean
                 CFMetaData metadata = Schema.instance.getCFMetaData(command.table, command.cfName);
 
                 long timedOut = System.currentTimeMillis() + DatabaseDescriptor.getCasContentionTimeout();
-                while (System.currentTimeMillis() < timedOut)
+                while (true)
                 {
                     Pair<List<InetAddress>, Integer> p = getPaxosParticipants(command.table, command.key);
                     List<InetAddress> liveEndpoints = p.left;
@@ -1056,6 +1056,9 @@ public class StorageProxy implements StorageProxyMBean
 
                     if (beginAndRepairPaxos(command.key, metadata, liveEndpoints, requiredParticipants) != null)
                         break;
+
+                    if (System.currentTimeMillis() >= timedOut)
+                        throw new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, -1, -1);
                 }
 
                 rows = fetchRows(commands, ConsistencyLevel.QUORUM);
