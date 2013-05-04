@@ -18,8 +18,11 @@
 */
 package org.apache.cassandra.service;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Collections;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -27,11 +30,24 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.IRangeProvider;
+import org.apache.cassandra.dht.BytesToken;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class CassandraServerTest extends SchemaLoader
+public class CassandraServerTest
 {
+    // Instead of extending SchemaLoader, allow EmbeddedCassandraService to set up a RangeProvider
+    @BeforeClass
+    public static void init() throws IOException
+    {
+        SchemaLoader.loadSchema(false);
+    }
+
     /**
      * test get_count() to work correctly with 'count' settings around page size.
      * (CASSANDRA-4833)

@@ -57,12 +57,6 @@ public class CompactionsTest extends SchemaLoader
 {
     public static final String TABLE1 = "Keyspace1";
 
-    @Before
-    public void setup() throws ConfigurationException
-    {
-        StorageService.instance.initServer();   
-    }
-
     public ColumnFamilyStore testSingleSSTableCompaction(String strategyClassName) throws Exception
     {
         Table table = Table.open(TABLE1);

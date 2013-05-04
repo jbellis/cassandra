@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class CliTest extends SchemaLoader
+public class CliTest
 {
     // please add new statements here so they could be auto-runned by this test.
     private String[] statements = {
@@ -219,7 +219,7 @@ public class CliTest extends SchemaLoader
     @Test
     public void testCli() throws IOException, TException, ConfigurationException, ClassNotFoundException, TimedOutException, NotFoundException, SchemaDisagreementException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException
     {
-        Schema.instance.clear(); // Schema are now written on disk and will be reloaded
+        SchemaLoader.cleanupAndLeaveDirs();
         new EmbeddedCassandraService().start();
 
         // new error/output streams for CliSessionState

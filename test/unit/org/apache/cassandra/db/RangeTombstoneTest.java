@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.EverythingRangeProvider;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -98,7 +99,6 @@ public class RangeTombstoneTest extends SchemaLoader
     @Test
     public void overlappingRangeTest() throws Exception
     {
-        StorageService.instance.initServer();
         CompactionManager.instance().disableAutoCompaction();
         Table table = Table.open(KSNAME);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);

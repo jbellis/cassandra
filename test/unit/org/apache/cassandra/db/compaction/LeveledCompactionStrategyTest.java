@@ -52,12 +52,6 @@ import static org.junit.Assert.assertTrue;
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class LeveledCompactionStrategyTest extends SchemaLoader
 {
-    @Before
-    public void setup() throws ConfigurationException
-    {
-        StorageService.instance.initServer();   
-    }
-
     /*
      * This exercises in particular the code of #4142
      */

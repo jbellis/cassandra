@@ -1084,7 +1084,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         data.replaceFlushed(memtable, sstable);
         if (sstable != null)
-            CompactionManager.instance().submitBackground(this);
+            CompactionManager.maybeSubmitBackground(this);
     }
 
     public boolean isValid()
@@ -1883,13 +1883,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     }
                 };
                 Iterable<CFMetaData> allMetadata = Iterables.transform(selfWithIndexes, f);
-                CompactionManager.instance().interruptCompactionFor(allMetadata, interruptValidation);
+                CompactionManager.interruptCompactionFor(allMetadata, interruptValidation);
 
                 // wait for the interruption to be recognized
                 long start = System.currentTimeMillis();
                 while (System.currentTimeMillis() < start + 60000)
                 {
-                    if (CompactionManager.instance().isCompacting(selfWithIndexes))
+                    if (CompactionManager.isCompacting(selfWithIndexes))
                         FBUtilities.sleep(100);
                     else
                         break;

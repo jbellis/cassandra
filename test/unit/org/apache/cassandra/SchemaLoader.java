@@ -23,6 +23,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Charsets;
+
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.EverythingRangeProvider;
 import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.junit.AfterClass;
@@ -44,6 +47,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -54,6 +58,7 @@ public class SchemaLoader
     @BeforeClass
     public static void loadSchema() throws IOException
     {
+        CompactionManager.init(new EverythingRangeProvider(StorageService.getPartitioner()));
         loadSchema(false);
     }
 

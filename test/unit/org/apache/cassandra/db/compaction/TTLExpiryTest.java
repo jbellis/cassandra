@@ -78,7 +78,6 @@ public class TTLExpiryTest extends SchemaLoader
     @Test
     public void testNoExpire() throws ExecutionException, InterruptedException, ConfigurationException
     {
-        StorageService.instance.initServer();
         ColumnFamilyStore cfs = Table.open("Keyspace1").getColumnFamilyStore("Standard1");
         cfs.disableAutoCompaction();
         cfs.metadata.gcGraceSeconds(0);

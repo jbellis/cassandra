@@ -51,7 +51,6 @@ public class BlacklistingCompactionsTest extends SchemaLoader
 
     public void testBlacklisting(String compactionStrategy) throws Exception
     {
-        StorageService.instance.initServer();
         // this test does enough rows to force multiple block indexes to be used
         Table table = Table.open(KEYSPACE);
         final ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");

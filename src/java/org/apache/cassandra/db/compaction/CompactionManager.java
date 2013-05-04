@@ -66,7 +66,7 @@ public class CompactionManager implements CompactionManagerMBean
 {
     public static final String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=CompactionManager";
     private static final Logger logger = LoggerFactory.getLogger(CompactionManager.class);
-    private static final CompactionManager instance;
+    private static CompactionManager instance;
 
     public static final int NO_GC = Integer.MIN_VALUE;
     public static final int GC_ALL = Integer.MAX_VALUE;
@@ -82,13 +82,14 @@ public class CompactionManager implements CompactionManagerMBean
         }
     };
 
-    static
+    public CompactionManager(IRangeProvider rangeProvider)
     {
-        instance = new CompactionManager();
+        this.rangeProvider = rangeProvider;
+
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(instance(), new ObjectName(MBEAN_OBJECT_NAME));
+            mbs.registerMBean(this, new ObjectName(MBEAN_OBJECT_NAME));
         }
         catch (Exception e)
         {
@@ -96,8 +97,14 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
+    public static void init(IRangeProvider rangeProvider)
+    {
+        instance = new CompactionManager(rangeProvider);
+    }
+
     public static CompactionManager instance()
     {
+        assert instance != null;
         return instance;
     }
 
@@ -105,8 +112,8 @@ public class CompactionManager implements CompactionManagerMBean
     private final CompactionExecutor validationExecutor = new ValidationExecutor();
     private final CompactionMetrics metrics = new CompactionMetrics(executor, validationExecutor);
     private final Multiset<ColumnFamilyStore> compactingCF = ConcurrentHashMultiset.create();
-
     private final RateLimiter compactionRateLimiter = RateLimiter.create(Double.MAX_VALUE);
+    private final IRangeProvider rangeProvider;
 
     /**
      * Gets compaction rate limiter. When compaction_throughput_mb_per_sec is 0 or node is bootstrapping,
@@ -161,12 +168,25 @@ public class CompactionManager implements CompactionManagerMBean
         return futures;
     }
 
-    public boolean isCompacting(Iterable<ColumnFamilyStore> cfses)
+    public static boolean isCompacting(Iterable<ColumnFamilyStore> cfses)
     {
         for (ColumnFamilyStore cfs : cfses)
             if (!cfs.getDataTracker().getCompacting().isEmpty())
                 return true;
         return false;
+    }
+
+    public IRangeProvider getRangeProvider()
+    {
+        return rangeProvider;
+    }
+
+    public static void maybeSubmitBackground(ColumnFamilyStore cfs)
+    {
+        if (instance == null)
+            return;
+
+        instance.submitBackground(cfs);
     }
 
     // the actual sstables to compact are not determined until we run the BCT; that way, if new sstables
@@ -968,7 +988,7 @@ public class CompactionManager implements CompactionManagerMBean
      * @param interruptValidation true if validation operations for repair should also be interrupted
      *
      */
-    public void interruptCompactionFor(Iterable<CFMetaData> columnFamilies, boolean interruptValidation)
+    public static void interruptCompactionFor(Iterable<CFMetaData> columnFamilies, boolean interruptValidation)
     {
         assert columnFamilies != null;
 

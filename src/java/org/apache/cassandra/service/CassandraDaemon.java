@@ -270,14 +270,7 @@ public class CassandraDaemon
         {
             if (logger.isDebugEnabled())
                 logger.debug("opening keyspace " + table);
-            // disable auto compaction until commit log replay ends
-            for (ColumnFamilyStore cfs : Table.open(table).getColumnFamilyStores())
-            {
-                for (ColumnFamilyStore store : cfs.concatWithIndexes())
-                {
-                    store.disableAutoCompaction();
-                }
-            }
+            Table.open(table);
         }
 
         if (CacheService.instance.keyCache.size() > 0)
@@ -305,17 +298,6 @@ public class CassandraDaemon
             throw new RuntimeException(e);
         }
 
-        // enable auto compaction
-        for (Table table : Table.all())
-        {
-            for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
-            {
-                for (final ColumnFamilyStore store : cfs.concatWithIndexes())
-                {
-                    store.enableAutoCompaction();
-                }
-            }
-        }
         // start compactions in five minutes (if no flushes have occurred by then to do so)
         Runnable runnable = new Runnable()
         {

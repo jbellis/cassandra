@@ -459,7 +459,7 @@ public class DefsTable
         KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
         String snapshotName = Table.getTimestampedSnapshotName(ksName);
 
-        CompactionManager.instance().interruptCompactionFor(ksm.cfMetaData().values(), true);
+        CompactionManager.interruptCompactionFor(ksm.cfMetaData().values(), true);
 
         // remove all cfs from the table instance.
         for (CFMetaData cfm : ksm.cfMetaData().values())
@@ -498,7 +498,7 @@ public class DefsTable
         Schema.instance.purge(cfm);
         Schema.instance.setTableDefinition(makeNewKeyspaceDefinition(ksm, cfm));
 
-        CompactionManager.instance().interruptCompactionFor(Arrays.asList(cfm), true);
+        CompactionManager.interruptCompactionFor(Arrays.asList(cfm), true);
 
         if (!StorageService.instance.isClientMode())
         {

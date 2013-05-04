@@ -42,12 +42,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class OneCompactionTest extends SchemaLoader
 {
-    @Before
-    public void setup() throws ConfigurationException
-    {
-        StorageService.instance.initServer();   
-    }
-
     private void testCompaction(String columnFamilyName, int insertsPerTable) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.instance().disableAutoCompaction();

@@ -53,6 +53,8 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.IRangeProvider;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
@@ -90,7 +92,7 @@ import static com.google.common.base.Charsets.ISO_8859_1;
  * This class will also maintain histograms of the load information
  * of other nodes in the cluster.
  */
-public class StorageService extends NotificationBroadcasterSupport implements IEndpointStateChangeSubscriber, StorageServiceMBean
+public class StorageService extends NotificationBroadcasterSupport implements IEndpointStateChangeSubscriber, StorageServiceMBean, IRangeProvider
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
 
@@ -475,6 +477,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new AssertionError(e);
         }
 
+        CompactionManager.init(this);
+
         if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
         {
             logger.info("Loading persisted ring state");
@@ -829,6 +833,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             Auth.setup();
         }
+    }
+
+    public Iterable<Range<Token>> getRanges(Table table)
+    {
+        if (operationMode == Mode.NORMAL)
+            return getLocalRanges(table.getName());
+
+        return Collections.singletonList(new Range<Token>(getPartitioner().getMinimumToken(), getPartitioner().getMinimumToken()));
     }
 
     public boolean isJoined()

@@ -33,6 +33,8 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.EverythingRangeProvider;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -56,7 +58,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class StreamingTransferTest extends SchemaLoader
+public class StreamingTransferTest
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingTransferTest.class);
 
@@ -65,7 +67,8 @@ public class StreamingTransferTest extends SchemaLoader
     @BeforeClass
     public static void setup() throws Exception
     {
-        StorageService.instance.initServer();
+        SchemaLoader.loadSchema(false);
+        StorageService.instance.initServer(0);
     }
 
     /**

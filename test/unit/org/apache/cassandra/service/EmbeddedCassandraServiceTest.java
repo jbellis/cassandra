@@ -48,9 +48,8 @@ import static org.junit.Assert.assertNotNull;
  * Tests connect to localhost:9160 when the embedded server is running.
  *
  */
-public class EmbeddedCassandraServiceTest extends SchemaLoader
+public class EmbeddedCassandraServiceTest
 {
-
     private static EmbeddedCassandraService cassandra;
 
     /**
@@ -63,7 +62,8 @@ public class EmbeddedCassandraServiceTest extends SchemaLoader
     @BeforeClass
     public static void setup() throws TTransportException, IOException, InterruptedException, ConfigurationException
     {
-        Schema.instance.clear(); // Schema are now written on disk and will be reloaded
+        SchemaLoader.loadSchema(false);
+        Schema.instance.clear(); // so CassandraDaemon can load them shortly
         cassandra = new EmbeddedCassandraService();
         cassandra.start();
     }

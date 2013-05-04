@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.*;
 
 import com.google.common.base.Throwables;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -38,7 +39,6 @@ import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.locator.LocalStrategy;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.CounterId;
 
@@ -139,7 +139,8 @@ public class CompactionTask extends AbstractCompactionTask
 
         boolean isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
         boolean hasIndexes = !cfs.indexManager.getIndexes().isEmpty();
-        List<Range<Token>> ranges = getNodeRange();
+        Iterable<Range<Token>> ranges = getTableRanges();
+        assert !Iterables.isEmpty(ranges);
         CounterId.OneShotRenewer renewer = new CounterId.OneShotRenewer();
 
         // we can't preheat until the tracker has been set. This doesn't happen until we tell the cfs to
@@ -181,7 +182,7 @@ public class CompactionTask extends AbstractCompactionTask
                 // but if the row is not pushed out of the cache, obsolete tombstones will persist indefinitely.
                 controller.removeDeletedInCache(row.key);
 
-                if (cfs.table.metadata.strategyClass != LocalStrategy.class && !isInRanges(row.key.token, ranges))
+                if (cfs.table.metadata.strategyClass != LocalStrategy.class && !Range.isInRanges(row.key.token, ranges))
                 {
                     if (hasIndexes || isCommutative)
                         CompactionManager.rmIdxRenewCounter(cfs, row.key, row.iterator(), renewer);
@@ -312,24 +313,9 @@ public class CompactionTask extends AbstractCompactionTask
         return 0;
     }
 
-    private List<Range<Token>> getNodeRange()
+    private Iterable<Range<Token>> getTableRanges()
     {
-        List<Range<Token>> ranges = new ArrayList<Range<Token>>(StorageService.instance.getLocalRanges(cfs.table.getName()));
-        Collection<Range<Token>> pending = StorageService.instance.getPendingRanges(cfs.table.getName());
-        for (Range<Token> range : pending)
-            if (Range.isInRanges(range.right, ranges))
-                ranges.add(range); // include PendingRanges so we don't accidentally delete data.
-        return ranges;
-    }
-
-    private static boolean isInRanges(Token token, List<Range<Token>> ranges)
-    {
-        if (ranges.isEmpty())
-        {
-            assert StorageService.instance.isBootstrapMode() : "Nodes range cannot be empty";
-            return true;
-        }
-        return Range.isInRanges(token, ranges);
+        return CompactionManager.instance().getRangeProvider().getRanges(cfs.table);
     }
 
     protected boolean partialCompactionsAcceptable()

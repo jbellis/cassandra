@@ -29,6 +29,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.db.compaction.EverythingRangeProvider;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
@@ -63,8 +64,6 @@ public class CleanupTest extends SchemaLoader
     @Test
     public void testCleanup() throws IOException, ExecutionException, InterruptedException, ConfigurationException
     {
-        StorageService.instance.initServer(0);
-
         Table table = Table.open(TABLE1);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF2);
 
