@@ -73,7 +73,7 @@ public class HintedHandOffTest extends SchemaLoader
 
         // submit compaction
         FBUtilities.waitOnFuture(HintedHandOffManager.instance.compact());
-        while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0)
+        while (CompactionManager.instance().getPendingTasks() > 0 || CompactionManager.instance().getActiveCompactions() > 0)
             TimeUnit.SECONDS.sleep(1);
 
         // single row should not be removed because of gc_grace_seconds

@@ -68,7 +68,7 @@ public class LongCompactionsTest extends SchemaLoader
 
     protected void testCompaction(int sstableCount, int rowsPerSSTable, int colsPerRow) throws Exception
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         Table table = Table.open(TABLE1);
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
@@ -159,15 +159,15 @@ public class LongCompactionsTest extends SchemaLoader
         {
             ArrayList<Future<?>> compactions = new ArrayList<Future<?>>();
             for (int i = 0; i < 10; i++)
-                compactions.addAll(CompactionManager.instance.submitBackground(cfs));
+                compactions.addAll(CompactionManager.instance().submitBackground(cfs));
             // another compaction attempt will be launched in the background by
             // each completing compaction: not much we can do to control them here
             FBUtilities.waitOnFutures(compactions);
-        } while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0);
+        } while (CompactionManager.instance().getPendingTasks() > 0 || CompactionManager.instance().getActiveCompactions() > 0);
 
         if (cfs.getSSTables().size() > 1)
         {
-            CompactionManager.instance.performMaximal(cfs);
+            CompactionManager.instance().performMaximal(cfs);
         }
     }
 }

@@ -99,7 +99,7 @@ public class RangeTombstoneTest extends SchemaLoader
     public void overlappingRangeTest() throws Exception
     {
         StorageService.instance.initServer();
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
         Table table = Table.open(KSNAME);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
 
@@ -142,7 +142,7 @@ public class RangeTombstoneTest extends SchemaLoader
             assert !isLive(cf, cf.getColumn(b(i))) : "Column " + i + " shouldn't be live";
 
         // Compact everything and re-test
-        CompactionManager.instance.performMaximal(cfs);
+        CompactionManager.instance().performMaximal(cfs);
         cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dk(key), CFNAME));
 
         for (int i = 0; i < 5; i++)

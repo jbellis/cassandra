@@ -165,7 +165,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     @Test
     public void testOneRow() throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
@@ -183,7 +183,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     @Test
     public void testOneRowTwoColumns() throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
@@ -202,7 +202,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     @Test
     public void testOneRowManyColumns() throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
@@ -224,7 +224,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     @Test
     public void testTwoRows() throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
@@ -245,7 +245,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     @Test
     public void testTwoRowsTwoColumns() throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
@@ -267,7 +267,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     @Test
     public void testManyRows() throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");

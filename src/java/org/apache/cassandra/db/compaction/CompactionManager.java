@@ -66,7 +66,7 @@ public class CompactionManager implements CompactionManagerMBean
 {
     public static final String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=CompactionManager";
     private static final Logger logger = LoggerFactory.getLogger(CompactionManager.class);
-    public static final CompactionManager instance;
+    private static final CompactionManager instance;
 
     public static final int NO_GC = Integer.MIN_VALUE;
     public static final int GC_ALL = Integer.MAX_VALUE;
@@ -88,12 +88,17 @@ public class CompactionManager implements CompactionManagerMBean
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(instance, new ObjectName(MBEAN_OBJECT_NAME));
+            mbs.registerMBean(instance(), new ObjectName(MBEAN_OBJECT_NAME));
         }
         catch (Exception e)
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static CompactionManager instance()
+    {
+        return instance;
     }
 
     private final CompactionExecutor executor = new CompactionExecutor();

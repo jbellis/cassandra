@@ -1005,7 +1005,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void addSSTables(Collection<SSTableReader> sstables)
     {
         data.addSSTables(sstables);
-        CompactionManager.instance.submitBackground(this);
+        CompactionManager.instance().submitBackground(this);
     }
 
     /**
@@ -1060,13 +1060,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void forceCleanup(CounterId.OneShotRenewer renewer) throws ExecutionException, InterruptedException
     {
-        CompactionManager.instance.performCleanup(ColumnFamilyStore.this, renewer);
+        CompactionManager.instance().performCleanup(ColumnFamilyStore.this, renewer);
     }
 
     public void scrub() throws ExecutionException, InterruptedException
     {
         snapshotWithoutFlush("pre-scrub-" + System.currentTimeMillis());
-        CompactionManager.instance.performScrub(ColumnFamilyStore.this);
+        CompactionManager.instance().performScrub(ColumnFamilyStore.this);
     }
 
     public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)
@@ -1084,7 +1084,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         data.replaceFlushed(memtable, sstable);
         if (sstable != null)
-            CompactionManager.instance.submitBackground(this);
+            CompactionManager.instance().submitBackground(this);
     }
 
     public boolean isValid()
@@ -1727,7 +1727,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void forceMajorCompaction() throws InterruptedException, ExecutionException
     {
-        CompactionManager.instance.performMaximal(this);
+        CompactionManager.instance().performMaximal(this);
     }
 
     public static Iterable<ColumnFamilyStore> all()
@@ -1883,13 +1883,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     }
                 };
                 Iterable<CFMetaData> allMetadata = Iterables.transform(selfWithIndexes, f);
-                CompactionManager.instance.interruptCompactionFor(allMetadata, interruptValidation);
+                CompactionManager.instance().interruptCompactionFor(allMetadata, interruptValidation);
 
                 // wait for the interruption to be recognized
                 long start = System.currentTimeMillis();
                 while (System.currentTimeMillis() < start + 60000)
                 {
-                    if (CompactionManager.instance.isCompacting(selfWithIndexes))
+                    if (CompactionManager.instance().isCompacting(selfWithIndexes))
                         FBUtilities.sleep(100);
                     else
                         break;
@@ -1996,7 +1996,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void enableAutoCompaction(boolean waitForFutures)
     {
         this.compactionStrategy.enable();
-        List<Future<?>> futures = CompactionManager.instance.submitBackground(this);
+        List<Future<?>> futures = CompactionManager.instance().submitBackground(this);
         if (waitForFutures)
             FBUtilities.waitOnFutures(futures);
     }
@@ -2030,7 +2030,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // this is called as part of CompactionStrategy constructor; avoid circular dependency by checking for null
         if (compactionStrategy != null)
-            CompactionManager.instance.submitBackground(this);
+            CompactionManager.instance().submitBackground(this);
     }
 
     public int getMinimumCompactionThreshold()

@@ -93,7 +93,7 @@ public class Scrubber implements Closeable
         // "ahead" of the data file.)
         this.dataFile = isOffline
                         ? sstable.openDataReader()
-                        : sstable.openDataReader(CompactionManager.instance.getRateLimiter());
+                        : sstable.openDataReader(CompactionManager.instance().getRateLimiter());
         this.indexFile = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)));
         this.scrubInfo = new ScrubInfo(dataFile, sstable);
     }

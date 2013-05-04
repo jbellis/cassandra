@@ -448,7 +448,7 @@ public class ActiveRepairService
             ColumnFamilyStore store = Table.open(request.cf.left).getColumnFamilyStore(request.cf.right);
             Validator validator = new Validator(request);
             logger.debug("Queueing validation compaction for " + request);
-            CompactionManager.instance.submitValidation(store, validator);
+            CompactionManager.instance().submitValidation(store, validator);
         }
     }
 

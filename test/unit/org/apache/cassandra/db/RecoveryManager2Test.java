@@ -45,7 +45,7 @@ public class RecoveryManager2Test extends SchemaLoader
         // Flush everything that may be in the commit log now to start fresh
         FBUtilities.waitOnFutures(Table.open(Table.SYSTEM_KS).flush());
 
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         // add a row to another CF so we test skipping mutations within a not-entirely-flushed CF
         insertRow("Standard2", "key");

@@ -271,6 +271,6 @@ public class BatchlogManager implements BatchlogManagerMBean
         for (SSTableReader sstr : cfs.getSSTables())
             descriptors.add(sstr.descriptor);
         if (!descriptors.isEmpty()) // don't pollute the logs if there is nothing to compact.
-            CompactionManager.instance.submitUserDefined(cfs, descriptors, Integer.MAX_VALUE).get();
+            CompactionManager.instance().submitUserDefined(cfs, descriptors, Integer.MAX_VALUE).get();
     }
 }

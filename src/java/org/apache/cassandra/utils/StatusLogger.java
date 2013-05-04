@@ -69,7 +69,7 @@ public class StatusLogger
                                       poolName, threadPoolProxy.getActiveCount(), threadPoolProxy.getPendingTasks(), threadPoolProxy.getCurrentlyBlockedTasks()));
         }
         // one offs
-        CompactionManager cm = CompactionManager.instance;
+        CompactionManager cm = CompactionManager.instance();
         logger.info(String.format("%-25s%10s%10s",
                                   "CompactionManager", cm.getActiveCompactions(), cm.getPendingTasks()));
         int pendingCommands = 0;

@@ -44,6 +44,8 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CLibrary;
@@ -93,7 +95,7 @@ public class ScrubTest extends SchemaLoader
     @Test
     public void testScrubOneRow() throws IOException, ExecutionException, InterruptedException, ConfigurationException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
         Table table = Table.open(TABLE);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF);
 
@@ -104,7 +106,7 @@ public class ScrubTest extends SchemaLoader
         rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(1, rows.size());
 
-        CompactionManager.instance.performScrub(cfs);
+        CompactionManager.instance().performScrub(cfs);
 
         // check data is still there
         rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
@@ -114,7 +116,7 @@ public class ScrubTest extends SchemaLoader
     @Test
     public void testScrubDeletedRow() throws IOException, ExecutionException, InterruptedException, ConfigurationException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
         Table table = Table.open(TABLE);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF3);
 
@@ -124,14 +126,14 @@ public class ScrubTest extends SchemaLoader
         rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
-        CompactionManager.instance.performScrub(cfs);
+        CompactionManager.instance().performScrub(cfs);
         assert cfs.getSSTables().isEmpty();
     }
 
     @Test
     public void testScrubMultiRow() throws IOException, ExecutionException, InterruptedException, ConfigurationException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
         Table table = Table.open(TABLE);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF);
 
@@ -142,7 +144,7 @@ public class ScrubTest extends SchemaLoader
         rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(10, rows.size());
 
-        CompactionManager.instance.performScrub(cfs);
+        CompactionManager.instance().performScrub(cfs);
 
         // check data is still there
         rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
@@ -152,7 +154,7 @@ public class ScrubTest extends SchemaLoader
     @Test
     public void testScubOutOfOrder() throws Exception
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
         Table table = Table.open(TABLE);
         String columnFamily = "Standard3";
         ColumnFamilyStore cfs = table.getColumnFamilyStore(columnFamily);
@@ -186,7 +188,7 @@ public class ScrubTest extends SchemaLoader
         rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assert !isRowOrdered(rows) : "'corrupt' test file actually was not";
 
-        CompactionManager.instance.performScrub(cfs);
+        CompactionManager.instance().performScrub(cfs);
         rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assert isRowOrdered(rows) : "Scrub failed: " + rows;
         assert rows.size() == 6 : "Got " + rows.size();

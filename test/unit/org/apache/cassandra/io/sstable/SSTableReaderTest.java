@@ -75,7 +75,7 @@ public class SSTableReaderTest extends SchemaLoader
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard2");
 
         // insert data and compact to a single sstable
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
         for (int j = 0; j < 10; j++)
         {
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
@@ -84,7 +84,7 @@ public class SSTableReaderTest extends SchemaLoader
             rm.apply();
         }
         store.forceBlockingFlush();
-        CompactionManager.instance.performMaximal(store);
+        CompactionManager.instance().performMaximal(store);
 
         List<Range<Token>> ranges = new ArrayList<Range<Token>>();
         // 1 key
@@ -116,7 +116,7 @@ public class SSTableReaderTest extends SchemaLoader
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
 
         // insert a bunch of data and compact to a single sstable
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
         for (int j = 0; j < 100; j += 2)
         {
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
@@ -125,7 +125,7 @@ public class SSTableReaderTest extends SchemaLoader
             rm.apply();
         }
         store.forceBlockingFlush();
-        CompactionManager.instance.performMaximal(store);
+        CompactionManager.instance().performMaximal(store);
 
         // check that all our keys are found correctly
         SSTableReader sstable = store.getSSTables().iterator().next();
@@ -179,7 +179,7 @@ public class SSTableReaderTest extends SchemaLoader
         CacheService.instance.keyCache.setCapacity(100);
 
         // insert data and compact to a single sstable
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
         for (int j = 0; j < 10; j++)
         {
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
@@ -188,7 +188,7 @@ public class SSTableReaderTest extends SchemaLoader
             rm.apply();
         }
         store.forceBlockingFlush();
-        CompactionManager.instance.performMaximal(store);
+        CompactionManager.instance().performMaximal(store);
 
         SSTableReader sstable = store.getSSTables().iterator().next();
         long p2 = sstable.getPosition(k(2), SSTableReader.Operator.EQ).position;

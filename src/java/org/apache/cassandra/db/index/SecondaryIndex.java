@@ -182,7 +182,7 @@ public abstract class SecondaryIndex
         SecondaryIndexBuilder builder = new SecondaryIndexBuilder(baseCfs,
                                                                   Collections.singleton(getIndexName()),
                                                                   new ReducingKeyIterator(sstables));
-        Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
+        Future<?> future = CompactionManager.instance().submitIndexBuild(builder);
         try
         {
             future.get();

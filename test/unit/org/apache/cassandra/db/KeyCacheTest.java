@@ -55,7 +55,7 @@ public class KeyCacheTest extends SchemaLoader
     public void testKeyCacheLoad() throws Exception
     {
         StorageService.instance.initServer();
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         ColumnFamilyStore store = Table.open(TABLE1).getColumnFamilyStore(COLUMN_FAMILY2);
 
@@ -88,7 +88,7 @@ public class KeyCacheTest extends SchemaLoader
     @Test
     public void testKeyCache() throws IOException, ExecutionException, InterruptedException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         Table table = Table.open(TABLE1);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(COLUMN_FAMILY1);

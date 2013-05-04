@@ -31,8 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.Table;
@@ -64,7 +62,7 @@ public class CompactionsPurgeTest extends SchemaLoader
     public void testMajorCompactionPurge() throws Exception
     {
         StorageService.instance.initServer();
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         Table table = Table.open(TABLE1);
         String cfName = "Standard1";
@@ -98,7 +96,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         cfs.forceBlockingFlush();
 
         // major compact and test that all columns but the resurrected one is completely gone
-        CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE).get();
+        CompactionManager.instance().submitMaximal(cfs, Integer.MAX_VALUE).get();
         cfs.invalidateCachedRow(key);
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName));
         assertColumns(cf, "5");
@@ -108,7 +106,7 @@ public class CompactionsPurgeTest extends SchemaLoader
     @Test
     public void testCleanupDuringCompaction() throws Exception
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
         Table table = Table.open(TABLE1);
         String cfName = "Standard1";
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
@@ -128,7 +126,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         final byte[] tk1 = new byte[] {2}, tk2 = new byte[] {1};
         tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
-        CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE).get();
+        CompactionManager.instance().submitMaximal(cfs, Integer.MAX_VALUE).get();
         tmd.removeEndpoint(InetAddress.getByName("127.0.0.2"));
         rows = Util.getRangeSlice(cfs);
         assertEquals(0, rows.size());
@@ -138,7 +136,7 @@ public class CompactionsPurgeTest extends SchemaLoader
     public void testCleanupDuringRangeMovement() throws Exception
     {
         byte[] tk0 = new byte[] { 0 }, tk1 = new byte[] { 1 }, tk2 = new byte[] { 2 };
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
         Table table = Table.open(TABLE1);
         String cfName = "Standard1";
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
@@ -162,7 +160,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         tmd.updateNormalToken(new BytesToken(tk2), FBUtilities.getBroadcastAddress());
         StorageService.calculatePendingRanges(table.getReplicationStrategy(), table.getName());
         logger.info("Range movement scheduled for: {}", tmd.getPendingRanges(table.getName()));
-        CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE).get();
+        CompactionManager.instance().submitMaximal(cfs, Integer.MAX_VALUE).get();
         tmd.removeEndpoint(InetAddress.getByName("127.0.0.3"));
         rows = Util.getRangeSlice(cfs);
         assertEquals(10, rows.size());
@@ -174,7 +172,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         tmd.addBootstrapToken(new BytesToken(tk0), FBUtilities.getBroadcastAddress());
         StorageService.calculatePendingRanges(table.getReplicationStrategy(), table.getName());
         logger.info("Range movement scheduled for: {}", tmd.getPendingRanges(table.getName()));
-        CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE).get();
+        CompactionManager.instance().submitMaximal(cfs, Integer.MAX_VALUE).get();
         tmd.removeEndpoint(InetAddress.getByName("127.0.0.3"));
         rows = Util.getRangeSlice(cfs);
         assertEquals(10, rows.size());
@@ -186,7 +184,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         tmd.updateNormalToken(new BytesToken(tk2), FBUtilities.getBroadcastAddress());
         StorageService.calculatePendingRanges(table.getReplicationStrategy(), table.getName());
         logger.info("Range movement scheduled for: {}", tmd.getPendingRanges(table.getName()));
-        CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE).get();
+        CompactionManager.instance().submitMaximal(cfs, Integer.MAX_VALUE).get();
         tmd.removeEndpoint(InetAddress.getByName("127.0.0.2"));
         tmd.removeEndpoint(InetAddress.getByName("127.0.0.3"));
         rows = Util.getRangeSlice(cfs);
@@ -196,7 +194,7 @@ public class CompactionsPurgeTest extends SchemaLoader
     @Test
     public void testMinorCompactionPurge() throws IOException, ExecutionException, InterruptedException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         Table table = Table.open(TABLE2);
         String cfName = "Standard1";
@@ -253,7 +251,7 @@ public class CompactionsPurgeTest extends SchemaLoader
     public void testMinTimestampPurge() throws IOException, ExecutionException, InterruptedException
     {
         // verify that we don't drop tombstones during a minor compaction that might still be relevant
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
         Table table = Table.open(TABLE2);
         String cfName = "Standard1";
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
@@ -290,7 +288,7 @@ public class CompactionsPurgeTest extends SchemaLoader
     @Test
     public void testCompactionPurgeOneFile() throws IOException, ExecutionException, InterruptedException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         Table table = Table.open(TABLE1);
         String cfName = "Standard2";
@@ -327,7 +325,7 @@ public class CompactionsPurgeTest extends SchemaLoader
     @Test
     public void testCompactionPurgeCachedRow() throws IOException, ExecutionException, InterruptedException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         String tableName = "RowCacheSpace";
         String cfName = "CachedCF";
@@ -375,7 +373,7 @@ public class CompactionsPurgeTest extends SchemaLoader
     @Test
     public void testCompactionPurgeTombstonedRow() throws IOException, ExecutionException, InterruptedException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         String tableName = "Keyspace1";
         String cfName = "Standard1";

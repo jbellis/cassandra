@@ -216,7 +216,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         ArrayList<Descriptor> descriptors = new ArrayList<Descriptor>();
         for (SSTable sstable : hintStore.getSSTables())
             descriptors.add(sstable.descriptor);
-        return CompactionManager.instance.submitUserDefined(hintStore, descriptors, (int) (System.currentTimeMillis() / 1000));
+        return CompactionManager.instance().submitUserDefined(hintStore, descriptors, (int) (System.currentTimeMillis() / 1000));
     }
 
     private static boolean pagingFinished(ColumnFamily hintColumnFamily, ByteBuffer startColumn)

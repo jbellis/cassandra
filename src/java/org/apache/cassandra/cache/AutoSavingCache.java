@@ -175,7 +175,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
     public Future<?> submitWrite(int keysToSave)
     {
-        return CompactionManager.instance.submitCacheWrite(getWriter(keysToSave));
+        return CompactionManager.instance().submitCacheWrite(getWriter(keysToSave));
     }
 
     public class Writer extends CompactionInfo.Holder

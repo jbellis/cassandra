@@ -420,7 +420,7 @@ public class TableTest extends SchemaLoader
         // compact so we have a big row with more than the minimum index count
         if (cfStore.getSSTables().size() > 1)
         {
-            CompactionManager.instance.performMaximal(cfStore);
+            CompactionManager.instance().performMaximal(cfStore);
         }
         // verify that we do indeed have multiple index entries
         SSTableReader sstable = cfStore.getSSTables().iterator().next();

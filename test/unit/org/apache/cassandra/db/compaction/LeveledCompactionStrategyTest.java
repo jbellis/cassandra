@@ -99,7 +99,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         int gcBefore = (int)(System.currentTimeMillis()/1000) - table.getColumnFamilyStore(cfname).metadata.getGcGraceSeconds();
         ActiveRepairService.TreeRequest req = new ActiveRepairService.TreeRequest("1", FBUtilities.getLocalAddress(), range, gcBefore, p);
         ActiveRepairService.Validator validator = new ActiveRepairService.Validator(req);
-        CompactionManager.instance.submitValidation(cfs, validator).get();
+        CompactionManager.instance().submitValidation(cfs, validator).get();
     }
 
     /**

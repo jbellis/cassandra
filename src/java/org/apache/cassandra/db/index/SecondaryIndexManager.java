@@ -138,7 +138,7 @@ public class SecondaryIndexManager
                                   idxNames, StringUtils.join(sstables, ", ")));
 
         SecondaryIndexBuilder builder = new SecondaryIndexBuilder(baseCfs, idxNames, new ReducingKeyIterator(sstables));
-        Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
+        Future<?> future = CompactionManager.instance().submitIndexBuild(builder);
         try
         {
             future.get();

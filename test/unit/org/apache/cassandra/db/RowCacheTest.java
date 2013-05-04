@@ -43,7 +43,7 @@ public class RowCacheTest extends SchemaLoader
     @Test
     public void testRowCache() throws Exception
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         Table table = Table.open(KEYSPACE);
         ColumnFamilyStore cachedStore  = table.getColumnFamilyStore(COLUMN_FAMILY);
@@ -128,7 +128,7 @@ public class RowCacheTest extends SchemaLoader
 
     public void rowCacheLoad(int totalKeys, int keysToSave) throws Exception
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         ColumnFamilyStore store = Table.open(KEYSPACE).getColumnFamilyStore(COLUMN_FAMILY);
 

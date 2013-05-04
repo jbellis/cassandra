@@ -326,7 +326,7 @@ public class CassandraDaemon
                     for (ColumnFamilyStore cf : table.getColumnFamilyStores())
                     {
                         for (ColumnFamilyStore store : cf.concatWithIndexes())
-                            CompactionManager.instance.submitBackground(store);
+                            CompactionManager.instance().submitBackground(store);
                     }
                 }
             }

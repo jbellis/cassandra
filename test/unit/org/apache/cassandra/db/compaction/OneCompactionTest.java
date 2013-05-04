@@ -50,7 +50,7 @@ public class OneCompactionTest extends SchemaLoader
 
     private void testCompaction(String columnFamilyName, int insertsPerTable) throws IOException, ExecutionException, InterruptedException
     {
-        CompactionManager.instance.disableAutoCompaction();
+        CompactionManager.instance().disableAutoCompaction();
 
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore(columnFamilyName);
@@ -65,7 +65,7 @@ public class OneCompactionTest extends SchemaLoader
             store.forceBlockingFlush();
             assertEquals(inserted.size(), Util.getRangeSlice(store).size());
         }
-        CompactionManager.instance.performMaximal(store);
+        CompactionManager.instance().performMaximal(store);
         assertEquals(1, store.getSSTables().size());
     }
 
