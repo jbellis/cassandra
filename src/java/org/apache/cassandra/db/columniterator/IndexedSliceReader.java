@@ -77,7 +77,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
             if (indexes.isEmpty())
             {
-                setToRowStart(indexEntry, input, version);
+                setToRowStart(indexEntry, input);
                 emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
                 fetcher = new SimpleBlockFetcher();
             }
@@ -97,7 +97,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
     /**
      * Sets the seek position to the start of the row for column scanning.
      */
-    private void setToRowStart(RowIndexEntry rowEntry, FileDataInput in, Descriptor.Version version) throws IOException
+    private void setToRowStart(RowIndexEntry rowEntry, FileDataInput in) throws IOException
     {
         if (in == null)
         {

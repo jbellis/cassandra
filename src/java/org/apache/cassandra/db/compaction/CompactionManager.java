@@ -496,7 +496,6 @@ public class CompactionManager implements CompactionManagerMBean
             CleanupInfo ci = new CleanupInfo(sstable, scanner);
             metrics.beginCompaction(ci);
             SSTableWriter writer = createWriter(cfs,
-                                                OperationType.CLEANUP,
                                                 compactionFileLocation,
                                                 expectedBloomFilterSize,
                                                 sstable);
@@ -591,7 +590,6 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     public static SSTableWriter createWriter(ColumnFamilyStore cfs,
-                                             OperationType compactionType,
                                              File compactionFileLocation,
                                              int expectedBloomFilterSize,
                                              SSTableReader sstable)

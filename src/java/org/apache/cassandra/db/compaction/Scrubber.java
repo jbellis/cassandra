@@ -111,7 +111,7 @@ public class Scrubber implements Closeable
             }
 
             // TODO errors when creating the writer may leave empty temp files.
-            writer = CompactionManager.createWriter(cfs, OperationType.SCRUB, destination, expectedBloomFilterSize, sstable);
+            writer = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, sstable);
 
             AbstractCompactedRow prevRow = null;
 
@@ -257,7 +257,7 @@ public class Scrubber implements Closeable
 
         if (!outOfOrderRows.isEmpty())
         {
-            SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, OperationType.SCRUB, destination, expectedBloomFilterSize, sstable);
+            SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, sstable);
             for (AbstractCompactedRow row : outOfOrderRows)
                 inOrderWriter.append(row);
             newInOrderSstable = inOrderWriter.closeAndOpenReader(sstable.maxDataAge);

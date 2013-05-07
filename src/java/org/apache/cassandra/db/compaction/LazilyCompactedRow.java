@@ -46,10 +46,6 @@ import org.apache.cassandra.utils.StreamingHistogram;
  * of the rows being compacted, and merging them as it does so.  So the most we have
  * in memory at a time is the bloom filter, the index, and one column from each
  * pre-compaction row.
- *
- * When write() or update() is called, a second pass is made over the pre-compaction
- * rows to write the merged columns or update the hash, again with at most one column
- * from each row deserialized at a time.
  */
 public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable<OnDiskAtom>
 {
