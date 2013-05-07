@@ -106,9 +106,15 @@ public class SSTableScanner implements ICompactionScanner
     {
         this(sstable, filter, range.toRowBounds().left, limiter);
 
-        stopAt = range.isWrapAround()
-               ? dfile.length()
-               : sstable.getPosition(range.toRowBounds().right, SSTableReader.Operator.GT).position;
+        if (range.isWrapAround())
+        {
+            stopAt = dfile.length();
+        }
+        else
+        {
+            RowIndexEntry position = sstable.getPosition(range.toRowBounds().right, SSTableReader.Operator.GT);
+            stopAt = position == null ? dfile.length() : position.position;
+        }
     }
 
     public void close() throws IOException
