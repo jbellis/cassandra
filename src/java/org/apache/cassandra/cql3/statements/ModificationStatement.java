@@ -34,6 +34,7 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.thrift.ThriftConversion;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.Pair;
@@ -372,7 +373,7 @@ public abstract class ModificationStatement implements CQLStatement
         ColumnFamily updates = updateForKey(key, clusteringPrefix, params);
         ColumnFamily expected = buildConditions(key, clusteringPrefix, params);
 
-        boolean result = StorageProxy.cas(keyspace(), columnFamily(), key, expected, updates);
+        boolean result = StorageProxy.cas(keyspace(), columnFamily(), key, expected, updates, ThriftConversion.fromThrift(consistency_level));
 
         ResultSet.Metadata metadata = new ResultSet.Metadata(Collections.singletonList(new ColumnSpecification(keyspace(), columnFamily(), RESULT_COLUMN, BooleanType.instance)));
         List<List<ByteBuffer>> newRows = Collections.singletonList(Collections.singletonList(BooleanType.instance.decompose(result)));

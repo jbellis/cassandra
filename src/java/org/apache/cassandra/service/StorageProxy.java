@@ -195,7 +195,7 @@ public class StorageProxy implements StorageProxyMBean
      *
      * @return true if the operation succeeds in updating the row
      */
-    public static boolean cas(String table, String cfName, ByteBuffer key, ColumnFamily expected, ColumnFamily updates)
+    public static boolean cas(String table, String cfName, ByteBuffer key, ColumnFamily expected, ColumnFamily updates, ConsistencyLevel consistencyLevel)
     throws UnavailableException, IsBootstrappingException, ReadTimeoutException, WriteTimeoutException, InvalidRequestException
     {
         CFMetaData metadata = Schema.instance.getCFMetaData(table, cfName);
@@ -231,7 +231,7 @@ public class StorageProxy implements StorageProxyMBean
             Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
             if (proposePaxos(proposal, liveEndpoints, requiredParticipants))
             {
-                commitPaxos(proposal, liveEndpoints);
+                commitPaxos(proposal, consistencyLevel);
                 Tracing.trace("CAS successful");
                 return true;
             }
@@ -321,8 +321,17 @@ public class StorageProxy implements StorageProxyMBean
         {
             Tracing.trace("Finishing incomplete paxos round {}", inProgress);
             if (proposePaxos(inProgress, liveEndpoints, requiredParticipants))
-                commitPaxos(inProgress, liveEndpoints);
-            // no need to sleep here
+            {
+                try
+                {
+                    commitPaxos(inProgress, ConsistencyLevel.QUORUM);
+                }
+                catch (WriteTimeoutException e)
+                {
+                    // let caller retry or turn it into a cas timeout, since it's someone elses' write we're applying
+                    return null;
+                }
+            }
             return null;
         }
 
@@ -334,7 +343,9 @@ public class StorageProxy implements StorageProxyMBean
         if (Iterables.size(missingMRC) > 0)
         {
             Tracing.trace("Repairing replicas that missed the most recent commit");
-            commitPaxos(mostRecent, missingMRC);
+            MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_COMMIT, mostRecent, Commit.serializer);
+            for (InetAddress target : missingMRC)
+                MessagingService.instance().sendOneWay(message, target);
             // TODO: provided commits don't invalid the prepare we just did above (which they don't), we could just wait
             // for all the missingMRC to acknowledge this commit and then move on with proposing our value. But that means
             // adding the ability to have commitPaxos block, which is exactly CASSANDRA-5442 will do. So once we have that
@@ -368,11 +379,25 @@ public class StorageProxy implements StorageProxyMBean
         return callback.getSuccessful() >= requiredParticipants;
     }
 
-    private static void commitPaxos(Commit proposal, Iterable<InetAddress> endpoints)
+    private static void commitPaxos(Commit proposal, ConsistencyLevel consistencyLevel) throws WriteTimeoutException
     {
+        Table table = Table.open(proposal.update.metadata().ksName);
+
+        Token tk = StorageService.getPartitioner().getToken(proposal.key);
+        List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(table.getName(), tk);
+        Collection<InetAddress> pendingEndpoints = StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, table.getName());
+
+        AbstractReplicationStrategy rs = table.getReplicationStrategy();
+        AbstractWriteResponseHandler responseHandler = rs.getWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistencyLevel, null, WriteType.SIMPLE);
+
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_COMMIT, proposal, Commit.serializer);
-        for (InetAddress target : endpoints)
-            MessagingService.instance().sendOneWay(message, target);
+        for (InetAddress destination : Iterables.concat(naturalEndpoints, pendingEndpoints))
+        {
+            if (FailureDetector.instance.isAlive(destination))
+                MessagingService.instance().sendRR(message, destination, responseHandler);
+        }
+
+        responseHandler.get();
     }
 
     /**
