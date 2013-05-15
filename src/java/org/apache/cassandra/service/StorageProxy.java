@@ -198,6 +198,8 @@ public class StorageProxy implements StorageProxyMBean
     public static boolean cas(String table, String cfName, ByteBuffer key, ColumnFamily expected, ColumnFamily updates, ConsistencyLevel consistencyLevel)
     throws UnavailableException, IsBootstrappingException, ReadTimeoutException, WriteTimeoutException, InvalidRequestException
     {
+        consistencyLevel.validateForCas(table);
+
         CFMetaData metadata = Schema.instance.getCFMetaData(table, cfName);
 
         long timedOut = System.currentTimeMillis() + DatabaseDescriptor.getCasContentionTimeout();
@@ -231,7 +233,10 @@ public class StorageProxy implements StorageProxyMBean
             Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
             if (proposePaxos(proposal, liveEndpoints, requiredParticipants))
             {
-                commitPaxos(proposal, consistencyLevel);
+                if (consistencyLevel == ConsistencyLevel.SERIAL)
+                    sendCommit(proposal, liveEndpoints);
+                else
+                    commitPaxos(proposal, consistencyLevel);
                 Tracing.trace("CAS successful");
                 return true;
             }
@@ -343,9 +348,7 @@ public class StorageProxy implements StorageProxyMBean
         if (Iterables.size(missingMRC) > 0)
         {
             Tracing.trace("Repairing replicas that missed the most recent commit");
-            MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_COMMIT, mostRecent, Commit.serializer);
-            for (InetAddress target : missingMRC)
-                MessagingService.instance().sendOneWay(message, target);
+            sendCommit(mostRecent, missingMRC);
             // TODO: provided commits don't invalid the prepare we just did above (which they don't), we could just wait
             // for all the missingMRC to acknowledge this commit and then move on with proposing our value. But that means
             // adding the ability to have commitPaxos block, which is exactly CASSANDRA-5442 will do. So once we have that
@@ -354,6 +357,16 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         return ballot;
+    }
+
+    /**
+     * Unlike commitPaxos, this does not wait for replies
+     */
+    private static void sendCommit(Commit commit, Iterable<InetAddress> replicas)
+    {
+        MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_COMMIT, commit, Commit.serializer);
+        for (InetAddress target : replicas)
+            MessagingService.instance().sendOneWay(message, target);
     }
 
     private static PrepareCallback preparePaxos(Commit toPrepare, List<InetAddress> endpoints, int requiredParticipants)
