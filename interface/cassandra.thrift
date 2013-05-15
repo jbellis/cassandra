@@ -650,7 +650,7 @@ service Cassandra {
            2:required string column_family,
            3:list<Column> expected,
            4:list<Column> updates,
-           5:required ConsistencyLevel consistency_level=ConsistencyLevel.ANY)
+           5:required ConsistencyLevel consistency_level=ConsistencyLevel.QUORUM)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**

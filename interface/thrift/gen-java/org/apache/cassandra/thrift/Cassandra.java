@@ -20203,7 +20203,7 @@ public class Cassandra {
     }
 
     public cas_args() {
-      this.consistency_level = org.apache.cassandra.thrift.ConsistencyLevel.ANY;
+      this.consistency_level = org.apache.cassandra.thrift.ConsistencyLevel.QUORUM;
 
     }
 
@@ -20262,7 +20262,7 @@ public class Cassandra {
       this.column_family = null;
       this.expected = null;
       this.updates = null;
-      this.consistency_level = org.apache.cassandra.thrift.ConsistencyLevel.ANY;
+      this.consistency_level = org.apache.cassandra.thrift.ConsistencyLevel.QUORUM;
 
     }
 
