@@ -31,7 +31,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.tracing.4Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -80,17 +80,6 @@ public class MessageOut<T>
     {
         ImmutableMap.Builder<String, byte[]> builder = ImmutableMap.builder();
         builder.putAll(parameters).put(key, value);
-        return new MessageOut<T>(verb, payload, serializer, builder.build());
-    }
-    
-    public MessageOut withHeaderRemoved(String key)
-    {
-        ImmutableMap.Builder<String, byte[]> builder = ImmutableMap.builder();
-        for (Map.Entry<String, byte[]> entry : parameters.entrySet())
-        {
-            if (!entry.getKey().equals(key))
-                builder.put(entry.getKey(), entry.getValue());
-        }
         return new MessageOut<T>(verb, payload, serializer, builder.build());
     }
 
