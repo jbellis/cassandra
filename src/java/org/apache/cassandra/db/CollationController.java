@@ -250,16 +250,19 @@ public class CollationController
 
             for (SSTableReader sstable : view.sstables)
             {
-                if (!filter.shouldInclude(sstable))
-                {
-                    skippedSSTables.add(sstable);
-                    continue;
-                }
                 minTimestamp = Math.min(minTimestamp, sstable.getMinTimestamp());
                 // if we've already seen a row tombstone with a timestamp greater
                 // than the most recent update to this sstable, we can skip it
                 if (sstable.getMaxTimestamp() < mostRecentRowTombstone)
                     break;
+
+                if (!filter.shouldInclude(sstable))
+                {
+                    // sstable contains no tombstone if maxLocalDeletionTime == Integer.MAX_VALUE, so we can safely skip those entirely
+                    if (sstable.getSSTableMetadata().maxLocalDeletionTime != Integer.MAX_VALUE)
+                        skippedSSTables.add(sstable);
+                    continue;
+                }
 
                 OnDiskAtomIterator iter = filter.getSSTableColumnIterator(sstable);
                 iterators.add(iter);
@@ -273,24 +276,24 @@ public class CollationController
                     sstablesIterated++;
                 }
             }
-            // we might have a row tombstone in one of the skipped sstables:
+
+            // Check for row tombstone in the skipped sstables
             for (SSTableReader sstable : skippedSSTables)
             {
-                // sstable contains no tombstone if maxLocalDeletionTime == Integer.MAX_VALUE so we can safely skip those as well
-                if (sstable.getMaxTimestamp() > minTimestamp && sstable.getSSTableMetadata().maxLocalDeletionTime != Integer.MAX_VALUE)
+                if (sstable.getMaxTimestamp() <= minTimestamp)
+                    continue;
+
+                OnDiskAtomIterator iter = filter.getSSTableColumnIterator(sstable);
+                if (iter.getColumnFamily() == null)
+                    continue;
+
+                ColumnFamily cf = iter.getColumnFamily();
+                // we are only interested in row-level tombstones here, and only if markedForDeleteAt is larger than minTimestamp
+                if (cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt > minTimestamp)
                 {
-                    OnDiskAtomIterator iter = filter.getSSTableColumnIterator(sstable);
-                    if (iter.getColumnFamily() != null)
-                    {
-                        ColumnFamily cf = iter.getColumnFamily();
-                        // we are only interested in tombstones here, and only if markedForDeleteAt is larger than minTimestamp
-                        if (cf.isMarkedForDelete() && cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt > minTimestamp)
-                        {
-                            iterators.add(iter);
-                            returnCF.delete(cf);
-                            sstablesIterated++;
-                        }
-                    }
+                    iterators.add(iter);
+                    returnCF.delete(cf.deletionInfo().getTopLevelDeletion());
+                    sstablesIterated++;
                 }
             }
 
