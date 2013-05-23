@@ -142,6 +142,12 @@ public class NamesQueryFilter implements IDiskAtomFilter
         return false;
     }
 
+    @Override
+    public boolean shouldInclude(SSTableReader sstable)
+    {
+        return true;
+    }
+
     public static class Serializer implements IVersionedSerializer<NamesQueryFilter>
     {
         public void serialize(NamesQueryFilter f, DataOutput out, int version) throws IOException

@@ -244,10 +244,18 @@ public class CollationController
              * in one pass, and minimize the number of sstables for which we read a rowTombstone.
              */
             Collections.sort(view.sstables, SSTable.maxTimestampComparator);
-
+            List<SSTableReader> skippedSSTables = new ArrayList<SSTableReader>();
             long mostRecentRowTombstone = Long.MIN_VALUE;
+            long minTimestamp = Long.MAX_VALUE;
+
             for (SSTableReader sstable : view.sstables)
             {
+                if (!filter.shouldInclude(sstable))
+                {
+                    skippedSSTables.add(sstable);
+                    continue;
+                }
+                minTimestamp = Math.min(minTimestamp, sstable.getMinTimestamp());
                 // if we've already seen a row tombstone with a timestamp greater
                 // than the most recent update to this sstable, we can skip it
                 if (sstable.getMaxTimestamp() < mostRecentRowTombstone)
@@ -263,6 +271,26 @@ public class CollationController
 
                     returnCF.delete(cf);
                     sstablesIterated++;
+                }
+            }
+            // we might have a row tombstone in one of the skipped sstables:
+            for (SSTableReader sstable : skippedSSTables)
+            {
+                // sstable contains no tombstone if maxLocalDeletionTime == Integer.MAX_VALUE so we can safely skip those as well
+                if (sstable.getMaxTimestamp() > minTimestamp && sstable.getSSTableMetadata().maxLocalDeletionTime != Integer.MAX_VALUE)
+                {
+                    OnDiskAtomIterator iter = filter.getSSTableColumnIterator(sstable);
+                    if (iter.getColumnFamily() != null)
+                    {
+                        ColumnFamily cf = iter.getColumnFamily();
+                        // we are only interested in tombstones here, and only if markedForDeleteAt is larger than minTimestamp
+                        if (cf.isMarkedForDelete() && cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt > minTimestamp)
+                        {
+                            iterators.add(iter);
+                            returnCF.delete(cf);
+                            sstablesIterated++;
+                        }
+                    }
                 }
             }
 
