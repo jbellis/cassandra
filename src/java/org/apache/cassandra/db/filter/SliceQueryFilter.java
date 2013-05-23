@@ -234,7 +234,6 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return false;
     }
 
-    @Override
     public boolean shouldInclude(SSTableReader sstable)
     {
         List<ByteBuffer> minColumnNames = sstable.getSSTableMetadata().minColumnNames;

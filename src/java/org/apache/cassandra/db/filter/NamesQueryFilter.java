@@ -142,10 +142,10 @@ public class NamesQueryFilter implements IDiskAtomFilter
         return false;
     }
 
-    @Override
     public boolean shouldInclude(SSTableReader sstable)
     {
-        return true;
+        // only called by collationcontroller for slice queries
+        throw new UnsupportedOperationException();
     }
 
     public static class Serializer implements IVersionedSerializer<NamesQueryFilter>
