@@ -20,8 +20,10 @@ package org.apache.cassandra.db.marshal;
 import java.nio.charset.CharacterCodingException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -232,6 +234,12 @@ public class DynamicCompositeType extends AbstractCompositeType
             if (tnew == null || tnew != tprev)
                 return false;
         }
+        return true;
+    }
+
+    public boolean intersects(List<ByteBuffer> minColumnNames, List<ByteBuffer> maxColumnNames, SliceQueryFilter filter)
+    {
+        // ???
         return true;
     }
 
