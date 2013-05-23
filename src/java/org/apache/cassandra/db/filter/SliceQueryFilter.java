@@ -238,70 +238,13 @@ public class SliceQueryFilter implements IDiskAtomFilter
     {
         List<ByteBuffer> minColumnNames = sstable.getSSTableMetadata().minColumnNames;
         List<ByteBuffer> maxColumnNames = sstable.getSSTableMetadata().maxColumnNames;
+        assert minColumnNames.size() == maxColumnNames.size();
         AbstractType<?> comparator = sstable.metadata.comparator;
 
-        if (minColumnNames.size() == 0 || maxColumnNames.size() == 0)
+        if (minColumnNames.isEmpty() || maxColumnNames.isEmpty())
             return true;
 
-        if (comparator instanceof CompositeType)
-        {
-            CompositeType cmp = (CompositeType)comparator;
-            for (ColumnSlice slice : slices)
-            {
-                List<AbstractCompositeType.CompositeComponent> start = deconstruct(cmp, isReversed() ? slice.finish : slice.start);
-                List<AbstractCompositeType.CompositeComponent> finish = deconstruct(cmp, isReversed() ? slice.start : slice.finish);
-                for (int i = 0; i < minColumnNames.size(); i++)
-                {
-                    AbstractType<?> t = cmp.types.get(i);
-                    if (!intersects(minColumnNames.get(i), maxColumnNames.get(i), start.get(i).value, finish.get(i).value, t))
-                    {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-        else
-        {
-            for (ColumnSlice slice : slices)
-            {
-                ByteBuffer start = isReversed() ? slice.finish : slice.start;
-                ByteBuffer finish = isReversed() ? slice.start : slice.finish;
-
-                if (intersects(minColumnNames.get(0), maxColumnNames.get(0), start, finish, comparator))
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
-
-    /**
-     * Deconstructs the composite and fills out any missing components with EMPTY_BYTE_BUFFER.
-     * @param cmp
-     * @param composite
-     * @return
-     */
-    private List<AbstractCompositeType.CompositeComponent> deconstruct(CompositeType cmp, ByteBuffer composite)
-    {
-        List<AbstractCompositeType.CompositeComponent> retList = new ArrayList<AbstractCompositeType.CompositeComponent>(cmp.types.size());
-        List<AbstractCompositeType.CompositeComponent> components = cmp.deconstruct(composite);
-
-        for (int i = 0; i < cmp.types.size(); i++)
-        {
-            if (i >= components.size())
-                retList.add(new AbstractCompositeType.CompositeComponent(cmp.types.get(i), ByteBufferUtil.EMPTY_BYTE_BUFFER));
-            else
-                retList.add(components.get(i));
-        }
-        return retList;
-    }
-
-    private boolean intersects(ByteBuffer minColName, ByteBuffer maxColName, ByteBuffer sliceStart, ByteBuffer sliceEnd, AbstractType<?> comparator)
-    {
-        return (sliceStart.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER) || comparator.compare(maxColName, sliceStart) >= 0)
-                && (sliceEnd.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER) || comparator.compare(sliceEnd, minColName) >= 0);
+        return comparator.intersects(minColumnNames, maxColumnNames, this);
     }
 
     public static class Serializer implements IVersionedSerializer<SliceQueryFilter>
