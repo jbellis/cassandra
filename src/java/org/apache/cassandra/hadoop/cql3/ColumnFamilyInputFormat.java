@@ -24,7 +24,6 @@ import java.util.Map;
 
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.hadoop.AbstractColumnFamilyInputFormat;
-import org.apache.cassandra.hadoop.cql3.ColumnFamilyRecordReader;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
@@ -70,7 +69,7 @@ public class ColumnFamilyInputFormat extends AbstractColumnFamilyInputFormat<Lis
             }
         };
 
-        ColumnFamilyRecordReader recordReader = new ColumnFamilyRecordReader(jobConf.getInt(CASSANDRA_HADOOP_MAX_KEY_SIZE, CASSANDRA_HADOOP_MAX_KEY_SIZE_DEFAULT));
+        ColumnFamilyRecordReader recordReader = new ColumnFamilyRecordReader();
         recordReader.initialize((org.apache.hadoop.mapreduce.InputSplit)split, tac);
         return recordReader;
     }

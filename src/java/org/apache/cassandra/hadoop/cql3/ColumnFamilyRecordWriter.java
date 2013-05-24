@@ -162,7 +162,6 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
             super(endpoints);
          }
         
-        
         /**
          * Loops collecting cql binded variable values from the queue and sending to Cassandra
          */
@@ -239,29 +238,25 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
         /** get prepared statement id from cache, otherwise prepare it from Cassandra server*/
         private int preparedStatement(Cassandra.Client client)
         {
-            
             Integer itemId = preparedStatements.get(client);
             if (itemId == null)
             {
+                CqlPreparedResult result;
                 try
                 {
-                    CqlPreparedResult result = client.prepare_cql3_query(
-                                                                   ByteBufferUtil.bytes(preparedStatement), 
-                                                                   Compression.NONE);
-                    Integer previousId = preparedStatements.putIfAbsent(client, Integer.valueOf(result.itemId));
-                    if (previousId != null)
-                        return previousId;
-                    
-                    return result.itemId;
+                    result = client.prepare_cql3_query(ByteBufferUtil.bytes(preparedStatement), Compression.NONE);
                 }
                 catch (InvalidRequestException e)
                 {
-                    logger.error("failed to prepare cql query " + preparedStatement, e);
+                    throw new RuntimeException("failed to prepare cql query " + preparedStatement, e);
                 }
                 catch (TException e)
                 {
-                    logger.error("failed to prepare cql query " + preparedStatement, e);
+                    throw new RuntimeException("failed to prepare cql query " + preparedStatement, e);
                 }
+
+                Integer previousId = preparedStatements.putIfAbsent(client, Integer.valueOf(result.itemId));
+                itemId = previousId == null ? result.itemId : previousId;
             }
             return itemId;
         }

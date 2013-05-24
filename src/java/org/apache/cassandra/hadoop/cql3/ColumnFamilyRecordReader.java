@@ -68,7 +68,6 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyRecordReader.class);
 
-    public static final int CASSANDRA_HADOOP_MAX_KEY_SIZE_DEFAULT = 8192;
     public static final int DEFAULT_CQL_PAGE_LIMIT = 1000; // TODO: find the number large enough but not OOM
 
     private ColumnFamilySplit split;
@@ -80,8 +79,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
     private String cfName;
     private Cassandra.Client client;
     private ConsistencyLevel consistencyLevel;
-    private int keyBufferSize = 8192;
-    
+
     // partition keys -- key aliases
     private List<Key> partitionKeys = new ArrayList<Key>();
     
@@ -106,13 +104,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
 
     public ColumnFamilyRecordReader()
     {
-        this(ColumnFamilyRecordReader.CASSANDRA_HADOOP_MAX_KEY_SIZE_DEFAULT);
-    }
-    
-    public ColumnFamilyRecordReader(int keyBufferSize)
-    {
         super();
-        this.keyBufferSize = keyBufferSize;
     }
 
     public void initialize(InputSplit split, TaskAttemptContext context) throws IOException
@@ -222,7 +214,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
         {
             for (String location : split.getLocations())
             {
-                InetAddress locationAddress = null;
+                InetAddress locationAddress;
                 try
                 {
                     locationAddress = InetAddress.getByName(location);
@@ -245,13 +237,10 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
     // to the old. Thus, expect a small performance hit.
     // And obviously this wouldn't work for wide rows. But since ColumnFamilyInputFormat
     // and ColumnFamilyRecordReader don't support them, it should be fine for now.
-    @Override
     public boolean next(List<IColumn> keys, Map<ByteBuffer, IColumn> value) throws IOException
     {
         if (this.nextKeyValue())
         {
-            keys = getCurrentKey();
-
             value.clear();
             value.putAll(getCurrentValue());
 
@@ -260,19 +249,16 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
         return false;
     }
 
-    @Override
     public long getPos() throws IOException
     {
         return (long) iter.totalRead;
     }
 
-    @Override
     public List<IColumn> createKey()
     {
         return new ArrayList<IColumn>();
     }
 
-    @Override
     public Map<ByteBuffer, IColumn> createValue()
     {
         return new HashMap<ByteBuffer, IColumn>();
@@ -427,7 +413,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
             
             Iterator<Key> iterator = values.iterator();
             int previousIndex = -1;
-            Key current = null;
+            Key current;
             while (iterator.hasNext())
             {
                 current = iterator.next();
@@ -607,7 +593,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
         {
             List<ByteBuffer> values = new LinkedList<ByteBuffer>();
             
-            //initial query token(k) >= start_token and token(k) <= end_token
+            // initial query token(k) >= start_token and token(k) <= end_token
             if (emptyValues(partitionKeys))
             {
                 values.add(partitioner.getTokenValidator().fromString(split.getStartToken()));
@@ -616,19 +602,18 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
             }
             else
             {
-                //partition key values
-                Iterator<Key> partitionKey = partitionKeys.iterator();
-                while (partitionKey.hasNext())
-                    values.add(partitionKey.next().value);
+                for (Key partitionKey1 : partitionKeys)
+                    values.add(partitionKey1.value);
                 
-                //query token(k) > token(pre_partition_key) and token(k) <= end_token
                 if (clusterKeys.size() == 0 || clusterKeys.get(0).value == null)
                 {
+                    // query token(k) > token(pre_partition_key) and token(k) <= end_token
                     values.add(partitioner.getTokenValidator().fromString(split.getEndToken()));
                     return Pair.create(1, values);
                 }
-                else //query token(k) = token(pre_partition_key) and m = pre_cluster_key_m and n > pre_cluster_key_n 
+                else
                 {
+                    // query token(k) = token(pre_partition_key) and m = pre_cluster_key_m and n > pre_cluster_key_n
                     int type = preparedQueryBindValues(clusterKeys, 0, values);
                     return Pair.create(type, values);
                 }
@@ -808,10 +793,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
         logger.debug("End token: " + endToken + ", current token: " + currentToken);
         
         for (Key k : partitionKeys) k.value.reset();
-        if (endToken.equals(currentToken))             
-            return true;
-        else
-            return false;
+        return endToken.equals(currentToken);
     }
     
     private AbstractType<?> parseType(String type) throws IOException
@@ -844,5 +826,4 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
             this.name = name;
         }
     }
-    
 }
