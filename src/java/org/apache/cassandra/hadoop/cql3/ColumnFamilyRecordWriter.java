@@ -65,7 +65,7 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
     // host to prepared statement id mappings
     private ConcurrentHashMap<Cassandra.Client, Integer> preparedStatements = new ConcurrentHashMap<Cassandra.Client, Integer>();
     
-    private final String preparedStatement;
+    private final String cql;
     
     /**
      * Upon construction, obtain the map that this writer will use to collect
@@ -90,7 +90,7 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
     {
         super(conf);
         this.clients = new HashMap<Range, RangeClient>();
-        preparedStatement = CQLConfigHelper.getOutputPreparedStatement(conf);
+        cql = CQLConfigHelper.getOutputCql(conf);
     }
     
     @Override
@@ -244,15 +244,15 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
                 CqlPreparedResult result;
                 try
                 {
-                    result = client.prepare_cql3_query(ByteBufferUtil.bytes(preparedStatement), Compression.NONE);
+                    result = client.prepare_cql3_query(ByteBufferUtil.bytes(cql), Compression.NONE);
                 }
                 catch (InvalidRequestException e)
                 {
-                    throw new RuntimeException("failed to prepare cql query " + preparedStatement, e);
+                    throw new RuntimeException("failed to prepare cql query " + cql, e);
                 }
                 catch (TException e)
                 {
-                    throw new RuntimeException("failed to prepare cql query " + preparedStatement, e);
+                    throw new RuntimeException("failed to prepare cql query " + cql, e);
                 }
 
                 Integer previousId = preparedStatements.putIfAbsent(client, Integer.valueOf(result.itemId));

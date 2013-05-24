@@ -26,7 +26,7 @@ public class CQLConfigHelper
     private static final String INPUT_CQL_COLUMNS_CONFIG = "cassandra.input.columnfamily.columns"; // separate by colon ,
     private static final String INPUT_CQL_PAGE_ROW_SIZE_CONFIG = "cassandra.input.page.row.size";
     private static final String INPUT_CQL_WHERE_CLAUSE_CONFIG = "cassandra.input.where.clause";
-    private static final String OUTPUT_CQL_PREPARED_STATEMENT = "cassandra.output.preparedstatement";
+    private static final String OUTPUT_CQL = "cassandra.output.cql";
 
     /**
      * Set the CQL columns for the input of this job.
@@ -46,7 +46,7 @@ public class CQLConfigHelper
      * Set the CQL query Limit for the input of this job.
      *
      * @param conf Job configuration you are about to run
-     * @param cqlKeys
+     * @param cqlPageRowSize
      */
     public static void setInputCQLPageRowSize(Configuration conf, String cqlPageRowSize)
     {
@@ -76,14 +76,14 @@ public class CQLConfigHelper
      * Set the CQL prepared statement for the output of this job.
      *
      * @param conf Job configuration you are about to run
-     * @param clauses
+     * @param cql
      */
-    public static void setOutputPreparedStatement(Configuration conf, String preparedStatement)
+    public static void setOutputCql(Configuration conf, String cql)
     {
-        if (preparedStatement == null || preparedStatement.isEmpty())
+        if (cql == null || cql.isEmpty())
             return;
         
-        conf.set(OUTPUT_CQL_PREPARED_STATEMENT, preparedStatement);
+        conf.set(OUTPUT_CQL, cql);
     }
     
     
@@ -102,8 +102,8 @@ public class CQLConfigHelper
         return conf.get(INPUT_CQL_WHERE_CLAUSE_CONFIG);
     }
     
-    public static String getOutputPreparedStatement(Configuration conf)
+    public static String getOutputCql(Configuration conf)
     {
-        return conf.get(OUTPUT_CQL_PREPARED_STATEMENT);
+        return conf.get(OUTPUT_CQL);
     }
 }
