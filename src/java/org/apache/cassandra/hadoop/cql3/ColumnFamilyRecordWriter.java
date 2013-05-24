@@ -15,41 +15,62 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.hadoop;
-
+package org.apache.cassandra.hadoop.cql3;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.hadoop.AbstractColumnFamilyRecordWriter;
+import org.apache.cassandra.hadoop.ClientHolder;
+import org.apache.cassandra.hadoop.ConfigHelper;
+import org.apache.cassandra.hadoop.Progressable;
+import org.apache.cassandra.thrift.Compression;
+import org.apache.cassandra.thrift.CqlPreparedResult;
+import org.apache.cassandra.thrift.Deletion;
+import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
  * The <code>ColumnFamilyRecordWriter</code> maps the output &lt;key, value&gt;
- * pairs to a Cassandra column family. In particular, it applies all mutations
- * in the value, which it associates with the key, and in turn the responsible
- * endpoint.
+ * pairs to a Cassandra column family. In particular, it applies the binded variables
+ * in the value to the prepared statement, which it associates with the key, and in 
+ * turn the responsible endpoint.
  *
  * <p>
- * Furthermore, this writer groups the mutations by the endpoint responsible for
- * the rows being affected. This allows the mutations to be executed in parallel,
+ * Furthermore, this writer groups the cql queries by the endpoint responsible for
+ * the rows being affected. This allows the cql queries to be executed in parallel,
  * directly to a responsible endpoint.
  * </p>
  *
  * @see ColumnFamilyOutputFormat
  */
-final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<ByteBuffer, List<Mutation>>
+final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<ByteBuffer, List<List<ByteBuffer>>>
 {
+    private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyRecordWriter.class);
+    
     // handles for clients for each range running in the threadpool
     private final Map<Range, RangeClient> clients;
+    
+    // host to prepared statement id mappings
+    private ConcurrentHashMap<String, Integer> preparedStatements = new ConcurrentHashMap<String, Integer>();
+    
+    private final String preparedStatement;
     
     /**
      * Upon construction, obtain the map that this writer will use to collect
@@ -74,6 +95,7 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
     {
         super(conf);
         this.clients = new HashMap<Range, RangeClient>();
+        preparedStatement = CQLConfigHelper.getOutputPreparedStatement(conf);
     }
     
     @Override
@@ -111,7 +133,7 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
      * @throws IOException
      */
     @Override
-    public void write(ByteBuffer keybuff, List<Mutation> value) throws IOException
+    public void write(ByteBuffer keybuff, List<List<ByteBuffer>> values) throws IOException
     {
         Range<Token> range = ringCache.getRange(keybuff);
 
@@ -125,19 +147,17 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
             clients.put(range, client);
         }
 
-        for (Mutation amut : value)
-            client.put(Pair.create(keybuff, amut));
+        for (List<ByteBuffer> bindValues : values)
+            client.put(Pair.create(keybuff, bindValues));
             progressable.progress();
     }
 
     /**
      * A client that runs in a threadpool and connects to the list of endpoints for a particular
-     * range. Mutations for keys in that range are sent to this client via a queue.
+     * range. Binded variable values for keys in that range are sent to this client via a queue.
      */
-    public class RangeClient extends AbstractRangeClient<Mutation>
+    public class RangeClient extends AbstractRangeClient<List<ByteBuffer>>
     {
-        public final String columnFamily = ConfigHelper.getOutputColumnFamily(conf);
-        
         /**
          * Constructs an {@link RangeClient} for the given endpoints.
          * @param endpoints the possible endpoints to execute the mutations on
@@ -147,40 +167,24 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
             super(endpoints);
          }
         
+        
         /**
-         * Loops collecting mutations from the queue and sending to Cassandra
+         * Loops collecting cql binded variable values from the queue and sending to Cassandra
          */
         public void run()
         {
             outer:
             while (run || !queue.isEmpty())
             {
-                Pair<ByteBuffer, Mutation> mutation;
+                Pair<ByteBuffer, List<ByteBuffer>> bindVariables;
                 try
                 {
-                    mutation = queue.take();
+                    bindVariables = queue.take();
                 }
                 catch (InterruptedException e)
                 {
                     // re-check loop condition after interrupt
                     continue;
-                }
-
-                Map<ByteBuffer, Map<String, List<Mutation>>> batch = new HashMap<ByteBuffer, Map<String, List<Mutation>>>();
-                while (mutation != null)
-                {
-                    Map<String, List<Mutation>> subBatch = batch.get(mutation.left);
-                    if (subBatch == null)
-                    {
-                        subBatch = Collections.singletonMap(columnFamily, (List<Mutation>) new ArrayList<Mutation>());
-                        batch.put(mutation.left, subBatch);
-                    }
-
-                    subBatch.get(columnFamily).add(mutation.right);
-                    if (batch.size() >= batchThreshold)
-                        break;
-
-                    mutation = queue.poll();
                 }
 
                 Iterator<InetAddress> iter = endpoints.iterator();
@@ -189,7 +193,19 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
                     // send the mutation to the last-used endpoint.  first time through, this will NPE harmlessly.
                     try
                     {
-                        client.thriftClient.batch_mutate(batch, consistencyLevel);
+                        int i = 0;
+                        int itemId = preparedStatement(client);
+                        while (bindVariables != null)
+                        {
+                            client.thriftClient.execute_prepared_cql3_query(itemId, bindVariables.right, ConsistencyLevel.ONE);
+                            i++;
+                            
+                            if (i >= batchThreshold)
+                                break;
+                            
+                            bindVariables = queue.poll();
+                        }
+                        
                         break;
                     }
                     catch (Exception e)
@@ -223,6 +239,36 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
                     }
                 }
             }
+        }
+
+        /** get prepared statement id from cache, otherwise prepare it from Cassandra server*/
+        private int preparedStatement(ClientHolder client)
+        {
+            
+            Integer itemId = preparedStatements.get(client.host);
+            if (itemId == null)
+            {
+                try
+                {
+                    CqlPreparedResult result = client.thriftClient.prepare_cql3_query(
+                                                                   ByteBufferUtil.bytes(preparedStatement), 
+                                                                   Compression.NONE);
+                    Integer previousId = preparedStatements.putIfAbsent(client.host, Integer.valueOf(result.itemId));
+                    if (previousId != null)
+                        return previousId;
+                    
+                    return result.itemId;
+                }
+                catch (InvalidRequestException e)
+                {
+                    logger.error("failed to prepare cql query " + preparedStatement, e);
+                }
+                catch (TException e)
+                {
+                    logger.error("failed to prepare cql query " + preparedStatement, e);
+                }
+            }
+            return itemId;
         }
     }
 }
