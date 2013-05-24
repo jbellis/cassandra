@@ -26,17 +26,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.hadoop.AbstractColumnFamilyRecordWriter;
-import org.apache.cassandra.hadoop.ClientHolder;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.hadoop.Progressable;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.CqlPreparedResult;
-import org.apache.cassandra.thrift.Deletion;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
@@ -68,7 +63,7 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
     private final Map<Range, RangeClient> clients;
     
     // host to prepared statement id mappings
-    private ConcurrentHashMap<String, Integer> preparedStatements = new ConcurrentHashMap<String, Integer>();
+    private ConcurrentHashMap<Cassandra.Client, Integer> preparedStatements = new ConcurrentHashMap<Cassandra.Client, Integer>();
     
     private final String preparedStatement;
     
@@ -197,7 +192,7 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
                         int itemId = preparedStatement(client);
                         while (bindVariables != null)
                         {
-                            client.thriftClient.execute_prepared_cql3_query(itemId, bindVariables.right, ConsistencyLevel.ONE);
+                            client.execute_prepared_cql3_query(itemId, bindVariables.right, ConsistencyLevel.ONE);
                             i++;
                             
                             if (i >= batchThreshold)
@@ -242,18 +237,18 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
         }
 
         /** get prepared statement id from cache, otherwise prepare it from Cassandra server*/
-        private int preparedStatement(ClientHolder client)
+        private int preparedStatement(Cassandra.Client client)
         {
             
-            Integer itemId = preparedStatements.get(client.host);
+            Integer itemId = preparedStatements.get(client);
             if (itemId == null)
             {
                 try
                 {
-                    CqlPreparedResult result = client.thriftClient.prepare_cql3_query(
+                    CqlPreparedResult result = client.prepare_cql3_query(
                                                                    ByteBufferUtil.bytes(preparedStatement), 
                                                                    Compression.NONE);
-                    Integer previousId = preparedStatements.putIfAbsent(client.host, Integer.valueOf(result.itemId));
+                    Integer previousId = preparedStatements.putIfAbsent(client, Integer.valueOf(result.itemId));
                     if (previousId != null)
                         return previousId;
                     

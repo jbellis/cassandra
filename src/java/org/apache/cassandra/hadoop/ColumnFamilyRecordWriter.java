@@ -189,7 +189,7 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
                     // send the mutation to the last-used endpoint.  first time through, this will NPE harmlessly.
                     try
                     {
-                        client.thriftClient.batch_mutate(batch, consistencyLevel);
+                        client.batch_mutate(batch, consistencyLevel);
                         break;
                     }
                     catch (Exception e)

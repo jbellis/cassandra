@@ -38,20 +38,9 @@ import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.hadoop.ClientHolder;
-import org.apache.cassandra.hadoop.cql3.ColumnFamilyInputFormat;
 import org.apache.cassandra.hadoop.ColumnFamilySplit;
 import org.apache.cassandra.hadoop.ConfigHelper;
-import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.CqlPreparedResult;
-import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.thrift.CqlRow;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.SchemaDisagreementException;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -60,6 +49,8 @@ import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
+import org.apache.thrift.transport.TTransport;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,7 +78,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
     private int totalRowCount; // total number of rows to fetch
     private String keyspace;
     private String cfName;
-    private ClientHolder client;
+    private Cassandra.Client client;
     private ConsistencyLevel consistencyLevel;
     private int keyBufferSize = 8192;
     
@@ -150,8 +141,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
         
         try
         {
-            // only need to connect once
-            if (client != null && client.transport.isOpen())
+            if (client != null)
                 return;
 
             // create connection using thrift
@@ -163,7 +153,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
             // retrieve partition keys and cluster keys from system.schema_columnfamilies table
             retrieveKeys();
 
-            client.thriftClient.set_keyspace(keyspace);
+            client.set_keyspace(keyspace);
         }
         catch (Exception e)
         {
@@ -178,7 +168,12 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
     public void close()
     {
         if (client != null)
-            client.close();
+        {
+            TTransport transport = client.getOutputProtocol().getTransport();
+            if (transport.isOpen())
+                transport.close();
+            client = null;
+        }
     }
 
     @Override
@@ -667,8 +662,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
             {
                 query = composeQuery(columns);
                 logger.debug("type:" + query.left + ", query: " + query.right);
-                CqlPreparedResult cqlPreparedResult = 
-                        client.thriftClient.prepare_cql3_query(ByteBufferUtil.bytes(query.right), Compression.NONE);
+                CqlPreparedResult cqlPreparedResult = client.prepare_cql3_query(ByteBufferUtil.bytes(query.right), Compression.NONE);
                 preparedQueryIds.put(query.left, cqlPreparedResult.itemId);
                 return cqlPreparedResult.itemId;
             }
@@ -695,10 +689,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
             
             try
             {
-                CqlResult cqlResult = client.thriftClient.execute_prepared_cql3_query(
-                                                                       prepareQuery(bindValues.left), 
-                                                                       bindValues.right, 
-                                                                       consistencyLevel);
+                CqlResult cqlResult = client.execute_prepared_cql3_query(prepareQuery(bindValues.left), bindValues.right, consistencyLevel);
                 if (cqlResult != null && cqlResult.rows != null)
                     return cqlResult.rows.iterator();
                 else
@@ -752,10 +743,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
                 "from system.schema_columnfamilies " +
                 "where keyspace_name='%s' and columnfamily_name='%s'";
         String formatted = String.format(query, keyspace, cfName);
-        CqlResult result = client.thriftClient.execute_cql3_query(
-                              ByteBufferUtil.bytes(formatted),
-                              Compression.NONE,
-                              ConsistencyLevel.ONE);
+        CqlResult result = client.execute_cql3_query(ByteBufferUtil.bytes(formatted), Compression.NONE, ConsistencyLevel.ONE);
 
         CqlRow cqlRow = result.rows.get(0);
         String keyString = ByteBufferUtil.string(ByteBuffer.wrap(cqlRow.columns.get(0).getValue()));

@@ -86,7 +86,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
             throw new UnsupportedOperationException("You must set the Cassandra partitioner class with setInputPartitioner");
     }
 
-    public static ClientHolder createAuthenticatedClient(String location, int port, Configuration conf) throws Exception
+    public static Cassandra.Client createAuthenticatedClient(String location, int port, Configuration conf) throws Exception
     {
         logger.debug("Creating authenticated client for CF input format");
         TTransport transport = ConfigHelper.getClientTransportFactory(conf).openTransport(location, port);
@@ -104,7 +104,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
             client.login(authRequest);
         }
         logger.debug("Authenticated client for CF input format created successfully");
-        return new ClientHolder(client, transport, location);
+        return client;
     }
 
     public List<InputSplit> getSplits(JobContext context) throws IOException

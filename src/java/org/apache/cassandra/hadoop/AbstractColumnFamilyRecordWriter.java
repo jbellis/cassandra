@@ -27,15 +27,13 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.client.RingCache;
-import org.apache.cassandra.hadoop.ClientHolder;
-import org.apache.cassandra.hadoop.ConfigHelper;
-import org.apache.cassandra.hadoop.Progressable;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.thrift.transport.TTransport;
 
 
 /**
@@ -119,7 +117,7 @@ public abstract class AbstractColumnFamilyRecordWriter<K, Y> extends RecordWrite
         // when the client is closed.
         protected volatile IOException lastException;
 
-        protected ClientHolder client;
+        protected Cassandra.Client client;
 
         /**
          * Constructs an {@link AbstractRangeClient} for the given endpoints.
@@ -173,7 +171,11 @@ public abstract class AbstractColumnFamilyRecordWriter<K, Y> extends RecordWrite
         protected void closeInternal()
         {
             if (client != null)
-                client.close();
+            {
+                TTransport transport = client.getOutputProtocol().getTransport();
+                if (transport.isOpen())
+                    transport.close();
+            }
         }
 
         /**

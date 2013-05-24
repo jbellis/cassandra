@@ -115,7 +115,7 @@ public abstract class AbstractColumnFamilyOutputFormat<K, Y> extends OutputForma
      * @throws Exception set of thrown exceptions may be implementation defined,
      *                   depending on the used transport factory
      */
-    public static ClientHolder createAuthenticatedClient(String host, int port, Configuration conf) throws Exception
+    public static Cassandra.Client createAuthenticatedClient(String host, int port, Configuration conf) throws Exception
     {
         logger.debug("Creating authenticated client for CF output format");
         TTransport transport = ConfigHelper.getClientTransportFactory(conf).openTransport(host, port);
@@ -131,7 +131,7 @@ public abstract class AbstractColumnFamilyOutputFormat<K, Y> extends OutputForma
             client.login(authRequest);
         }
         logger.debug("Authenticated client for CF output format created successfully");
-        return new ClientHolder(client, transport, host);
+        return client;
     }
 
     /**
