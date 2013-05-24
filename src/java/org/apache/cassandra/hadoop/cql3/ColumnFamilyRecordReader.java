@@ -169,19 +169,16 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
         }
     }
 
-    @Override
     public List<IColumn> getCurrentKey()
     {
         return currentRow.left;
     }
 
-    @Override
     public Map<ByteBuffer, IColumn> getCurrentValue()
     {
         return currentRow.right;
     }
 
-    @Override
     public float getProgress()
     {
         if (!iter.hasNext())
@@ -192,7 +189,6 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
         return progress > 1.0F ? 1.0F : progress;
     }
 
-    @Override
     public boolean nextKeyValue() throws IOException
     {
         if (!iter.hasNext())
@@ -281,7 +277,6 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
             iterator = executeQuery();
         }
 
-        @Override
         protected Pair<List<IColumn>, Map<ByteBuffer, IColumn>> computeNext()
         {
             if (iterator == null)
