@@ -53,8 +53,7 @@ import org.apache.thrift.transport.TTransport;
  * </p>
  * @param <Y>
  */
-public abstract class AbstractColumnFamilyOutputFormat<K, Y> extends OutputFormat<K, Y>
-    implements org.apache.hadoop.mapred.OutputFormat<K, Y>
+public abstract class AbstractColumnFamilyOutputFormat<K, Y> extends OutputFormat<K, Y> implements org.apache.hadoop.mapred.OutputFormat<K, Y>
 {
     public static final String BATCH_THRESHOLD = "mapreduce.output.columnfamilyoutputformat.batch.threshold";
     public static final String QUEUE_SIZE = "mapreduce.output.columnfamilyoutputformat.queue.size";
@@ -69,7 +68,6 @@ public abstract class AbstractColumnFamilyOutputFormat<K, Y> extends OutputForma
      * @throws IOException
      *             when output should not be attempted
      */
-    @Override
     public void checkOutputSpecs(JobContext context)
     {
         checkOutputSpecs(context.getConfiguration());
@@ -85,6 +83,13 @@ public abstract class AbstractColumnFamilyOutputFormat<K, Y> extends OutputForma
             throw new UnsupportedOperationException("You must set the initial output address to a Cassandra node");
     }
 
+    /** Fills the deprecated OutputFormat interface for streaming. */
+    @Deprecated
+    public void checkOutputSpecs(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job) throws IOException
+    {
+        checkOutputSpecs(job);
+    }
+
     /**
      * The OutputCommitter for this format does not write any data to the DFS.
      *
@@ -94,7 +99,6 @@ public abstract class AbstractColumnFamilyOutputFormat<K, Y> extends OutputForma
      * @throws IOException
      * @throws InterruptedException
      */
-    @Override
     public OutputCommitter getOutputCommitter(TaskAttemptContext context) throws IOException, InterruptedException
     {
         return new NullOutputCommitter();
@@ -133,7 +137,7 @@ public abstract class AbstractColumnFamilyOutputFormat<K, Y> extends OutputForma
     /**
      * An {@link OutputCommitter} that does nothing.
      */
-    public static class NullOutputCommitter extends OutputCommitter
+    private static class NullOutputCommitter extends OutputCommitter
     {
         public void abortTask(TaskAttemptContext taskContext) { }
 
@@ -150,5 +154,4 @@ public abstract class AbstractColumnFamilyOutputFormat<K, Y> extends OutputForma
 
         public void setupTask(TaskAttemptContext taskContext) { }
     }
-
 }

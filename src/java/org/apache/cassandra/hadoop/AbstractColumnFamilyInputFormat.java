@@ -58,8 +58,7 @@ import org.slf4j.LoggerFactory;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
-public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<K, Y>
-implements org.apache.hadoop.mapred.InputFormat<K, Y>
+public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<K, Y> implements org.apache.hadoop.mapred.InputFormat<K, Y>
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractColumnFamilyInputFormat.class);
 
@@ -293,7 +292,6 @@ implements org.apache.hadoop.mapred.InputFormat<K, Y>
         throw new IOException("failed connecting to all endpoints " + StringUtils.join(range.endpoints, ","));
     }
 
-
     private List<CfSplit> tokenListToSplits(List<String> splitTokens, int splitsize)
     {
         List<CfSplit> splits = Lists.newArrayListWithExpectedSize(splitTokens.size() - 1);
@@ -301,7 +299,6 @@ implements org.apache.hadoop.mapred.InputFormat<K, Y>
             splits.add(new CfSplit(splitTokens.get(j), splitTokens.get(j + 1), splitsize));
         return splits;
     }
-
 
     private List<TokenRange> getRangeMap(Configuration conf) throws IOException
     {
@@ -335,5 +332,4 @@ implements org.apache.hadoop.mapred.InputFormat<K, Y>
             oldInputSplits[i] = (ColumnFamilySplit)newInputSplits.get(i);
         return oldInputSplits;
     }
-
 }

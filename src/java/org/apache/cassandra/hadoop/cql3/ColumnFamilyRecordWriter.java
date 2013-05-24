@@ -128,8 +128,8 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
      *
      * @param keybuff
      *            the key to write.
-     * @param value
-     *            the value to write.
+     * @param values
+     *            the values to write.
      * @throws IOException
      */
     @Override

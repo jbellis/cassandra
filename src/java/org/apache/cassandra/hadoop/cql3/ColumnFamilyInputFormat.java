@@ -58,8 +58,6 @@ import org.apache.hadoop.mapreduce.TaskAttemptID;
  */
 public class ColumnFamilyInputFormat extends AbstractColumnFamilyInputFormat<List<IColumn>, Map<ByteBuffer, IColumn>>
 {
-
-    @Override
     public RecordReader<List<IColumn>, Map<ByteBuffer, IColumn>> getRecordReader(InputSplit split, JobConf jobConf, final Reporter reporter)
             throws IOException
     {

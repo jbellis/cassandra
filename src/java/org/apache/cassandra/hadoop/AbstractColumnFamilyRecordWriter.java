@@ -52,8 +52,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
  *
  * @see ColumnFamilyOutputFormat
  */
-public abstract class AbstractColumnFamilyRecordWriter<K, Y> extends RecordWriter<K, Y>
-implements org.apache.hadoop.mapred.RecordWriter<K, Y>
+public abstract class AbstractColumnFamilyRecordWriter<K, Y> extends RecordWriter<K, Y> implements org.apache.hadoop.mapred.RecordWriter<K, Y>
 {
     // The configuration this writer is associated with.
     protected final Configuration conf;
@@ -89,7 +88,6 @@ implements org.apache.hadoop.mapred.RecordWriter<K, Y>
      * @param context the context of the task
      * @throws IOException
      */
-    @Override
     public void close(TaskAttemptContext context) throws IOException, InterruptedException
     {
         close();
@@ -124,7 +122,7 @@ implements org.apache.hadoop.mapred.RecordWriter<K, Y>
         protected ClientHolder client;
 
         /**
-         * Constructs an {@link RangeClient} for the given endpoints.
+         * Constructs an {@link AbstractRangeClient} for the given endpoints.
          * @param endpoints the possible endpoints to execute the mutations on
          */
         public AbstractRangeClient(List<InetAddress> endpoints)

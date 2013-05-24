@@ -47,30 +47,8 @@ import org.apache.hadoop.mapreduce.*;
  */
 public class ColumnFamilyOutputFormat extends AbstractColumnFamilyOutputFormat<ByteBuffer,List<Mutation>>
 {
-    /**
-     * The OutputCommitter for this format does not write any data to the DFS.
-     *
-     * @param context
-     *            the task context
-     * @return an output committer
-     * @throws IOException
-     * @throws InterruptedException
-     */
-    @Override
-    public OutputCommitter getOutputCommitter(TaskAttemptContext context) throws IOException, InterruptedException
-    {
-        return new NullOutputCommitter();
-    }
-
     /** Fills the deprecated OutputFormat interface for streaming. */
     @Deprecated
-    public void checkOutputSpecs(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job) throws IOException
-    {
-        checkOutputSpecs(job);
-    }
-
-    /** Fills the deprecated OutputFormat interface for streaming. */
-    @Deprecated @Override
     public ColumnFamilyRecordWriter getRecordWriter(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job, String name, org.apache.hadoop.util.Progressable progress) throws IOException
     {
         return new ColumnFamilyRecordWriter(job, new Progressable(progress));
@@ -84,7 +62,6 @@ public class ColumnFamilyOutputFormat extends AbstractColumnFamilyOutputFormat<B
      * @return a {@link RecordWriter} to write the output for the job.
      * @throws IOException
      */
-    @Override
     public ColumnFamilyRecordWriter getRecordWriter(final TaskAttemptContext context) throws IOException, InterruptedException
     {
         return new ColumnFamilyRecordWriter(context);
