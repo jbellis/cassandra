@@ -373,16 +373,24 @@ public class SSTableReader extends SSTable
     {
         SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
         SegmentedFile.Builder dbuilder = compression
-                                          ? SegmentedFile.getCompressedBuilder()
-                                          : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
+                                       ? SegmentedFile.getCompressedBuilder()
+                                       : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
 
+
+        boolean summaryLoaded = loadSummary(this, ibuilder, dbuilder);
+        if (recreatebloom || !summaryLoaded)
+            buildSummary(recreatebloom, ibuilder, dbuilder, summaryLoaded);
+
+        ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
+        dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
+        if (recreatebloom || !summaryLoaded) // save summary information to disk
+            saveSummary(this, ibuilder, dbuilder);
+    }
+
+    private void buildSummary(boolean recreatebloom, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, boolean summaryLoaded) throws IOException
+    {
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
         RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), true);
-
-        // try to load summaries from the disk and check if we need
-        // to read primary index because we should re-create a BloomFilter or pre-load KeyCache
-        final boolean summaryLoaded = loadSummary(this, ibuilder, dbuilder);
-        final boolean readIndex = recreatebloom || !summaryLoaded;
         try
         {
             long indexSize = primaryIndex.length();
@@ -398,7 +406,7 @@ public class SSTableReader extends SSTable
                 summaryBuilder = new IndexSummaryBuilder(estimatedKeys);
 
             long indexPosition;
-            while (readIndex && (indexPosition = primaryIndex.getFilePointer()) != indexSize)
+            while ((indexPosition = primaryIndex.getFilePointer()) != indexSize)
             {
                 ByteBuffer key = ByteBufferUtil.readWithShortLength(primaryIndex);
                 RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(primaryIndex, descriptor.version);
@@ -429,12 +437,6 @@ public class SSTableReader extends SSTable
 
         first = getMinimalKey(first);
         last = getMinimalKey(last);
-        // finalize the load.
-        // finalize the state of the reader
-        ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
-        dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
-        if (readIndex) // save summary information to disk
-            saveSummary(this, ibuilder, dbuilder);
     }
 
     public static boolean loadSummary(SSTableReader reader, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder)
