@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.*;
 
-import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -169,7 +168,8 @@ public class SSTableReader extends SSTable
                                                   System.currentTimeMillis(),
                                                   sstableMetadata);
         sstable.bf = new AlwaysPresentFilter();
-        sstable.load(false);
+        sstable.loadForBatch();
+        return sstable;
     }
 
     private static SSTableReader open(Descriptor descriptor,
@@ -385,6 +385,31 @@ public class SSTableReader extends SSTable
         dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
         if (recreatebloom || !summaryLoaded) // save summary information to disk
             saveSummary(this, ibuilder, dbuilder);
+    }
+
+    /**
+     * A simplified load that creates a minimal partition index
+     */
+    private void loadForBatch() throws IOException
+    {
+        // force buffered i/o in non-compressed mode so we don't need to worry about mmap segments
+        SegmentedFile.Builder ibuilder = new BufferedSegmentedFile.Builder();
+        SegmentedFile.Builder dbuilder = compression
+                                         ? SegmentedFile.getCompressedBuilder()
+                                         : new BufferedSegmentedFile.Builder();
+
+        // build a bare-bones IndexSummary
+        IndexSummaryBuilder summaryBuilder = new IndexSummaryBuilder(1);
+        RandomAccessReader in = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), true);
+        ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
+        first = decodeKey(partitioner, descriptor, key);
+        summaryBuilder.maybeAddEntry(first, 0);
+        indexSummary = summaryBuilder.build(partitioner);
+
+        last = null; // shouldn't need this for batch operations
+
+        ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
+        dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
     }
 
     private void buildSummary(boolean recreatebloom, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, boolean summaryLoaded) throws IOException
