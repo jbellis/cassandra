@@ -403,10 +403,17 @@ public class SSTableReader extends SSTable
         // build a bare-bones IndexSummary
         IndexSummaryBuilder summaryBuilder = new IndexSummaryBuilder(1);
         RandomAccessReader in = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), true);
-        ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
-        first = decodeKey(partitioner, descriptor, key);
-        summaryBuilder.maybeAddEntry(first, 0);
-        indexSummary = summaryBuilder.build(partitioner);
+        try
+        {
+            ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
+            first = decodeKey(partitioner, descriptor, key);
+            summaryBuilder.maybeAddEntry(first, 0);
+            indexSummary = summaryBuilder.build(partitioner);
+        }
+        finally
+        {
+            FileUtils.closeQuietly(in);
+        }
 
         last = null; // shouldn't need this for batch operations
 
