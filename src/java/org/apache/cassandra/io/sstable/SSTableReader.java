@@ -156,15 +156,10 @@ public class SSTableReader extends SSTable
     public static SSTableReader openForBatch(Descriptor descriptor, Set<Component> components, IPartitioner partitioner) throws IOException
     {
         SSTableMetadata sstableMetadata = openMetadata(descriptor, components, partitioner);
-
         SSTableReader sstable = new SSTableReader(descriptor,
                                                   components,
                                                   null,
                                                   partitioner,
-                                                  null,
-                                                  null,
-                                                  null,
-                                                  null,
                                                   System.currentTimeMillis(),
                                                   sstableMetadata);
         sstable.bf = new AlwaysPresentFilter();
@@ -185,10 +180,6 @@ public class SSTableReader extends SSTable
                                                   components,
                                                   metadata,
                                                   partitioner,
-                                                  null,
-                                                  null,
-                                                  null,
-                                                  null,
                                                   System.currentTimeMillis(),
                                                   sstableMetadata);
         // versions before 'c' encoded keys as utf-16 before hashing to the filter
@@ -319,10 +310,6 @@ public class SSTableReader extends SSTable
                           Set<Component> components,
                           CFMetaData metadata,
                           IPartitioner partitioner,
-                          SegmentedFile ifile,
-                          SegmentedFile dfile,
-                          IndexSummary indexSummary,
-                          IFilter bloomFilter,
                           long maxDataAge,
                           SSTableMetadata sstableMetadata)
     {
@@ -330,11 +317,26 @@ public class SSTableReader extends SSTable
         this.sstableMetadata = sstableMetadata;
         this.maxDataAge = maxDataAge;
 
+        this.deletingTask = new SSTableDeletingTask(this);
+    }
+
+    private SSTableReader(Descriptor desc,
+                          Set<Component> components,
+                          CFMetaData metadata,
+                          IPartitioner partitioner,
+                          SegmentedFile ifile,
+                          SegmentedFile dfile,
+                          IndexSummary indexSummary,
+                          IFilter bloomFilter,
+                          long maxDataAge,
+                          SSTableMetadata sstableMetadata)
+    {
+        this(desc, components, metadata, partitioner, maxDataAge, sstableMetadata);
+
         this.ifile = ifile;
         this.dfile = dfile;
         this.indexSummary = indexSummary;
         this.bf = bloomFilter;
-        this.deletingTask = new SSTableDeletingTask(this);
     }
 
     public void setTrackedBy(DataTracker tracker)
