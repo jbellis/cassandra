@@ -154,32 +154,32 @@ public class SSTableReader extends SSTable
         return open(descriptor, components, metadata, partitioner, true);
     }
 
+    public static SSTableReader openForBatch(Descriptor descriptor, Set<Component> components, IPartitioner partitioner) throws IOException
+    {
+        SSTableMetadata sstableMetadata = openMetadata(descriptor, components, partitioner);
+
+        SSTableReader sstable = new SSTableReader(descriptor,
+                                                  components,
+                                                  null,
+                                                  partitioner,
+                                                  null,
+                                                  null,
+                                                  null,
+                                                  null,
+                                                  System.currentTimeMillis(),
+                                                  sstableMetadata);
+        sstable.bf = new AlwaysPresentFilter();
+        sstable.load(false);
+    }
+
     private static SSTableReader open(Descriptor descriptor,
                                       Set<Component> components,
                                       CFMetaData metadata,
                                       IPartitioner partitioner,
                                       boolean validate) throws IOException
     {
-        assert partitioner != null;
-        // Minimum components without which we can't do anything
-        assert components.contains(Component.DATA) : "Data component is missing for sstable" + descriptor;
-        assert components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
-
         long start = System.currentTimeMillis();
-        logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(COMPONENT_DATA)).length());
-
-        SSTableMetadata sstableMetadata = SSTableMetadata.serializer.deserialize(descriptor);
-
-        // Check if sstable is created using same partitioner.
-        // Partitioner can be null, which indicates older version of sstable or no stats available.
-        // In that case, we skip the check.
-        String partitionerName = partitioner.getClass().getCanonicalName();
-        if (sstableMetadata.partitioner != null && !partitionerName.equals(sstableMetadata.partitioner))
-        {
-            logger.error(String.format("Cannot open %s; partitioner %s does not match system partitioner %s.  Note that the default partitioner starting with Cassandra 1.2 is Murmur3Partitioner, so you will need to edit that to match your old partitioner if upgrading.",
-                                       descriptor, sstableMetadata.partitioner, partitionerName));
-            System.exit(1);
-        }
+        SSTableMetadata sstableMetadata = openMetadata(descriptor, components, partitioner);
 
         SSTableReader sstable = new SSTableReader(descriptor,
                                                   components,
@@ -214,6 +214,30 @@ public class SSTableReader extends SSTable
         return sstable;
     }
 
+    private static SSTableMetadata openMetadata(Descriptor descriptor, Set<Component> components, IPartitioner partitioner) throws IOException
+    {
+        assert partitioner != null;
+        // Minimum components without which we can't do anything
+        assert components.contains(Component.DATA) : "Data component is missing for sstable" + descriptor;
+        assert components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
+
+        logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(COMPONENT_DATA)).length());
+
+        SSTableMetadata sstableMetadata = SSTableMetadata.serializer.deserialize(descriptor);
+
+        // Check if sstable is created using same partitioner.
+        // Partitioner can be null, which indicates older version of sstable or no stats available.
+        // In that case, we skip the check.
+        String partitionerName = partitioner.getClass().getCanonicalName();
+        if (sstableMetadata.partitioner != null && !partitionerName.equals(sstableMetadata.partitioner))
+        {
+            logger.error(String.format("Cannot open %s; partitioner %s does not match system partitioner %s.  Note that the default partitioner starting with Cassandra 1.2 is Murmur3Partitioner, so you will need to edit that to match your old partitioner if upgrading.",
+                                       descriptor, sstableMetadata.partitioner, partitionerName));
+            System.exit(1);
+        }
+        return sstableMetadata;
+    }
+
     public static void logOpenException(Descriptor descriptor, IOException e)
     {
         if (e instanceof FileNotFoundException)
@@ -222,9 +246,9 @@ public class SSTableReader extends SSTable
             logger.error("Corrupt sstable " + descriptor + "; skipped", e);
     }
 
-    public static Collection<SSTableReader> batchOpen(Set<Map.Entry<Descriptor, Set<Component>>> entries,
-                                                      final CFMetaData metadata,
-                                                      final IPartitioner partitioner)
+    public static Collection<SSTableReader> openAll(Set<Map.Entry<Descriptor, Set<Component>>> entries,
+                                                    final CFMetaData metadata,
+                                                    final IPartitioner partitioner)
     {
         final Collection<SSTableReader> sstables = new LinkedBlockingQueue<SSTableReader>();
 
