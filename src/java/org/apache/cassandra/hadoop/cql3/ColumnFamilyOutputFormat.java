@@ -21,6 +21,7 @@ package org.apache.cassandra.hadoop.cql3;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.cassandra.hadoop.AbstractColumnFamilyOutputFormat;
 import org.apache.cassandra.hadoop.ColumnFamilyInputFormat;
@@ -53,7 +54,7 @@ import org.apache.hadoop.mapreduce.*;
  * to Cassandra.
  * </p>
  */
-public class ColumnFamilyOutputFormat extends AbstractColumnFamilyOutputFormat<ByteBuffer, List<List<ByteBuffer>>>
+public class ColumnFamilyOutputFormat extends AbstractColumnFamilyOutputFormat<Map<String, ByteBuffer>, List<ByteBuffer>>
 {   
     /** Fills the deprecated OutputFormat interface for streaming. */
     @Deprecated

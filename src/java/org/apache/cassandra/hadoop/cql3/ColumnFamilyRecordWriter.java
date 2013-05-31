@@ -27,8 +27,14 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.hadoop.AbstractColumnFamilyRecordWriter;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.hadoop.Progressable;
@@ -37,9 +43,9 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
+import org.apache.thrift.transport.TTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 
 /**
  * The <code>ColumnFamilyRecordWriter</code> maps the output &lt;key, value&gt;
@@ -55,18 +61,20 @@ import org.slf4j.LoggerFactory;
  *
  * @see ColumnFamilyOutputFormat
  */
-final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<ByteBuffer, List<List<ByteBuffer>>>
+final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String, ByteBuffer>, List<ByteBuffer>>
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyRecordWriter.class);
-    
+
     // handles for clients for each range running in the threadpool
     private final Map<Range, RangeClient> clients;
-    
+
     // host to prepared statement id mappings
     private ConcurrentHashMap<Cassandra.Client, Integer> preparedStatements = new ConcurrentHashMap<Cassandra.Client, Integer>();
-    
+
     private final String cql;
-    
+
+    private AbstractType<?> keyValidator;
+
     /**
      * Upon construction, obtain the map that this writer will use to collect
      * mutations, and the ring cache for the given keyspace.
@@ -91,6 +99,26 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
         super(conf);
         this.clients = new HashMap<Range, RangeClient>();
         cql = CQLConfigHelper.getOutputCql(conf);
+
+        try
+        {
+            String host = getAnyHost();
+            int port = ConfigHelper.getOutputRpcPort(conf);
+            Cassandra.Client client = ColumnFamilyOutputFormat.createAuthenticatedClient(host, port, conf);
+            keyValidator = getKeyValidator(client);
+            
+            if (client != null)
+            {
+                TTransport transport = client.getOutputProtocol().getTransport();
+                if (transport.isOpen())
+                    transport.close();
+                client = null;
+            }
+        }
+        catch (Exception e)
+        {
+            throw new IOException(e);
+        }
     }
     
     @Override
@@ -109,6 +137,7 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
                 clientException = e;
             }
         }
+
         if (clientException != null)
             throw clientException;
     }
@@ -128,9 +157,10 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
      * @throws IOException
      */
     @Override
-    public void write(ByteBuffer keybuff, List<List<ByteBuffer>> values) throws IOException
+    public void write(Map<String, ByteBuffer> keys, List<ByteBuffer> values) throws IOException
     {
-        Range<Token> range = ringCache.getRange(keybuff);
+        ByteBuffer rowKey = getRowKey(keys);
+        Range<Token> range = ringCache.getRange(rowKey);
 
         // get the client for the given range, or create a new one
         RangeClient client = clients.get(range);
@@ -142,9 +172,8 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
             clients.put(range, client);
         }
 
-        for (List<ByteBuffer> bindValues : values)
-            client.put(Pair.create(keybuff, bindValues));
-            progressable.progress();
+        client.put(Pair.create(rowKey, values));
+        progressable.progress();
     }
 
     /**
@@ -261,4 +290,82 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
             return itemId;
         }
     }
+
+    private ByteBuffer getRowKey(Map<String, ByteBuffer> keysMap)
+    {
+        //current row key
+        ByteBuffer rowKey;
+        Iterator<String> itera = keysMap.keySet().iterator();
+        if (keyValidator instanceof CompositeType)
+        {
+            ByteBuffer[] keys = new ByteBuffer[keysMap.size()];
+            for (int i = 0; i< keys.length; i++)
+                keys[i] = keysMap.get(itera.next());
+
+            rowKey = ((CompositeType) keyValidator).build(keys);
+        }
+        else
+        {
+            rowKey = keysMap.get(itera.next());
+        }
+        return rowKey;
+    }
+
+    /** retrieve the key validator from system.schema_columnfamilies table */
+    private AbstractType<?> getKeyValidator(Cassandra.Client client) throws Exception
+    {
+        String keyspace = ConfigHelper.getInputKeyspace(conf);
+        String cfName = ConfigHelper.getInputColumnFamily(conf);
+        String query = "SELECT key_validator " +
+                       "FROM system.schema_columnfamilies " +
+                       "WHERE keyspace_name='%s' and columnfamily_name='%s'";
+        String formatted = String.format(query, keyspace, cfName);
+        CqlResult result = client.execute_cql3_query(ByteBufferUtil.bytes(formatted), Compression.NONE, ConsistencyLevel.ONE);
+
+        Column rawKeyValidator = result.rows.get(0).columns.get(0);
+        String validator = ByteBufferUtil.string(ByteBuffer.wrap(rawKeyValidator.getValue()));
+        return parseType(validator);
+    }
+
+    private AbstractType<?> parseType(String type) throws IOException
+    {
+        try
+        {
+            // always treat counters like longs, specifically CCT.compose is not what we need
+            if (type != null && type.equals("org.apache.cassandra.db.marshal.CounterColumnType"))
+                return LongType.instance;
+            return TypeParser.parse(type);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IOException(e);
+        }
+        catch (SyntaxException e)
+        {
+            throw new IOException(e);
+        }
+    }
+    
+    private String getAnyHost() throws IOException, InvalidRequestException, TException
+    {
+        Cassandra.Client client = ConfigHelper.getClientFromOutputAddressList(conf);
+        List<TokenRange> ring = client.describe_ring(ConfigHelper.getOutputKeyspace(conf));
+        try
+        {
+            for (TokenRange range : ring)
+                return range.endpoints.get(0);
+        }
+        finally
+        {
+            if (client != null)
+            {
+                TTransport transport = client.getOutputProtocol().getTransport();
+                if (transport.isOpen())
+                    transport.close();
+                client = null;
+            }
+        }
+        throw new IOException("There are no endpoints");
+    }
+
 }

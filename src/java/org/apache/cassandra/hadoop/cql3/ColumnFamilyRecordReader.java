@@ -26,11 +26,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.LongType;
@@ -64,8 +64,8 @@ import com.google.common.collect.AbstractIterator;
  * <p/>
  * Map<ByteBuffer, IColumn> as column name to columns mappings
  */
-public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<ByteBuffer, IColumn>>
-        implements org.apache.hadoop.mapred.RecordReader<List<IColumn>, Map<ByteBuffer, IColumn>>
+public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffer>, Map<String, ByteBuffer>>
+        implements org.apache.hadoop.mapred.RecordReader<Map<String, ByteBuffer>, Map<String, ByteBuffer>>
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyRecordReader.class);
 
@@ -74,7 +74,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
     private ColumnFamilySplit split;
     private RowIterator iter;
 
-    private Pair<List<IColumn>, Map<ByteBuffer, IColumn>> currentRow;
+    private Pair<Map<String, ByteBuffer>, Map<String, ByteBuffer>> currentRow;
     private int totalRowCount; // total number of rows to fetch
     private String keyspace;
     private String cfName;
@@ -169,12 +169,12 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
         }
     }
 
-    public List<IColumn> getCurrentKey()
+    public Map<String, ByteBuffer> getCurrentKey()
     {
         return currentRow.left;
     }
 
-    public Map<ByteBuffer, IColumn> getCurrentValue()
+    public Map<String, ByteBuffer> getCurrentValue()
     {
         return currentRow.right;
     }
@@ -234,12 +234,15 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
     // to the old. Thus, expect a small performance hit.
     // And obviously this wouldn't work for wide rows. But since ColumnFamilyInputFormat
     // and ColumnFamilyRecordReader don't support them, it should be fine for now.
-    public boolean next(List<IColumn> keys, Map<ByteBuffer, IColumn> value) throws IOException
+    public boolean next(Map<String, ByteBuffer> keys, Map<String, ByteBuffer> value) throws IOException
     {
-        if (this.nextKeyValue())
+        if (nextKeyValue())
         {
             value.clear();
             value.putAll(getCurrentValue());
+            
+            keys.clear();
+            keys.putAll(getCurrentKey());
 
             return true;
         }
@@ -251,18 +254,18 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
         return (long) iter.totalRead;
     }
 
-    public List<IColumn> createKey()
+    public Map<String, ByteBuffer> createKey()
     {
-        return new ArrayList<IColumn>();
+        return new LinkedHashMap<String, ByteBuffer>();
     }
 
-    public Map<ByteBuffer, IColumn> createValue()
+    public Map<String, ByteBuffer> createValue()
     {
-        return new HashMap<ByteBuffer, IColumn>();
+        return new LinkedHashMap<String, ByteBuffer>();
     }
 
     /** CQL row iterator */
-    private class RowIterator extends AbstractIterator<Pair<List<IColumn>, Map<ByteBuffer, IColumn>>>
+    private class RowIterator extends AbstractIterator<Pair<Map<String, ByteBuffer>, Map<String, ByteBuffer>>>
     {
         protected int totalRead = 0;             // total number of cf rows read
         protected Iterator<CqlRow> iterator;
@@ -277,7 +280,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
             iterator = executeQuery();
         }
 
-        protected Pair<List<IColumn>, Map<ByteBuffer, IColumn>> computeNext()
+        protected Pair<Map<String, ByteBuffer>, Map<String, ByteBuffer>> computeNext()
         {
             if (iterator == null)
                 return endOfData();
@@ -307,8 +310,8 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
                 }
             }
 
-            Map<ByteBuffer, IColumn> valueColumns = createValue();
-            List<IColumn> keyColumns = new ArrayList<IColumn>();
+            Map<String, ByteBuffer> valueColumns = createValue();
+            Map<String, ByteBuffer> keyColumns = createKey();
             int i = 0;
             CqlRow row = iterator.next();
             for (Column column : row.columns)
@@ -317,9 +320,9 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
                 logger.debug("column: " + columnName);
 
                 if (i < partitionKeys.size() + clusterKeys.size())
-                    keyColumns.add(unthriftify(column));
+                    keyColumns.put(stringValue(column.name), column.value);
                 else
-                    valueColumns.put(column.name, unthriftify(column));
+                    valueColumns.put(stringValue(column.name), column.value);
 
                 i++;
             }
@@ -335,11 +338,11 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
             if (pageRows >= pageRowSize || !iterator.hasNext())
             {
                 // update partition keys
-                Iterator<IColumn> newKeys = keyColumns.iterator();
+                Iterator<String> newKeys = keyColumns.keySet().iterator();
                 Iterator<Key> keys = partitionKeys.iterator();
                 while (keys.hasNext())
                 {
-                    keys.next().value = newKeys.next().value();
+                    keys.next().value = keyColumns.get(newKeys.next());
                 }
 
                 // update cluster keys
@@ -347,7 +350,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
                 while (keys.hasNext())
                 {
                     Key key = keys.next();
-                    key.value = newKeys.next().value();
+                    key.value = keyColumns.get(newKeys.next());
                 }
 
                 iterator = executeQuery();
@@ -357,14 +360,8 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
             return Pair.create(keyColumns, valueColumns);
         }
 
-        /** convert thrift column to Cassandra column */
-        private IColumn unthriftify(Column column)
-        {
-            return new org.apache.cassandra.db.Column(column.name, column.value, column.timestamp);
-        }
-
         /** check whether start to read a new CF row by comparing the partition keys */
-        private boolean newRow(List<IColumn> keyColumns, String previousRowKey)
+        private boolean newRow(Map<String, ByteBuffer> keyColumns, String previousRowKey)
         {
             if (keyColumns.size() == 0)
                 return false;
@@ -372,17 +369,17 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
             String rowKey = "";
             if (keyColumns.size() == 1)
                 rowKey = partitionKeys.get(0).validator.getString(
-                        ByteBufferUtil.clone(
-                                keyColumns.get(0).value()));
+                          ByteBufferUtil.clone(
+                                  keyColumns.get(
+                                          partitionKeys.get(0).name)));
             else
             {
                 Iterator<Key> keys = partitionKeys.iterator();
-                Iterator<IColumn> itera = keyColumns.iterator();
+                Iterator<String> itera = keyColumns.keySet().iterator();
                 while (keys.hasNext())
                 {
                     rowKey = rowKey + keys.next().validator.getString(
-                            ByteBufferUtil.clone(
-                                    itera.next().value())) + ":";
+                            ByteBufferUtil.clone(keyColumns.get(itera.next()))) + ":";
                 }
             }
 
@@ -563,7 +560,7 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
                 first = false;
             }
 
-            return result;
+            return result == null ? "" : result;
         }
 
         /** compose the question marks for partition key string in format of ?, ? , ? */
@@ -820,6 +817,19 @@ public class ColumnFamilyRecordReader extends RecordReader<List<IColumn>, Map<By
         public Key(String name)
         {
             this.name = name;
+        }
+    }
+    
+    /** get string from a ByteBuffer, catch the exception and throw it as runtime exception*/
+    private String stringValue(ByteBuffer value)
+    {
+        try
+        {
+            return ByteBufferUtil.string(value);
+        }
+        catch(CharacterCodingException e)
+        {
+            throw new RuntimeException(e);
         }
     }
 }
