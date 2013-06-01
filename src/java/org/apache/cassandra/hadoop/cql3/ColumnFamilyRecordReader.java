@@ -454,10 +454,11 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             String result = null;
             for (String column : columns)
             {
-                if (keyNames.contains(column))
+                String trimmed = column.trim();
+                if (keyNames.contains(trimmed))
                     continue;
 
-                result = result == null ? column : result + "," + column;
+                result = result == null ? trimmed : result + "," + trimmed;
             }
             return result;
         }
