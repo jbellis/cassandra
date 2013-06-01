@@ -78,7 +78,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
     private List<Key> partitionKeys = new ArrayList<Key>();
 
     // cluster keys -- column aliases
-    private List<Key> clusterKeys = new ArrayList<Key>();
+    private List<Key> clusterColumns = new ArrayList<Key>();
 
     // map prepared query type to item id
     private Map<Integer, Integer> preparedQueryIds = new HashMap<Integer, Integer>();
@@ -289,7 +289,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
                     return endOfData();
                 }
 
-                index = setTailNull(clusterKeys);
+                index = setTailNull(clusterColumns);
                 logger.debug("set tail to null, index: " + index);
                 iterator = executeQuery();
                 pageRows = 0;
@@ -310,7 +310,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
                 String columnName = getString(column.getName());
                 logger.debug("column: " + columnName);
 
-                if (i < partitionKeys.size() + clusterKeys.size())
+                if (i < partitionKeys.size() + clusterColumns.size())
                     keyColumns.put(stringValue(column.name), column.value);
                 else
                     valueColumns.put(stringValue(column.name), column.value);
@@ -337,7 +337,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
                 }
 
                 // update cluster keys
-                keys = clusterKeys.iterator();
+                keys = clusterColumns.iterator();
                 while (keys.hasNext())
                 {
                     Key key = keys.next();
@@ -425,7 +425,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             {
                 // add keys in the front in order
                 String partitionKey = keyString(partitionKeys);
-                String clusterKey = keyString(clusterKeys);
+                String clusterKey = keyString(clusterColumns);
 
                 columns = withoutKeyColumns(columns);
                 columns = (clusterKey == null || "".equals(clusterKey))
@@ -447,7 +447,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         private String withoutKeyColumns(String columnString)
         {
             Set<String> keyNames = new HashSet<String>();
-            for (Key key : Iterables.concat(partitionKeys, clusterKeys))
+            for (Key key : Iterables.concat(partitionKeys, clusterColumns))
                 keyNames.add(key.name);
 
             String[] columns = columnString.split(",");
@@ -478,14 +478,14 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             else
             {
                 //query token(k) > token(pre_partition_key) and token(k) <= end_token
-                if (clusterKeys.size() == 0 || clusterKeys.get(0).value == null)
+                if (clusterColumns.size() == 0 || clusterColumns.get(0).value == null)
                     return Pair.create(1,
                                        " WHERE token(" + partitionKeyString + ") > token(" + partitionKeyQuestions + ") "
                                        + " AND token(" + partitionKeyString + ") <= ?");
                 else
                 {
                     //query token(k) = token(pre_partition_key) and m = pre_cluster_key_m and n > pre_cluster_key_n 
-                    Pair<Integer, String> clause = whereClause(clusterKeys, 0);
+                    Pair<Integer, String> clause = whereClause(clusterColumns, 0);
                     return Pair.create(clause.left,
                                        " WHERE token(" + partitionKeyString + ") = token(" + partitionKeyQuestions + ") "
                                        + clause.right);
@@ -573,7 +573,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
                 for (Key partitionKey1 : partitionKeys)
                     values.add(partitionKey1.value);
 
-                if (clusterKeys.size() == 0 || clusterKeys.get(0).value == null)
+                if (clusterColumns.size() == 0 || clusterColumns.get(0).value == null)
                 {
                     // query token(k) > token(pre_partition_key) and token(k) <= end_token
                     values.add(partitioner.getTokenValidator().fromString(split.getEndToken()));
@@ -582,7 +582,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
                 else
                 {
                     // query token(k) = token(pre_partition_key) and m = pre_cluster_key_m and n > pre_cluster_key_n
-                    int type = preparedQueryBindValues(clusterKeys, 0, values);
+                    int type = preparedQueryBindValues(clusterColumns, 0, values);
                     return Pair.create(type, values);
                 }
             }
@@ -711,7 +711,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         keys = FBUtilities.fromJsonList(keyString);
 
         for (String key : keys)
-            clusterKeys.add(new Key(key));
+            clusterColumns.add(new Key(key));
 
         Column rawKeyValidator = cqlRow.columns.get(2);
         String validator = ByteBufferUtil.string(ByteBuffer.wrap(rawKeyValidator.getValue()));
