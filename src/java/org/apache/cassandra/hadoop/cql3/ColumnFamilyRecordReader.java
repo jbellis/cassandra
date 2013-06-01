@@ -75,10 +75,10 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
     private ConsistencyLevel consistencyLevel;
 
     // partition keys -- key aliases
-    private List<Key> partitionKeys = new ArrayList<Key>();
+    private List<BoundColumn> partitionBoundColumns = new ArrayList<BoundColumn>();
 
     // cluster keys -- column aliases
-    private List<Key> clusterColumns = new ArrayList<Key>();
+    private List<BoundColumn> clusterColumns = new ArrayList<BoundColumn>();
 
     // map prepared query type to item id
     private Map<Integer, Integer> preparedQueryIds = new HashMap<Integer, Integer>();
@@ -310,7 +310,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
                 String columnName = stringValue(ByteBuffer.wrap(column.getName()));
                 logger.debug("column: " + columnName);
 
-                if (i < partitionKeys.size() + clusterColumns.size())
+                if (i < partitionBoundColumns.size() + clusterColumns.size())
                     keyColumns.put(stringValue(column.name), column.value);
                 else
                     valueColumns.put(stringValue(column.name), column.value);
@@ -328,21 +328,12 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             // read full page
             if (pageRows >= pageRowSize || !rows.hasNext())
             {
-                // update partition keys
                 Iterator<String> newKeys = keyColumns.keySet().iterator();
-                Iterator<Key> keys = partitionKeys.iterator();
-                while (keys.hasNext())
-                {
-                    keys.next().value = keyColumns.get(newKeys.next());
-                }
+                for (BoundColumn column : partitionBoundColumns)
+                    column.value = keyColumns.get(newKeys.next());
 
-                // update cluster keys
-                keys = clusterColumns.iterator();
-                while (keys.hasNext())
-                {
-                    Key key = keys.next();
-                    key.value = keyColumns.get(newKeys.next());
-                }
+                for (BoundColumn column : clusterColumns)
+                    column.value = keyColumns.get(newKeys.next());
 
                 rows = executeQuery();
                 pageRows = 0;
@@ -360,13 +351,13 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             String rowKey = "";
             if (keyColumns.size() == 1)
             {
-                rowKey = partitionKeys.get(0).validator.getString(keyColumns.get(partitionKeys.get(0).name));
+                rowKey = partitionBoundColumns.get(0).validator.getString(keyColumns.get(partitionBoundColumns.get(0).name));
             }
             else
             {
                 Iterator<ByteBuffer> iter = keyColumns.values().iterator();
-                for (Key key : partitionKeys)
-                    rowKey = rowKey + key.validator.getString(ByteBufferUtil.clone(iter.next())) + ":";
+                for (BoundColumn column : partitionBoundColumns)
+                    rowKey = rowKey + column.validator.getString(ByteBufferUtil.clone(iter.next())) + ":";
             }
 
             logger.debug("previous RowKey: " + previousRowKey + ", new row key: " + rowKey);
@@ -384,32 +375,32 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         }
 
         /** set the last non-null key value to null, and return the previous index */
-        private int setTailNull(List<Key> values)
+        private int setTailNull(List<BoundColumn> values)
         {
             if (values.isEmpty())
                 return -1;
 
-            Iterator<Key> iterator = values.iterator();
+            Iterator<BoundColumn> iterator = values.iterator();
             int previousIndex = -1;
-            Key current;
+            BoundColumn current;
             while (iterator.hasNext())
             {
                 current = iterator.next();
                 if (current.value == null)
                 {
                     int index = previousIndex > 0 ? previousIndex : 0;
-                    Key key = values.get(index);
-                    logger.debug("set key " + key.name + " value to  null");
-                    key.value = null;
+                    BoundColumn column = values.get(index);
+                    logger.debug("set key " + column.name + " value to  null");
+                    column.value = null;
                     return previousIndex - 1;
                 }
 
                 previousIndex++;
             }
 
-            Key key = values.get(previousIndex);
-            logger.debug("set key " + key.name + " value to null");
-            key.value = null;
+            BoundColumn column = values.get(previousIndex);
+            logger.debug("set key " + column.name + " value to null");
+            column.value = null;
             return previousIndex - 1;
         }
 
@@ -424,7 +415,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             else
             {
                 // add keys in the front in order
-                String partitionKey = keyString(partitionKeys);
+                String partitionKey = keyString(partitionBoundColumns);
                 String clusterKey = keyString(clusterColumns);
 
                 columns = withoutKeyColumns(columns);
@@ -447,8 +438,8 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         private String withoutKeyColumns(String columnString)
         {
             Set<String> keyNames = new HashSet<String>();
-            for (Key key : Iterables.concat(partitionKeys, clusterColumns))
-                keyNames.add(key.name);
+            for (BoundColumn column : Iterables.concat(partitionBoundColumns, clusterColumns))
+                keyNames.add(column.name);
 
             String[] columns = columnString.split(",");
             String result = null;
@@ -467,7 +458,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         private Pair<Integer, String> whereClause()
         {
             if (partitionKeyString == null)
-                partitionKeyString = keyString(partitionKeys);
+                partitionKeyString = keyString(partitionBoundColumns);
 
             if (partitionKeyMarkers == null)
                 partitionKeyMarkers = partitionKeyMarkers();
@@ -488,32 +479,32 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         }
 
         /** recursively compose the where clause */
-        private Pair<Integer, String> whereClause(List<Key> keys, int position)
+        private Pair<Integer, String> whereClause(List<BoundColumn> column, int position)
         {
-            if (position == keys.size() - 1 || keys.get(position + 1).value == null)
-                return Pair.create(position + 2, " AND " + keys.get(position).name + " > ? ");
+            if (position == column.size() - 1 || column.get(position + 1).value == null)
+                return Pair.create(position + 2, " AND " + column.get(position).name + " > ? ");
 
-            Pair<Integer, String> clause = whereClause(keys, position + 1);
-            return Pair.create(clause.left, " AND " + keys.get(position).name + " = ? " + clause.right);
+            Pair<Integer, String> clause = whereClause(column, position + 1);
+            return Pair.create(clause.left, " AND " + column.get(position).name + " = ? " + clause.right);
         }
 
         /** check whether all key values are null */
         private boolean emptyPartitionKeyValues()
         {
-            for (Key key : partitionKeys)
+            for (BoundColumn column : partitionBoundColumns)
             {
-                if (key.value != null)
+                if (column.value != null)
                     return false;
             }
             return true;
         }
 
         /** compose the partition key string in format of <key1>, <key2>, <key3> */
-        private String keyString(List<Key> keys)
+        private String keyString(List<BoundColumn> columns)
         {
             String result = null;
-            for (Key key : keys)
-                result = result == null ? key.name : result + "," + key.name;
+            for (BoundColumn column : columns)
+                result = result == null ? column.name : result + "," + column.name;
 
             return result == null ? "" : result;
         }
@@ -522,7 +513,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         private String partitionKeyMarkers()
         {
             String result = null;
-            for (Key key : partitionKeys)
+            for (BoundColumn column : partitionBoundColumns)
                 result = result == null ? "?" : result + ",?";
 
             return result;
@@ -542,8 +533,8 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             }
             else
             {
-                for (Key partitionKey1 : partitionKeys)
-                    values.add(partitionKey1.value);
+                for (BoundColumn partitionBoundColumn1 : partitionBoundColumns)
+                    values.add(partitionBoundColumn1.value);
 
                 if (clusterColumns.size() == 0 || clusterColumns.get(0).value == null)
                 {
@@ -561,17 +552,17 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         }
 
         /** recursively compose the query binding variables */
-        private int preparedQueryBindValues(List<Key> keys, int position, List<ByteBuffer> bindValues)
+        private int preparedQueryBindValues(List<BoundColumn> column, int position, List<ByteBuffer> bindValues)
         {
-            if (position == keys.size() - 1 || keys.get(position + 1).value == null)
+            if (position == column.size() - 1 || column.get(position + 1).value == null)
             {
-                bindValues.add(keys.get(position).value);
+                bindValues.add(column.get(position).value);
                 return position + 2;
             }
             else
             {
-                bindValues.add(keys.get(position).value);
-                return preparedQueryBindValues(keys, position + 1, bindValues);
+                bindValues.add(column.get(position).value);
+                return preparedQueryBindValues(column, position + 1, bindValues);
             }
         }
 
@@ -646,14 +637,14 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         List<String> keys = FBUtilities.fromJsonList(keyString);
 
         for (String key : keys)
-            partitionKeys.add(new Key(key));
+            partitionBoundColumns.add(new BoundColumn(key));
 
         keyString = ByteBufferUtil.string(ByteBuffer.wrap(cqlRow.columns.get(1).getValue()));
         logger.debug("cluster columns: " + keyString);
         keys = FBUtilities.fromJsonList(keyString);
 
         for (String key : keys)
-            clusterColumns.add(new Key(key));
+            clusterColumns.add(new BoundColumn(key));
 
         Column rawKeyValidator = cqlRow.columns.get(2);
         String validator = ByteBufferUtil.string(ByteBuffer.wrap(rawKeyValidator.getValue()));
@@ -663,12 +654,12 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         if (keyValidator instanceof CompositeType)
         {
             List<AbstractType<?>> types = ((CompositeType) keyValidator).types;
-            for (int i = 0; i < partitionKeys.size(); i++)
-                partitionKeys.get(i).validator = types.get(i);
+            for (int i = 0; i < partitionBoundColumns.size(); i++)
+                partitionBoundColumns.get(i).validator = types.get(i);
         }
         else
         {
-            partitionKeys.get(0).validator = keyValidator;
+            partitionBoundColumns.get(0).validator = keyValidator;
         }
     }
 
@@ -679,15 +670,15 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         ByteBuffer rowKey;
         if (keyValidator instanceof CompositeType)
         {
-            ByteBuffer[] keys = new ByteBuffer[partitionKeys.size()];
-            for (int i = 0; i < partitionKeys.size(); i++)
-                keys[i] = partitionKeys.get(i).value.duplicate();
+            ByteBuffer[] keys = new ByteBuffer[partitionBoundColumns.size()];
+            for (int i = 0; i < partitionBoundColumns.size(); i++)
+                keys[i] = partitionBoundColumns.get(i).value.duplicate();
 
             rowKey = ((CompositeType) keyValidator).build(keys);
         }
         else
         {
-            rowKey = partitionKeys.get(0).value;
+            rowKey = partitionBoundColumns.get(0).value;
         }
 
         String endToken = split.getEndToken();
@@ -716,13 +707,13 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         }
     }
 
-    private class Key
+    private class BoundColumn
     {
         final String name;
         ByteBuffer value;
         AbstractType<?> validator;
 
-        public Key(String name)
+        public BoundColumn(String name)
         {
             this.name = name;
         }
