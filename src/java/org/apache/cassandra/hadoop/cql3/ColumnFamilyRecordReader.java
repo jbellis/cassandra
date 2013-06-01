@@ -22,14 +22,12 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
+import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Iterables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -50,11 +48,6 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransport;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.AbstractIterator;
 
 /**
  * Hadoop RecordReader read the values return from the CQL query
@@ -296,8 +289,6 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
                     return endOfData();
                 }
 
-                // set last non-null key value to null
-
                 index = setTailNull(clusterKeys);
                 logger.debug("set tail to null, index: " + index);
                 iterator = executeQuery();
@@ -363,28 +354,22 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         /** check whether start to read a new CF row by comparing the partition keys */
         private boolean newRow(Map<String, ByteBuffer> keyColumns, String previousRowKey)
         {
-            if (keyColumns.size() == 0)
+            if (keyColumns.isEmpty())
                 return false;
 
             String rowKey = "";
             if (keyColumns.size() == 1)
-                rowKey = partitionKeys.get(0).validator.getString(
-                          ByteBufferUtil.clone(
-                                  keyColumns.get(
-                                          partitionKeys.get(0).name)));
+            {
+                rowKey = partitionKeys.get(0).validator.getString(keyColumns.get(partitionKeys.get(0).name));
+            }
             else
             {
-                Iterator<Key> keys = partitionKeys.iterator();
-                Iterator<String> itera = keyColumns.keySet().iterator();
-                while (keys.hasNext())
-                {
-                    rowKey = rowKey + keys.next().validator.getString(
-                            ByteBufferUtil.clone(keyColumns.get(itera.next()))) + ":";
-                }
+                Iterator<ByteBuffer> iter = keyColumns.values().iterator();
+                for (Key key : partitionKeys)
+                    rowKey = rowKey + key.validator.getString(ByteBufferUtil.clone(iter.next())) + ":";
             }
 
             logger.debug("previous RowKey: " + previousRowKey + ", new row key: " + rowKey);
-
             if (previousRowKey == null)
             {
                 this.previousRowKey = rowKey;
@@ -401,7 +386,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         /** set the last non-null key value to null, and return the previous index */
         private int setTailNull(List<Key> values)
         {
-            if (values.size() == 0)
+            if (values.isEmpty())
                 return -1;
 
             Iterator<Key> iterator = values.iterator();
@@ -433,18 +418,19 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         {
             Pair<Integer, String> clause = whereClause();
             if (columns == null)
+            {
                 columns = "*";
+            }
             else
             {
                 // add keys in the front in order
                 String partitionKey = keyString(partitionKeys);
                 String clusterKey = keyString(clusterKeys);
 
-                columns = removeKeyColumns(columns);
-                if (clusterKey == null || "".equals(clusterKey))
-                    columns = partitionKey + "," + columns;
-                else
-                    columns = partitionKey + "," + clusterKey + "," + columns;
+                columns = withoutKeyColumns(columns);
+                columns = (clusterKey == null || "".equals(clusterKey))
+                        ? partitionKey + "," + columns
+                        : partitionKey + "," + clusterKey + "," + columns;
             }
 
             return Pair.create(clause.left,
@@ -458,32 +444,20 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
 
 
         /** remove key columns from the column string */
-        private String removeKeyColumns(String columnString)
+        private String withoutKeyColumns(String columnString)
         {
-            Map<String, String> keys = new HashMap<String, String>();
-
-            for (Key key : partitionKeys)
-                keys.put(key.name, "");
-
-            if (clusterKeys != null && clusterKeys.size() > 0)
-            {
-                for (Key key : clusterKeys)
-                    keys.put(key.name, "");
-            }
+            Set<String> keyNames = new HashSet<String>();
+            for (Key key : Iterables.concat(partitionKeys, clusterKeys))
+                keyNames.add(key.name);
 
             String[] columns = columnString.split(",");
             String result = null;
-            boolean first = true;
             for (String column : columns)
             {
-                if (keys.get(column) != null)
+                if (keyNames.contains(column))
                     continue;
 
-                if (first)
-                    result = column;
-                else
-                    result = result + "," + column;
-                first = false;
+                result = result == null ? column : result + "," + column;
             }
             return result;
         }
@@ -728,21 +702,15 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         logger.debug("partition keys: " + keyString);
         List<String> keys = FBUtilities.fromJsonList(keyString);
 
-        Iterator<String> iterator = keys.iterator();
-        while (iterator.hasNext())
-        {
-            partitionKeys.add(new Key(iterator.next()));
-        }
+        for (String key : keys)
+            partitionKeys.add(new Key(key));
 
         keyString = ByteBufferUtil.string(ByteBuffer.wrap(cqlRow.columns.get(1).getValue()));
         logger.debug("cluster keys: " + keyString);
         keys = FBUtilities.fromJsonList(keyString);
 
-        iterator = keys.iterator();
-        while (iterator.hasNext())
-        {
-            clusterKeys.add(new Key(iterator.next()));
-        }
+        for (String key : keys)
+            clusterKeys.add(new Key(key));
 
         Column rawKeyValidator = cqlRow.columns.get(2);
         String validator = ByteBufferUtil.string(ByteBuffer.wrap(rawKeyValidator.getValue()));
@@ -810,7 +778,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
 
     private class Key
     {
-        String name;
+        final String name;
         ByteBuffer value;
         AbstractType<?> validator;
 
@@ -821,13 +789,13 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
     }
     
     /** get string from a ByteBuffer, catch the exception and throw it as runtime exception*/
-    private String stringValue(ByteBuffer value)
+    private static String stringValue(ByteBuffer value)
     {
         try
         {
             return ByteBufferUtil.string(value);
         }
-        catch(CharacterCodingException e)
+        catch (CharacterCodingException e)
         {
             throw new RuntimeException(e);
         }
