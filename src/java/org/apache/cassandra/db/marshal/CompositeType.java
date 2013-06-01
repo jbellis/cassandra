@@ -188,6 +188,7 @@ public class CompositeType extends AbstractCompositeType
         return new Builder(this);
     }
 
+    /** Destructively modifies source buffers! */
     public ByteBuffer build(ByteBuffer... buffers)
     {
         int totalLength = 0;

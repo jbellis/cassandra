@@ -265,7 +265,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         private int pageRows = 0;                // the number of cql rows read of this page
         private String previousRowKey = null;    // previous CF row key
         private String partitionKeyString;       // keys in <key1>, <key2>, <key3> string format
-        private String partitionKeyQuestions;    // question marks in ? , ? , ? format which matches the number of keys
+        private String partitionKeyMarkers;    // question marks in ? , ? , ? format which matches the number of keys
 
         public RowIterator()
         {
@@ -283,7 +283,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             while (!iterator.hasNext())
             {
                 // no more data
-                if (index == -1 || emptyValues(partitionKeys))
+                if (index == -1 || emptyPartitionKeyValues())
                 {
                     logger.debug("no more data.");
                     return endOfData();
@@ -307,7 +307,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             CqlRow row = iterator.next();
             for (Column column : row.columns)
             {
-                String columnName = getString(column.getName());
+                String columnName = stringValue(ByteBuffer.wrap(column.getName()));
                 logger.debug("column: " + columnName);
 
                 if (i < partitionKeys.size() + clusterColumns.size())
@@ -469,28 +469,22 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             if (partitionKeyString == null)
                 partitionKeyString = keyString(partitionKeys);
 
-            if (partitionKeyQuestions == null)
-                partitionKeyQuestions = partitionKeyQuestions();
-            //initial query token(k) >= start_token and token(k) <= end_token
-            if (emptyValues(partitionKeys))
-                return Pair.create(0,
-                                   " WHERE token(" + partitionKeyString + ") > ? AND token(" + partitionKeyString + ") <= ?");
-            else
-            {
-                //query token(k) > token(pre_partition_key) and token(k) <= end_token
-                if (clusterColumns.size() == 0 || clusterColumns.get(0).value == null)
-                    return Pair.create(1,
-                                       " WHERE token(" + partitionKeyString + ") > token(" + partitionKeyQuestions + ") "
-                                       + " AND token(" + partitionKeyString + ") <= ?");
-                else
-                {
-                    //query token(k) = token(pre_partition_key) and m = pre_cluster_key_m and n > pre_cluster_key_n 
-                    Pair<Integer, String> clause = whereClause(clusterColumns, 0);
-                    return Pair.create(clause.left,
-                                       " WHERE token(" + partitionKeyString + ") = token(" + partitionKeyQuestions + ") "
-                                       + clause.right);
-                }
-            }
+            if (partitionKeyMarkers == null)
+                partitionKeyMarkers = partitionKeyMarkers();
+            // initial query token(k) >= start_token and token(k) <= end_token
+            if (emptyPartitionKeyValues())
+                return Pair.create(0, " WHERE token(" + partitionKeyString + ") > ? AND token(" + partitionKeyString + ") <= ?");
+
+            // query token(k) > token(pre_partition_key) and token(k) <= end_token
+            if (clusterColumns.size() == 0 || clusterColumns.get(0).value == null)
+                return Pair.create(1,
+                                   " WHERE token(" + partitionKeyString + ") > token(" + partitionKeyMarkers + ") "
+                                   + " AND token(" + partitionKeyString + ") <= ?");
+
+            // query token(k) = token(pre_partition_key) and m = pre_cluster_key_m and n > pre_cluster_key_n
+            Pair<Integer, String> clause = whereClause(clusterColumns, 0);
+            return Pair.create(clause.left,
+                               " WHERE token(" + partitionKeyString + ") = token(" + partitionKeyMarkers + ") " + clause.right);
         }
 
         /** recursively compose the where clause */
@@ -498,22 +492,15 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         {
             if (position == keys.size() - 1 || keys.get(position + 1).value == null)
                 return Pair.create(position + 2, " AND " + keys.get(position).name + " > ? ");
-            else
-            {
-                Pair<Integer, String> clause = whereClause(keys, position + 1);
-                return Pair.create(clause.left,
-                                   " AND " + keys.get(position).name + " = ? "
-                                   + clause.right);
-            }
+
+            Pair<Integer, String> clause = whereClause(keys, position + 1);
+            return Pair.create(clause.left, " AND " + keys.get(position).name + " = ? " + clause.right);
         }
 
         /** check whether all key values are null */
-        private boolean emptyValues(List<Key> keys)
+        private boolean emptyPartitionKeyValues()
         {
-            if (keys.size() == 0)
-                return true;
-
-            for (Key key : keys)
+            for (Key key : partitionKeys)
             {
                 if (key.value != null)
                     return false;
@@ -525,33 +512,18 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         private String keyString(List<Key> keys)
         {
             String result = null;
-            boolean first = true;
             for (Key key : keys)
-            {
-                if (first)
-                    result = key.name;
-                else
-                    result = result + "," + key.name;
-                first = false;
-            }
+                result = result == null ? key.name : result + "," + key.name;
 
             return result == null ? "" : result;
         }
 
         /** compose the question marks for partition key string in format of ?, ? , ? */
-        private String partitionKeyQuestions()
+        private String partitionKeyMarkers()
         {
             String result = null;
-            boolean first = true;
             for (Key key : partitionKeys)
-            {
-                if (first)
-                    result = "?";
-                else
-                    result = result + ",?";
-
-                first = false;
-            }
+                result = result == null ? "?" : result + ",?";
 
             return result;
         }
@@ -562,7 +534,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             List<ByteBuffer> values = new LinkedList<ByteBuffer>();
 
             // initial query token(k) >= start_token and token(k) <= end_token
-            if (emptyValues(partitionKeys))
+            if (emptyPartitionKeyValues())
             {
                 values.add(partitioner.getTokenValidator().fromString(split.getStartToken()));
                 values.add(partitioner.getTokenValidator().fromString(split.getEndToken()));
@@ -648,39 +620,9 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
                 else
                     return null;
             }
-            catch (InvalidRequestException e)
+            catch (Exception e)
             {
                 logger.error("failed to execute prepared query", e);
-            }
-            catch (UnavailableException e)
-            {
-                logger.error("failed to execute prepared query", e);
-            }
-            catch (TimedOutException e)
-            {
-                logger.error("failed to execute prepared query", e);
-            }
-            catch (SchemaDisagreementException e)
-            {
-                logger.error("failed to execute prepared query", e);
-            }
-            catch (TException e)
-            {
-                logger.error("failed to execute prepared query", e);
-            }
-            return null;
-        }
-
-        /** get the string of the byte[] */
-        private String getString(byte[] value)
-        {
-            try
-            {
-                return ByteBufferUtil.string(ByteBuffer.wrap(value));
-            }
-            catch (CharacterCodingException e)
-            {
-                logger.error("can't get the string from byte array", e);
             }
             return null;
         }
@@ -692,7 +634,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         String query = "select key_aliases," +
                        "column_aliases, " +
                        "key_validator, " +
-                       "comparator  " +
+                       "comparator " +
                        "from system.schema_columnfamilies " +
                        "where keyspace_name='%s' and columnfamily_name='%s'";
         String formatted = String.format(query, keyspace, cfName);
@@ -707,7 +649,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             partitionKeys.add(new Key(key));
 
         keyString = ByteBufferUtil.string(ByteBuffer.wrap(cqlRow.columns.get(1).getValue()));
-        logger.debug("cluster keys: " + keyString);
+        logger.debug("cluster columns: " + keyString);
         keys = FBUtilities.fromJsonList(keyString);
 
         for (String key : keys)
@@ -720,28 +662,26 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
 
         if (keyValidator instanceof CompositeType)
         {
-            Iterator<AbstractType<?>> typeItera = ((CompositeType) keyValidator).types.iterator();
-            Iterator<Key> keyItera = partitionKeys.iterator();
-            while (typeItera.hasNext())
-                keyItera.next().validator = typeItera.next();
+            List<AbstractType<?>> types = ((CompositeType) keyValidator).types;
+            for (int i = 0; i < partitionKeys.size(); i++)
+                partitionKeys.get(i).validator = types.get(i);
         }
         else
+        {
             partitionKeys.get(0).validator = keyValidator;
-
+        }
     }
 
-    /** check whether current row is at the end of range*/
+    /** check whether current row is at the end of range */
     private boolean reachEndRange()
     {
-        for (Key k : partitionKeys) k.value.mark();
-
-        //current row key
+        // current row key
         ByteBuffer rowKey;
         if (keyValidator instanceof CompositeType)
         {
             ByteBuffer[] keys = new ByteBuffer[partitionKeys.size()];
             for (int i = 0; i < partitionKeys.size(); i++)
-                keys[i] = partitionKeys.get(i).value;
+                keys[i] = partitionKeys.get(i).value.duplicate();
 
             rowKey = ((CompositeType) keyValidator).build(keys);
         }
@@ -754,11 +694,10 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         String currentToken = partitioner.getToken(rowKey).toString();
         logger.debug("End token: " + endToken + ", current token: " + currentToken);
 
-        for (Key k : partitionKeys) k.value.reset();
         return endToken.equals(currentToken);
     }
 
-    private AbstractType<?> parseType(String type) throws IOException
+    private static AbstractType<?> parseType(String type) throws IOException
     {
         try
         {
