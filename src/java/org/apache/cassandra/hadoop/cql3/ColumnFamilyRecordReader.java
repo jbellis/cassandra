@@ -65,7 +65,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
     public static final int DEFAULT_CQL_PAGE_LIMIT = 1000; // TODO: find the number large enough but not OOM
 
     private ColumnFamilySplit split;
-    private RowIterator iter;
+    private RowIterator rowIterator;
 
     private Pair<Map<String, ByteBuffer>, Map<String, ByteBuffer>> currentRow;
     private int totalRowCount; // total number of rows to fetch
@@ -146,9 +146,9 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             throw new RuntimeException(e);
         }
 
-        iter = new RowIterator();
+        rowIterator = new RowIterator();
 
-        logger.debug("created {}", iter);
+        logger.debug("created {}", rowIterator);
     }
 
     public void close()
@@ -174,23 +174,23 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
 
     public float getProgress()
     {
-        if (!iter.hasNext())
+        if (!rowIterator.hasNext())
             return 1.0F;
 
         // the progress is likely to be reported slightly off the actual but close enough
-        float progress = ((float) iter.totalRead / totalRowCount);
+        float progress = ((float) rowIterator.totalRead / totalRowCount);
         return progress > 1.0F ? 1.0F : progress;
     }
 
     public boolean nextKeyValue() throws IOException
     {
-        if (!iter.hasNext())
+        if (!rowIterator.hasNext())
         {
-            logger.debug("Finished scanning " + iter.totalRead + " rows (estimate was: " + totalRowCount + ")");
+            logger.debug("Finished scanning " + rowIterator.totalRead + " rows (estimate was: " + totalRowCount + ")");
             return false;
         }
 
-        currentRow = iter.next();
+        currentRow = rowIterator.next();
         return true;
     }
 
@@ -244,7 +244,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
 
     public long getPos() throws IOException
     {
-        return (long) iter.totalRead;
+        return (long) rowIterator.totalRead;
     }
 
     public Map<String, ByteBuffer> createKey()
@@ -261,7 +261,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
     private class RowIterator extends AbstractIterator<Pair<Map<String, ByteBuffer>, Map<String, ByteBuffer>>>
     {
         protected int totalRead = 0;             // total number of cf rows read
-        protected Iterator<CqlRow> iterator;
+        protected Iterator<CqlRow> rows;
         private int pageRows = 0;                // the number of cql rows read of this page
         private String previousRowKey = null;    // previous CF row key
         private String partitionKeyString;       // keys in <key1>, <key2>, <key3> string format
@@ -270,17 +270,17 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         public RowIterator()
         {
             // initial page
-            iterator = executeQuery();
+            rows = executeQuery();
         }
 
         protected Pair<Map<String, ByteBuffer>, Map<String, ByteBuffer>> computeNext()
         {
-            if (iterator == null)
+            if (rows == null)
                 return endOfData();
 
             int index = -2;
             //check there are more page to read
-            while (!iterator.hasNext())
+            while (!rows.hasNext())
             {
                 // no more data
                 if (index == -1 || emptyPartitionKeyValues())
@@ -291,10 +291,10 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
 
                 index = setTailNull(clusterColumns);
                 logger.debug("set tail to null, index: " + index);
-                iterator = executeQuery();
+                rows = executeQuery();
                 pageRows = 0;
 
-                if (iterator == null || !iterator.hasNext() && index < 0)
+                if (rows == null || !rows.hasNext() && index < 0)
                 {
                     logger.debug("no more data.");
                     return endOfData();
@@ -304,7 +304,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             Map<String, ByteBuffer> valueColumns = createValue();
             Map<String, ByteBuffer> keyColumns = createKey();
             int i = 0;
-            CqlRow row = iterator.next();
+            CqlRow row = rows.next();
             for (Column column : row.columns)
             {
                 String columnName = stringValue(ByteBuffer.wrap(column.getName()));
@@ -326,7 +326,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
                 totalRead++;
 
             // read full page
-            if (pageRows >= pageRowSize || !iterator.hasNext())
+            if (pageRows >= pageRowSize || !rows.hasNext())
             {
                 // update partition keys
                 Iterator<String> newKeys = keyColumns.keySet().iterator();
@@ -344,7 +344,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
                     key.value = keyColumns.get(newKeys.next());
                 }
 
-                iterator = executeQuery();
+                rows = executeQuery();
                 pageRows = 0;
             }
 
