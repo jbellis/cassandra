@@ -22,10 +22,15 @@ package org.apache.cassandra.cache;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.io.util.Memory;
 
 public class FreeableMemory extends Memory
 {
+    private static final Logger logger = LoggerFactory.getLogger(FreeableMemory.class);
+
     AtomicInteger references = new AtomicInteger(1);
 
     public FreeableMemory(long size)
@@ -54,6 +59,18 @@ public class FreeableMemory extends Memory
     {
         if (references.decrementAndGet() == 0)
             free();
+    }
+
+    @Override
+    protected void finalize() throws Throwable
+    {
+        int refcount = references.get();
+        if (refcount != 0)
+            logger.debug("Unreachable memory still has nonzero refcount {}", refcount);
+        if (peer != 0)
+            logger.debug("Unreachable memory {} has not been freed (will free now)", peer);
+
+        super.finalize();
     }
 
     @Override
