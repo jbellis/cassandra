@@ -20,10 +20,7 @@ package org.apache.cassandra.hadoop.cql3;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
@@ -162,7 +159,6 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     @Override
     public void write(Map<String, ByteBuffer> keyColumns, List<ByteBuffer> values) throws IOException
     {
-        addKeysToBindedValues(keyColumns, values);
         Range<Token> range = ringCache.getRange(getPartitionKey(keyColumns));
 
         // get the client for the given range, or create a new one
@@ -175,7 +171,14 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
             clients.put(range, client);
         }
 
-        client.put(values);
+        // add primary key columns to the bind variables
+        List<ByteBuffer> allValues = new ArrayList<ByteBuffer>(values);
+        for (String column : partitionKeyColumns)
+            allValues.add(keyColumns.get(column));
+        for (String column : clusterColumns)
+            allValues.add(keyColumns.get(column));
+
+        client.put(allValues);
         progressable.progress();
     }
 
@@ -364,41 +367,18 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         }
     }
 
-    /** add partition keys and cluster columns values to binded variables */
-    private void addKeysToBindedValues(Map<String, ByteBuffer> keyColumns, List<ByteBuffer> values)
-    {
-        for (String column : partitionKeyColumns)
-        {
-            ByteBuffer keyValue = keyColumns.get(column);
-            if (keyValue != null)
-                values.add(keyValue);
-        }
-
-        if (clusterColumns != null && clusterColumns.size() > 0)
-        {
-            for (String column : clusterColumns)
-            {
-                ByteBuffer keyValue = keyColumns.get(column);
-                if (keyValue != null)
-                    values.add(keyValue);
-            }
-        }
-    }
-
     /**
      * add where clauses for partition keys and cluster columns
      */
     private String appendKeyWhereClauses(String cqlQuery)
     {
         String keyWhereClause = "";
+
         for (String partitionKey : partitionKeyColumns)
             keyWhereClause += String.format("%s = ?", keyWhereClause.isEmpty() ? partitionKey : (" AND " + partitionKey));
+        for (String clusterColumn : clusterColumns)
+            keyWhereClause += " AND " + clusterColumn + " = ?";
 
-        if (clusterColumns != null)
-        {
-            for (String clusterColumn : clusterColumns)
-                keyWhereClause += " AND " + clusterColumn + " = ?";
-        }
         return cqlQuery + " WHERE " + keyWhereClause;
     }
 }
