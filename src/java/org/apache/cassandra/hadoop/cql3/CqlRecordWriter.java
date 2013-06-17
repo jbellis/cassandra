@@ -75,7 +75,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     private final String cql;
 
     private AbstractType<?> keyValidator;
-    private String [] partitionkeys;
+    private String [] partitionKeyColumns;
     private List<String> clusterColumns;
 
     /**
@@ -299,15 +299,15 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         ByteBuffer partitionKey;
         if (keyValidator instanceof CompositeType)
         {
-            ByteBuffer[] keys = new ByteBuffer[partitionkeys.length];
+            ByteBuffer[] keys = new ByteBuffer[partitionKeyColumns.length];
             for (int i = 0; i< keys.length; i++)
-                keys[i] = keyColumns.get(partitionkeys[i]);
+                keys[i] = keyColumns.get(partitionKeyColumns[i]);
 
             partitionKey = ((CompositeType) keyValidator).build(keys);
         }
         else
         {
-            partitionKey = keyColumns.get(partitionkeys[0]);
+            partitionKey = keyColumns.get(partitionKeyColumns[0]);
         }
         return partitionKey;
     }
@@ -334,11 +334,11 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         logger.debug("partition keys: " + keyString);
 
         List<String> keys = FBUtilities.fromJsonList(keyString);
-        partitionkeys = new String[keys.size()];
+        partitionKeyColumns = new String[keys.size()];
         int i = 0;
         for (String key : keys)
         {
-            partitionkeys[i] = key;
+            partitionKeyColumns[i] = key;
             i++;
         }
 
@@ -367,44 +367,38 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     /** add partition keys and cluster columns values to binded variables */
     private void addKeysToBindedValues(Map<String, ByteBuffer> keyColumns, List<ByteBuffer> values)
     {
-        for(String partitionKey: partitionkeys)
+        for (String column : partitionKeyColumns)
         {
-            ByteBuffer keyValue = keyColumns.get(partitionKey);
+            ByteBuffer keyValue = keyColumns.get(column);
             if (keyValue != null)
                 values.add(keyValue);
         }
-        
+
         if (clusterColumns != null && clusterColumns.size() > 0)
         {
-            for(String clusterColumn: clusterColumns)
+            for (String column : clusterColumns)
             {
-                ByteBuffer keyValue = keyColumns.get(clusterColumn);
+                ByteBuffer keyValue = keyColumns.get(column);
                 if (keyValue != null)
                     values.add(keyValue);
             }
         }
     }
-    
-    /** add where clauses for partition keys and cluster columns */
+
+    /**
+     * add where clauses for partition keys and cluster columns
+     */
     private String appendKeyWhereClauses(String cqlQuery)
-    {   
-        String prefix;
-        if (cqlQuery.toLowerCase().contains("where"))
-            prefix = " AND ";
-        else
-            prefix = " WHERE ";
-        
-        String keyWhereClause = null;
-        for(String partitionKey: partitionkeys)
-            keyWhereClause = (keyWhereClause == null ? "" : keyWhereClause) + 
-                             (keyWhereClause == null ? partitionKey : " AND " + partitionKey) + 
-                             " = ?";
-        
-        if (clusterColumns != null && clusterColumns.size() > 0)
+    {
+        String keyWhereClause = "";
+        for (String partitionKey : partitionKeyColumns)
+            keyWhereClause += String.format("%s = ?", keyWhereClause.isEmpty() ? partitionKey : (" AND " + partitionKey));
+
+        if (clusterColumns != null)
         {
-            for(String clusterColumn: clusterColumns)
-                keyWhereClause +=  " AND " + clusterColumn + " = ?";
+            for (String clusterColumn : clusterColumns)
+                keyWhereClause += " AND " + clusterColumn + " = ?";
         }
-        return cqlQuery + prefix + keyWhereClause;
+        return cqlQuery + " WHERE " + keyWhereClause;
     }
 }
