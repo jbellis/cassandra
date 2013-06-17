@@ -26,7 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.cassandra.thrift.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.LongType;
@@ -38,15 +40,13 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.hadoop.AbstractColumnFamilyRecordWriter;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.hadoop.Progressable;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransport;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * The <code>ColumnFamilyRecordWriter</code> maps the output &lt;key, value&gt;
@@ -179,7 +179,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
             clients.put(range, client);
         }
 
-        client.put(Pair.create(rowKey, values));
+        client.put(values);
         progressable.progress();
     }
 
@@ -206,10 +206,10 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
             outer:
             while (run || !queue.isEmpty())
             {
-                Pair<ByteBuffer, List<ByteBuffer>> item;
+                List<ByteBuffer> bindVariables;
                 try
                 {
-                    item = queue.take();
+                    bindVariables = queue.take();
                 }
                 catch (InterruptedException e)
                 {
@@ -225,16 +225,15 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
                     {
                         int i = 0;
                         int itemId = preparedStatement(client);
-                        while (item != null)
+                        while (bindVariables != null)
                         {
-                            List<ByteBuffer> bindVariables = item.right;
                             client.execute_prepared_cql3_query(itemId, bindVariables, ConsistencyLevel.ONE);
                             i++;
                             
                             if (i >= batchThreshold)
                                 break;
                             
-                            item = queue.poll();
+                            bindVariables = queue.poll();
                         }
                         
                         break;
