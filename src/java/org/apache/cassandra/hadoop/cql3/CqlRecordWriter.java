@@ -104,11 +104,9 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
 
         try
         {
-            String host = getAnyHost();
-            int port = ConfigHelper.getOutputRpcPort(conf);
-            Cassandra.Client client = CqlOutputFormat.createAuthenticatedClient(host, port, conf);
+            Cassandra.Client client = ConfigHelper.getClientFromOutputAddressList(conf);
             retrievePartitionKeyValidator(client);
-            String cqlQuery = CqlConfigHelper.getOutputCql(conf);
+            String cqlQuery = CqlConfigHelper.getOutputCql(conf).trim();
             if (cqlQuery.toLowerCase().startsWith("insert"))
                 throw new UnsupportedOperationException("INSERT with CqlRecordWriter is not supported, please use UPDATE/DELETE statement");
             cql = appendKeyWhereClauses(cqlQuery);
@@ -363,25 +361,6 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         catch (SyntaxException e)
         {
             throw new ConfigurationException(e.getMessage(), e);
-        }
-    }
-    
-    private String getAnyHost() throws IOException, InvalidRequestException, TException
-    {
-        Cassandra.Client client = ConfigHelper.getClientFromOutputAddressList(conf);
-        List<TokenRange> ring = client.describe_ring(ConfigHelper.getOutputKeyspace(conf));
-        if (ring.isEmpty())
-            throw new AssertionError("Ring should always contain at least the endpoint we connected to");
-
-        try
-        {
-            return ring.get(0).endpoints.get(0);
-        }
-        finally
-        {
-            TTransport transport = client.getOutputProtocol().getTransport();
-            if (transport.isOpen())
-                transport.close();
         }
     }
 
