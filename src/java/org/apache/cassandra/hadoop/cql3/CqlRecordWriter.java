@@ -76,6 +76,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
 
     private AbstractType<?> keyValidator;
     private String [] partitionkeys;
+    private List<String> clusterColumns;
 
     /**
      * Upon construction, obtain the map that this writer will use to collect
@@ -100,7 +101,6 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     {
         super(conf);
         this.clients = new HashMap<Range, RangeClient>();
-        cql = CqlConfigHelper.getOutputCql(conf);
 
         try
         {
@@ -108,7 +108,11 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
             int port = ConfigHelper.getOutputRpcPort(conf);
             Cassandra.Client client = CqlOutputFormat.createAuthenticatedClient(host, port, conf);
             retrievePartitionKeyValidator(client);
-            
+            String cqlQuery = CqlConfigHelper.getOutputCql(conf);
+            if (cqlQuery.toLowerCase().startsWith("insert"))
+                throw new UnsupportedOperationException("INSERT with CqlRecordWriter is not supported, please use UPDATE/DELETE statement");
+            cql = appendKeyWhereClauses(cqlQuery);
+
             if (client != null)
             {
                 TTransport transport = client.getOutputProtocol().getTransport();
@@ -161,6 +165,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     @Override
     public void write(Map<String, ByteBuffer> keyColumns, List<ByteBuffer> values) throws IOException
     {
+        addKeysToBindedValues(keyColumns, values);
         ByteBuffer rowKey = getRowKey(keyColumns);
         Range<Token> range = ringCache.getRange(rowKey);
 
@@ -319,7 +324,8 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         String keyspace = ConfigHelper.getOutputKeyspace(conf);
         String cfName = ConfigHelper.getOutputColumnFamily(conf);
         String query = "SELECT key_validator," +
-        		       "       key_aliases " +
+        		       "       key_aliases," +
+        		       "       column_aliases " +
                        "FROM system.schema_columnfamilies " +
                        "WHERE keyspace_name='%s' and columnfamily_name='%s'";
         String formatted = String.format(query, keyspace, cfName);
@@ -341,6 +347,12 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
             partitionkeys[i] = key;
             i++;
         }
+
+        Column rawClusterColumns = result.rows.get(0).columns.get(2);
+        String clusterColumnString = ByteBufferUtil.string(ByteBuffer.wrap(rawClusterColumns.getValue()));
+
+        logger.debug("cluster columns: " + clusterColumnString);
+        clusterColumns = FBUtilities.fromJsonList(clusterColumnString);
     }
 
     private AbstractType<?> parseType(String type) throws IOException
@@ -380,4 +392,47 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         throw new IOException("There are no endpoints");
     }
 
+    /** add partition keys and cluster columns values to binded variables */
+    private void addKeysToBindedValues(Map<String, ByteBuffer> keyColumns, List<ByteBuffer> values)
+    {
+        for(String partitionKey: partitionkeys)
+        {
+            ByteBuffer keyValue = keyColumns.get(partitionKey);
+            if (keyValue != null)
+                values.add(keyValue);
+        }
+        
+        if (clusterColumns != null && clusterColumns.size() > 0)
+        {
+            for(String clusterColumn: clusterColumns)
+            {
+                ByteBuffer keyValue = keyColumns.get(clusterColumn);
+                if (keyValue != null)
+                    values.add(keyValue);
+            }
+        }
+    }
+    
+    /** add where clauses for partition keys and cluster columns */
+    private String appendKeyWhereClauses(String cqlQuery)
+    {   
+        String prefix;
+        if (cqlQuery.toLowerCase().indexOf("where") > -1)
+            prefix = " AND ";
+        else
+            prefix = " WHERE ";
+        
+        String keyWhereClause = null;
+        for(String partitionKey: partitionkeys)
+            keyWhereClause = (keyWhereClause == null ? "" : keyWhereClause) + 
+                             (keyWhereClause == null ? partitionKey : " AND " + partitionKey) + 
+                             " = ?";
+        
+        if (clusterColumns != null && clusterColumns.size() > 0)
+        {
+            for(String clusterColumn: clusterColumns)
+                keyWhereClause +=  " AND " + clusterColumn + " = ?";
+        }
+        return cqlQuery + prefix + keyWhereClause;
+    }
 }
