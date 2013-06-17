@@ -118,7 +118,6 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
                 TTransport transport = client.getOutputProtocol().getTransport();
                 if (transport.isOpen())
                     transport.close();
-                client = null;
             }
         }
         catch (Exception e)
@@ -166,8 +165,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     public void write(Map<String, ByteBuffer> keyColumns, List<ByteBuffer> values) throws IOException
     {
         addKeysToBindedValues(keyColumns, values);
-        ByteBuffer rowKey = getRowKey(keyColumns);
-        Range<Token> range = ringCache.getRange(rowKey);
+        Range<Token> range = ringCache.getRange(getPartitionKey(keyColumns));
 
         // get the client for the given range, or create a new one
         RangeClient client = clients.get(range);
@@ -298,23 +296,22 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         }
     }
 
-    private ByteBuffer getRowKey(Map<String, ByteBuffer> keyColumns)
+    private ByteBuffer getPartitionKey(Map<String, ByteBuffer> keyColumns)
     {
-        //current row key
-        ByteBuffer rowKey;
+        ByteBuffer partitionKey;
         if (keyValidator instanceof CompositeType)
         {
             ByteBuffer[] keys = new ByteBuffer[partitionkeys.length];
             for (int i = 0; i< keys.length; i++)
                 keys[i] = keyColumns.get(partitionkeys[i]);
 
-            rowKey = ((CompositeType) keyValidator).build(keys);
+            partitionKey = ((CompositeType) keyValidator).build(keys);
         }
         else
         {
-            rowKey = keyColumns.get(partitionkeys[0]);
+            partitionKey = keyColumns.get(partitionkeys[0]);
         }
-        return rowKey;
+        return partitionKey;
     }
 
     /** retrieve the key validator from system.schema_columnfamilies table */
@@ -373,10 +370,12 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     {
         Cassandra.Client client = ConfigHelper.getClientFromOutputAddressList(conf);
         List<TokenRange> ring = client.describe_ring(ConfigHelper.getOutputKeyspace(conf));
+        if (ring.isEmpty())
+            throw new AssertionError("Ring should always contain at least the endpoint we connected to");
+
         try
         {
-            for (TokenRange range : ring)
-                return range.endpoints.get(0);
+            return ring.get(0).endpoints.get(0);
         }
         finally
         {
@@ -384,7 +383,6 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
             if (transport.isOpen())
                 transport.close();
         }
-        throw new AssertionError("Ring should always contain at least the endpoint we connected to");
     }
 
     /** add partition keys and cluster columns values to binded variables */
@@ -412,7 +410,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     private String appendKeyWhereClauses(String cqlQuery)
     {   
         String prefix;
-        if (cqlQuery.toLowerCase().indexOf("where") > -1)
+        if (cqlQuery.toLowerCase().contains("where"))
             prefix = " AND ";
         else
             prefix = " WHERE ";
