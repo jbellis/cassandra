@@ -97,7 +97,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         this.progressable = progressable;
     }
 
-    CqlRecordWriter(Configuration conf) throws IOException
+    CqlRecordWriter(Configuration conf)
     {
         super(conf);
         this.clients = new HashMap<Range, RangeClient>();
@@ -123,7 +123,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         }
         catch (Exception e)
         {
-            throw new IOException(e);
+            throw new RuntimeException(e);
         }
     }
     
@@ -355,7 +355,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         clusterColumns = FBUtilities.fromJsonList(clusterColumnString);
     }
 
-    private AbstractType<?> parseType(String type) throws IOException
+    private AbstractType<?> parseType(String type) throws ConfigurationException
     {
         try
         {
@@ -364,13 +364,9 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
                 return LongType.instance;
             return TypeParser.parse(type);
         }
-        catch (ConfigurationException e)
-        {
-            throw new IOException(e);
-        }
         catch (SyntaxException e)
         {
-            throw new IOException(e);
+            throw new ConfigurationException(e.getMessage(), e);
         }
     }
     
@@ -389,7 +385,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
             if (transport.isOpen())
                 transport.close();
         }
-        throw new IOException("There are no endpoints");
+        throw new AssertionError("Ring should always contain at least the endpoint we connected to");
     }
 
     /** add partition keys and cluster columns values to binded variables */
