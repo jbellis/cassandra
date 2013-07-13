@@ -399,57 +399,57 @@ public class CompactionsTest extends SchemaLoader
         assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(0, 210)));
 
         // separate ranges span all data
-        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(  0,   9,
+        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
                                                                        100, 109,
                                                                        200, 209)));
-        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(  0, 109,
+        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(0, 109,
                                                                        200, 210)));
-        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(  0,   9,
+        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
                                                                        100, 210)));
 
         // one range is missing completely
         assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(100, 109,
                                                                       200, 209)));
-        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(  0,   9,
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
                                                                       200, 209)));
-        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(  0,   9,
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
                                                                       100, 109)));
 
 
         // the beginning of one range is missing
-        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(  1,   9,
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(1, 9,
                                                                       100, 109,
                                                                       200, 209)));
-        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(  0,   9,
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
                                                                       101, 109,
                                                                       200, 209)));
-        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(  0,   9,
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
                                                                       100, 109,
                                                                       201, 209)));
 
         // the end of one range is missing
-        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(  0,   8,
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 8,
                                                                       100, 109,
                                                                       200, 209)));
-        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(  0,   9,
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
                                                                       100, 108,
                                                                       200, 209)));
-        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(  0,   9,
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
                                                                       100, 109,
                                                                       200, 208)));
 
         // some ranges don't contain any data
-        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(  0,   0,
-                                                                         0,   9,
-                                                                        50,  51,
+        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(0, 0,
+                                                                       0, 9,
+                                                                       50, 51,
                                                                        100, 109,
                                                                        150, 199,
                                                                        200, 209,
                                                                        300, 301)));
         // same case, but with a middle range not covering some of the existing data
-        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(  0,   0,
-                                                                         0,   9,
-                                                                        50,  51,
+        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(0, 0,
+                                                                       0, 9,
+                                                                       50, 51,
                                                                        100, 103,
                                                                        150, 199,
                                                                        200, 209,
