@@ -909,17 +909,14 @@ public class SSTableReader extends SSTable
     {
         long sampledPosition = getIndexScanPosition(position);
 
-        int i = 0;
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
-        while (segments.hasNext() && i <= indexSummary.getIndexInterval())
+        while (segments.hasNext())
         {
             FileDataInput in = segments.next();
             try
             {
-                while (!in.isEOF() && i <= indexSummary.getIndexInterval())
+                while (!in.isEOF())
                 {
-                    i++;
-
                     ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
                     DecoratedKey indexDecoratedKey = partitioner.decorateKey(indexKey);
                     if (indexDecoratedKey.compareTo(position) > 0)
@@ -938,6 +935,7 @@ public class SSTableReader extends SSTable
                 FileUtils.closeQuietly(in);
             }
         }
+
         return null;
     }
 
