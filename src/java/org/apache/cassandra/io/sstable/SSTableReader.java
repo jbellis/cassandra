@@ -46,7 +46,6 @@ import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.ICompactionScanner;
-import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
@@ -67,9 +66,6 @@ import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR
 public class SSTableReader extends SSTable
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
-
-    // guesstimated size of INDEX_INTERVAL index entries
-    private static final int INDEX_FILE_BUFFER_BYTES = 16 * CFMetaData.DEFAULT_INDEX_INTERVAL;
 
     /**
      * maxDataAge is a timestamp in local server time (e.g. System.currentTimeMilli) which represents an uppper bound
@@ -824,7 +820,7 @@ public class SSTableReader extends SSTable
         // is lesser than the first key of next interval (and in that case we must return the position of the first key
         // of the next interval).
         int i = 0;
-        Iterator<FileDataInput> segments = ifile.iterator(sampledPosition, INDEX_FILE_BUFFER_BYTES);
+        Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
         while (segments.hasNext() && i <= indexSummary.getIndexInterval())
         {
             FileDataInput in = segments.next();
@@ -914,7 +910,7 @@ public class SSTableReader extends SSTable
         long sampledPosition = getIndexScanPosition(position);
 
         int i = 0;
-        Iterator<FileDataInput> segments = ifile.iterator(sampledPosition, INDEX_FILE_BUFFER_BYTES);
+        Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
         while (segments.hasNext() && i <= indexSummary.getIndexInterval())
         {
             FileDataInput in = segments.next();
