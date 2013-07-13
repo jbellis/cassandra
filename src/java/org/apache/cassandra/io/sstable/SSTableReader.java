@@ -909,9 +909,9 @@ public class SSTableReader extends SSTable
     /**
      * Finds and returns the first key beyond a given token in this SSTable or null if no such key exists.
      */
-    public DecoratedKey firstKeyBeyond(RowPosition token)
+    public DecoratedKey firstKeyBeyond(RowPosition position)
     {
-        long sampledPosition = getIndexScanPosition(token);
+        long sampledPosition = getIndexScanPosition(position);
 
         int i = 0;
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition, INDEX_FILE_BUFFER_BYTES);
@@ -926,7 +926,7 @@ public class SSTableReader extends SSTable
 
                     ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
                     DecoratedKey indexDecoratedKey = partitioner.decorateKey(indexKey);
-                    if (indexDecoratedKey.compareTo(token) > 0)
+                    if (indexDecoratedKey.compareTo(position) > 0)
                         return indexDecoratedKey;
 
                     RowIndexEntry.serializer.skip(in);
