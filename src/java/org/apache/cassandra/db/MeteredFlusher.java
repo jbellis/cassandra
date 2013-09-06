@@ -38,8 +38,9 @@ public class MeteredFlusher implements Runnable
         long totalMemtableBytesAllowed = DatabaseDescriptor.getTotalMemtableSpaceInMB() * 1048576L;
 
         // first, find how much memory non-active memtables are using
-        Memtable activelyMeasuring = Memtable.activelyMeasuring;
-        long flushingBytes = activelyMeasuring == null ? 0 : activelyMeasuring.getLiveSize();
+        long flushingBytes = Memtable.activelyMeasuring == null
+                           ? 0
+                           : Memtable.activelyMeasuring.getMemtableThreadSafe().getLiveSize();
         flushingBytes += countFlushingBytes();
         if (flushingBytes > 0)
             logger.debug("Currently flushing {} bytes of {} max", flushingBytes, totalMemtableBytesAllowed);

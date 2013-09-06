@@ -1023,7 +1023,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return (int) metric.memtableSwitchCount.count();
     }
 
-    private Memtable getMemtableThreadSafe()
+    Memtable getMemtableThreadSafe()
     {
         return data.getMemtable();
     }
