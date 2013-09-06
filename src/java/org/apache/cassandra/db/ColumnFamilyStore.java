@@ -40,6 +40,7 @@ import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.cache.RowCacheSentinel;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.CFMetaData.SpeculativeRetry;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -80,6 +81,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
+    private static final ExecutorService preFlushExecutor = new ThreadPoolExecutor(1,
+                                                                                   DatabaseDescriptor.getConcurrentWriters(),
+                                                                                   10,
+                                                                                   TimeUnit.SECONDS,
+                                                                                   new LinkedBlockingDeque<Runnable>());
     public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor("MemtablePostFlusher");
 
     public final Keyspace keyspace;
@@ -693,17 +699,29 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * flag allow to force switching the memtable even if it is clean (though
      * in that case we don't flush, as there is no point).
      */
-    public Future<?> switchMemtable(final boolean writeCommitLog, boolean forceSwitch)
+    public Future<Future<?>> switchMemtable(final boolean writeCommitLog, final boolean forceSwitch)
+    {
+        // we don't want to block the caller on the switchLock, so we push that off to preFlushExecutor
+        Callable<Future<?>> callable = new Callable<Future<?>>()
+        {
+            public Future<?> call() throws Exception
+            {
+                return switchMemtableInternal(writeCommitLog, forceSwitch);
+            }
+        };
+        return preFlushExecutor.submit(callable);
+    }
+
+    public Future<?> switchMemtableInternal(final boolean writeCommitLog, boolean forceSwitch)
     {
         /*
          * If we can get the writelock, that means no new updates can come in and
          * all ongoing updates to memtables have completed. We can get the tail
          * of the log and use it as the starting position for log replay on recovery.
          *
-         * This is why we Keyspace.switchLock needs to be global instead of per-Keyspace:
-         * we need to schedule discardCompletedSegments calls in the same order as their
-         * contexts (commitlog position) were read, even though the flush executor
-         * is multithreaded.
+         * We release the writelock once the flush is accepted onto a flushExecutor queue.
+         * Thus, we will block writes (for this CF) if flushing gets too far behind.
+         * This is a good thing, or we might OOM collecting full memtables!
          */
         Keyspace.switchLock.writeLock().lock();
         try
@@ -742,9 +760,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 metric.memtableSwitchCount.clear();
             metric.memtableSwitchCount.inc();
 
-            // when all the memtables have been written, including for indexes, mark the flush in the commitlog header.
-            // a second executor makes sure the onMemtableFlushes get called in the right order,
-            // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
+
+            /*
+             * This is why we Table.switchLock needs to be global instead of per-Table:
+             * we need to schedule discardCompletedSegments calls in the same order as their
+             * contexts (commitlog position) were read, even though the flush executor
+             * is multithreaded.
+             */
             return postFlushExecutor.submit(new WrappedRunnable()
             {
                 public void runMayThrow() throws InterruptedException, ExecutionException
@@ -791,9 +813,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /**
      * @return a future, with a guarantee that any data inserted prior to the forceFlush() call is fully flushed
-     *         by the time future.get() returns. Never returns null.
+     *         by the time future.get().get() returns. Never returns null.
      */
-    public Future<?> forceFlush()
+    public Future<Future<?>> forceFlush()
     {
         if (isClean())
         {
@@ -801,13 +823,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // flushed. Make sure the future returned wait for that so callers can
             // assume that any data inserted prior to the call are fully flushed
             // when the future returns (see #5241).
-            return postFlushExecutor.submit(new Runnable()
+            Future<?> postFlushed = postFlushExecutor.submit(new Runnable()
             {
                 public void run()
                 {
                     logger.debug("forceFlush requested but everything is clean in {}", name);
                 }
             });
+            return (Future) Futures.immediateFuture(postFlushed); // fuck generics
         }
 
         return switchMemtable(true, false);
@@ -815,7 +838,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void forceBlockingFlush()
     {
-        FBUtilities.waitOnFuture(forceFlush());
+        FBUtilities.waitOnFuture(FBUtilities.waitOnFuture(forceFlush()));
     }
 
     public void maybeUpdateRowCache(DecoratedKey key)
