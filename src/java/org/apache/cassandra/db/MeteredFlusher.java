@@ -35,20 +35,23 @@ public class MeteredFlusher implements Runnable
 
     public void run()
     {
+        long totalMemtableBytesAllowed = DatabaseDescriptor.getTotalMemtableSpaceInMB() * 1048576L;
+
         // first, find how much memory non-active memtables are using
         Memtable activelyMeasuring = Memtable.activelyMeasuring.getMemtableThreadSafe();
         long flushingBytes = activelyMeasuring == null ? 0 : activelyMeasuring.getLiveSize();
         flushingBytes += countFlushingBytes();
         if (flushingBytes > 0)
             logger.debug("Currently flushing {} bytes of {}MB max", flushingBytes);
-        if (flushingBytes > DatabaseDescriptor.getTotalMemtableSpaceInMB())
-            logger.warn("Entire memtable quota {}MB is occupied by flushing memtables", DatabaseDescriptor.getTotalMemtableSpaceInMB());
+        if (flushingBytes > totalMemtableBytesAllowed)
+            logger.debug("Entire memtable quota {} is occupied by flushing memtables", totalMemtableBytesAllowed);
 
         // next, flush CFs using more than 1 / (maximum number of memtables it could have in the pipeline)
         // of the total size allotted.  Then, flush other CFs in order of size if necessary.
         long liveBytes = 0;
         try
         {
+            long totalMemtableBytesUnused = totalMemtableBytesAllowed - flushingBytes;
             for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
             {
                 long size = cfs.getTotalMemtableLiveSize();
@@ -57,7 +60,7 @@ public class MeteredFlusher implements Runnable
                                                             + DatabaseDescriptor.getFlushWriters()
                                                             + DatabaseDescriptor.getFlushQueueSize())
                                                   / (1 + cfs.indexManager.getIndexesBackedByCfs().size()));
-                if (size > (DatabaseDescriptor.getTotalMemtableSpaceInMB() * 1048576L - flushingBytes) / maxInFlight)
+                if (totalMemtableBytesUnused > 0 && size > totalMemtableBytesUnused / maxInFlight)
                 {
                     logger.info("flushing high-traffic column family {} (estimated {} bytes)", cfs, size);
                     cfs.forceFlush();
@@ -68,7 +71,7 @@ public class MeteredFlusher implements Runnable
                 }
             }
 
-            if (flushingBytes + liveBytes <= DatabaseDescriptor.getTotalMemtableSpaceInMB() * 1048576L)
+            if (flushingBytes + liveBytes <= totalMemtableBytesAllowed)
                 return;
 
             logger.info("estimated {} bytes used by all memtables pre-flush", liveBytes);
@@ -96,7 +99,7 @@ public class MeteredFlusher implements Runnable
             while (true)
             {
                 flushingBytes = countFlushingBytes();
-                if (liveBytes + flushingBytes <= DatabaseDescriptor.getTotalMemtableSpaceInMB() * 1048576L || sorted.isEmpty())
+                if (liveBytes + flushingBytes <= totalMemtableBytesAllowed || sorted.isEmpty())
                     break;
 
                 ColumnFamilyStore cfs = sorted.remove(sorted.size() - 1);
