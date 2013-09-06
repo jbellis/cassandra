@@ -29,6 +29,9 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Checksum;
 
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.Histogram;
+import com.yammer.metrics.stats.ExponentiallyDecayingSample;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +60,8 @@ public class CommitLogSegment
 
     // The commit log entry overhead in bytes (int: length + long: head checksum + long: tail checksum)
     static final int ENTRY_OVERHEAD_SIZE = 4 + 8 + 8;
+
+    public static final Histogram mutationSizes = Metrics.newHistogram(CommitLogSegment.class, "MutationSizes", true);
 
     // cache which cf is dirty in this segment to avoid having to lookup all ReplayPositions to decide if we can delete this segment
     private final HashMap<UUID, Integer> cfLastWrite = new HashMap<UUID, Integer>();
@@ -214,6 +219,7 @@ public class CommitLogSegment
 
         Checksum checksum = new PureJavaCrc32();
         byte[] serializedRow = FBUtilities.serialize(rowMutation, RowMutation.serializer, MessagingService.current_version);
+        mutationSizes.update(serializedRow.length);
 
         checksum.update(serializedRow.length);
         buffer.putInt(serializedRow.length);
