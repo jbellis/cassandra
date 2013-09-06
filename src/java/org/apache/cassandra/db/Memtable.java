@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
@@ -101,7 +102,7 @@ public class Memtable
 
     private final MemoryMeter meter;
 
-    volatile static Memtable activelyMeasuring;
+    volatile static ColumnFamilyStore activelyMeasuring;
 
     private final AtomicLong currentSize = new AtomicLong(0);
     private final AtomicLong currentOperations = new AtomicLong(0);
@@ -196,56 +197,7 @@ public class Memtable
             return;
         }
 
-        Runnable runnable = new Runnable()
-        {
-            public void run()
-            {
-                try
-                {
-                    activelyMeasuring = Memtable.this;
-
-                    long start = System.currentTimeMillis();
-                    // ConcurrentSkipListMap has cycles, so measureDeep will have to track a reference to EACH object it visits.
-                    // So to reduce the memory overhead of doing a measurement, we break it up to row-at-a-time.
-                    long deepSize = meter.measure(columnFamilies);
-                    int objects = 0;
-                    for (Map.Entry<RowPosition, ColumnFamily> entry : columnFamilies.entrySet())
-                    {
-                        deepSize += meter.measureDeep(entry.getKey()) + meter.measureDeep(entry.getValue());
-                        objects += entry.getValue().getColumnCount();
-                    }
-                    double newRatio = (double) deepSize / currentSize.get();
-
-                    if (newRatio < MIN_SANE_LIVE_RATIO)
-                    {
-                        logger.warn("setting live ratio to minimum of {} instead of {}", MIN_SANE_LIVE_RATIO, newRatio);
-                        newRatio = MIN_SANE_LIVE_RATIO;
-                    }
-                    if (newRatio > MAX_SANE_LIVE_RATIO)
-                    {
-                        logger.warn("setting live ratio to maximum of {} instead of {}", MAX_SANE_LIVE_RATIO, newRatio);
-                        newRatio = MAX_SANE_LIVE_RATIO;
-                    }
-
-                    // we want to be very conservative about our estimate, since the penalty for guessing low is OOM
-                    // death.  thus, higher estimates are believed immediately; lower ones are averaged w/ the old
-                    if (newRatio > cfs.liveRatio)
-                        cfs.liveRatio = newRatio;
-                    else
-                        cfs.liveRatio = (cfs.liveRatio + newRatio) / 2.0;
-
-                    logger.info("{} liveRatio is {} (just-counted was {}).  calculation took {}ms for {} columns",
-                                cfs, cfs.liveRatio, newRatio, System.currentTimeMillis() - start, objects);
-                    activelyMeasuring = null;
-                }
-                finally
-                {
-                    meteringInProgress.remove(cfs);
-                }
-            }
-        };
-
-        meterExecutor.submit(runnable);
+        meterExecutor.submit(new MeteringRunnable(cfs));
     }
 
     private void resolve(DecoratedKey key, ColumnFamily cf, SecondaryIndexManager.Updater indexer)
@@ -518,6 +470,65 @@ public class Memtable
                                      cfs.metadata,
                                      cfs.partitioner,
                                      sstableMetadataCollector);
+        }
+    }
+
+    private static class MeteringRunnable implements Runnable
+    {
+        // we might need to wait in the meter queue for a while.  measure whichever memtable is active at that point,
+        // rather than keeping the original memtable referenced (and thus un-freeable) until this runs.
+        private final ColumnFamilyStore cfs;
+
+        public MeteringRunnable(ColumnFamilyStore cfs)
+        {
+            this.cfs = cfs;
+        }
+
+        public void run()
+        {
+            try
+            {
+                activelyMeasuring = cfs;
+                Memtable memtable = cfs.getMemtableThreadSafe();
+
+                long start = System.currentTimeMillis();
+                // ConcurrentSkipListMap has cycles, so measureDeep will have to track a reference to EACH object it visits.
+                // So to reduce the memory overhead of doing a measurement, we break it up to row-at-a-time.
+                long deepSize = memtable.meter.measure(memtable.columnFamilies);
+                int objects = 0;
+                for (Map.Entry<RowPosition, ColumnFamily> entry : memtable.columnFamilies.entrySet())
+                {
+                    deepSize += memtable.meter.measureDeep(entry.getKey()) + memtable.meter.measureDeep(entry.getValue());
+                    objects += entry.getValue().getColumnCount();
+                }
+                double newRatio = (double) deepSize / memtable.currentSize.get();
+
+                if (newRatio < MIN_SANE_LIVE_RATIO)
+                {
+                    logger.warn("setting live ratio to minimum of {} instead of {}", MIN_SANE_LIVE_RATIO, newRatio);
+                    newRatio = MIN_SANE_LIVE_RATIO;
+                }
+                if (newRatio > MAX_SANE_LIVE_RATIO)
+                {
+                    logger.warn("setting live ratio to maximum of {} instead of {}", MAX_SANE_LIVE_RATIO, newRatio);
+                    newRatio = MAX_SANE_LIVE_RATIO;
+                }
+
+                // we want to be very conservative about our estimate, since the penalty for guessing low is OOM
+                // death.  thus, higher estimates are believed immediately; lower ones are averaged w/ the old
+                if (newRatio > cfs.liveRatio)
+                    cfs.liveRatio = newRatio;
+                else
+                    cfs.liveRatio = (cfs.liveRatio + newRatio) / 2.0;
+
+                logger.info("{} liveRatio is {} (just-counted was {}).  calculation took {}ms for {} columns",
+                            cfs, cfs.liveRatio, newRatio, System.currentTimeMillis() - start, objects);
+            }
+            finally
+            {
+                activelyMeasuring = null;
+                meteringInProgress.remove(cfs);
+            }
         }
     }
 }
