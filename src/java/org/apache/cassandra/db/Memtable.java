@@ -48,6 +48,7 @@ import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.DiskAwareRunnable;
 import org.apache.cassandra.utils.Allocator;
 import org.github.jamm.MemoryMeter;
+import sun.security.provider.Sun;
 
 public class Memtable
 {
@@ -185,8 +186,9 @@ public class Memtable
         if (!MemoryMeter.isInitialized())
         {
             // hack for openjdk.  we log a warning about this in the startup script too.
-            logger.warn("MemoryMeter uninitialized (jamm not specified as java agent); assuming liveRatio of 10.0.  Usually this means cassandra-env.sh disabled jamm because you are using a buggy JRE; upgrade to the Sun JRE instead");
-            cfs.liveRatio = 10.0;
+            logger.warn("MemoryMeter uninitialized (jamm not specified as java agent); assuming liveRatio of {}.  "
+                        + " Usually this means cassandra-env.sh disabled jamm because you are using a buggy JRE; "
+                        + " upgrade to the Sun JRE instead", cfs.liveRatio);
             return;
         }
 
