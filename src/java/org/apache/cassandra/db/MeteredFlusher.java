@@ -39,6 +39,10 @@ public class MeteredFlusher implements Runnable
         Memtable activelyMeasuring = Memtable.activelyMeasuring;
         long flushingBytes = activelyMeasuring == null ? 0 : activelyMeasuring.getLiveSize();
         flushingBytes += countFlushingBytes();
+        if (flushingBytes > 0)
+            logger.debug("Currently flushing {} bytes of {}MB max", flushingBytes);
+        if (flushingBytes > DatabaseDescriptor.getTotalMemtableSpaceInMB())
+            logger.warn("Entire memtable quota {}MB is occupied by flushing memtables", DatabaseDescriptor.getTotalMemtableSpaceInMB());
 
         // next, flush CFs using more than 1 / (maximum number of memtables it could have in the pipeline)
         // of the total size allotted.  Then, flush other CFs in order of size if necessary.
