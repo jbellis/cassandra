@@ -105,6 +105,8 @@ public class MeteredFlusher implements Runnable
 
                 ColumnFamilyStore cfs = sorted.remove(sorted.size() - 1);
                 long size = cfs.getTotalMemtableLiveSize();
+                if (size == 0)
+                    break;
                 logger.info("flushing {} to free up {} bytes", cfs, size);
                 liveBytes -= size;
                 cfs.forceFlush();
