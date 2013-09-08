@@ -75,7 +75,7 @@ public class MeteredFlusher implements Runnable
             if (flushingBytes + liveBytes <= totalMemtableBytesAllowed)
                 return;
 
-            logger.info("estimated {} bytes used by all memtables pre-flush", liveBytes);
+            logger.info("estimated {} live and {} flushing bytes used by all memtables", liveBytes, flushingBytes);
 
             // sort memtables by size
             List<ColumnFamilyStore> sorted = new ArrayList<ColumnFamilyStore>();
