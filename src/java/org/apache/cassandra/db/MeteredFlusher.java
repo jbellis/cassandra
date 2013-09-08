@@ -97,10 +97,10 @@ public class MeteredFlusher implements Runnable
             // flush largest first until we get below our threshold.
             // although it looks like liveBytes + flushingBytes will stay a constant, it will not if flushes finish
             // while we loop, which is especially likely to happen if the flush queue fills up (so further forceFlush calls block)
-            while (true)
+            while (!sorted.isEmpty())
             {
                 flushingBytes = countFlushingBytes();
-                if (liveBytes + flushingBytes <= totalMemtableBytesAllowed || sorted.isEmpty())
+                if (liveBytes + flushingBytes <= totalMemtableBytesAllowed)
                     break;
 
                 ColumnFamilyStore cfs = sorted.remove(sorted.size() - 1);
