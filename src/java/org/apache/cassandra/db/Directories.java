@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -207,14 +208,13 @@ public class Directories
         for (DataDirectory dataDir : dataFileLocations)
         {
             File sstableDir = getLocationForDisk(dataDir);
-
             if (BlacklistedDirectories.isUnwritable(sstableDir))
                 continue;
-
-            // need a separate check for sstableDir itself - could be a mounted separate disk or SSD just for this CF.
-            if (dataDir.getEstimatedAvailableSpace() > estimatedSize && sstableDir.getUsableSpace() * 0.9 > estimatedSize)
-                candidates.add(dataDir);
+            candidates.add(dataDir);
         }
+
+        if (candidates.isEmpty())
+            throw new IOError(new IOException("All configured data directories have been blacklisted as unwritable for erroring out"));
 
         // sort directories by free space, in _descending_ order.
         Collections.sort(candidates);
@@ -228,7 +228,7 @@ public class Directories
             }
         });
 
-        return candidates.isEmpty() ? null : candidates.get(0);
+        return candidates.get(0);
     }
 
 
@@ -265,7 +265,7 @@ public class Directories
         public long getEstimatedAvailableSpace()
         {
             // Load factor of 0.9 we do not want to use the entire disk that is too risky.
-            return (long)(0.9 * location.getUsableSpace()) - estimatedWorkingSize.get();
+            return location.getUsableSpace() - estimatedWorkingSize.get();
         }
 
         public int compareTo(DataDirectory o)
