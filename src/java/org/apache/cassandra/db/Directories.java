@@ -193,14 +193,11 @@ public class Directories
     }
 
     /**
-     * Finds location which is capable of holding given {@code estimatedSize}.
-     * Picks a non-blacklisted directory with most free space and least current tasks.
-     * If no directory can hold given {@code estimatedSize}, then returns null.
+     * @return a non-blacklisted directory with the most free space and least current tasks.
      *
-     * @param estimatedSize estimated size you need to find location to fit
-     * @return directory capable of given estimated size, or null if none found
+     * @throws IOError if all directories are blacklisted.
      */
-    public DataDirectory getLocationCapableOfSize(long estimatedSize)
+    public DataDirectory getWriteableLocation()
     {
         List<DataDirectory> candidates = new ArrayList<DataDirectory>();
 
