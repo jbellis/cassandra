@@ -204,8 +204,7 @@ public class Directories
         // pick directories with enough space and so that resulting sstable dirs aren't blacklisted for writes.
         for (DataDirectory dataDir : dataFileLocations)
         {
-            File sstableDir = getLocationForDisk(dataDir);
-            if (BlacklistedDirectories.isUnwritable(sstableDir))
+            if (BlacklistedDirectories.isUnwritable(getLocationForDisk(dataDir)))
                 continue;
             candidates.add(dataDir);
         }
