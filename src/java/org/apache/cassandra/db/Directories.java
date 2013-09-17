@@ -133,9 +133,9 @@ public class Directories
         return null;
     }
 
-    public File getDirectoryForNewSSTables(long estimatedSize)
+    public File getDirectoryForNewSSTables()
     {
-        File path = getLocationWithMaximumAvailableSpace(estimatedSize);
+        File path = getWriteableLocationAsFile();
 
         // Requesting GC has a chance to free space only if we're using mmap and a non SUN jvm
         if (path == null
@@ -155,41 +155,15 @@ public class Directories
             {
                 throw new AssertionError(e);
             }
-            path = getLocationWithMaximumAvailableSpace(estimatedSize);
+            path = getWriteableLocationAsFile();
         }
 
         return path;
     }
 
-    /*
-     * Loop through all the disks to see which disk has the max free space
-     * return the disk with max free space for compactions. If the size of the expected
-     * compacted file is greater than the max disk space available return null, we cannot
-     * do compaction in this case.
-     */
-    public File getLocationWithMaximumAvailableSpace(long estimatedSize)
+    public File getWriteableLocationAsFile()
     {
-        long maxFreeDisk = 0;
-        File maxLocation = null;
-
-        for (File dir : sstableDirectories)
-        {
-            if (BlacklistedDirectories.isUnwritable(dir))
-                continue;
-
-            long usableSpace = dir.getUsableSpace();
-            if (maxFreeDisk < usableSpace)
-            {
-                maxFreeDisk = usableSpace;
-                maxLocation = dir;
-            }
-        }
-        // Load factor of 0.9 we do not want to use the entire disk that is too risky.
-        maxFreeDisk = (long) (0.9 * maxFreeDisk);
-        logger.debug(String.format("expected data files size is %d; largest free partition (%s) has %d bytes free",
-                                   estimatedSize, maxLocation, maxFreeDisk));
-
-        return estimatedSize < maxFreeDisk ? maxLocation : null;
+        return getLocationForDisk(getWriteableLocation());
     }
 
     /**
