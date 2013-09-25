@@ -19,10 +19,12 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Optional;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +48,14 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.utils.FBUtilities;
 
+/**
+ * Sends a read request to the replicas needed to satisfy a given ConsistencyLevel.
+ *
+ * Optionally, may perform additional requests to provide redundancy against replica failure:
+ * AlwaysSpeculatingReadExecutor will send a request to all replicas, while
+ * SpeculatingReadExecutor will wait until it looks like the original request is in danger
+ * of timing out befor performing extra reads.
+ */
 public abstract class AbstractReadExecutor
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractReadExecutor.class);
@@ -119,25 +129,33 @@ public abstract class AbstractReadExecutor
         }
     }
 
-    abstract void speculate();
+    /**
+     * Perform additional requests if it looks like the original will time out.  May block while it waits
+     * to see if the original requests are answered first.
+     */
+    abstract void maybeTryAdditionalReplicas();
 
-    abstract boolean speculated();
+    /**
+     * @return true if maybeTryAdditionalReplicas sent additional requests
+     */
+    abstract boolean additionalRequestsMade();
 
     /**
      * Get the replicas involved in the [finished] request.
      *
      * @return target replicas + the extra replica, *IF* we speculated.
      */
-    List<InetAddress> getContactedReplicas()
+    Iterable<InetAddress> getContactedReplicas()
     {
-        if (!speculated())
+        if (!additionalRequestsMade())
             return targetReplicas;
 
-        List<InetAddress> replicas = new ArrayList<>(targetReplicas);
-        replicas.add(extraReplica.get());
-        return replicas;
+        return Iterables.concat(targetReplicas, Collections.singleton(extraReplica.get()));
     }
 
+    /**
+     * send the inital set of requests
+     */
     void executeAsync()
     {
         // Make a full data request to the first endpoint.
@@ -147,11 +165,18 @@ public abstract class AbstractReadExecutor
             makeDigestRequests(targetReplicas.subList(1, targetReplicas.size()));
     }
 
+    /**
+     * wait for an answer.  Blocks until success or timeout, so it is caller's
+     * responsibility to call maybeTryAdditionalReplicas first.
+     */
     Row get() throws ReadTimeoutException, DigestMismatchException
     {
         return handler.get();
     }
 
+    /**
+     * @return an executor appropriate for the configured speculative read policy
+     */
     public static AbstractReadExecutor getReadExecutor(ReadCommand command, ConsistencyLevel consistencyLevel) throws UnavailableException
     {
         ReadRepairDecision repairDecision = Schema.instance.getCFMetaData(command.ksName, command.cfName).newReadRepairDecision();
@@ -176,12 +201,16 @@ public abstract class AbstractReadExecutor
         InetAddress extraReplica = allReplicas.get(targetReplicas.size());
         // With repair decision DC_LOCAL, however, we can't, because all replicas/target replicas may be in different order.
         if (repairDecision == ReadRepairDecision.DC_LOCAL)
+        {
             for (InetAddress address : allReplicas)
+            {
                 if (!targetReplicas.contains(address))
                 {
                     extraReplica = address;
                     break;
                 }
+            }
+        }
 
         if (cfs.metadata.getSpeculativeRetry().type == CFMetaData.SpeculativeRetry.RetryType.ALWAYS)
             return new AlwaysSpeculatingReadExecutor(cfs, command, consistencyLevel, targetReplicas, extraReplica);
@@ -201,12 +230,12 @@ public abstract class AbstractReadExecutor
             super(cfs, command, consistencyLevel, targetReplicas, Optional.<InetAddress>absent());
         }
 
-        void speculate()
+        void maybeTryAdditionalReplicas()
         {
             // no-op
         }
 
-        boolean speculated()
+        boolean additionalRequestsMade()
         {
             return false;
         }
@@ -226,7 +255,7 @@ public abstract class AbstractReadExecutor
             super(cfs, command, consistencyLevel, targetReplicas, Optional.of(extraReplica));
         }
 
-        void speculate()
+        void maybeTryAdditionalReplicas()
         {
             // no latency information, or we're overloaded
             if (cfs.sampleLatency > TimeUnit.MILLISECONDS.toNanos(command.getTimeout()))
@@ -250,7 +279,7 @@ public abstract class AbstractReadExecutor
         }
 
         @Override
-        boolean speculated()
+        boolean additionalRequestsMade()
         {
             return speculated;
         }
@@ -268,12 +297,12 @@ public abstract class AbstractReadExecutor
             super(cfs, command, consistencyLevel, targetReplicas, Optional.of(extraReplica));
         }
 
-        void speculate()
+        void maybeTryAdditionalReplicas()
         {
             // no-op
         }
 
-        boolean speculated()
+        boolean additionalRequestsMade()
         {
             return true;
         }

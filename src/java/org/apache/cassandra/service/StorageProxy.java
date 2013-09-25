@@ -1223,7 +1223,7 @@ public class StorageProxy implements StorageProxyMBean
             }
 
             for (AbstractReadExecutor exec : readExecutors)
-                exec.speculate();
+                exec.maybeTryAdditionalReplicas();
 
             // read results and make a second pass for any digest mismatches
             List<ReadCommand> repairCommands = null;
