@@ -1197,11 +1197,11 @@ public class StorageProxy implements StorageProxyMBean
      * 4. If the digests (if any) match the data return the data
      * 5. else carry out read repair by getting data from all the nodes.
      */
-    private static List<Row> fetchRows(List<ReadCommand> initialCommands, ConsistencyLevel consistency_level)
+    private static List<Row> fetchRows(List<ReadCommand> initialCommands, ConsistencyLevel consistencyLevel)
     throws UnavailableException, ReadTimeoutException
     {
-        List<Row> rows = new ArrayList<Row>(initialCommands.size());
-        List<ReadCommand> commandsToRetry = Collections.emptyList();
+        List<Row> rows = new ArrayList<>(initialCommands.size());
+        List<ReadCommand> commandsToRetry = new ArrayList<>();
 
         do
         {
@@ -1217,12 +1217,12 @@ public class StorageProxy implements StorageProxyMBean
                 ReadCommand command = commands.get(i);
                 assert !command.isDigestQuery();
 
-                AbstractReadExecutor exec = AbstractReadExecutor.getReadExecutor(command, consistency_level);
+                AbstractReadExecutor exec = AbstractReadExecutor.getReadExecutor(command, consistencyLevel);
                 exec.executeAsync();
                 readExecutors[i] = exec;
             }
 
-            for (AbstractReadExecutor exec: readExecutors)
+            for (AbstractReadExecutor exec : readExecutors)
                 exec.speculate();
 
             // read results and make a second pass for any digest mismatches
@@ -1238,13 +1238,13 @@ public class StorageProxy implements StorageProxyMBean
                         exec.command.maybeTrim(row);
                         rows.add(row);
                     }
+
                     if (logger.isDebugEnabled())
                         logger.debug("Read: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - exec.handler.start));
-
                 }
                 catch (ReadTimeoutException ex)
                 {
-                    int blockFor = consistency_level.blockFor(Keyspace.open(exec.command.getKeyspace()));
+                    int blockFor = consistencyLevel.blockFor(Keyspace.open(exec.command.getKeyspace()));
                     int responseCount = exec.handler.getReceivedCount();
                     String gotData = responseCount > 0
                                    ? exec.resolver.isDataPresent() ? " (including data)" : " (only digests)"
@@ -1273,14 +1273,14 @@ public class StorageProxy implements StorageProxyMBean
 
                     if (repairCommands == null)
                     {
-                        repairCommands = new ArrayList<ReadCommand>();
-                        repairResponseHandlers = new ArrayList<ReadCallback<ReadResponse, Row>>();
+                        repairCommands = new ArrayList<>();
+                        repairResponseHandlers = new ArrayList<>();
                     }
                     repairCommands.add(exec.command);
                     repairResponseHandlers.add(repairHandler);
 
                     MessageOut<ReadCommand> message = exec.command.createMessage();
-                    for (InetAddress endpoint : exec.handler.endpoints)
+                    for (InetAddress endpoint : exec.getContactedReplicas())
                     {
                         Tracing.trace("Enqueuing full data read to {}", endpoint);
                         MessagingService.instance().sendRR(message, endpoint, repairHandler);
@@ -1288,8 +1288,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
 
-            if (commandsToRetry != Collections.EMPTY_LIST)
-                commandsToRetry.clear();
+            commandsToRetry.clear();
 
             // read the results for the digest mismatch retries
             if (repairResponseHandlers != null)
@@ -1319,8 +1318,8 @@ public class StorageProxy implements StorageProxyMBean
                     catch (TimeoutException e)
                     {
                         Tracing.trace("Timed out on digest mismatch retries");
-                        int blockFor = consistency_level.blockFor(Keyspace.open(command.getKeyspace()));
-                        throw new ReadTimeoutException(consistency_level, blockFor, blockFor, true);
+                        int blockFor = consistencyLevel.blockFor(Keyspace.open(command.getKeyspace()));
+                        throw new ReadTimeoutException(consistencyLevel, blockFor, blockFor, true);
                     }
 
                     // retry any potential short reads
@@ -1328,8 +1327,6 @@ public class StorageProxy implements StorageProxyMBean
                     if (retryCommand != null)
                     {
                         Tracing.trace("Issuing retry for read command");
-                        if (commandsToRetry == Collections.EMPTY_LIST)
-                            commandsToRetry = new ArrayList<ReadCommand>();
                         commandsToRetry.add(retryCommand);
                         continue;
                     }
