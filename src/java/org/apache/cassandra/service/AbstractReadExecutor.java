@@ -18,19 +18,17 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.CFMetaData.SpeculativeRetry.RetryType;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.ReadRepairDecision;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -51,43 +49,33 @@ import org.apache.cassandra.utils.FBUtilities;
  * Sends a read request to the replicas needed to satisfy a given ConsistencyLevel.
  *
  * Optionally, may perform additional requests to provide redundancy against replica failure:
- * AlwaysSpeculatingReadExecutor will send a request to all replicas, while
+ * AlwaysSpeculatingReadExecutor will always send a request to one extra replica, while
  * SpeculatingReadExecutor will wait until it looks like the original request is in danger
- * of timing out befor performing extra reads.
+ * of timing out before performing extra reads.
  */
 public abstract class AbstractReadExecutor
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractReadExecutor.class);
 
-    protected final ColumnFamilyStore cfs;
     protected final ReadCommand command;
+    protected final List<InetAddress> targetReplicas;
     protected final RowDigestResolver resolver;
     protected final ReadCallback<ReadResponse, Row> handler;
 
-    // The minimal set of replicas required to satisfy the given consistency level.
-    protected final List<InetAddress> targetReplicas;
-
-    AbstractReadExecutor(ColumnFamilyStore cfs,
-                         ReadCommand command,
-                         ConsistencyLevel consistencyLevel,
-                         List<InetAddress> targetReplicas)
-    throws UnavailableException
+    AbstractReadExecutor(ReadCommand command, ConsistencyLevel consistencyLevel, List<InetAddress> targetReplicas)
     {
-        this.cfs = cfs;
         this.command = command;
-        this.resolver = new RowDigestResolver(command.ksName, command.key);
-        this.handler = new ReadCallback<>(resolver, consistencyLevel, command, targetReplicas);
-        handler.assureSufficientLiveNodes();
-
         this.targetReplicas = targetReplicas;
+        resolver = new RowDigestResolver(command.ksName, command.key);
+        handler = new ReadCallback<>(resolver, consistencyLevel, command, targetReplicas);
     }
 
-    private boolean isLocalRequest(InetAddress replica)
+    private static boolean isLocalRequest(InetAddress replica)
     {
         return replica.equals(FBUtilities.getBroadcastAddress()) && StorageProxy.OPTIMIZE_LOCAL_REQUESTS;
     }
 
-    protected void makeDataRequests(List<InetAddress> endpoints)
+    protected void makeDataRequests(Iterable<InetAddress> endpoints)
     {
         for (InetAddress endpoint : endpoints)
         {
@@ -104,7 +92,7 @@ public abstract class AbstractReadExecutor
         }
     }
 
-    protected void makeDigestRequests(List<InetAddress> endpoints)
+    protected void makeDigestRequests(Iterable<InetAddress> endpoints)
     {
         ReadCommand digestCommand = command.copy();
         digestCommand.setDigestQuery(true);
@@ -138,7 +126,7 @@ public abstract class AbstractReadExecutor
     public abstract Iterable<InetAddress> getContactedReplicas();
 
     /**
-     * send the inital set of requests
+     * send the initial set of requests
      */
     public void executeAsync()
     {
@@ -163,28 +151,45 @@ public abstract class AbstractReadExecutor
      */
     public static AbstractReadExecutor getReadExecutor(ReadCommand command, ConsistencyLevel consistencyLevel) throws UnavailableException
     {
+        Keyspace keyspace = Keyspace.open(command.ksName);
+        List<InetAddress> allReplicas = StorageProxy.getLiveSortedEndpoints(keyspace, command.key);
         ReadRepairDecision repairDecision = Schema.instance.getCFMetaData(command.ksName, command.cfName).newReadRepairDecision();
+        List<InetAddress> targetReplicas = consistencyLevel.filterForQuery(keyspace, allReplicas, repairDecision);
+
+        // Throw UAE early if we don't have enough replicas.
+        consistencyLevel.assureSufficientLiveNodes(keyspace, targetReplicas);
+
+        // Fat client. Speculating read executors need access to cfs metrics and sampled latency, and fat clients
+        // can't provide that. So, for now, fat clients will always use NeverSpeculatingReadExecutor.
+        if (StorageService.instance.isClientMode())
+            return new NeverSpeculatingReadExecutor(command, consistencyLevel, targetReplicas);
+
         if (repairDecision != ReadRepairDecision.NONE)
             ReadRepairMetrics.attempted.mark();
 
-        Keyspace keyspace = Keyspace.open(command.ksName);
-        List<InetAddress> allReplicas = StorageProxy.getLiveSortedEndpoints(keyspace, command.key);
-        List<InetAddress> targetReplicas = consistencyLevel.filterForQuery(keyspace, allReplicas, repairDecision);
-
-        // Fat client.
-        if (StorageService.instance.isClientMode())
-            return new NeverSpeculatingReadExecutor(null, command, consistencyLevel, targetReplicas);
-
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.cfName);
+        RetryType retryType = cfs.metadata.getSpeculativeRetry().type;
 
-        // No extra replicas available or no speculative retry requested.
-        if (allReplicas.size() == targetReplicas.size() || cfs.metadata.getSpeculativeRetry().type == CFMetaData.SpeculativeRetry.RetryType.NONE)
-            return new NeverSpeculatingReadExecutor(cfs, command, consistencyLevel, targetReplicas);
+        // Speculative retry is disabled *OR* there are simply no extra replicas to speculate.
+        if (retryType == RetryType.NONE || consistencyLevel.blockFor(keyspace) == allReplicas.size())
+            return new NeverSpeculatingReadExecutor(command, consistencyLevel, targetReplicas);
 
-        // In most cases we can just take the next replica from all replicas as the extra.
+        // RRD.GLOBAL or RRD.DC_LOCAL and a single-DC. We are going to contact every node anyway.
+        // So ask for 2 full data requests instead of 1, for redundancy (same amount of requests in total, but we
+        // turn 1 digest request into a full blown data request).
+        if (targetReplicas.size() == allReplicas.size())
+            return new AlwaysSpeculatingReadExecutor(cfs,
+                                                     command,
+                                                     consistencyLevel,
+                                                     targetReplicas.subList(0, targetReplicas.size() - 1),
+                                                     targetReplicas.get(targetReplicas.size() - 1));
+
+        // RRD.NONE or RRD.DC_LOCAL w/ multiple DCs.
         InetAddress extraReplica = allReplicas.get(targetReplicas.size());
-        // With repair decision DC_LOCAL, however, we can't, because all replicas/target replicas may be in different order.
-        if (repairDecision == ReadRepairDecision.DC_LOCAL)
+
+        // With repair decision DC_LOCAL all replicas/target replicas may be in different order, so
+        // we might have to find a replacement that's not already in targetReplicas.
+        if (repairDecision == ReadRepairDecision.DC_LOCAL && targetReplicas.contains(extraReplica))
         {
             for (InetAddress address : allReplicas)
             {
@@ -196,22 +201,17 @@ public abstract class AbstractReadExecutor
             }
         }
 
-        if (cfs.metadata.getSpeculativeRetry().type == CFMetaData.SpeculativeRetry.RetryType.ALWAYS)
+        if (retryType == RetryType.ALWAYS)
             return new AlwaysSpeculatingReadExecutor(cfs, command, consistencyLevel, targetReplicas, extraReplica);
-
-        // PERCENTILE or CUSTOM.
-        return new SpeculatingReadExecutor(cfs, command, consistencyLevel, targetReplicas, extraReplica);
+        else // PERCENTILE or CUSTOM.
+            return new SpeculatingReadExecutor(cfs, command, consistencyLevel, targetReplicas, extraReplica);
     }
 
     private static class NeverSpeculatingReadExecutor extends AbstractReadExecutor
     {
-        public NeverSpeculatingReadExecutor(ColumnFamilyStore cfs,
-                                            ReadCommand command,
-                                            ConsistencyLevel consistencyLevel,
-                                            List<InetAddress> targetReplicas)
-        throws UnavailableException
+        public NeverSpeculatingReadExecutor(ReadCommand command, ConsistencyLevel consistencyLevel, List<InetAddress> targetReplicas)
         {
-            super(cfs, command, consistencyLevel, targetReplicas);
+            super(command, consistencyLevel, targetReplicas);
         }
 
         public void maybeTryAdditionalReplicas()
@@ -227,6 +227,7 @@ public abstract class AbstractReadExecutor
 
     private static class SpeculatingReadExecutor extends AbstractReadExecutor
     {
+        private final ColumnFamilyStore cfs;
         private final InetAddress extraReplica;
         private volatile boolean speculated = false;
 
@@ -235,9 +236,9 @@ public abstract class AbstractReadExecutor
                                        ConsistencyLevel consistencyLevel,
                                        List<InetAddress> targetReplicas,
                                        InetAddress extraReplica)
-        throws UnavailableException
         {
-            super(cfs, command, consistencyLevel, targetReplicas);
+            super(command, consistencyLevel, targetReplicas);
+            this.cfs = cfs;
             this.extraReplica = extraReplica;
         }
 
@@ -260,6 +261,7 @@ public abstract class AbstractReadExecutor
                 logger.trace("speculating read retry on {}", extraReplica);
                 MessagingService.instance().sendRR(retryCommand.createMessage(), extraReplica, handler);
                 speculated = true;
+
                 cfs.metric.speculativeRetry.inc();
             }
         }
@@ -274,6 +276,7 @@ public abstract class AbstractReadExecutor
 
     private static class AlwaysSpeculatingReadExecutor extends AbstractReadExecutor
     {
+        private final ColumnFamilyStore cfs;
         private final InetAddress extraReplica;
 
         public AlwaysSpeculatingReadExecutor(ColumnFamilyStore cfs,
@@ -281,9 +284,9 @@ public abstract class AbstractReadExecutor
                                              ConsistencyLevel consistencyLevel,
                                              List<InetAddress> targetReplicas,
                                              InetAddress extraReplica)
-        throws UnavailableException
         {
-            super(cfs, command, consistencyLevel, targetReplicas);
+            super(command, consistencyLevel, targetReplicas);
+            this.cfs = cfs;
             this.extraReplica = extraReplica;
         }
 
@@ -294,24 +297,32 @@ public abstract class AbstractReadExecutor
 
         public Iterable<InetAddress> getContactedReplicas()
         {
-            return Iterables.concat(targetReplicas, Collections.singleton(extraReplica));
+            return allReplicas();
         }
 
+        @Override
         public void executeAsync()
         {
-            // Make TWO data requests - to the first two endpoints.
-            List<InetAddress> dataEndpoints = targetReplicas.size() > 1
-                                            ? targetReplicas.subList(0, 2)
-                                            : Lists.newArrayList(targetReplicas.get(0), extraReplica);
-            makeDataRequests(dataEndpoints);
-
-            // Make digest requests to [the rest of the target replicas + the extra replica], if any.
-            if (targetReplicas.size() > 1)
+            if (targetReplicas.size() == 1)
             {
-                List<InetAddress> digestEndpoints = new ArrayList<>(targetReplicas.subList(2, targetReplicas.size()));
-                digestEndpoints.add(extraReplica);
-                makeDigestRequests(digestEndpoints);
+                // Make data requests to both the target and the extra replicas.
+                makeDataRequests(allReplicas());
             }
+            else
+            {
+                // Make data requests to the first two target replicas.
+                makeDataRequests(targetReplicas.subList(0, 2));
+                // Make digest requests to the rest of the target replicas (if any) and to the extra replica.
+                makeDigestRequests(Iterables.concat(targetReplicas.subList(2, targetReplicas.size()),
+                                                    Collections.singleton(extraReplica)));
+            }
+
+            cfs.metric.speculativeRetry.inc();
+        }
+
+        private Iterable<InetAddress> allReplicas()
+        {
+            return Iterables.concat(targetReplicas, Collections.singleton(extraReplica));
         }
     }
 }
