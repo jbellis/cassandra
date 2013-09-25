@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Optional;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -67,14 +66,11 @@ public abstract class AbstractReadExecutor
 
     // The minimal set of replicas required to satisfy the given consistency level.
     protected final List<InetAddress> targetReplicas;
-    // The extra replica for speculative retries.
-    protected final Optional<InetAddress> extraReplica;
 
     AbstractReadExecutor(ColumnFamilyStore cfs,
                          ReadCommand command,
                          ConsistencyLevel consistencyLevel,
-                         List<InetAddress> targetReplicas,
-                         Optional<InetAddress> extraReplica)
+                         List<InetAddress> targetReplicas)
     throws UnavailableException
     {
         this.cfs = cfs;
@@ -84,7 +80,6 @@ public abstract class AbstractReadExecutor
         handler.assureSufficientLiveNodes();
 
         this.targetReplicas = targetReplicas;
-        this.extraReplica = extraReplica;
     }
 
     private boolean isLocalRequest(InetAddress replica)
@@ -133,30 +128,19 @@ public abstract class AbstractReadExecutor
      * Perform additional requests if it looks like the original will time out.  May block while it waits
      * to see if the original requests are answered first.
      */
-    abstract void maybeTryAdditionalReplicas();
-
-    /**
-     * @return true if maybeTryAdditionalReplicas sent additional requests
-     */
-    abstract boolean additionalRequestsMade();
+    public abstract void maybeTryAdditionalReplicas();
 
     /**
      * Get the replicas involved in the [finished] request.
      *
      * @return target replicas + the extra replica, *IF* we speculated.
      */
-    Iterable<InetAddress> getContactedReplicas()
-    {
-        if (!additionalRequestsMade())
-            return targetReplicas;
-
-        return Iterables.concat(targetReplicas, Collections.singleton(extraReplica.get()));
-    }
+    public abstract Iterable<InetAddress> getContactedReplicas();
 
     /**
      * send the inital set of requests
      */
-    void executeAsync()
+    public void executeAsync()
     {
         // Make a full data request to the first endpoint.
         makeDataRequests(targetReplicas.subList(0, 1));
@@ -169,7 +153,7 @@ public abstract class AbstractReadExecutor
      * wait for an answer.  Blocks until success or timeout, so it is caller's
      * responsibility to call maybeTryAdditionalReplicas first.
      */
-    Row get() throws ReadTimeoutException, DigestMismatchException
+    public Row get() throws ReadTimeoutException, DigestMismatchException
     {
         return handler.get();
     }
@@ -227,22 +211,23 @@ public abstract class AbstractReadExecutor
                                             List<InetAddress> targetReplicas)
         throws UnavailableException
         {
-            super(cfs, command, consistencyLevel, targetReplicas, Optional.<InetAddress>absent());
+            super(cfs, command, consistencyLevel, targetReplicas);
         }
 
-        void maybeTryAdditionalReplicas()
+        public void maybeTryAdditionalReplicas()
         {
             // no-op
         }
 
-        boolean additionalRequestsMade()
+        public Iterable<InetAddress> getContactedReplicas()
         {
-            return false;
+            return targetReplicas;
         }
     }
 
     private static class SpeculatingReadExecutor extends AbstractReadExecutor
     {
+        private final InetAddress extraReplica;
         private volatile boolean speculated = false;
 
         public SpeculatingReadExecutor(ColumnFamilyStore cfs,
@@ -252,10 +237,11 @@ public abstract class AbstractReadExecutor
                                        InetAddress extraReplica)
         throws UnavailableException
         {
-            super(cfs, command, consistencyLevel, targetReplicas, Optional.of(extraReplica));
+            super(cfs, command, consistencyLevel, targetReplicas);
+            this.extraReplica = extraReplica;
         }
 
-        void maybeTryAdditionalReplicas()
+        public void maybeTryAdditionalReplicas()
         {
             // no latency information, or we're overloaded
             if (cfs.sampleLatency > TimeUnit.MILLISECONDS.toNanos(command.getTimeout()))
@@ -271,22 +257,25 @@ public abstract class AbstractReadExecutor
                     retryCommand.setDigestQuery(true);
                 }
 
-                logger.trace("speculating read retry on {}", extraReplica.get());
-                MessagingService.instance().sendRR(retryCommand.createMessage(), extraReplica.get(), handler);
+                logger.trace("speculating read retry on {}", extraReplica);
+                MessagingService.instance().sendRR(retryCommand.createMessage(), extraReplica, handler);
                 speculated = true;
                 cfs.metric.speculativeRetry.inc();
             }
         }
 
-        @Override
-        boolean additionalRequestsMade()
+        public Iterable<InetAddress> getContactedReplicas()
         {
-            return speculated;
+            return speculated
+                   ? Iterables.concat(targetReplicas, Collections.singleton(extraReplica))
+                   : targetReplicas;
         }
     }
 
     private static class AlwaysSpeculatingReadExecutor extends AbstractReadExecutor
     {
+        private final InetAddress extraReplica;
+
         public AlwaysSpeculatingReadExecutor(ColumnFamilyStore cfs,
                                              ReadCommand command,
                                              ConsistencyLevel consistencyLevel,
@@ -294,33 +283,33 @@ public abstract class AbstractReadExecutor
                                              InetAddress extraReplica)
         throws UnavailableException
         {
-            super(cfs, command, consistencyLevel, targetReplicas, Optional.of(extraReplica));
+            super(cfs, command, consistencyLevel, targetReplicas);
+            this.extraReplica = extraReplica;
         }
 
-        void maybeTryAdditionalReplicas()
+        public void maybeTryAdditionalReplicas()
         {
             // no-op
         }
 
-        boolean additionalRequestsMade()
+        public Iterable<InetAddress> getContactedReplicas()
         {
-            return true;
+            return Iterables.concat(targetReplicas, Collections.singleton(extraReplica));
         }
 
-        @Override
-        void executeAsync()
+        public void executeAsync()
         {
             // Make TWO data requests - to the first two endpoints.
             List<InetAddress> dataEndpoints = targetReplicas.size() > 1
                                             ? targetReplicas.subList(0, 2)
-                                            : Lists.newArrayList(targetReplicas.get(0), extraReplica.get());
+                                            : Lists.newArrayList(targetReplicas.get(0), extraReplica);
             makeDataRequests(dataEndpoints);
 
             // Make digest requests to [the rest of the target replicas + the extra replica], if any.
             if (targetReplicas.size() > 1)
             {
                 List<InetAddress> digestEndpoints = new ArrayList<>(targetReplicas.subList(2, targetReplicas.size()));
-                digestEndpoints.add(extraReplica.get());
+                digestEndpoints.add(extraReplica);
                 makeDigestRequests(digestEndpoints);
             }
         }
