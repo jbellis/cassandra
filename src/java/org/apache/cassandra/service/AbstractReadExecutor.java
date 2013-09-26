@@ -128,14 +128,7 @@ public abstract class AbstractReadExecutor
     /**
      * send the initial set of requests
      */
-    public void executeAsync()
-    {
-        // Make a full data request to the first endpoint.
-        makeDataRequests(targetReplicas.subList(0, 1));
-        // Make the digest requests to the other endpoints, if there are any.
-        if (targetReplicas.size() > 1)
-            makeDigestRequests(targetReplicas.subList(1, targetReplicas.size()));
-    }
+    public abstract void executeAsync();
 
     /**
      * wait for an answer.  Blocks until success or timeout, so it is caller's
@@ -179,16 +172,11 @@ public abstract class AbstractReadExecutor
             // CL.ALL, RRD.GLOBAL or RRD.DC_LOCAL and a single-DC.
             // We are going to contact every node anyway, so ask for 2 full data requests instead of 1, for redundancy
             // (same amount of requests in total, but we turn 1 digest request into a full blown data request).
-            return new AlwaysSpeculatingReadExecutor(cfs,
-                                                     command,
-                                                     consistencyLevel,
-                                                     targetReplicas.subList(0, targetReplicas.size() - 1),
-                                                     targetReplicas.get(targetReplicas.size() - 1));
+            return new AlwaysSpeculatingReadExecutor(cfs, command, consistencyLevel, targetReplicas);
         }
 
         // RRD.NONE or RRD.DC_LOCAL w/ multiple DCs.
         InetAddress extraReplica = allReplicas.get(targetReplicas.size());
-
         // With repair decision DC_LOCAL all replicas/target replicas may be in different order, so
         // we might have to find a replacement that's not already in targetReplicas.
         if (repairDecision == ReadRepairDecision.DC_LOCAL && targetReplicas.contains(extraReplica))
@@ -202,11 +190,12 @@ public abstract class AbstractReadExecutor
                 }
             }
         }
+        targetReplicas.add(extraReplica);
 
         if (retryType == RetryType.ALWAYS)
-            return new AlwaysSpeculatingReadExecutor(cfs, command, consistencyLevel, targetReplicas, extraReplica);
+            return new AlwaysSpeculatingReadExecutor(cfs, command, consistencyLevel, targetReplicas);
         else // PERCENTILE or CUSTOM.
-            return new SpeculatingReadExecutor(cfs, command, consistencyLevel, targetReplicas, extraReplica);
+            return new SpeculatingReadExecutor(cfs, command, consistencyLevel, targetReplicas);
     }
 
     private static class NeverSpeculatingReadExecutor extends AbstractReadExecutor
@@ -214,6 +203,13 @@ public abstract class AbstractReadExecutor
         public NeverSpeculatingReadExecutor(ReadCommand command, ConsistencyLevel consistencyLevel, List<InetAddress> targetReplicas)
         {
             super(command, consistencyLevel, targetReplicas);
+        }
+
+        public void executeAsync()
+        {
+            makeDataRequests(targetReplicas.subList(0, 1));
+            if (targetReplicas.size() > 1)
+                makeDigestRequests(targetReplicas.subList(1, targetReplicas.size()));
         }
 
         public void maybeTryAdditionalReplicas()
@@ -230,18 +226,40 @@ public abstract class AbstractReadExecutor
     private static class SpeculatingReadExecutor extends AbstractReadExecutor
     {
         private final ColumnFamilyStore cfs;
-        private final InetAddress extraReplica;
         private volatile boolean speculated = false;
 
         public SpeculatingReadExecutor(ColumnFamilyStore cfs,
                                        ReadCommand command,
                                        ConsistencyLevel consistencyLevel,
-                                       List<InetAddress> targetReplicas,
-                                       InetAddress extraReplica)
+                                       List<InetAddress> targetReplicas)
         {
             super(command, consistencyLevel, targetReplicas);
             this.cfs = cfs;
-            this.extraReplica = extraReplica;
+        }
+
+        public void executeAsync()
+        {
+            // if CL + RR result in covering all replicas, getReadExecutor forces AlwaysSpeculating.  So we know
+            // that the last replica in our list is "extra."
+            List<InetAddress> initialReplicas = targetReplicas.subList(0, targetReplicas.size() - 1);
+
+            if (handler.blockfor < initialReplicas.size())
+            {
+                // We're hitting additional targets for read repair.  Since our "extra" replica is the least-
+                // preferred by the snitch, we do an extra data read to start with against a replica more
+                // likely to reply; better to let RR fail than the entire query.
+                makeDataRequests(initialReplicas.subList(0, 2));
+                if (initialReplicas.size() > 2)
+                    makeDigestRequests(initialReplicas.subList(2, initialReplicas.size()));
+            }
+            else
+            {
+                // not doing read repair; all replies are important, so it doesn't matter which nodes we
+                // perform data reads against vs digest.
+                makeDataRequests(initialReplicas.subList(0, 1));
+                if (initialReplicas.size() > 1)
+                    makeDigestRequests(initialReplicas.subList(1, initialReplicas.size()));
+            }
         }
 
         public void maybeTryAdditionalReplicas()
@@ -260,6 +278,7 @@ public abstract class AbstractReadExecutor
                     retryCommand.setDigestQuery(true);
                 }
 
+                InetAddress extraReplica = Iterables.getLast(targetReplicas);
                 logger.trace("speculating read retry on {}", extraReplica);
                 MessagingService.instance().sendRR(retryCommand.createMessage(), extraReplica, handler);
                 speculated = true;
@@ -271,25 +290,22 @@ public abstract class AbstractReadExecutor
         public Iterable<InetAddress> getContactedReplicas()
         {
             return speculated
-                   ? Iterables.concat(targetReplicas, Collections.singleton(extraReplica))
-                   : targetReplicas;
+                 ? targetReplicas
+                 : targetReplicas.subList(0, targetReplicas.size() - 1);
         }
     }
 
     private static class AlwaysSpeculatingReadExecutor extends AbstractReadExecutor
     {
         private final ColumnFamilyStore cfs;
-        private final InetAddress extraReplica;
 
         public AlwaysSpeculatingReadExecutor(ColumnFamilyStore cfs,
                                              ReadCommand command,
                                              ConsistencyLevel consistencyLevel,
-                                             List<InetAddress> targetReplicas,
-                                             InetAddress extraReplica)
+                                             List<InetAddress> targetReplicas)
         {
             super(command, consistencyLevel, targetReplicas);
             this.cfs = cfs;
-            this.extraReplica = extraReplica;
         }
 
         public void maybeTryAdditionalReplicas()
@@ -299,32 +315,16 @@ public abstract class AbstractReadExecutor
 
         public Iterable<InetAddress> getContactedReplicas()
         {
-            return allReplicas();
+            return targetReplicas;
         }
 
         @Override
         public void executeAsync()
         {
-            if (targetReplicas.size() == 1)
-            {
-                // Make data requests to both the target and the extra replicas.
-                makeDataRequests(allReplicas());
-            }
-            else
-            {
-                // Make data requests to the first two target replicas.
-                makeDataRequests(targetReplicas.subList(0, 2));
-                // Make digest requests to the rest of the target replicas (if any) and to the extra replica.
-                makeDigestRequests(Iterables.concat(targetReplicas.subList(2, targetReplicas.size()),
-                                                    Collections.singleton(extraReplica)));
-            }
-
+            makeDataRequests(targetReplicas.subList(0, 2));
+            if (targetReplicas.size() > 2)
+                makeDigestRequests(targetReplicas.subList(2, targetReplicas.size()));
             cfs.metric.speculativeRetry.inc();
-        }
-
-        private Iterable<InetAddress> allReplicas()
-        {
-            return Iterables.concat(targetReplicas, Collections.singleton(extraReplica));
         }
     }
 }
