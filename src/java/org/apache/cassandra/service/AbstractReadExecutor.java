@@ -174,15 +174,17 @@ public abstract class AbstractReadExecutor
         if (retryType == RetryType.NONE || consistencyLevel.blockFor(keyspace) == allReplicas.size())
             return new NeverSpeculatingReadExecutor(command, consistencyLevel, targetReplicas);
 
-        // RRD.GLOBAL or RRD.DC_LOCAL and a single-DC. We are going to contact every node anyway.
-        // So ask for 2 full data requests instead of 1, for redundancy (same amount of requests in total, but we
-        // turn 1 digest request into a full blown data request).
         if (targetReplicas.size() == allReplicas.size())
+        {
+            // CL.ALL, RRD.GLOBAL or RRD.DC_LOCAL and a single-DC.
+            // We are going to contact every node anyway, so ask for 2 full data requests instead of 1, for redundancy
+            // (same amount of requests in total, but we turn 1 digest request into a full blown data request).
             return new AlwaysSpeculatingReadExecutor(cfs,
                                                      command,
                                                      consistencyLevel,
                                                      targetReplicas.subList(0, targetReplicas.size() - 1),
                                                      targetReplicas.get(targetReplicas.size() - 1));
+        }
 
         // RRD.NONE or RRD.DC_LOCAL w/ multiple DCs.
         InetAddress extraReplica = allReplicas.get(targetReplicas.size());

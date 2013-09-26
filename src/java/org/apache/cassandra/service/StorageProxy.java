@@ -1201,6 +1201,7 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException, ReadTimeoutException
     {
         List<Row> rows = new ArrayList<>(initialCommands.size());
+        // (avoid allocating a new list in the common case of nothing-to-retry)
         List<ReadCommand> commandsToRetry = Collections.emptyList();
 
         do
