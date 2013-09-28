@@ -312,6 +312,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         sampleLatencyNanos = Long.MAX_VALUE;
                         break;
                 }
+                logger.info("New sampled latency is {}", sampleLatencyNanos);
             }
         }, 30, 30, TimeUnit.SECONDS);
     }
