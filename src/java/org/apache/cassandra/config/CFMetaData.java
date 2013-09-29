@@ -336,7 +336,7 @@ public final class CFMetaData
             switch (type)
             {
             case PERCENTILE:
-                return value + "PERCENTILE";
+                return ((int) Math.round(value * 100)) + "PERCENTILE";
             case CUSTOM:
                 return value + "ms";
             default:

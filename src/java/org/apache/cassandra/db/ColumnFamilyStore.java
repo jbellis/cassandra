@@ -301,7 +301,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     case PERCENTILE:
                         // get percentile in nanos
-                        assert metric.readLatency.latency.durationUnit() == TimeUnit.MICROSECONDS;
+                        assert metric.coordinatorReadLatency.durationUnit() == TimeUnit.MICROSECONDS;
+                        logger.info("retryPolicy is {}", retryPolicy.value);
                         sampleLatencyNanos = (long) (metric.coordinatorReadLatency.getSnapshot().getValue(retryPolicy.value) * 1000d);
                         break;
                     case CUSTOM:
