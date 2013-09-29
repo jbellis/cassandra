@@ -29,6 +29,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.transport.Server;
 import org.apache.commons.lang3.StringUtils;
@@ -89,6 +90,49 @@ public class SystemKeyspace
         NEEDS_BOOTSTRAP,
         COMPLETED,
         IN_PROGRESS
+    }
+
+    private static class SequenceHolder
+    {
+        public static final SequenceHolder instance = new SequenceHolder();
+
+        public final int sequenceId;
+
+        private SequenceHolder()
+        {
+            String req = "SELECT sequence_id FROM %s WHERE key='%s'";
+            UntypedResultSet result = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
+
+            if (!result.isEmpty() && result.one().has("sequence_id"))
+            {
+                sequenceId = result.one().getInt("sequence_id");
+            }
+            else
+            {
+                try
+                {
+                    Sequences.create("system_local_sequence_ids", 0);
+                    sequenceId = (int) Sequences.next("system_local_sequence_ids");
+                }
+                catch (RequestExecutionException e)
+                {
+                    throw new RuntimeException(e);
+                }
+
+                req = "INSERT INTO %s (key, sequence_id) VALUES ('%s', %s)";
+                processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, sequenceId));
+            }
+        }
+    }
+
+    /**
+     * @return a unique-per-cluster int assigned to this node.
+     * This WILL perform non-local operations to create the sequence ID if none yet exists, so
+     * call it during startup to avoid extra latency while processing requests.
+     */
+    public static int getSequenceId()
+    {
+        return SequenceHolder.instance.sequenceId;
     }
 
     private static DecoratedKey decorate(ByteBuffer key)

@@ -463,7 +463,9 @@ public class DatabaseDescriptor
         memtableAllocator = FBUtilities.classForName(allocatorClass, "allocator");
 
         // Hardcoded system keyspaces
-        List<KSMetaData> systemKeyspaces = Arrays.asList(KSMetaData.systemKeyspace(), KSMetaData.traceKeyspace());
+        List<KSMetaData> systemKeyspaces = Arrays.asList(KSMetaData.systemKeyspace(),
+                                                         KSMetaData.traceKeyspace(),
+                                                         KSMetaData.sequencesKeyspace());
         assert systemKeyspaces.size() == Schema.systemKeyspaceNames.size();
         for (KSMetaData ksmd : systemKeyspaces)
         {

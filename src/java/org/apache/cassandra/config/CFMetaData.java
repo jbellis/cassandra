@@ -196,6 +196,7 @@ public final class CFMetaData
                                                      + "gossip_generation int,"
                                                      + "bootstrapped text,"
                                                      + "host_id uuid,"
+                                                     + "sequence_id int,"
                                                      + "release_version text,"
                                                      + "thrift_version text,"
                                                      + "cql_version text,"
@@ -266,6 +267,12 @@ public final class CFMetaData
                                                                + "rate_120m double,"
                                                                + "PRIMARY KEY ((keyspace_name, columnfamily_name, generation))"
                                                                + ") WITH COMMENT='historic sstable read rates'");
+
+    public static final CFMetaData SequencesCF = compile("CREATE TABLE " + Sequences.SEQUENCES_CF + " ("
+                                                               + "sequence_name text PRIMARY KEY,"
+                                                               + "value bigint"
+                                                               + ") WITH COMMENT='sequence information'",
+                                                         Sequences.SEQUENCES_KS);
 
     public enum Caching
     {

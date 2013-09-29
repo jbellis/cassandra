@@ -531,6 +531,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
+    /**
+     * The first time joining the cluster, we will sleep for up to @param delay ms to make sure we have token ring
+     * information for our peers.  This is necessary to allow creating a sequence_id.
+     *
+     * After successfully joining the cluster we assume that our stored peer information is accurate or close to it,
+     * and do not sleep.
+     */
     private void joinTokenRing(int delay) throws ConfigurationException
     {
         logger.info("Starting up server gossip");
@@ -556,7 +563,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         gossipSnitchInfo();
         // gossip Schema.emptyVersion forcing immediate check for schema updates (see MigrationManager#maybeScheduleSchemaPull)
         Schema.instance.updateVersionAndAnnounce(); // Ensure we know our own actual Schema UUID in preparation for updates
-
 
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
         LoadBroadcaster.instance.startBroadcasting();
@@ -589,17 +595,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             else
                 SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.IN_PROGRESS);
             setMode(Mode.JOINING, "waiting for ring information", true);
-            // first sleep the delay to make sure we see all our peers
-            for (int i = 0; i < delay; i += 1000)
-            {
-                // if we see schema, we can proceed to the next check directly
-                if (!Schema.instance.getVersion().equals(Schema.emptyVersion))
-                {
-                    logger.debug("got schema: {}", Schema.instance.getVersion());
-                    break;
-                }
-                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-            }
+            waitForPeers(delay);
             // if our schema hasn't matched yet, keep sleeping until it does
             // (post CASSANDRA-1391 we don't expect this to be necessary very often, but it doesn't hurt to be careful)
             while (!MigrationManager.isReadyForBootstrap())
@@ -608,7 +604,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
             }
             setMode(Mode.JOINING, "schema complete, ready to bootstrap", true);
-
 
             if (logger.isDebugEnabled())
                 logger.debug("... got ring + schema info");
@@ -688,6 +683,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         tokens.add(getPartitioner().getTokenFactory().fromString(token));
                     logger.info("Saved token not found. Using " + tokens + " from configuration");
                 }
+                setMode(Mode.JOINING, "waiting for ring information", true);
+                waitForPeers(delay);
             }
             else
             {
@@ -697,7 +694,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 {
                     // wait for ring info
                     logger.info("Sleeping for ring delay (" + delay + "ms)");
-                    Uninterruptibles.sleepUninterruptibly(delay, TimeUnit.MILLISECONDS);
+                    waitForPeers(delay);
                     logger.info("Calculating new tokens");
                     // calculate num_tokens tokens evenly spaced in the range (left, right]
                     Token right = tokens.iterator().next();
@@ -735,7 +732,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     logger.info("Split previous range (" + left + ", " + right + "] into " + tokens);
                 }
                 else
+                {
+                    // (assume that last time we started we were alive long enough to persist any peers in the ring)
                     logger.info("Using saved token " + tokens);
+                }
             }
         }
 
@@ -751,11 +751,26 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Startup completed! Now serving reads.");
             assert tokenMetadata.sortedTokens().size() > 0;
 
+            SystemKeyspace.getSequenceId();
             Auth.setup();
         }
         else
         {
             logger.info("Startup complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
+        }
+    }
+
+    private void waitForPeers(int maxDelay)
+    {
+        for (int i = 0; i < maxDelay; i += 1000)
+        {
+            // if we see schema, we can assume we have peer information as well
+            if (!Schema.instance.getVersion().equals(Schema.emptyVersion))
+            {
+                logger.debug("got schema: {}", Schema.instance.getVersion());
+                break;
+            }
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
     }
 
@@ -790,6 +805,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Leaving write survey mode and joining ring at operator request");
             assert tokenMetadata.sortedTokens().size() > 0;
 
+            SystemKeyspace.getSequenceId();
             Auth.setup();
         }
     }

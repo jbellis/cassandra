@@ -37,6 +37,8 @@ import java.util.zip.Checksum;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.AbstractIterator;
+
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -679,5 +681,13 @@ public class FBUtilities
         File historyDir = new File(System.getProperty("user.home"), ".cassandra");
         FileUtils.createDirectory(historyDir);
         return historyDir;
+    }
+
+    private static long clock = 0;
+    public static synchronized long timeid64()
+    {
+        long current = System.currentTimeMillis() * 1000;
+        clock = clock >= current ? clock + 1 : current;
+        return (clock << 16) | SystemKeyspace.getSequenceId();
     }
 }

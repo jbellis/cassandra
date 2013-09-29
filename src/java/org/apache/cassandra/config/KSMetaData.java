@@ -101,6 +101,12 @@ public final class KSMetaData
         return new KSMetaData(Tracing.TRACE_KS, SimpleStrategy.class, ImmutableMap.of("replication_factor", "1"), true, cfDefs);
     }
 
+    public static KSMetaData sequencesKeyspace()
+    {
+        List<CFMetaData> cfDefs = Arrays.asList(CFMetaData.SequencesCF);
+        return new KSMetaData(Sequences.SEQUENCES_KS, SimpleStrategy.class, ImmutableMap.of("replication_factor", "1"), true, cfDefs);
+    }
+
     public static KSMetaData testMetadata(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, CFMetaData... cfDefs)
     {
         return new KSMetaData(name, strategyClass, strategyOptions, true, Arrays.asList(cfDefs));

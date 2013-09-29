@@ -510,6 +510,8 @@ Note that unlike in SQL, @UPDATE@ does not check the prior existence of the row 
 
 It is however possible to use the conditions on some columns through @IF@, in which case the row will not be updated unless such condition are met. But please note that using @IF@ conditions will incur a non negligible performance cost (internally, Paxos will be used) so this should be used sparingly.
 
+If an @IF@ condition is specified, a special boolean @[applied]@ column will be included the resultset, indicating success or failure of the operation.  On failure, the current columns from the @IF@ condition will also be included.
+
 In an @UPDATE@ statement, all updates within the same partition key are applied atomically and in isolation.
 
 The @c = c + 3@ form of @<assignment>@ is used to increment/decrement counters. The identifier after the '=' sign *must* be the same than the one before the '=' sign (Only increment/decrement is supported on counters, not the assignment of a specific value).
