@@ -196,8 +196,8 @@ public class SliceQueryFilter implements IDiskAtomFilter
 
             if (respectTombstoneFailures() && columnCounter.ignored() > DatabaseDescriptor.getTombstoneFailureThreshold())
             {
-                Tracing.trace("Scanned over {} tombstones; query aborted", DatabaseDescriptor.getTombstoneFailureThreshold());
-                logger.error("Scanned over {} tombstones; query aborted", DatabaseDescriptor.getTombstoneFailureThreshold());
+                Tracing.trace("Scanned over {} tombstones; query aborted (see tombstone_fail_threshold)", DatabaseDescriptor.getTombstoneFailureThreshold());
+                logger.error("Scanned over {} tombstones; query aborted (see tombstone_fail_threshold)", DatabaseDescriptor.getTombstoneFailureThreshold());
                 throw new TombstoneOverwhelmingException();
             }
 

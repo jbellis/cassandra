@@ -24,10 +24,11 @@ New features
 
 Upgrading
 ---------
-    - tombstone_debug_threshold from 1.2.11 has been changed to 
-      tombstone_failure_threshold.  Adjust this if your application
-      relies on scanning a large number of tombstones (which is dangerous
-      and can cause the server to exhaust its heap).
+    - tombstone_debug_threshold from 1.2.11 has been changed to
+      tombstone_warn_threshold and tombstone_failure_threshold.
+      Adjust these if your application relies on scanning a large
+      number of tombstones; see the comments in cassandra.yaml for why
+      this is dangerous.
 
 
 2.0.1
