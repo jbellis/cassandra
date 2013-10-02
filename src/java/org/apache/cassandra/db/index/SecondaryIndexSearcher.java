@@ -39,11 +39,7 @@ public abstract class SecondaryIndexSearcher
     public SecondaryIndex highestSelectivityIndex(List<IndexExpression> clause)
     {
         IndexExpression expr = highestSelectivityPredicate(clause);
-
-        if (expr != null)
-            return indexManager.getIndexForColumn(expr.column);
-
-        return null;
+        return expr == null ? null : indexManager.getIndexForColumn(expr.column);
     }
 
     public abstract List<Row> search(ExtendedFilter filter);

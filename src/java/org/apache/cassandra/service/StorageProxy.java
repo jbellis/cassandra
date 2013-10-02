@@ -1435,8 +1435,7 @@ public class StorageProxy implements StorageProxyMBean
             // secondary index query (cql3 or otherwise)
             SecondaryIndexSearcher searcher = Iterables.getOnlyElement(cfs.indexManager.getIndexSearchersForQuery(command.rowFilter));
             SecondaryIndex highestSelectivityIndex = searcher.highestSelectivityIndex(command.rowFilter);
-            // use our own mean column count as our estimate for how many matching rows each
-            // node will have (adjusting by RF for duplicates)
+            // use our own mean column count as our estimate for how many matching rows each node will have
             resultRowsPerRange = highestSelectivityIndex.getIndexCfs().getMeanColumns();
         }
         else if (!command.countCQL3Rows())
@@ -1446,10 +1445,13 @@ public class StorageProxy implements StorageProxyMBean
         }
         else
         {
-            if (cfs.metadata.getCfDef().isCompact) {
+            if (cfs.metadata.getCfDef().isCompact)
+            {
                 // one storage row per result row, so use key estimate directly
                 resultRowsPerRange = cfs.estimateKeys();
-            } else {
+            }
+            else
+            {
                 float resultRowsPerStorageRow = cfs.getMeanColumns() / cfs.metadata.regularColumns().size();
                 resultRowsPerRange = resultRowsPerStorageRow * (cfs.estimateKeys());
             }
@@ -1476,15 +1478,12 @@ public class StorageProxy implements StorageProxyMBean
 
             // our estimate of how many result rows there will be per-range
             float resultRowsPerRange = estimateResultRowsPerRange(command, keyspace);
-            int concurrencyFactor;
-            if (resultRowsPerRange == 0.0)
-                concurrencyFactor = 1;
-            else
-                concurrencyFactor = Math.max(1, Math.min(ranges.size(), Math.round(command.limit() / resultRowsPerRange)));
+            int concurrencyFactor = resultRowsPerRange == 0.0
+                                  ? 1
+                                  : Math.max(1, Math.min(ranges.size(), Math.round(command.limit() / resultRowsPerRange)));
             logger.debug("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
                          resultRowsPerRange, command.limit(), ranges.size(), concurrencyFactor);
 
-            boolean haveSufficientRows = false;
             int i = 0;
             AbstractBounds<RowPosition> nextRange = null;
             List<InetAddress> nextEndpoints = null;
@@ -1496,14 +1495,14 @@ public class StorageProxy implements StorageProxyMBean
                 while ((i - concurrentFetchStartingIndex) < concurrencyFactor)
                 {
                     AbstractBounds<RowPosition> range = nextRange == null
-                                                        ? ranges.get(i)
-                                                        : nextRange;
+                                                      ? ranges.get(i)
+                                                      : nextRange;
                     List<InetAddress> liveEndpoints = nextEndpoints == null
-                                                      ? getLiveSortedEndpoints(keyspace, range.right)
-                                                      : nextEndpoints;
+                                                    ? getLiveSortedEndpoints(keyspace, range.right)
+                                                    : nextEndpoints;
                     List<InetAddress> filteredEndpoints = nextFilteredEndpoints == null
-                                                          ? consistency_level.filterForQuery(keyspace, liveEndpoints)
-                                                          : nextFilteredEndpoints;
+                                                        ? consistency_level.filterForQuery(keyspace, liveEndpoints)
+                                                        : nextFilteredEndpoints;
                     ++i;
 
                     // getRestrictedRange has broken the queried range into per-[vnode] token ranges, but this doesn't take
@@ -1613,10 +1612,7 @@ public class StorageProxy implements StorageProxyMBean
                     // if we're done, great, otherwise, move to the next range
                     int count = nodeCmd.countCQL3Rows() ? cql3RowCount : rows.size();
                     if (count >= nodeCmd.limit())
-                    {
-                        haveSufficientRows = true;
-                        break;
-                    }
+                        return trim(command, rows);
                 }
 
                 try
@@ -1633,9 +1629,6 @@ public class StorageProxy implements StorageProxyMBean
                         logger.debug("Range slice timeout while read-repairing after receiving all {} data and digest responses", blockFor);
                     throw new ReadTimeoutException(consistency_level, blockFor, blockFor, true);
                 }
-
-                if (haveSufficientRows)
-                    return trim(command, rows);
 
                 // we didn't get enough rows in our concurrent fetch; recalculate our concurrency factor
                 // based on the results we've seen so far (as long as we still have ranges left to query)
