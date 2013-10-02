@@ -578,7 +578,7 @@ public class CompactionManager implements CompactionManagerMBean
                     row = cleanupStrategy.cleanup(row);
                     if (row == null)
                         continue;
-                    AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
+                    AbstractCompactedRow compactedRow = new LazilyCompactedRow(controller, Collections.singletonList(row));
                     if (writer.append(compactedRow) != null)
                         totalkeysWritten++;
                 }

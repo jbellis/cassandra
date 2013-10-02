@@ -71,7 +71,7 @@ public class CompactionIterable extends AbstractCompactionIterable
                 // create a new container for rows, since we're going to clear ours for the next one,
                 // and the AbstractCompactionRow code should be able to assume that the collection it receives
                 // won't be pulled out from under it.
-                return controller.getCompactedRow(new ArrayList<SSTableIdentityIterator>(rows));
+                return new LazilyCompactedRow(controller, new ArrayList<SSTableIdentityIterator>(rows));
             }
             finally
             {

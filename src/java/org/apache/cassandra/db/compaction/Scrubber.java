@@ -185,7 +185,7 @@ public class Scrubber implements Closeable
                         throw new IOError(new IOException("Impossible row size " + dataSize));
 
                     SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataSize, true);
-                    AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
+                    AbstractCompactedRow compactedRow = new LazilyCompactedRow(controller, Collections.singletonList(row));
                     if (prevRow != null && acrComparator.compare(prevRow, compactedRow) >= 0)
                     {
                         outOfOrderRows.add(compactedRow);
@@ -216,7 +216,7 @@ public class Scrubber implements Closeable
                         try
                         {
                             SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataSizeFromIndex, true);
-                            AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
+                            AbstractCompactedRow compactedRow = new LazilyCompactedRow(controller, Collections.singletonList(row));
                             if (prevRow != null && acrComparator.compare(prevRow, compactedRow) >= 0)
                             {
                                 outOfOrderRows.add(compactedRow);
