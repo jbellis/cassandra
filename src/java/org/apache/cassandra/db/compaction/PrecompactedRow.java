@@ -51,52 +51,10 @@ public class PrecompactedRow extends AbstractCompactedRow
         compactedCf = cf;
     }
 
-    public static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, CompactionController controller, ColumnFamily cf)
-    {
-        assert key != null;
-        assert controller != null;
-        assert cf != null;
-
-        // avoid calling shouldPurge unless we actually need to: it can be very expensive if LCS
-        // gets behind and has hundreds of overlapping L0 sstables.  Essentially, this method is an
-        // ugly refactor of removeDeletedAndOldShards(controller.shouldPurge(key), controller, cf),
-        // taking this into account.
-        Boolean shouldPurge = null;
-
-        if (cf.hasIrrelevantData(controller.gcBefore))
-            shouldPurge = controller.shouldPurge(key, cf.maxTimestamp());
-
-        // We should only gc tombstone if shouldPurge == true. But otherwise,
-        // it is still ok to collect column that shadowed by their (deleted)
-        // container, which removeDeleted(cf, Integer.MAX_VALUE) will do
-        ColumnFamily compacted = ColumnFamilyStore.removeDeleted(cf, shouldPurge != null && shouldPurge ? controller.gcBefore : Integer.MIN_VALUE);
-
-        if (compacted != null && compacted.metadata().getDefaultValidator().isCommutative())
-        {
-            if (shouldPurge == null)
-                shouldPurge = controller.shouldPurge(key, cf.deletionInfo().maxTimestamp());
-            if (shouldPurge)
-                CounterColumn.mergeAndRemoveOldShards(key, compacted, controller.gcBefore, controller.mergeShardBefore);
-        }
-
-        return compacted;
-    }
-
-    public static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, boolean shouldPurge, CompactionController controller, ColumnFamily cf)
-    {
-        // See comment in preceding method
-        ColumnFamily compacted = ColumnFamilyStore.removeDeleted(cf,
-                                                                 shouldPurge ? controller.gcBefore : Integer.MIN_VALUE,
-                                                                 controller.cfs.indexManager.updaterFor(key));
-        if (shouldPurge && compacted != null && compacted.metadata().getDefaultValidator().isCommutative())
-            CounterColumn.mergeAndRemoveOldShards(key, compacted, controller.gcBefore, controller.mergeShardBefore);
-        return compacted;
-    }
-
     public PrecompactedRow(CompactionController controller, List<SSTableIdentityIterator> rows)
     {
         this(rows.get(0).getKey(),
-             removeDeletedAndOldShards(rows.get(0).getKey(), controller, merge(rows, controller)));
+             LazilyCompactedRow.removeDeletedAndOldShards(rows.get(0).getKey(), controller, merge(rows, controller)));
     }
 
     private static ColumnFamily merge(List<SSTableIdentityIterator> rows, CompactionController controller)
