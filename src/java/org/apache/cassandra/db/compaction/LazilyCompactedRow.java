@@ -105,7 +105,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         try
         {
             indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.key, out);
-            columnsIndex = indexBuilder.build(merger);
+            columnsIndex = indexBuilder.buildForCompaction(merger);
             if (columnsIndex.columnsIndex.isEmpty())
             {
                 boolean cfIrrelevant = shouldPurge
@@ -130,6 +130,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                                       reducer.maxColumnNameSeen
         );
 
+        indexBuilder.maybeWriteEmptyRowHeader();
         out.writeShort(SSTableWriter.END_OF_ROW);
 
         close();
