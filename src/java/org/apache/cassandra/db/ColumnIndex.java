@@ -145,10 +145,13 @@ public class ColumnIndex
             return index;
         }
 
-        public ColumnIndex build(Iterable<OnDiskAtom> columns) throws IOException
+        public ColumnIndex build(Iterator<OnDiskAtom> columns) throws IOException
         {
-            for (OnDiskAtom c : columns)
+            while (columns.hasNext())
+            {
+                OnDiskAtom c =  columns.next();
                 add(c);
+            }
             ColumnIndex index = build();
 
             finish();
