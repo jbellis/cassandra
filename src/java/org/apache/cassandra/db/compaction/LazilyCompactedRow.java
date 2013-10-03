@@ -89,7 +89,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         try
         {
             indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.key, out);
-            columnsIndex = indexBuilder.build(this);
+            columnsIndex = indexBuilder.buildForCompaction(iterator());
             if (columnsIndex.columnsIndex.isEmpty())
             {
                 boolean cfIrrelevant = shouldPurge
@@ -115,6 +115,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         );
         reducer = null;
 
+        indexBuilder.maybeWriteEmptyRowHeader();
         out.writeShort(SSTableWriter.END_OF_ROW);
 
         close();
