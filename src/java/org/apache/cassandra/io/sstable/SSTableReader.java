@@ -106,7 +106,7 @@ public class SSTableReader extends SSTable implements Closeable
     private final AtomicLong keyCacheHit = new AtomicLong(0);
     private final AtomicLong keyCacheRequest = new AtomicLong(0);
 
-    public final RestorableMeter readMeter;
+    public RestorableMeter readMeter;
 
     public static long getApproximateKeyCount(Iterable<SSTableReader> sstables, CFMetaData metadata)
     {

@@ -280,7 +280,8 @@ public class LeveledManifest
                                                                                                 options.bucketHigh,
                                                                                                 options.bucketLow,
                                                                                                 options.minSSTableSize);
-                    List<SSTableReader> mostInteresting = SizeTieredCompactionStrategy.mostInterestingBucket(buckets, 4, 32);
+                    // use 0.0 for the coldnessThreshold to disable potential ignoring of cold sstables
+                    List<SSTableReader> mostInteresting = SizeTieredCompactionStrategy.mostInterestingBucket(buckets, 4, 32, 0.0);
                     if (!mostInteresting.isEmpty())
                         return Pair.create(mostInteresting, 0);
                 }
