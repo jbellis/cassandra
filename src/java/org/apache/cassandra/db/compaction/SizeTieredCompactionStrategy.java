@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 import java.util.*;
 import java.util.Map.Entry;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,14 +77,21 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         return Collections.singletonList(sstablesWithTombstones.get(0));
     }
 
+    /**
+     * @param buckets list of buckets from which to return the most interesting, where "interesting" is the total hotness for reads
+     * @param minThreshold minimum number of sstables in a bucket to qualify as interesting
+     * @param maxThreshold maximum number of sstables to compact at once (the returned bucket will be trimmed down to this)
+     * @param coldnessThreshold coldness relative to other sstables *in the same bucket* to qualify as interesting; sstables below the threshold will be omitted
+     * @return a bucket (list) of sstables to compact
+     */
     public static List<SSTableReader> mostInterestingBucket(List<List<SSTableReader>> buckets, int minThreshold, int maxThreshold, double coldnessThreshold)
     {
         // skip buckets containing less than minThreshold sstables, and limit other buckets to maxThreshold entries
         final List<Pair<List<SSTableReader>, Double>> prunedBucketsAndHotness = new ArrayList<>(buckets.size());
         for (List<SSTableReader> bucket : buckets)
         {
-            Pair<List<SSTableReader>, Double> bucketAndHotness = prepBucket(bucket, minThreshold, maxThreshold, coldnessThreshold);
-            if (bucketAndHotness != null)
+            Pair<List<SSTableReader>, Double> bucketAndHotness = trimToThresholdWithHotness(bucket, maxThreshold, coldnessThreshold);
+            if (bucketAndHotness != null && bucketAndHotness.left.size() >= minThreshold)
                 prunedBucketsAndHotness.add(bucketAndHotness);
         }
         if (prunedBucketsAndHotness.isEmpty())
@@ -118,12 +126,10 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     /**
      * Removes cold sstables from the bucket and returns a (bucket, hotness) pair or null if there were not enough
      * hot sstables in the bucket to meet minThreshold.
-     **/
-    static Pair<List<SSTableReader>, Double> prepBucket(List<SSTableReader> bucket, int minThreshold, int maxThreshold, double coldnessThreshold)
+     */
+    @VisibleForTesting
+    static Pair<List<SSTableReader>, Double> trimToThresholdWithHotness(List<SSTableReader> bucket, int maxThreshold, double coldnessThreshold)
     {
-        if (bucket.size() < minThreshold)
-            return null;
-
         // calculate the average SSTable hotness across the bucket
         double averageSSTableHotness = 0.0;
         for (SSTableReader sstr : bucket)
@@ -139,8 +145,8 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             }
         });
 
-        // remove SSTables that are below 25% of the average hotness and calculate the full bucket hotness (the sum
-        // of the hotness of all sstable members)
+        // remove SSTables that are below the configured relative hotness and calculate the full bucket hotness
+        // (the sum of the hotness of all sstable members)
         int bucketEndIndex = 0;
         double bucketHotness = 0.0;
         for (SSTableReader sstr : bucket)
@@ -155,9 +161,6 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             bucketEndIndex++;
             bucketHotness += hotness;
         }
-
-        if (bucketEndIndex < minThreshold)
-            return null;
 
         // cut off the bucket where it becomes cold or at the maxThreshold, whichever is lower
         return Pair.create(bucket.subList(0, bucketEndIndex), bucketHotness);

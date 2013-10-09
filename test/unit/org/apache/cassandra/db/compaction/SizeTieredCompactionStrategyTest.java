@@ -34,6 +34,9 @@ import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy.getBuckets;
+import static org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy.mostInterestingBucket;
+import static org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy.trimToThresholdWithHotness;
 import static org.junit.Assert.*;
 
 public class SizeTieredCompactionStrategyTest extends SchemaLoader
@@ -88,7 +91,7 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
             pairs.add(pair);
         }
 
-        List<List<String>> buckets = SizeTieredCompactionStrategy.getBuckets(pairs, 1.5, 0.5, 2);
+        List<List<String>> buckets = getBuckets(pairs, 1.5, 0.5, 2);
         assertEquals(3, buckets.size());
 
         for (List<String> bucket : buckets)
@@ -108,7 +111,7 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
             pairs.add(pair);
         }
 
-        buckets = SizeTieredCompactionStrategy.getBuckets(pairs, 1.5, 0.5, 2);
+        buckets = getBuckets(pairs, 1.5, 0.5, 2);
         assertEquals(2, buckets.size());
 
         for (List<String> bucket : buckets)
@@ -129,12 +132,12 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
             pairs.add(pair);
         }
 
-        buckets = SizeTieredCompactionStrategy.getBuckets(pairs, 1.5, 0.5, 10);
+        buckets = getBuckets(pairs, 1.5, 0.5, 10);
         assertEquals(1, buckets.size());
     }
 
     @Test
-    public void testPrepBucket() throws Exception
+    public void testTrimToThresholdWithHotness() throws Exception
     {
         String ksname = "Keyspace1";
         String cfname = "Standard1";
@@ -155,13 +158,12 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
             cfs.forceBlockingFlush();
         }
         cfs.forceBlockingFlush();
-        SizeTieredCompactionStrategy strategy = (SizeTieredCompactionStrategy) cfs.getCompactionStrategy();
 
         List<SSTableReader> sstrs = new ArrayList<>(cfs.getSSTables());
         Pair<List<SSTableReader>, Double> bucket;
 
-        bucket = strategy.prepBucket(sstrs.subList(0, 2), 4, 32, 0.25);
-        assertNull("null should be returned when the bucket is below the min threshold", bucket);
+        List<SSTableReader> interestingBucket = mostInterestingBucket(Collections.singletonList(sstrs.subList(0, 2)), 4, 32, 0.25);
+        assert interestingBucket.isEmpty() : "nothing should be returned when all buckets are below the min threshold";
 
         long estimatedKeys = sstrs.get(0).estimatedKeys();
 
@@ -169,7 +171,7 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
         for (SSTableReader s : sstrs)
             s.readMeter = new RestorableMeter(100.0, 100.0);
 
-        bucket = strategy.prepBucket(sstrs, 4, 32, 0.25);
+        bucket = trimToThresholdWithHotness(sstrs, 32, 0.25);
         assertEquals("no buckets should be dropped", 10, bucket.left.size());
         double expectedBucketHotness = numSSTables * (100.0 / estimatedKeys);
         assertEquals(String.format("bucket hotness (%f) should be close to %f", bucket.right, expectedBucketHotness),
@@ -179,7 +181,7 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
         // should get dropped
         sstrs.get(0).readMeter = new RestorableMeter(90.0, 90.0);
         sstrs.get(1).readMeter = new RestorableMeter(90.0, 90.0);
-        bucket = strategy.prepBucket(sstrs, 4, numSSTables - 2, 0.25);
+        bucket = trimToThresholdWithHotness(sstrs, numSSTables - 2, 0.25);
         assertEquals("two buckets should be dropped", numSSTables - 2, bucket.left.size());
         expectedBucketHotness = (numSSTables - 2) * (100.0 / estimatedKeys);
         assertEquals(String.format("bucket hotness (%f) should be close to %f", bucket.right, expectedBucketHotness),
@@ -188,14 +190,14 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
         // two of the buckets are cold enough to be excluded
         sstrs.get(0).readMeter = new RestorableMeter(10.0, 10.0);
         sstrs.get(1).readMeter = new RestorableMeter(10.0, 10.0);
-        bucket = strategy.prepBucket(sstrs, 4, 32, 0.25);
+        bucket = trimToThresholdWithHotness(sstrs, 32, 0.25);
         assertEquals("two buckets should be dropped", 8, bucket.left.size());
         expectedBucketHotness = (numSSTables - 2) * (100.0 / estimatedKeys);
         assertEquals(String.format("bucket hotness (%f) should be close to %f", bucket.right, expectedBucketHotness),
                      expectedBucketHotness, bucket.right, 1.0);
 
         // two of the buckets are cold enough to be excluded, but this will drop us below the min threshold
-        bucket = strategy.prepBucket(sstrs, numSSTables - 1, 32, 0.25);
-        assertNull("null should be returned when the bucket drops below the min threshold", bucket);
+        bucket = trimToThresholdWithHotness(sstrs, 32, 0.25);
+        assertEquals("cold sstables must be omitted", bucket.left.size(), 8);
     }
 }
