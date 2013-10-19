@@ -50,13 +50,12 @@ public class LazilyCompactedRow extends AbstractCompactedRow
 {
     private final List<? extends OnDiskAtomIterator> rows;
     private final CompactionController controller;
-    private final boolean shouldPurge;
+    private final long maxPurgeableTimestamp;
     private ColumnFamily emptyColumnFamily;
     private ColumnStats columnStats;
     private boolean closed;
     private ColumnIndex.Builder indexBuilder;
     private final SecondaryIndexManager.Updater indexer;
-    private long maxDelTimestamp;
     private final Reducer reducer;
     private final Iterator<OnDiskAtom> merger;
 
@@ -67,18 +66,16 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         this.controller = controller;
         indexer = controller.cfs.indexManager.updaterFor(key);
 
-        maxDelTimestamp = Long.MIN_VALUE;
         for (OnDiskAtomIterator row : rows)
         {
             ColumnFamily cf = row.getColumnFamily();
-            maxDelTimestamp = Math.max(maxDelTimestamp, cf.deletionInfo().maxTimestamp());
 
             if (emptyColumnFamily == null)
                 emptyColumnFamily = cf;
             else
                 emptyColumnFamily.delete(cf);
         }
-        this.shouldPurge = controller.shouldPurge(key, maxDelTimestamp);
+        maxPurgeableTimestamp = controller.maxPurgeableTimestamp(key);
 
         reducer = new Reducer();
         merger = Iterators.filter(MergeIterator.get(rows, emptyColumnFamily.getComparator().onDiskAtomComparator, reducer), Predicates.notNull());
@@ -108,7 +105,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
             columnsIndex = indexBuilder.buildForCompaction(merger);
             if (columnsIndex.columnsIndex.isEmpty())
             {
-                boolean cfIrrelevant = shouldPurge
+                boolean cfIrrelevant = emptyColumnFamily.deletionInfo().maxTimestamp() < maxPurgeableTimestamp
                                      ? ColumnFamilyStore.removeDeletedCF(emptyColumnFamily, controller.gcBefore) == null
                                      : !emptyColumnFamily.isMarkedForDelete(); // tombstones are relevant
                 if (cfIrrelevant)
@@ -122,7 +119,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         // reach into the reducer (created during iteration) to get column count, size, max column timestamp
         columnStats = new ColumnStats(reducer.columns,
                                       reducer.minTimestampSeen,
-                                      Math.max(maxDelTimestamp, reducer.maxTimestampSeen),
+                                      Math.max(emptyColumnFamily.deletionInfo().maxTimestamp(), reducer.maxTimestampSeen),
                                       reducer.maxLocalDeletionTimeSeen,
                                       reducer.tombstones,
                                       reducer.minColumnNameSeen,
@@ -241,6 +238,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
             }
             else
             {
+                boolean shouldPurge = container.getSortedColumns().iterator().next().timestamp() < maxPurgeableTimestamp;
                 ColumnFamily purged = removeDeletedAndOldShards(key, shouldPurge, controller, container);
                 if (purged == null || !purged.iterator().hasNext())
                 {

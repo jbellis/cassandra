@@ -50,9 +50,6 @@ public class CompactionController
     public final int gcBefore;
     public final int mergeShardBefore;
 
-    /**
-     * Constructor that subclasses may use when overriding shouldPurge to not need overlappingTree
-     */
     protected CompactionController(ColumnFamilyStore cfs, int maxValue)
     {
         this(cfs, null, maxValue);
@@ -152,25 +149,24 @@ public class CompactionController
     }
 
     /**
-     * @return true if it's okay to drop tombstones for the given row, i.e., if we know all the verisons of the row
-     * are included in the compaction set
+     * @return the largest timestamp before which it's okay to drop tombstones for the given partition;
+     * i.e., after the maxPurgeableTimestamp there may exist newer data that still needs to be supressed
+     * in other sstables.
      */
-    public boolean shouldPurge(DecoratedKey key, long maxDeletionTimestamp)
+    public long maxPurgeableTimestamp(DecoratedKey key)
     {
         List<SSTableReader> filteredSSTables = overlappingTree.search(key);
+        long min = Long.MAX_VALUE;
         for (SSTableReader sstable : filteredSSTables)
         {
-            if (sstable.getMinTimestamp() <= maxDeletionTimestamp)
-            {
-                // if we don't have bloom filter(bf_fp_chance=1.0 or filter file is missing),
-                // we check index file instead.
-                if (sstable.getBloomFilter() instanceof AlwaysPresentFilter && sstable.getPosition(key, SSTableReader.Operator.EQ, false) != null)
-                    return false;
-                else if (sstable.getBloomFilter().isPresent(key.key))
-                    return false;
-            }
+            // if we don't have bloom filter(bf_fp_chance=1.0 or filter file is missing),
+            // we check index file instead.
+            if (sstable.getBloomFilter() instanceof AlwaysPresentFilter && sstable.getPosition(key, SSTableReader.Operator.EQ, false) != null)
+                min = Math.min(min, sstable.getMinTimestamp());
+            else if (sstable.getBloomFilter().isPresent(key.key))
+                min = Math.min(min, sstable.getMinTimestamp());
         }
-        return true;
+        return min;
     }
 
     public void invalidateCachedRow(DecoratedKey key)
