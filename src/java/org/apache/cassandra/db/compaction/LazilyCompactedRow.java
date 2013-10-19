@@ -52,7 +52,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
     private final List<? extends OnDiskAtomIterator> rows;
     private final CompactionController controller;
     private final boolean shouldPurge;
-    private ColumnFamily emptyColumnFamily;
+    private final ColumnFamily emptyColumnFamily;
     private Reducer reducer;
     private ColumnStats columnStats;
     private boolean closed;
@@ -67,16 +67,17 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         this.controller = controller;
         indexer = controller.cfs.indexManager.updaterFor(key);
 
+        ColumnFamily rawCf = null;
         maxTombstoneTimestamp = Long.MIN_VALUE;
         for (OnDiskAtomIterator row : rows)
         {
             ColumnFamily cf = row.getColumnFamily();
             maxTombstoneTimestamp = Math.max(maxTombstoneTimestamp, cf.deletionInfo().maxTimestamp());
 
-            if (emptyColumnFamily == null)
-                emptyColumnFamily = cf;
+            if (rawCf == null)
+                rawCf = cf;
             else
-                emptyColumnFamily.delete(cf);
+                rawCf.delete(cf);
         }
 
         // Don't pass maxTombstoneTimestamp to shouldPurge since we might well have cells with
@@ -84,6 +85,13 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         // until we iterate over them.  By passing MAX_VALUE we will only purge if there are
         // no other versions of this row present.
         this.shouldPurge = controller.shouldPurge(key, Long.MAX_VALUE);
+
+        // even if we can't delete all the tombstones allowed by gcBefore, we should still call removeDeleted
+        // to get rid of redundant row-level and range tombstones
+        assert rawCf != null;
+        int overriddenGcBefore = shouldPurge ? controller.gcBefore : Integer.MIN_VALUE;
+        ColumnFamily purgedCf = ColumnFamilyStore.removeDeleted(rawCf, overriddenGcBefore);
+        emptyColumnFamily = purgedCf == null ? ArrayBackedSortedColumns.factory.create(controller.cfs.metadata) : purgedCf;
     }
 
     public RowIndexEntry write(long currentPosition, DataOutput out) throws IOException
