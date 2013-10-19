@@ -57,8 +57,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow
     private ColumnIndex.Builder indexBuilder;
     private final SecondaryIndexManager.Updater indexer;
     private long maxDelTimestamp;
-    private Reducer reducer;
-    private Iterator<OnDiskAtom> merger;
+    private final Reducer reducer;
+    private final Iterator<OnDiskAtom> merger;
 
     public LazilyCompactedRow(CompactionController controller, List<? extends OnDiskAtomIterator> rows)
     {
@@ -120,7 +120,6 @@ public class LazilyCompactedRow extends AbstractCompactedRow
             throw new RuntimeException(e);
         }
         // reach into the reducer (created during iteration) to get column count, size, max column timestamp
-        // (however, if there are zero columns, iterator() will not be called by ColumnIndexer and reducer will be null)
         columnStats = new ColumnStats(reducer.columns,
                                       reducer.minTimestampSeen,
                                       Math.max(maxDelTimestamp, reducer.maxTimestampSeen),
