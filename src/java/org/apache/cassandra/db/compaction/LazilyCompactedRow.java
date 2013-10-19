@@ -58,7 +58,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
     private boolean closed;
     private ColumnIndex.Builder indexBuilder;
     private final SecondaryIndexManager.Updater indexer;
-    private long maxDelTimestamp;
+    private long maxTombstoneTimestamp;
 
     public LazilyCompactedRow(CompactionController controller, List<? extends OnDiskAtomIterator> rows)
     {
@@ -67,18 +67,23 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         this.controller = controller;
         indexer = controller.cfs.indexManager.updaterFor(key);
 
-        maxDelTimestamp = Long.MIN_VALUE;
+        maxTombstoneTimestamp = Long.MIN_VALUE;
         for (OnDiskAtomIterator row : rows)
         {
             ColumnFamily cf = row.getColumnFamily();
-            maxDelTimestamp = Math.max(maxDelTimestamp, cf.deletionInfo().maxTimestamp());
+            maxTombstoneTimestamp = Math.max(maxTombstoneTimestamp, cf.deletionInfo().maxTimestamp());
 
             if (emptyColumnFamily == null)
                 emptyColumnFamily = cf;
             else
                 emptyColumnFamily.delete(cf);
         }
-        this.shouldPurge = controller.shouldPurge(key, maxDelTimestamp);
+
+        // Don't pass maxTombstoneTimestamp to shouldPurge since we might well have cells with
+        // tombstones newer than the row-level tombstones we've seen -- but we won't know that
+        // until we iterate over them.  By passing MAX_VALUE we will only purge if there are
+        // no other versions of this row present.
+        this.shouldPurge = controller.shouldPurge(key, Long.MAX_VALUE);
     }
 
     public RowIndexEntry write(long currentPosition, DataOutput out) throws IOException
@@ -107,7 +112,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         // (however, if there are zero columns, iterator() will not be called by ColumnIndexer and reducer will be null)
         columnStats = new ColumnStats(reducer == null ? 0 : reducer.columns,
                                       reducer == null ? Long.MAX_VALUE : reducer.minTimestampSeen,
-                                      reducer == null ? maxDelTimestamp : Math.max(maxDelTimestamp, reducer.maxTimestampSeen),
+                                      reducer == null ? maxTombstoneTimestamp : Math.max(maxTombstoneTimestamp, reducer.maxTimestampSeen),
                                       reducer == null ? Integer.MIN_VALUE : reducer.maxLocalDeletionTimeSeen,
                                       reducer == null ? new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE) : reducer.tombstones,
                                       reducer == null ? Collections.<ByteBuffer>emptyList() : reducer.minColumnNameSeen,
