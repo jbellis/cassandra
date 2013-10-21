@@ -32,7 +32,7 @@ public class StressStatistics
     private Session client;
     private PrintStream output;
 
-    private long durationInSeconds;
+    private long durationInMillis;
     /** The sum of the interval_op_rate values collected by tallyAverages */
     private int tallyOpRateSum;
     /** The number of interval_op_rate values collected by tallyAverages */
@@ -64,9 +64,7 @@ public class StressStatistics
     {
         this.client = client;
         this.output = out;
-
-        tallyOpRateSum = 0;
-        tallyOpRateCount = 0;
+        output.println("total,interval_op_rate,interval_key_rate,mean,median,95th,99th,elapsed_time");
     }
 
     /**
@@ -74,10 +72,10 @@ public class StressStatistics
      */
     public void addIntervalStats(int totalOperations, int intervalOpRate, 
                                  int intervalKeyRate, Snapshot latency, double meanLatency,
-                                 long currentTimeInSeconds)
+                                 long currentTimeInMillis)
     {
-        this.tallyAverages(totalOperations, intervalKeyRate, intervalKeyRate, 
-                                latency, meanLatency, currentTimeInSeconds);
+        this.tallyAverages(totalOperations, intervalOpRate, intervalKeyRate,
+                                latency, meanLatency, currentTimeInMillis);
     }
 
     /**
@@ -85,13 +83,13 @@ public class StressStatistics
      */
     private void tallyAverages(int totalOperations, int intervalOpRate, 
                                  int intervalKeyRate, Snapshot latency,
-                                 double meanLatency, long currentTimeInSeconds)
+                                 double meanLatency, long currentTimeInMillis)
     {
         //Skip the first and last 10% of values.
         //The middle values of the operation are the ones worthwhile
         //to collect and average:
-        if (totalOperations > (0.10 * client.getNumKeys()) &&
-            totalOperations < (0.90 * client.getNumKeys())) {
+        if (totalOperations > (0.10 * client.getNumOperations()) &&
+            totalOperations < (0.90 * client.getNumOperations())) {
                 tallyOpRateSum += intervalOpRate;
                 tallyOpRateCount += 1;
                 tallyKeyRateSum += intervalKeyRate;
@@ -105,7 +103,7 @@ public class StressStatistics
                 tally999thLatencySum += latency.get999thPercentile();
                 tally999thLatencyCount += 1;
             }
-        durationInSeconds = currentTimeInSeconds;
+        durationInMillis = currentTimeInMillis;
     }
 
     public void printStats()
@@ -127,7 +125,7 @@ public class StressStatistics
                                          (tally999thLatencySum / tally999thLatencyCount)));
         }
         output.println("Total operation time      : " + DurationFormatUtils.formatDuration(
-            durationInSeconds*1000, "HH:mm:ss", true));
+            durationInMillis, "HH:mm:ss", true));
     }
 
 }

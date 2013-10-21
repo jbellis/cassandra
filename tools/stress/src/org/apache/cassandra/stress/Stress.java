@@ -32,7 +32,6 @@ public final class Stress
     }
 
     public static Session session;
-    public static Random randomizer = new Random();
     private static volatile boolean stopped = false;
 
     public static void main(String[] arguments) throws Exception
@@ -89,9 +88,7 @@ public final class Stress
         else
         {
             StressAction stressAction = new StressAction(session, outStream);
-            stressAction.start();
-            stressAction.join();
-            System.exit(stressAction.getReturnCode());
+            stressAction.run();
         }
     }
 

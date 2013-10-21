@@ -17,119 +17,100 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.stress.Session;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-public class Inserter extends Operation
+public final class Inserter extends Operation
 {
-    private static List<ByteBuffer> values;
 
-    public Inserter(Session client, int index)
+    public Inserter(Settings settings, int index)
     {
-        super(client, index);
+        super(settings, index);
     }
 
-    public void run(CassandraClient client) throws IOException
+    public void run(final CassandraClient client) throws IOException
     {
-        if (values == null)
-            values = generateValues();
+        final ByteBuffer key = getKey();
+        final List<Column> columns = generateColumns();
 
-        List<Column> columns = new ArrayList<Column>(session.getColumnsPerKey());
-        List<SuperColumn> superColumns = null;
-
-        // format used for keys
-        String format = "%0" + session.getTotalKeysLength() + "d";
-
-        for (int i = 0; i < session.getColumnsPerKey(); i++)
+        Map<String, List<Mutation>> row;
+        if (!settings.useSuperColumns)
         {
-            columns.add(new Column(columnName(i, session.timeUUIDComparator))
-                            .setValue(values.get(i % values.size()))
-                            .setTimestamp(FBUtilities.timestampMicros()));
-        }
-
-        if (session.getColumnFamilyType() == ColumnFamilyType.Super)
-        {
-            superColumns = new ArrayList<SuperColumn>();
-            // supers = [SuperColumn('S' + str(j), columns) for j in xrange(supers_per_key)]
-            for (int i = 0; i < session.getSuperColumns(); i++)
+            List<Mutation> mutations = new ArrayList<>(columns.size());
+            for (Column c : columns)
             {
-                String superColumnName = "S" + Integer.toString(i);
-                superColumns.add(new SuperColumn(ByteBufferUtil.bytes(superColumnName), columns));
+                ColumnOrSuperColumn column = new ColumnOrSuperColumn().setColumn(c);
+                mutations.add(new Mutation().setColumn_or_supercolumn(column));
             }
+            row = Collections.singletonMap("Standard1", mutations);
         }
-
-        String rawKey = String.format(format, index);
-        Map<String, List<Mutation>> row = session.getColumnFamilyType() == ColumnFamilyType.Super
-                                        ? getSuperColumnsMutationMap(superColumns)
-                                        : getColumnsMutationMap(columns);
-        Map<ByteBuffer, Map<String, List<Mutation>>> record = Collections.singletonMap(ByteBufferUtil.bytes(rawKey), row);
-
-        TimerContext context = session.latency.time();
-
-        boolean success = false;
-        String exceptionMessage = null;
-        for (int t = 0; t < session.getRetryTimes(); t++)
+        else
         {
-            if (success)
-                break;
-
-            try
+            List<Mutation> mutations = new ArrayList<>(settings.columnParents.size());
+            for (ColumnParent parent : settings.columnParents)
             {
-                client.batch_mutate(record, session.getConsistencyLevel());
-                success = true;
+                final SuperColumn s = new SuperColumn(parent.bufferForSuper_column(), columns);
+                final ColumnOrSuperColumn cosc = new ColumnOrSuperColumn().setSuper_column(s);
+                mutations.add(new Mutation().setColumn_or_supercolumn(cosc));
             }
-            catch (Exception e)
+            row = Collections.singletonMap("Super1", mutations);
+        }
+
+        final Map<ByteBuffer, Map<String, List<Mutation>>> record = Collections.singletonMap(key, row);
+
+        timeWithRetry(new RunOp()
+        {
+            @Override
+            public boolean run() throws Exception
             {
-                exceptionMessage = getExceptionMessage(e);
-                success = false;
+                client.batch_mutate(record, settings.consistencyLevel);
+                return true;
             }
-        }
 
-        if (!success)
-        {
-            error(String.format("Operation [%d] retried %d times - error inserting key %s %s%n",
-                                index,
-                                session.getRetryTimes(),
-                                rawKey,
-                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
-        }
+            @Override
+            public String key()
+            {
+                return new String(key.array());
+            }
 
-        session.operations.getAndIncrement();
-        session.keys.getAndIncrement();
-        context.stop();
+            @Override
+            public int keyCount()
+            {
+                return 1;
+            }
+        });
     }
 
-    private Map<String, List<Mutation>> getSuperColumnsMutationMap(List<SuperColumn> superColumns)
+    protected List<Column> generateColumns()
     {
-        List<Mutation> mutations = new ArrayList<Mutation>(superColumns.size());
-        for (SuperColumn s : superColumns)
-        {
-            ColumnOrSuperColumn superColumn = new ColumnOrSuperColumn().setSuper_column(s);
-            mutations.add(new Mutation().setColumn_or_supercolumn(superColumn));
-        }
+        final List<ByteBuffer> values = generateColumnValues();
+        final List<Column> columns = new ArrayList<>(settings.columnsPerKey);
+        assert columns.size() == values.size();
 
-        return Collections.singletonMap("Super1", mutations);
+        // initialise columns to use string names, then override if want timeUUID
+        // on every call, as they need to be written each time anyway
+        if (columns.isEmpty())
+            for (int i = 0 ; i < values.size() ; i++)
+                columns.add(new Column(getColumnName(i)));
+
+        if (settings.useTimeUUIDComparator)
+            for (Column column : columns)
+                column.setName(TimeUUIDType.instance.decompose(UUIDGen.getTimeUUID()));
+
+        for (int i = 0 ; i < values.size() ; i++)
+            columns.get(i)
+                    .setValue(values.get(i))
+                    .setTimestamp(FBUtilities.timestampMicros());
+
+        return columns;
     }
 
-    private Map<String, List<Mutation>> getColumnsMutationMap(List<Column> columns)
-    {
-        List<Mutation> mutations = new ArrayList<Mutation>(columns.size());
-        for (Column c : columns)
-        {
-            ColumnOrSuperColumn column = new ColumnOrSuperColumn().setColumn(c);
-            mutations.add(new Mutation().setColumn_or_supercolumn(column));
-        }
-
-        return Collections.singletonMap("Standard1", mutations);
-    }
 }

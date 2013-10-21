@@ -30,18 +30,14 @@ import org.apache.cassandra.transport.SimpleClient;
 
 public class CqlMultiGetter extends Operation
 {
-    public CqlMultiGetter(Session client, int idx)
+    public CqlMultiGetter(Settings settings, int idx)
     {
-        super(client, idx);
+        super(settings, idx);
+        throw new RuntimeException("Multiget is not implemented for CQL");
     }
 
     public void run(CassandraClient client) throws IOException
     {
-        throw new RuntimeException("Multiget is not implemented for CQL");
     }
 
-    public void run(SimpleClient client) throws IOException
-    {
-        throw new RuntimeException("Multiget is not implemented for CQL");
-    }
 }

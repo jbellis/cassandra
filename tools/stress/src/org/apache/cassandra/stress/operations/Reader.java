@@ -17,144 +17,59 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 
-import static com.google.common.base.Charsets.UTF_8;
-
-public class Reader extends Operation
+public final class Reader extends Operation
 {
-    public Reader(Session client, int index)
+
+    public Reader(Settings settings, int index)
     {
-        super(client, index);
+        super(settings, index);
     }
 
-    public void run(CassandraClient client) throws IOException
+    public void run(final CassandraClient client) throws IOException
     {
-        // initialize SlicePredicate with existing SliceRange
-        SlicePredicate predicate = new SlicePredicate();
-
-        if (session.columnNames == null)
-            predicate.setSlice_range(getSliceRange());
-        else // see CASSANDRA-3064 about why this is useful
-            predicate.setColumn_names(session.columnNames);
-
-        if (session.getColumnFamilyType() == ColumnFamilyType.Super)
-        {
-            runSuperColumnReader(predicate, client);
-        }
-        else
-        {
-            runColumnReader(predicate, client);
-        }
-    }
-
-    private void runSuperColumnReader(SlicePredicate predicate, Cassandra.Client client) throws IOException
-    {
-        byte[] rawKey = generateKey();
-        ByteBuffer key = ByteBuffer.wrap(rawKey);
-
-        for (int j = 0; j < session.getSuperColumns(); j++)
-        {
-            String superColumn = 'S' + Integer.toString(j);
-            ColumnParent parent = new ColumnParent("Super1").setSuper_column(superColumn.getBytes(UTF_8));
-
-            TimerContext context = session.latency.time();
-
-            boolean success = false;
-            String exceptionMessage = null;
-
-            for (int t = 0; t < session.getRetryTimes(); t++)
-            {
-                if (success)
-                    break;
-
-                try
-                {
-                    List<ColumnOrSuperColumn> columns;
-                    columns = client.get_slice(key, parent, predicate, session.getConsistencyLevel());
-                    success = (columns.size() != 0);
-                }
-                catch (Exception e)
-                {
-                    exceptionMessage = getExceptionMessage(e);
-                    success = false;
-                }
-            }
-
-            if (!success)
-            {
-                error(String.format("Operation [%d] retried %d times - error reading key %s %s%n",
-                                    index,
-                                    session.getRetryTimes(),
-                                    new String(rawKey),
-                                    (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
-            }
-
-            session.operations.getAndIncrement();
-            session.keys.getAndIncrement();
-            context.stop();
-        }
-    }
-
-    private void runColumnReader(SlicePredicate predicate, Cassandra.Client client) throws IOException
-    {
-        ColumnParent parent = new ColumnParent("Standard1");
-
-        byte[] key = generateKey();
-        ByteBuffer keyBuffer = ByteBuffer.wrap(key);
-
-        TimerContext context = session.latency.time();
-
-        boolean success = false;
-        String exceptionMessage = null;
-
-        for (int t = 0; t < session.getRetryTimes(); t++)
-        {
-            if (success)
-                break;
-
-            try
-            {
-                List<ColumnOrSuperColumn> columns;
-                columns = client.get_slice(keyBuffer, parent, predicate, session.getConsistencyLevel());
-                success = (columns.size() != 0);
-            }
-            catch (Exception e)
-            {
-                exceptionMessage = getExceptionMessage(e);
-                success = false;
-            }
-        }
-
-        if (!success)
-        {
-            error(String.format("Operation [%d] retried %d times - error reading key %s %s%n",
-                                index,
-                                session.getRetryTimes(),
-                                new String(key),
-                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
-        }
-
-        session.operations.getAndIncrement();
-        session.keys.getAndIncrement();
-        context.stop();
-    }
-
-    private SliceRange getSliceRange()
-    {
-        return new SliceRange()
+        final SlicePredicate predicate = new SlicePredicate();
+        if (settings.readColumnNames == null)
+            predicate.setSlice_range(new SliceRange()
                     .setStart(new byte[] {})
                     .setFinish(new byte[] {})
                     .setReversed(false)
-                    .setCount(session.getColumnsPerKey());
+                    .setCount(settings.columnsPerKey)
+            );
+        else // see CASSANDRA-3064 about why this is useful
+            predicate.setColumn_names(settings.readColumnNames);
+
+        final ByteBuffer key = getKey();
+        for (final ColumnParent parent : settings.columnParents)
+        {
+            timeWithRetry(new RunOp()
+            {
+                @Override
+                public boolean run() throws Exception
+                {
+                    return client.get_slice(key, parent, predicate, settings.consistencyLevel).size() != 0;
+                }
+
+                @Override
+                public String key()
+                {
+                    return new String(key.array());
+                }
+
+                @Override
+                public int keyCount()
+                {
+                    return 1;
+                }
+            });
+        }
     }
+
 }

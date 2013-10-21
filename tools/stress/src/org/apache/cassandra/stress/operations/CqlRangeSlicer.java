@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.yammer.metrics.core.TimerContext;
+import org.apache.cassandra.stress.StressMetrics;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.apache.cassandra.db.ColumnFamilyType;
@@ -40,79 +41,32 @@ import org.apache.cassandra.transport.SimpleClient;
 
 public class CqlRangeSlicer extends CQLOperation
 {
-    private static String cqlQuery = null;
-    private int lastRowCount;
-
-    public CqlRangeSlicer(Session client, int idx)
+    public CqlRangeSlicer(Settings settings, int idx)
     {
-        super(client, idx);
+        super(settings, idx);
     }
 
-    protected void run(CQLQueryExecutor executor) throws IOException
+    @Override
+    protected List<String> getQueryParameters(byte[] key)
     {
-        if (session.getColumnFamilyType() == ColumnFamilyType.Super)
-            throw new RuntimeException("Super columns are not implemented for CQL");
-
-        if (cqlQuery == null)
-        {
-            StringBuilder query = new StringBuilder("SELECT FIRST ").append(session.getColumnsPerKey())
-                    .append(" ''..'' FROM Standard1");
-
-            if (session.cqlVersion.startsWith("2"))
-                query.append(" USING CONSISTENCY ").append(session.getConsistencyLevel().toString());
-
-            cqlQuery = query.append(" WHERE KEY > ?").toString();
-        }
-
-        String key = String.format("%0" +  session.getTotalKeysLength() + "d", index);
-        List<String> queryParams = Collections.singletonList(getUnQuotedCqlBlob(key, session.cqlVersion.startsWith("3")));
-
-        TimerContext context = session.latency.time();
-
-        boolean success = false;
-        String exceptionMessage = null;
-
-        for (int t = 0; t < session.getRetryTimes(); t++)
-        {
-            if (success)
-                break;
-
-            try
-            {
-                success = executor.execute(cqlQuery, queryParams);
-            }
-            catch (Exception e)
-            {
-                System.err.println(e);
-                exceptionMessage = getExceptionMessage(e);
-                success = false;
-            }
-        }
-
-        if (!success)
-        {
-            error(String.format("Operation [%d] retried %d times - error executing range slice with offset %s %s%n",
-                                index,
-                                session.getRetryTimes(),
-                                key,
-                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
-        }
-
-        session.operations.getAndIncrement();
-        session.keys.getAndAdd(lastRowCount);
-        context.stop();
+        return Collections.singletonList(getUnQuotedCqlBlob(key, settings.isCql3()));
     }
 
-    protected boolean validateThriftResult(CqlResult result)
+    @Override
+    protected String buildQuery()
     {
-        lastRowCount = result.rows.size();
-        return  lastRowCount != 0;
+        StringBuilder query = new StringBuilder("SELECT FIRST ").append(settings.columnsPerKey)
+                .append(" ''..'' FROM Standard1");
+
+        if (settings.isCql2())
+            query.append(" USING CONSISTENCY ").append(settings.consistencyLevel);
+
+        return query.append(" WHERE KEY > ?").toString();
     }
 
-    protected boolean validateNativeResult(ResultMessage result)
+    protected boolean validate(int rowCount)
     {
-        assert result instanceof ResultMessage.Rows;
-        lastRowCount = ((ResultMessage.Rows)result).result.size();
-        return lastRowCount != 0;
+        return rowCount != 0;
     }
+
 }

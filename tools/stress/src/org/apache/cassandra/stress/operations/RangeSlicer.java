@@ -17,128 +17,65 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 
-public class RangeSlicer extends Operation
+public final class RangeSlicer extends Operation
 {
 
-    public RangeSlicer(Session client, int index)
+    public RangeSlicer(Settings settings, int index)
     {
-        super(client, index);
+        super(settings, index);
     }
 
-    public void run(CassandraClient client) throws IOException
+    @Override
+    public void run(final CassandraClient client) throws IOException
     {
-        String format = "%0" + session.getTotalKeysLength() + "d";
+        final SlicePredicate predicate = new SlicePredicate()
+                .setSlice_range(
+                        new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                false,
+                                settings.columnsPerKey)
+                );
 
-        // initial values
-        int count = session.getColumnsPerKey();
+        final ByteBuffer start = getKey();
 
-        SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                                                      ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                                                      false,
-                                                                                      count));
+        // TODO do we REALLY want to range slice from key->infinity?
+        final KeyRange range =
+                new KeyRange(settings.columnsPerKey)
+                        .setStart_key(start)
+                        .setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER);
 
-        if (session.getColumnFamilyType() == ColumnFamilyType.Super)
+        for (final ColumnParent parent : settings.columnParents)
         {
-            ByteBuffer start = ByteBufferUtil.bytes(String.format(format, index));
-
-            List<KeySlice> slices = new ArrayList<KeySlice>();
-            KeyRange range = new KeyRange(count).setStart_key(start).setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER);
-
-            for (int i = 0; i < session.getSuperColumns(); i++)
+            timeWithRetry(new RunOp()
             {
-                String superColumnName = "S" + Integer.toString(i);
-                ColumnParent parent = new ColumnParent("Super1").setSuper_column(ByteBufferUtil.bytes(superColumnName));
-
-                TimerContext context = session.latency.time();
-
-                boolean success = false;
-                String exceptionMessage = null;
-
-                for (int t = 0; t < session.getRetryTimes(); t++)
+                private int count = 0;
+                @Override
+                public boolean run() throws Exception
                 {
-                    try
-                    {
-                        slices = client.get_range_slices(parent, predicate, range, session.getConsistencyLevel());
-                        success = (slices.size() != 0);
-                    }
-                    catch (Exception e)
-                    {
-                        exceptionMessage = getExceptionMessage(e);
-                        success = false;
-                    }
+                    return (count = client.get_range_slices(parent, predicate, range, settings.consistencyLevel).size()) != 0;
                 }
 
-                if (!success)
+                @Override
+                public String key()
                 {
-                    error(String.format("Operation [%d] retried %d times - error on calling get_range_slices for range offset %s %s%n",
-                                        index,
-                                        session.getRetryTimes(),
-                                        ByteBufferUtil.string(start),
-                                        (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
+                    return new String(range.bufferForStart_key().array());
                 }
 
-                session.operations.getAndIncrement();
-                context.stop();
-            }
-
-            session.keys.getAndAdd(slices.size());
-        }
-        else
-        {
-            ColumnParent parent = new ColumnParent("Standard1");
-
-            ByteBuffer start = ByteBufferUtil.bytes(String.format(format, index));
-
-            List<KeySlice> slices = new ArrayList<KeySlice>();
-            KeyRange range = new KeyRange(count).setStart_key(start).setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER);
-
-            TimerContext context = session.latency.time();
-
-            boolean success = false;
-            String exceptionMessage = null;
-
-            for (int t = 0; t < session.getRetryTimes(); t++)
-            {
-                if (success)
-                    break;
-
-                try
+                @Override
+                public int keyCount()
                 {
-                    slices = client.get_range_slices(parent, predicate, range, session.getConsistencyLevel());
-                    success = (slices.size() != 0);
+                    return count;
                 }
-                catch (Exception e)
-                {
-                    exceptionMessage = getExceptionMessage(e);
-                    success = false;
-                }
-            }
-
-            if (!success)
-            {
-                error(String.format("Operation [%d] retried %d times - error on calling get_indexed_slices for range offset %s %s%n",
-                                    index,
-                                    session.getRetryTimes(),
-                                    ByteBufferUtil.string(start),
-                                    (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
-            }
-
-            session.operations.getAndIncrement();
-            session.keys.getAndAdd(slices.size());
-            context.stop();
+            });
         }
     }
+
 }

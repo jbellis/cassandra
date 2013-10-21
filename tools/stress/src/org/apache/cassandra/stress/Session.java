@@ -56,10 +56,7 @@ public class Session implements Serializable
     public static final String DEFAULT_VALIDATOR  = "BytesType";
 
     private static InetAddress localInetAddress;
-
-    public final AtomicInteger operations = new AtomicInteger();
     public final AtomicInteger keys = new AtomicInteger();
-    public final com.yammer.metrics.core.Timer latency = Metrics.newTimer(Session.class, "latency");
 
     private static final String SSL_TRUSTSTORE = "truststore";
     private static final String SSL_TRUSTSTORE_PW = "truststore-password";
@@ -73,18 +70,18 @@ public class Session implements Serializable
         availableOptions.addOption("h",  "help",                 false,  "Show this help message and exit");
         availableOptions.addOption("n",  "num-keys",             true,   "Number of keys, default:1000000");
         availableOptions.addOption("F",  "num-different-keys",   true,   "Number of different keys (if < NUM-KEYS, the same key will re-used multiple times), default:NUM-KEYS");
-        availableOptions.addOption("N",  "skip-keys",            true,   "Fraction of keys to skip initially, default:0");
         availableOptions.addOption("t",  "threads",              true,   "Number of threads to use, default:50");
         availableOptions.addOption("c",  "columns",              true,   "Number of columns per key, default:5");
         availableOptions.addOption("S",  "column-size",          true,   "Size of column values in bytes, default:34");
-        availableOptions.addOption("C",  "cardinality",          true,   "Number of unique values stored in columns, default:50");
+        availableOptions.addOption("C",  "unique columns",       true,   "Max number of unique columns, default:50");
+        availableOptions.addOption("RC", "unique rows",          true,   "Max number of unique rows, default:50");
         availableOptions.addOption("d",  "nodes",                true,   "Host nodes (comma separated), default:locahost");
         availableOptions.addOption("D",  "nodesfile",            true,   "File containing host nodes (one per line)");
-        availableOptions.addOption("s",  "stdev",                true,   "Standard Deviation Factor, default:0.1");
-        availableOptions.addOption("r",  "random",               false,  "Use random key generator (STDEV will have no effect), default:false");
+        availableOptions.addOption("s",  "stdev",                true,   "Standard Deviation for gaussian read key generation, default:0.1");
+        availableOptions.addOption("r",  "random",               false,  "Use random key generator for read key generation (STDEV will have no effect), default:false");
         availableOptions.addOption("f",  "file",                 true,   "Write output to given file");
         availableOptions.addOption("p",  "port",                 true,   "Thrift port, default:9160");
-        availableOptions.addOption("o",  "operation",            true,   "Operation to perform (INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTER_ADD, COUNTER_GET), default:INSERT");
+        availableOptions.addOption("o",  "operation",            true,   "Operation to perform (INSERT, READ, READWRITE, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTER_ADD, COUNTER_GET), default:INSERT");
         availableOptions.addOption("u",  "supercolumns",         true,   "Number of super columns per key, default:1");
         availableOptions.addOption("y",  "family-type",          true,   "Column Family Type (Super, Standard), default:Standard");
         availableOptions.addOption("K",  "keep-trying",          true,   "Retry on-going operation N times (in case of failure). positive integer, default:10");
@@ -118,9 +115,9 @@ public class Session implements Serializable
         availableOptions.addOption("th",  "throttle",            true,   "Throttle the total number of operations per second to a maximum amount.");
     }
 
+    public boolean auto          = false;
     private int numKeys          = 1000 * 1000;
     private int numDifferentKeys = numKeys;
-    private float skipKeys       = 0;
     private int threads          = 50;
     private int columns          = 5;
     private int columnSize       = 34;
@@ -196,9 +193,6 @@ public class Session implements Serializable
                 numDifferentKeys = Integer.parseInt(cmd.getOptionValue("F"));
             else
                 numDifferentKeys = numKeys;
-
-            if (cmd.hasOption("N"))
-                skipKeys = Float.parseFloat(cmd.getOptionValue("N"));
 
             if (cmd.hasOption("t"))
                 threads = Integer.parseInt(cmd.getOptionValue("t"));
@@ -483,9 +477,14 @@ public class Session implements Serializable
         }
     }
 
-    public int getCardinality()
+    public int getUniqueColumnCount()
     {
         return cardinality;
+    }
+
+    public int getUniqueRowCount()
+    {
+        return ;
     }
 
     public int getColumnSize()
@@ -503,7 +502,12 @@ public class Session implements Serializable
         return columnFamilyType;
     }
 
-    public int getNumKeys()
+    public boolean isSuperColumn()
+    {
+        return columnFamilyType == ColumnFamilyType.Super;
+    }
+
+    public int getNumOperations()
     {
         return numKeys;
     }
@@ -521,11 +525,6 @@ public class Session implements Serializable
     public double getMaxOpsPerSecond()
     {
         return maxOpsPerSecond;
-    }
-
-    public float getSkipKeys()
-    {
-        return skipKeys;
     }
 
     public int getSuperColumns()
@@ -735,7 +734,7 @@ public class Session implements Serializable
     public CassandraClient getClient(boolean setKeyspace)
     {
         // random node selection for fake load balancing
-        String currentNode = nodes[Stress.randomizer.nextInt(nodes.length)];
+        String currentNode = randomNode();
 
         TSocket socket = new TSocket(currentNode, port);
         TTransport transport = transportFactory.getTransport(socket);
@@ -770,7 +769,7 @@ public class Session implements Serializable
     {
         try
         {
-            String currentNode = nodes[Stress.randomizer.nextInt(nodes.length)];
+            String currentNode = randomNode();
             SimpleClient client = new SimpleClient(currentNode, 9042);
             client.connect(false);
             client.execute("USE \"Keyspace1\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
@@ -780,6 +779,14 @@ public class Session implements Serializable
         {
             throw new RuntimeException(e.getMessage());
         }
+    }
+
+    private String randomNode()
+    {
+        int index = (int) (Math.random() * nodes.length);
+        if (index >= nodes.length)
+            index = nodes.length - 1;
+        return nodes[index];
     }
 
     public static InetAddress getLocalAddress()

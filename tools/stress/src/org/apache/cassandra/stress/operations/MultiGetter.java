@@ -17,136 +17,58 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 
-public class MultiGetter extends Operation
+public final class MultiGetter extends Operation
 {
-    public MultiGetter(Session client, int index)
+
+    public MultiGetter(Settings settings, int index)
     {
-        super(client, index);
+        super(settings, index);
     }
 
-    public void run(CassandraClient client) throws IOException
+    public void run(final CassandraClient client) throws IOException
     {
-        SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                                                      ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                                                      false, session.getColumnsPerKey()));
 
-        int offset = index * session.getKeysPerThread();
-        Map<ByteBuffer,List<ColumnOrSuperColumn>> results;
+        final SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                false, settings.columnsPerKey));
 
-        if (session.getColumnFamilyType() == ColumnFamilyType.Super)
+        final List<ByteBuffer> keys = getKeys(settings.maxKeysAtOnce);
+
+        for (final ColumnParent parent : settings.columnParents)
         {
-            List<ByteBuffer> keys = generateKeys(offset, offset + session.getKeysPerCall());
-
-            for (int j = 0; j < session.getSuperColumns(); j++)
+            timeWithRetry(new RunOp()
             {
-                ColumnParent parent = new ColumnParent("Super1").setSuper_column(ByteBufferUtil.bytes("S" + j));
-
-                TimerContext context = session.latency.time();
-
-                boolean success = false;
-                String exceptionMessage = null;
-
-                for (int t = 0; t < session.getRetryTimes(); t++)
+                int count;
+                @Override
+                public boolean run() throws Exception
                 {
-                    if (success)
-                        break;
-
-                    try
-                    {
-                        results = client.multiget_slice(keys, parent, predicate, session.getConsistencyLevel());
-                        success = (results.size() != 0);
-                    }
-                    catch (Exception e)
-                    {
-                        exceptionMessage = getExceptionMessage(e);
-                    }
+                    return (count = client.multiget_slice(keys, parent, predicate, settings.consistencyLevel).size()) != 0;
                 }
 
-                if (!success)
+                @Override
+                public String key()
                 {
-                    error(String.format("Operation [%d] retried %d times - error on calling multiget_slice for keys %s %s%n",
-                                        index,
-                                        session.getRetryTimes(),
-                                        keys,
-                                        (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
+                    return keys.toString();
                 }
 
-                session.operations.getAndIncrement();
-                session.keys.getAndAdd(keys.size());
-                context.stop();
-
-                offset += session.getKeysPerCall();
-            }
-        }
-        else
-        {
-            ColumnParent parent = new ColumnParent("Standard1");
-
-            List<ByteBuffer> keys = generateKeys(offset, offset + session.getKeysPerCall());
-
-            TimerContext context = session.latency.time();
-
-            boolean success = false;
-            String exceptionMessage = null;
-
-            for (int t = 0; t < session.getRetryTimes(); t++)
-            {
-                if (success)
-                    break;
-
-                try
+                @Override
+                public int keyCount()
                 {
-                    results = client.multiget_slice(keys, parent, predicate, session.getConsistencyLevel());
-                    success = (results.size() != 0);
+                    return count;
                 }
-                catch (Exception e)
-                {
-                    exceptionMessage = getExceptionMessage(e);
-                    success = false;
-                }
-            }
-
-            if (!success)
-            {
-                error(String.format("Operation [%d] retried %d times - error on calling multiget_slice for keys %s %s%n",
-                                    index,
-                                    session.getRetryTimes(),
-                                    keys,
-                                    (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
-            }
-
-            session.operations.getAndIncrement();
-            session.keys.getAndAdd(keys.size());
-            context.stop();
-
-            offset += session.getKeysPerCall();
+            });
         }
     }
 
-    private List<ByteBuffer> generateKeys(int start, int limit)
-    {
-        List<ByteBuffer> keys = new ArrayList<ByteBuffer>();
-
-        for (int i = start; i < limit; i++)
-        {
-            keys.add(ByteBuffer.wrap(generateKey()));
-        }
-
-        return keys;
-    }
 }

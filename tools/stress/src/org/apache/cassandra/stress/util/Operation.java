@@ -17,50 +17,191 @@
  */
 package org.apache.cassandra.stress.util;
 
-import static com.google.common.base.Charsets.UTF_8;
-
 import java.io.IOException;
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.Random;
-import java.util.Map;
-import java.util.HashMap;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Lists;
-
-import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.Stress;
+import org.apache.cassandra.stress.StressMetrics;
+import org.apache.cassandra.stress.generatedata.DataGen;
+import org.apache.cassandra.stress.generatedata.DataGenGaussianHex;
+import org.apache.cassandra.stress.generatedata.DataGenOpIndexToHex;
+import org.apache.cassandra.stress.generatedata.DataGenRandomHex;
+import org.apache.cassandra.stress.generatedata.DataGenUniform;
+import org.apache.cassandra.stress.generatedata.RowGen;
+import org.apache.cassandra.stress.generatedata.RowGenAverageSize;
+import org.apache.cassandra.stress.generatedata.RowGenFixedSize;
+import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.transport.SimpleClient;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.CqlPreparedResult;
+import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Hex;
-import org.apache.cassandra.utils.UUIDGen;
 
 public abstract class Operation
 {
     public final int index;
+    protected final Settings settings;
 
-    protected final Session session;
-    protected static volatile Double nextGaussian = null;
-
-    public Operation(int idx)
+    public Operation(Settings settings, int idx)
     {
         index = idx;
-        session = Stress.session;
+        this.settings = settings;
     }
 
-    public Operation(Session client, int idx)
+    public static interface RunOp
     {
-        index = idx;
-        session = client;
+        public boolean run() throws Exception;
+        public String key();
+        public int keyCount();
+    }
+
+    public static enum ConnectionAPI
+    {
+        CQL,
+        CQL_PREPARED,
+        THRIFT
+    }
+
+    public static enum CqlVersion
+    {
+        CQL1, CQL2, CQL3;
+        static CqlVersion get(String version)
+        {
+            switch(version.charAt(0))
+            {
+                case '1':
+                    return CQL1;
+                case '2':
+                    return CQL2;
+                case '3':
+                    return CQL3;
+                default:
+                    throw new IllegalStateException();
+            }
+        }
+    }
+
+    // one per thread!
+    public static final class Settings
+    {
+
+        final StressMetrics.Timer timer;
+        public final Stress.Operations kind;
+        public final DataGen keyGen;
+        public final RowGen rowGen;
+        public final ConnectionAPI connectionApi;
+        public final List<ColumnParent> columnParents;
+        public final StressMetrics metrics;
+        public final boolean useSuperColumns;
+        public final int columnsPerKey;
+        public final int maxKeysAtOnce;
+        public final CqlVersion cqlVersion;
+        public final ConsistencyLevel consistencyLevel;
+        public final int retryTimes;
+        public final boolean ignoreErrors;
+
+        // TODO : make configurable
+        private final int keySize = 10;
+
+        public final boolean useTimeUUIDComparator;
+        public final boolean usePreparedStatements;
+        public final List<ByteBuffer> readColumnNames;
+
+        private final List<ByteBuffer> keyBuffers = new ArrayList<>();
+        private Object cqlCache;
+
+        public Settings(Session session, StressMetrics metrics)
+        {
+            this.kind = session.getOperation();
+            this.timer = metrics.newTimer();
+            // TODO: this logic shouldn't be here - dataGen and keyGen should be passed in
+            switch (kind)
+            {
+                case COUNTER_ADD:
+                case INSERT:
+                    this.keyGen = new DataGenOpIndexToHex(session.getNumDifferentKeys());
+                    break;
+                default:
+                    if (session.useRandomGenerator())
+                        this.keyGen = new DataGenRandomHex(session.getNumDifferentKeys());
+                    else
+                        this.keyGen = new DataGenGaussianHex(session.getNumDifferentKeys(), session.getMean(), session.getSigma());
+            }
+
+            if (session.averageSizeValues)
+                this.rowGen = new RowGenAverageSize(new DataGenUniform(session.getUniqueColumnCount()), session.getColumnsPerKey(), session.getColumnSize());
+            else
+                this.rowGen = new RowGenFixedSize(new DataGenUniform(session.getUniqueRowCount()), session.getColumnsPerKey(), session.getUniqueColumnCount(), session.getColumnSize());
+
+            this.connectionApi = session.isCQL() ?
+                    session.usePreparedStatements() ?
+                            ConnectionAPI.CQL_PREPARED :
+                            ConnectionAPI.CQL :
+                    ConnectionAPI.THRIFT;
+            this.metrics = metrics;
+            this.cqlVersion = CqlVersion.get(session.cqlVersion);
+            this.consistencyLevel = session.getConsistencyLevel();
+            this.retryTimes = session.getRetryTimes();
+            this.ignoreErrors = session.ignoreErrors();
+            this.useTimeUUIDComparator = session.timeUUIDComparator;
+            this.useSuperColumns = session.getColumnFamilyType() == ColumnFamilyType.Super;
+            this.columnsPerKey = session.getColumnsPerKey();
+            this.readColumnNames = session.columnNames;
+            this.maxKeysAtOnce = session.getKeysPerCall();
+            if (!useSuperColumns)
+                columnParents = Collections.singletonList(new ColumnParent("Standard1"));
+            else
+            {
+                ColumnParent[] cp = new ColumnParent[session.getSuperColumns()];
+                for (int i = 0 ; i < cp.length ; i++)
+                    cp[i] = new ColumnParent("Super1").setSuper_column(ByteBufferUtil.bytes("S" + i));
+                columnParents = Arrays.asList(cp);
+            }
+            this.usePreparedStatements = session.usePreparedStatements();
+        }
+        List<ByteBuffer> getKeys(int n, int index)
+        {
+            while (keyBuffers.size() < n)
+                keyBuffers.add(ByteBuffer.wrap(new byte[keySize]));
+            keyGen.generate(keyBuffers, index);
+            return keyBuffers;
+        }
+        public boolean isCql3()
+        {
+            return cqlVersion == CqlVersion.CQL3;
+        }
+        public boolean isCql2()
+        {
+            return cqlVersion == CqlVersion.CQL2;
+        }
+        public Object getCqlCache()
+        {
+            return cqlCache;
+        }
+        public void storeCqlCache(Object val)
+        {
+            cqlCache = val;
+        }
+    }
+
+    protected ByteBuffer getKey()
+    {
+        return settings.getKeys(1, index).get(0);
+    }
+
+    protected List<ByteBuffer> getKeys(int count)
+    {
+        return settings.getKeys(count, index);
+    }
+
+    protected List<ByteBuffer> generateColumnValues()
+    {
+        return settings.rowGen.generate(index);
     }
 
     /**
@@ -70,154 +211,45 @@ public abstract class Operation
      */
     public abstract void run(CassandraClient client) throws IOException;
 
-    public void run(SimpleClient client) throws IOException {}
-
-    // Utility methods
-
-    protected List<ByteBuffer> generateValues()
-    {
-        if (session.averageSizeValues)
-        {
-            return generateRandomizedValues();
-        }
-
-        List<ByteBuffer> values = new ArrayList<ByteBuffer>();
-
-        for (int i = 0; i < session.getCardinality(); i++)
-        {
-            String hash = getMD5(Integer.toString(i));
-            int times = session.getColumnSize() / hash.length();
-            int sumReminder = session.getColumnSize() % hash.length();
-
-            String value = multiplyString(hash, times) + hash.substring(0, sumReminder);
-            values.add(ByteBuffer.wrap(value.getBytes()));
-        }
-
-        return values;
+    public void run(SimpleClient client) throws IOException {
+        throw new UnsupportedOperationException();
     }
 
-    /**
-     * Generate values of average size specified by -S, up to cardinality specified by -C
-     * @return Collection of the values
-     */
-    protected List<ByteBuffer> generateRandomizedValues()
+    public void timeWithRetry(RunOp run) throws IOException
     {
-        List<ByteBuffer> values = new ArrayList<ByteBuffer>();
+        settings.timer.start();
 
-        int limit = 2 * session.getColumnSize();
+        boolean success = false;
+        String exceptionMessage = null;
 
-        for (int i = 0; i < session.getCardinality(); i++)
+        for (int t = 0; t < settings.retryTimes; t++)
         {
-            byte[] value = new byte[Stress.randomizer.nextInt(limit)];
-            Stress.randomizer.nextBytes(value);
-            values.add(ByteBuffer.wrap(value));
-        }
+            if (success)
+                break;
 
-        return values;
-    }
-
-    /**
-     * key generator using Gauss or Random algorithm
-     * @return byte[] representation of the key string
-     */
-    protected byte[] generateKey()
-    {
-        return (session.useRandomGenerator()) ? generateRandomKey() : generateGaussKey();
-    }
-
-    /**
-     * Random key generator
-     * @return byte[] representation of the key string
-     */
-    private byte[] generateRandomKey()
-    {
-        String format = "%0" + session.getTotalKeysLength() + "d";
-        return String.format(format, Stress.randomizer.nextInt(Stress.session.getNumDifferentKeys() - 1)).getBytes(UTF_8);
-    }
-
-    /**
-     * Gauss key generator
-     * @return byte[] representation of the key string
-     */
-    private byte[] generateGaussKey()
-    {
-        String format = "%0" + session.getTotalKeysLength() + "d";
-
-        for (;;)
-        {
-            double token = nextGaussian(session.getMean(), session.getSigma());
-
-            if (0 <= token && token < session.getNumDifferentKeys())
+            try
             {
-                return String.format(format, (int) token).getBytes(UTF_8);
+                success = run.run();
+            }
+            catch (Exception e)
+            {
+                System.err.println(e);
+                exceptionMessage = getExceptionMessage(e);
+                success = false;
             }
         }
-    }
 
-    /**
-     * Gaussian distribution.
-     * @param mu is the mean
-     * @param sigma is the standard deviation
-     *
-     * @return next Gaussian distribution number
-     */
-    private static double nextGaussian(int mu, float sigma)
-    {
-        Random random = Stress.randomizer;
+        settings.timer.stop(run.keyCount());
 
-        Double currentState = nextGaussian;
-        nextGaussian = null;
-
-        if (currentState == null)
+        if (!success)
         {
-            double x2pi  = random.nextDouble() * 2 * Math.PI;
-            double g2rad = Math.sqrt(-2.0 * Math.log(1.0 - random.nextDouble()));
-
-            currentState = Math.cos(x2pi) * g2rad;
-            nextGaussian = Math.sin(x2pi) * g2rad;
+            error(String.format("Operation [%d] retried %d times - error executing range slice with offset %s %s%n",
+                    index,
+                    settings.retryTimes,
+                    run.key(),
+                    (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
         }
 
-        return mu + currentState * sigma;
-    }
-
-    /**
-     * MD5 string generation
-     * @param input String
-     * @return md5 representation of the string
-     */
-    private String getMD5(String input)
-    {
-        MessageDigest md = FBUtilities.threadLocalMD5Digest();
-        byte[] messageDigest = md.digest(input.getBytes(UTF_8));
-        StringBuilder hash = new StringBuilder(new BigInteger(1, messageDigest).toString(16));
-
-        while (hash.length() < 32)
-            hash.append("0").append(hash);
-
-        return hash.toString();
-    }
-
-    /**
-     * Equal to python/ruby - 's' * times
-     * @param str String to multiple
-     * @param times multiplication times
-     * @return multiplied string
-     */
-    private String multiplyString(String str, int times)
-    {
-        StringBuilder result = new StringBuilder();
-
-        for (int i = 0; i < times; i++)
-            result.append(str);
-
-        return result.toString();
-    }
-
-    protected ByteBuffer columnName(int index, boolean timeUUIDComparator)
-    {
-        return timeUUIDComparator
-                ? TimeUUIDType.instance.decompose(UUIDGen.getTimeUUID())
-                : ByteBufferUtil.bytes(String.format("C%d", index));
     }
 
     protected String getExceptionMessage(Exception e)
@@ -229,106 +261,15 @@ public abstract class Operation
 
     protected void error(String message) throws IOException
     {
-        if (!session.ignoreErrors())
+        if (!settings.ignoreErrors)
             throw new IOException(message);
         else
             System.err.println(message);
     }
 
-    protected String getUnQuotedCqlBlob(String term, boolean isCQL3)
+    public static ByteBuffer getColumnName(int i)
     {
-        return getUnQuotedCqlBlob(term.getBytes(), isCQL3);
+        return ByteBufferUtil.bytes("C" + i);
     }
 
-    protected String getUnQuotedCqlBlob(byte[] term, boolean isCQL3)
-    {
-        return isCQL3
-             ? "0x" + Hex.bytesToHex(term)
-             : Hex.bytesToHex(term);
-    }
-
-    protected List<ByteBuffer> queryParamsAsByteBuffer(List<String> queryParams)
-    {
-        return Lists.transform(queryParams, new Function<String, ByteBuffer>()
-        {
-            public ByteBuffer apply(String param)
-            {
-                if (param.startsWith("0x"))
-                    param = param.substring(2);
-                return ByteBufferUtil.hexToBytes(param);
-            }
-        });
-    }
-
-    /**
-     * Constructs a CQL query string by replacing instances of the character
-     * '?', with the corresponding parameter.
-     *
-     * @param query base query string to format
-     * @param parms sequence of string query parameters
-     * @return formatted CQL query string
-     */
-    protected static String formatCqlQuery(String query, List<String> parms)
-    {
-        int marker, position = 0;
-        StringBuilder result = new StringBuilder();
-
-        if (-1 == (marker = query.indexOf('?')) || parms.size() == 0)
-            return query;
-
-        for (String parm : parms)
-        {
-            result.append(query.substring(position, marker));
-            result.append(parm);
-
-            position = marker + 1;
-            if (-1 == (marker = query.indexOf('?', position + 1)))
-                break;
-        }
-
-        if (position < query.length())
-            result.append(query.substring(position));
-
-        return result.toString();
-    }
-
-    protected Integer getPreparedStatement(CassandraClient client, String cqlQuery) throws Exception
-    {
-        Integer statementId = client.preparedStatements.get(cqlQuery.hashCode());
-        if (statementId == null)
-        {
-            CqlPreparedResult response = session.cqlVersion.startsWith("3")
-                                       ? client.prepare_cql3_query(ByteBufferUtil.bytes(cqlQuery), Compression.NONE)
-                                       : client.prepare_cql_query(ByteBufferUtil.bytes(cqlQuery), Compression.NONE);
-            statementId = response.itemId;
-            client.preparedStatements.put(cqlQuery.hashCode(), statementId);
-        }
-
-        return statementId;
-    }
-
-    private static final Map<Integer, byte[]> preparedStatementsNative = new HashMap<Integer, byte[]>();
-
-    protected static byte[] getPreparedStatement(SimpleClient client, String cqlQuery) throws Exception
-    {
-        byte[] statementId = preparedStatementsNative.get(cqlQuery.hashCode());
-        if (statementId == null)
-        {
-            statementId = client.prepare(cqlQuery).statementId.bytes;
-            preparedStatementsNative.put(cqlQuery.hashCode(), statementId);
-        }
-        return statementId;
-    }
-
-    protected String wrapInQuotesIfRequired(String string)
-    {
-        return session.cqlVersion.startsWith("3")
-                ? "\"" + string + "\""
-                : string;
-    }
-
-    public interface CQLQueryExecutor
-    {
-        public boolean execute(String query, List<String> queryParameters) throws Exception;
-    }
 }

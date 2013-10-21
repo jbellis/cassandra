@@ -38,85 +38,44 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CqlCounterAdder extends CQLOperation
 {
-    private static String cqlQuery = null;
-
-    public CqlCounterAdder(Session client, int idx)
+    public CqlCounterAdder(Settings settings, int idx)
     {
-        super(client, idx);
+        super(settings, idx);
     }
 
-    protected void run(CQLQueryExecutor executor) throws IOException
+    @Override
+    protected String buildQuery()
     {
-        if (session.getColumnFamilyType() == ColumnFamilyType.Super)
-            throw new RuntimeException("Super columns are not implemented for CQL");
+        String counterCF = settings.isCql2() ? "Counter1" : "Counter3";
 
-        if (cqlQuery == null)
+        StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired(counterCF));
+
+        if (settings.isCql2())
+            query.append(" USING CONSISTENCY ").append(settings.consistencyLevel);
+
+        query.append(" SET ");
+
+        for (int i = 0; i < settings.columnsPerKey; i++)
         {
-            String counterCF = session.cqlVersion.startsWith("2") ? "Counter1" : "Counter3";
+            if (i > 0)
+                query.append(",");
 
-            StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired(counterCF));
-
-            if (session.cqlVersion.startsWith("2"))
-                query.append(" USING CONSISTENCY ").append(session.getConsistencyLevel());
-
-            query.append(" SET ");
-
-            for (int i = 0; i < session.getColumnsPerKey(); i++)
-            {
-                if (i > 0)
-                    query.append(",");
-
-                query.append('C').append(i).append("=C").append(i).append("+1");
-            }
-            query.append(" WHERE KEY=?");
-            cqlQuery = query.toString();
+            query.append('C').append(i).append("=C").append(i).append("+1");
         }
-
-        String key = String.format("%0" + session.getTotalKeysLength() + "d", index);
-        List<String> queryParams = Collections.singletonList(getUnQuotedCqlBlob(key, session.cqlVersion.startsWith("3")));
-
-        TimerContext context = session.latency.time();
-
-        boolean success = false;
-        String exceptionMessage = null;
-
-        for (int t = 0; t < session.getRetryTimes(); t++)
-        {
-            if (success)
-                break;
-
-            try
-            {
-                success = executor.execute(cqlQuery, queryParams);
-            }
-            catch (Exception e)
-            {
-                exceptionMessage = getExceptionMessage(e);
-                success = false;
-            }
-        }
-
-        if (!success)
-        {
-            error(String.format("Operation [%d] retried %d times - error incrementing key %s %s%n",
-                                index,
-                                session.getRetryTimes(),
-                                key,
-                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
-        }
-
-        session.operations.getAndIncrement();
-        session.keys.getAndIncrement();
-        context.stop();
+        query.append(" WHERE KEY=?");
+        return query.toString();
     }
 
-    protected boolean validateThriftResult(CqlResult result)
+    @Override
+    protected List<String> getQueryParameters(byte[] key)
+    {
+        return Collections.singletonList(getUnQuotedCqlBlob(key, settings.isCql3()));
+    }
+
+    @Override
+    protected boolean validate(int rowCount)
     {
         return true;
     }
 
-    protected boolean validateNativeResult(ResultMessage result)
-    {
-        return true;
-    }
 }

@@ -39,82 +39,42 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CqlCounterGetter extends CQLOperation
 {
-    private static String cqlQuery = null;
 
-    public CqlCounterGetter(Session client, int idx)
+    public CqlCounterGetter(Settings settings, int idx)
     {
-        super(client, idx);
+        super(settings, idx);
     }
 
-    protected void run(CQLQueryExecutor executor) throws IOException
+    @Override
+    protected List<String> getQueryParameters(byte[] key)
     {
-        if (session.getColumnFamilyType() == ColumnFamilyType.Super)
-            throw new RuntimeException("Super columns are not implemented for CQL");
-
-        if (cqlQuery == null)
-        {
-            StringBuilder query = new StringBuilder("SELECT ");
-
-            if (session.cqlVersion.startsWith("2"))
-                query.append("FIRST ").append(session.getColumnsPerKey()).append(" ''..''");
-            else
-                query.append("*");
-
-            String counterCF = session.cqlVersion.startsWith("2") ? "Counter1" : "Counter3";
-
-            query.append(" FROM ").append(wrapInQuotesIfRequired(counterCF));
-
-            if (session.cqlVersion.startsWith("2"))
-                query.append(" USING CONSISTENCY ").append(session.getConsistencyLevel().toString());
-
-            cqlQuery = query.append(" WHERE KEY=?").toString();
-        }
-
-        byte[] key = generateKey();
-        List<String> queryParams = Collections.singletonList(getUnQuotedCqlBlob(key, session.cqlVersion.startsWith("3")));
-
-        TimerContext context = session.latency.time();
-
-        boolean success = false;
-        String exceptionMessage = null;
-
-        for (int t = 0; t < session.getRetryTimes(); t++)
-        {
-            if (success)
-                break;
-
-            try
-            {
-                success = executor.execute(cqlQuery, queryParams);
-            }
-            catch (Exception e)
-            {
-                exceptionMessage = getExceptionMessage(e);
-                success = false;
-            }
-        }
-
-        if (!success)
-        {
-            error(String.format("Operation [%d] retried %d times - error reading counter key %s %s%n",
-                                index,
-                                session.getRetryTimes(),
-                                new String(key),
-                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
-        }
-
-        session.operations.getAndIncrement();
-        session.keys.getAndIncrement();
-        context.stop();
+        return Collections.singletonList(getUnQuotedCqlBlob(key, settings.isCql3()));
     }
 
-    protected boolean validateThriftResult(CqlResult result)
+    @Override
+    protected String buildQuery()
     {
-        return result.rows.get(0).columns.size() != 0;
+        StringBuilder query = new StringBuilder("SELECT ");
+
+        if (settings.isCql2())
+            query.append("FIRST ").append(settings.columnsPerKey).append(" ''..''");
+        else
+            query.append("*");
+
+        String counterCF = settings.isCql2() ? "Counter1" : "Counter3";
+
+        query.append(" FROM ").append(wrapInQuotesIfRequired(counterCF));
+
+        if (settings.isCql2())
+            query.append(" USING CONSISTENCY ").append(settings.consistencyLevel);
+
+        return query.append(" WHERE KEY=?").toString();
     }
 
-    protected boolean validateNativeResult(ResultMessage result)
+    @Override
+    protected boolean validate(int rowCount)
     {
-        return result instanceof ResultMessage.Rows && ((ResultMessage.Rows)result).result.size() != 0;
+        return rowCount != 0;
     }
+
 }

@@ -30,123 +30,46 @@ import java.util.List;
 
 public class CounterGetter extends Operation
 {
-    public CounterGetter(Session client, int index)
+    public CounterGetter(Settings settings, int index)
     {
-        super(client, index);
+        super(settings, index);
     }
 
-    public void run(CassandraClient client) throws IOException
+    public void run(final CassandraClient client) throws IOException
     {
         SliceRange sliceRange = new SliceRange();
-
         // start/finish
         sliceRange.setStart(new byte[] {}).setFinish(new byte[] {});
-
         // reversed/count
-        sliceRange.setReversed(false).setCount(session.getColumnsPerKey());
-
+        sliceRange.setReversed(false).setCount(settings.columnsPerKey);
         // initialize SlicePredicate with existing SliceRange
-        SlicePredicate predicate = new SlicePredicate().setSlice_range(sliceRange);
+        final SlicePredicate predicate = new SlicePredicate().setSlice_range(sliceRange);
 
-        if (session.getColumnFamilyType() == ColumnFamilyType.Super)
+        final ByteBuffer key = getKey();
+        for (final ColumnParent parent : settings.columnParents)
         {
-            runSuperCounterGetter(predicate, client);
-        }
-        else
-        {
-            runCounterGetter(predicate, client);
-        }
-    }
 
-    private void runSuperCounterGetter(SlicePredicate predicate, Cassandra.Client client) throws IOException
-    {
-        byte[] rawKey = generateKey();
-        ByteBuffer key = ByteBuffer.wrap(rawKey);
-
-        for (int j = 0; j < session.getSuperColumns(); j++)
-        {
-            String superColumn = 'S' + Integer.toString(j);
-            ColumnParent parent = new ColumnParent("SuperCounter1").setSuper_column(superColumn.getBytes());
-
-            TimerContext context = session.latency.time();
-
-            boolean success = false;
-            String exceptionMessage = null;
-
-            for (int t = 0; t < session.getRetryTimes(); t++)
+            timeWithRetry(new RunOp()
             {
-                if (success)
-                    break;
-
-                try
+                @Override
+                public boolean run() throws Exception
                 {
-                    List<ColumnOrSuperColumn> counters;
-                    counters = client.get_slice(key, parent, predicate, session.getConsistencyLevel());
-                    success = (counters.size() != 0);
+                    return client.get_slice(key, parent, predicate, settings.consistencyLevel).size() != 0;
                 }
-                catch (Exception e)
+
+                @Override
+                public String key()
                 {
-                    exceptionMessage = getExceptionMessage(e);
-                    success = false;
+                    return new String(key.array());
                 }
-            }
 
-            if (!success)
-            {
-                error(String.format("Operation [%d] retried %d times - error reading counter key %s %s%n",
-                                    index,
-                                    session.getRetryTimes(),
-                                    new String(rawKey),
-                                    (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
-            }
-
-            session.operations.getAndIncrement();
-            session.keys.getAndIncrement();
-            context.stop();
+                @Override
+                public int keyCount()
+                {
+                    return 1;
+                }
+            });
         }
     }
 
-    private void runCounterGetter(SlicePredicate predicate, Cassandra.Client client) throws IOException
-    {
-        ColumnParent parent = new ColumnParent("Counter1");
-
-        byte[] key = generateKey();
-        ByteBuffer keyBuffer = ByteBuffer.wrap(key);
-
-        TimerContext context = session.latency.time();
-
-        boolean success = false;
-        String exceptionMessage = null;
-
-        for (int t = 0; t < session.getRetryTimes(); t++)
-        {
-            if (success)
-                break;
-
-            try
-            {
-                List<ColumnOrSuperColumn> counters;
-                counters = client.get_slice(keyBuffer, parent, predicate, session.getConsistencyLevel());
-                success = (counters.size() != 0);
-            }
-            catch (Exception e)
-            {
-                exceptionMessage = getExceptionMessage(e);
-                success = false;
-            }
-        }
-
-        if (!success)
-        {
-            error(String.format("Operation [%d] retried %d times - error reading counter key %s %s%n",
-                                index,
-                                session.getRetryTimes(),
-                                new String(key),
-                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
-        }
-
-        session.operations.getAndIncrement();
-        session.keys.getAndIncrement();
-        context.stop();
-    }
 }

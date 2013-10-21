@@ -18,263 +18,380 @@
 package org.apache.cassandra.stress;
 
 import java.io.PrintStream;
-import java.nio.ByteBuffer;
-import java.util.Random;
-import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.util.concurrent.Uninterruptibles;
 import com.google.common.util.concurrent.RateLimiter;
-import com.yammer.metrics.stats.Snapshot;
 import org.apache.cassandra.stress.operations.*;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
 import org.apache.cassandra.transport.SimpleClient;
 
-public class StressAction extends Thread
+public class StressAction
 {
-    /**
-     * Producer-Consumer model: 1 producer, N consumers
-     */
-    private final Session client;
+
+    private final Session session;
     private final PrintStream output;
-
-    private volatile boolean stop = false;
-
-    public static final int SUCCESS = 0;
-    public static final int FAILURE = 1;
-
-    private volatile int returnCode = -1;
 
     public StressAction(Session session, PrintStream out)
     {
-        client = session;
+        this.session = session;
         output = out;
     }
 
     public void run()
     {
-        Snapshot latency;
-        long oldLatency;
-        int epoch, total, oldTotal, keyCount, oldKeyCount;
-
         // creating keyspace and column families
-        if (client.getOperation() == Stress.Operations.INSERT || client.getOperation() == Stress.Operations.COUNTER_ADD)
-            client.createKeySpaces();
+        if (session.getOperation() == Stress.Operations.INSERT || session.getOperation() == Stress.Operations.COUNTER_ADD)
+            session.createKeySpaces();
 
-        int threadCount = client.getThreads();
-        Consumer[] consumers = new Consumer[threadCount];
+        // warmup
+        run(20, 50000);
 
-        output.println("total,interval_op_rate,interval_key_rate,mean,median,95th,99th,elapsed_time");
+        if (session.auto)
+            runAuto();
+        else
+            run(session.getThreads(), session.getNumOperations());
+    }
 
-        int batchSize = 50;
-        // creating required type of the threads for the test
-        RateLimiter rateLimiter = RateLimiter.create(client.getMaxOpsPerSecond() / (threadCount * batchSize));
-        BlockingQueue<Integer> opOffsets = new ArrayBlockingQueue<>(client.getNumKeys() / batchSize);
-        for (int i = 0 ; i < client.getNumKeys() ; i += batchSize)
-            opOffsets.add(i);
+    private void runAuto(boolean varyColumnSize)
+    {
 
+    }
+
+    private StressMetrics run(int threadCount, int opCount)
+    {
+
+        final WorkQueue workQueue;
+        if (opCount < 0)
+            workQueue = new ContinuousWorkQueue(50);
+        else
+            workQueue = FixedWorkQueue.build(opCount);
+
+        RateLimiter rateLimiter = null;
+        if (session.getMaxOpsPerSecond() < 1000000000d)
+            rateLimiter = RateLimiter.create(session.getMaxOpsPerSecond());
+
+        final StressMetrics metrics = new StressMetrics(output);
+
+        final CountDownLatch done = new CountDownLatch(threadCount);
+        final Consumer[] consumers = new Consumer[threadCount];
         for (int i = 0; i < threadCount; i++)
-            consumers[i] = new Consumer(opOffsets, batchSize, rateLimiter);
+            consumers[i] = new Consumer(done, workQueue, metrics, rateLimiter);
 
         // starting worker threads
         for (int i = 0; i < threadCount; i++)
             consumers[i].start();
 
-        // initialization of the values
-        boolean terminate = false;
-        epoch = total = keyCount = 0;
+        metrics.meterWithLogInterval(1000 * session.getProgressInterval());
 
-        int interval = client.getProgressInterval();
-        int epochIntervals = client.getProgressInterval() * 10;
-        long testStartTime = System.nanoTime();
-        
-        StressStatistics stats = new StressStatistics(client, output);
-
-        while (!terminate)
+        if (auto)
         {
-            if (stop)
-            {
-                for (Consumer consumer : consumers)
-                    consumer.stopConsume();
-
-                break;
-            }
-
-            Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
-
-            int alive = 0;
-            for (Thread thread : consumers)
-                if (thread.isAlive()) alive++;
-
-            if (alive == 0)
-                terminate = true;
-
-            epoch++;
-
-            if (terminate || epoch > epochIntervals)
-            {
-                epoch = 0;
-
-                oldTotal = total;
-                oldKeyCount = keyCount;
-
-                total = client.operations.get();
-                keyCount = client.keys.get();
-                latency = client.latency.getSnapshot();
-                double meanLatency = client.latency.mean();
-
-                int opDelta = total - oldTotal;
-                int keyDelta = keyCount - oldKeyCount;
-
-                long currentTimeInSeconds = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - testStartTime);
-
-                output.println(String.format("%d,%d,%d,%.1f,%.1f,%.1f,%.1f,%d",
-                                             total,
-                                             opDelta / interval,
-                                             keyDelta / interval,
-                                             meanLatency, latency.getMedian(), latency.get95thPercentile(), latency.get999thPercentile(),
-                                             currentTimeInSeconds));
-
-                if (client.outputStatistics()) {
-                    stats.addIntervalStats(total, 
-                                           opDelta / interval, 
-                                           keyDelta / interval, 
-                                           latency, meanLatency,
-                                           currentTimeInSeconds);
-                        }
-            }
+            metrics.runUntilConverges();
+            workQueue.stop();
         }
 
-        // if any consumer failed, set the return code to failure.
-        returnCode = SUCCESS;
-        for (Consumer consumer : consumers)
-            if (consumer.getReturnCode() == FAILURE)
-                returnCode = FAILURE;
+        try
+        {
+            done.await();
+        } catch (InterruptedException e)
+        {
+            throw new IllegalStateException();
+        }
 
-        if (returnCode == SUCCESS) {            
-            if (client.outputStatistics())
-                stats.printStats();
+        metrics.stop();
+        metrics.summarise();
+
+        boolean success = true;
+        for (Consumer consumer : consumers)
+            success &= consumer.success;
+
+        if (success) {
             // marking an end of the output to the client
-            output.println("END");            
+            output.println("END");
         } else {
             output.println("FAILURE");
+            System.exit(-1);
         }
 
+        return metrics;
     }
 
-    public int getReturnCode()
-    {
-        return returnCode;
-    }
-
-    /**
-     * Each consumes exactly N items from queue
-     */
     private class Consumer extends Thread
     {
-        private final BlockingQueue<Integer> opOffsets;
-        private final int batchSize;
-        private final RateLimiter rateLimiter;
-        private volatile boolean stop = false;
-        private volatile int returnCode = StressAction.SUCCESS;
 
-        public Consumer(BlockingQueue<Integer> opOffsets, int batchSize, RateLimiter rateLimiter)
+        private final Operation.Settings settings;
+        private final RateLimiter rateLimiter;
+        private volatile boolean success = true;
+        private final WorkQueue workQueue;
+        private final CountDownLatch done;
+
+        public Consumer(CountDownLatch done, WorkQueue workQueue, StressMetrics metrics, RateLimiter rateLimiter)
         {
-            this.opOffsets = opOffsets;
-            this.batchSize = batchSize;
+            this.done = done;
             this.rateLimiter = rateLimiter;
+            this.workQueue = workQueue;
+            this.settings = new Operation.Settings(session, metrics);
         }
 
         public void run()
         {
 
-            Random rnd = new Random();
-            SimpleClient sclient = null;
-            CassandraClient cclient = null;
-
-            if (client.use_native_protocol)
-                sclient = client.getNativeClient();
-            else
-                cclient = client.getClient();
-
-            Integer opOffset;
-            while ( null != (opOffset = opOffsets.poll()) )
+            try
             {
-                if (stop)
-                    break;
 
-                rateLimiter.acquire(batchSize);
-                for (int i = 0 ; i < batchSize ; i++)
-                    try
+                SimpleClient sclient = null;
+                CassandraClient cclient = null;
+                final int uniqueKeyCount = session.getNumDifferentKeys();
+
+                if (session.use_native_protocol)
+                    sclient = session.getNativeClient();
+                else
+                    cclient = session.getClient();
+
+                Work work;
+                while ( null != (work = workQueue.poll()) )
+                {
+
+                    if (rateLimiter != null)
+                        rateLimiter.acquire(work.count);
+
+                    for (int i = 0 ; i < work.count ; i++)
                     {
-                        Operation op = createOperation((i + opOffset) % client.getNumDifferentKeys());
-                        if (sclient != null)
-                            op.run(sclient);
-                        else
-                            op.run(cclient);
-                    } catch (Exception e)
-                    {
-                        if (output == null)
+                        try
                         {
-                            System.err.println(e.getMessage());
-                            returnCode = StressAction.FAILURE;
-                            System.exit(-1);
-                        }
+                            Operation op = createOperation(settings, (i + work.offset) % uniqueKeyCount);
+                            if (sclient != null)
+                                op.run(sclient);
+                            else
+                                op.run(cclient);
+                        } catch (Exception e)
+                        {
+                            if (output == null)
+                            {
+                                System.err.println(e.getMessage());
+                                success = false;
+                                System.exit(-1);
+                            }
 
-                        output.println(e.getMessage());
-                        returnCode = StressAction.FAILURE;
-                        break;
+                            e.printStackTrace(output);
+                            success = false;
+                            workQueue.stop();
+                            settings.metrics.stop();
+                            return;
+                        }
                     }
+                }
+
+            }
+            finally
+            {
+                done.countDown();
             }
 
         }
 
-        public void stopConsume()
+    }
+
+    private interface WorkQueue
+    {
+        // null indicates consumer should terminate
+        Work poll();
+        void stop();
+    }
+
+    private static final class Work
+    {
+        final int offset;
+        final int count;
+
+        public Work(int offset, int count)
+        {
+            this.offset = offset;
+            this.count = count;
+        }
+    }
+
+    private static final class FixedWorkQueue implements WorkQueue
+    {
+
+        final ArrayBlockingQueue<Work> work;
+        volatile boolean stop = false;
+
+        public FixedWorkQueue(ArrayBlockingQueue<Work> work)
+        {
+            this.work = work;
+        }
+
+        @Override
+        public Work poll()
+        {
+            if (stop)
+                return null;
+            return work.poll();
+        }
+
+        @Override
+        public void stop()
         {
             stop = true;
         }
 
-        public int getReturnCode()
+        static FixedWorkQueue build(int operations)
         {
-            return returnCode;
+            // target splitting into around 50-500k items, with a minimum size of 20
+            int batchSize = operations / 500000;
+            if (batchSize < 20)
+                batchSize = 20;
+            ArrayBlockingQueue<Work> work = new ArrayBlockingQueue<Work>(
+                    (operations / batchSize)
+                  + (operations % batchSize == 0 ? 0 : 1)
+            );
+            int offset = 0;
+            while (offset < operations)
+            {
+                work.add(new Work(offset, Math.min(batchSize, operations - offset)));
+                offset += batchSize;
+            }
+            return new FixedWorkQueue(work);
         }
+
     }
 
-    private Operation createOperation(int index)
+    private static final class ContinuousWorkQueue implements WorkQueue
     {
-        switch (client.getOperation())
+
+        final AtomicInteger offset = new AtomicInteger();
+        final int batchSize;
+        volatile boolean stop = false;
+
+        private ContinuousWorkQueue(int batchSize)
+        {
+            this.batchSize = batchSize;
+        }
+
+        @Override
+        public Work poll()
+        {
+            if (stop)
+                return null;
+            return new Work(nextOffset(), batchSize);
+        }
+
+        private int nextOffset()
+        {
+            final int inc = batchSize;
+            while (true)
+            {
+                final int cur = offset.get();
+                if (offset.compareAndSet(cur, cur + inc))
+                    return cur;
+            }
+        }
+
+        @Override
+        public void stop()
+        {
+            stop = true;
+        }
+
+    }
+
+    private Operation createOperation(Operation.Settings settings, int index)
+    {
+        switch (settings.kind)
         {
             case READ:
-                return client.isCQL() ? new CqlReader(client, index) : new Reader(client, index);
+                switch(settings.connectionApi)
+                {
+                    case THRIFT:
+                        return new Reader(settings, index);
+                    case CQL:
+                    case CQL_PREPARED:
+                        return new CqlReader(settings, index);
+                    default:
+                        throw new UnsupportedOperationException();
+                }
+
 
             case COUNTER_GET:
-                return client.isCQL() ? new CqlCounterGetter(client, index) : new CounterGetter(client, index);
+                switch(settings.connectionApi)
+                {
+                    case THRIFT:
+                        return new CounterGetter(settings, index);
+                    case CQL:
+                    case CQL_PREPARED:
+                        return new CqlCounterGetter(settings, index);
+                    default:
+                        throw new UnsupportedOperationException();
+                }
 
             case INSERT:
-                return client.isCQL() ? new CqlInserter(client, index) : new Inserter(client, index);
+                switch(settings.connectionApi)
+                {
+                    case THRIFT:
+                        return new Inserter(settings, index);
+                    case CQL:
+                    case CQL_PREPARED:
+                        return new CqlInserter(settings, index);
+                    default:
+                        throw new UnsupportedOperationException();
+                }
 
             case COUNTER_ADD:
-                return client.isCQL() ? new CqlCounterAdder(client, index) : new CounterAdder(client, index);
+                switch(settings.connectionApi)
+                {
+                    case THRIFT:
+                        return new CounterAdder(settings, index);
+                    case CQL:
+                    case CQL_PREPARED:
+                        return new CqlCounterAdder(settings, index);
+                    default:
+                        throw new UnsupportedOperationException();
+                }
 
             case RANGE_SLICE:
-                return client.isCQL() ? new CqlRangeSlicer(client, index) : new RangeSlicer(client, index);
+                switch(settings.connectionApi)
+                {
+                    case THRIFT:
+                        return new RangeSlicer(settings, index);
+                    case CQL:
+                    case CQL_PREPARED:
+                        return new CqlRangeSlicer(settings, index);
+                    default:
+                        throw new UnsupportedOperationException();
+                }
 
             case INDEXED_RANGE_SLICE:
-                return client.isCQL() ? new CqlIndexedRangeSlicer(client, index) : new IndexedRangeSlicer(client, index);
+                switch(settings.connectionApi)
+                {
+                    case THRIFT:
+                        return new IndexedRangeSlicer(settings, index);
+                    case CQL:
+                    case CQL_PREPARED:
+                        // TODO
+                        throw new UnsupportedOperationException();
+                    default:
+                        throw new UnsupportedOperationException();
+                }
 
             case MULTI_GET:
-                return client.isCQL() ? new CqlMultiGetter(client, index) : new MultiGetter(client, index);
+                switch(settings.connectionApi)
+                {
+                    case THRIFT:
+                        return new MultiGetter(settings, index);
+                    case CQL:
+                    case CQL_PREPARED:
+                        return new CqlMultiGetter(settings, index);
+                    default:
+                        throw new UnsupportedOperationException();
+                }
+
+
         }
 
         throw new UnsupportedOperationException();
     }
 
-    public void stopAction()
-    {
-        stop = true;
-    }
 }
