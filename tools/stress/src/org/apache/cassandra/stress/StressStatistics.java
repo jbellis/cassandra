@@ -18,11 +18,10 @@
 
 package org.apache.cassandra.stress;
 
-import java.io.PrintStream;
-import org.apache.commons.lang3.time.DurationFormatUtils;
-
 import com.yammer.metrics.stats.Snapshot;
 
+import java.io.PrintStream;
+import org.apache.commons.lang.time.DurationFormatUtils;
 
 /**
  * Gathers and aggregates statistics for an operation
@@ -43,10 +42,14 @@ public class StressStatistics
     /** The number of interval_key_rate values collected by tallyAverages */
     private int tallyKeyRateCount;
 
-    /** The sum of the latency values collected by tallyAverages */
-    private double tallyLatencySum;
-    /** The number of latency values collected by tallyAverages */
-    private int tallyLatencyCount;
+    /** The sum of the mean latency values collected by tallyAverages */
+    private double tallyMeanLatencySum;
+    /** The number of mean latency values collected by tallyAverages */
+    private int tallyMeanLatencyCount;
+    /** The sum of the median latency values collected by tallyAverages */
+    private double tallyMedianLatencySum;
+    /** The number of median latency values collected by tallyAverages */
+    private int tallyMedianLatencyCount;
     /** The sum of the 95%tile latency values collected by tallyAverages */
     private double tally95thLatencySum;
     /** The number of 95%tile latency values collected by tallyAverages */
@@ -70,19 +73,19 @@ public class StressStatistics
      * Collect statistics per-interval
      */
     public void addIntervalStats(int totalOperations, int intervalOpRate, 
-                                 int intervalKeyRate, Snapshot latency, 
+                                 int intervalKeyRate, Snapshot latency, double meanLatency,
                                  long currentTimeInSeconds)
     {
         this.tallyAverages(totalOperations, intervalKeyRate, intervalKeyRate, 
-                                latency, currentTimeInSeconds);
+                                latency, meanLatency, currentTimeInSeconds);
     }
 
     /**
      * Collect interval_op_rate and interval_key_rate averages
      */
     private void tallyAverages(int totalOperations, int intervalOpRate, 
-                                 int intervalKeyRate, Snapshot latency, 
-                                 long currentTimeInSeconds)
+                                 int intervalKeyRate, Snapshot latency,
+                                 double meanLatency, long currentTimeInSeconds)
     {
         //Skip the first and last 10% of values.
         //The middle values of the operation are the ones worthwhile
@@ -93,8 +96,10 @@ public class StressStatistics
                 tallyOpRateCount += 1;
                 tallyKeyRateSum += intervalKeyRate;
                 tallyKeyRateCount += 1;
-                tallyLatencySum += latency.getMedian();
-                tallyLatencyCount += 1;
+                tallyMeanLatencySum += meanLatency;
+                tallyMeanLatencyCount += 1;
+                tallyMedianLatencySum += latency.getMedian();
+                tallyMedianLatencyCount += 1;
                 tally95thLatencySum += latency.get95thPercentile();
                 tally95thLatencyCount += 1;
                 tally999thLatencySum += latency.get999thPercentile();
@@ -112,8 +117,10 @@ public class StressStatistics
                                          (tallyOpRateSum / tallyOpRateCount)));
             output.println(String.format("interval_key_rate         : %d", 
                                          (tallyKeyRateSum / tallyKeyRateCount)));
-            output.println(String.format("latency median            : %.1f", 
-                                         (tallyLatencySum / tallyLatencyCount)));
+            output.println(String.format("latency mean              : %.1f",
+                    (tallyMeanLatencySum / tallyMeanLatencyCount)));
+            output.println(String.format("latency median            : %.1f",
+                                         (tallyMedianLatencySum / tallyMedianLatencyCount)));
             output.println(String.format("latency 95th percentile   : %.1f",
                                          (tally95thLatencySum / tally95thLatencyCount)));
             output.println(String.format("latency 99.9th percentile : %.1f", 

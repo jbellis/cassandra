@@ -18,8 +18,12 @@
 package org.apache.cassandra.stress;
 
 import java.io.PrintStream;
+import java.nio.ByteBuffer;
+import java.util.Random;
+import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -35,8 +39,6 @@ public class StressAction extends Thread
     /**
      * Producer-Consumer model: 1 producer, N consumers
      */
-    private final BlockingQueue<Operation> operations = new SynchronousQueue<Operation>(true);
-
     private final Session client;
     private final PrintStream output;
 
@@ -66,22 +68,17 @@ public class StressAction extends Thread
         int threadCount = client.getThreads();
         Consumer[] consumers = new Consumer[threadCount];
 
-        output.println("total,interval_op_rate,interval_key_rate,latency,95th,99.9th,elapsed_time");
+        output.println("total,interval_op_rate,interval_key_rate,mean,median,95th,99th,elapsed_time");
 
-        int itemsPerThread = client.getKeysPerThread();
-        int modulo = client.getNumKeys() % threadCount;
-        RateLimiter rateLimiter = RateLimiter.create(client.getMaxOpsPerSecond());
-
+        int batchSize = 50;
         // creating required type of the threads for the test
-        for (int i = 0; i < threadCount; i++) {
-            if (i == threadCount - 1)
-                itemsPerThread += modulo; // last one is going to handle N + modulo items
+        RateLimiter rateLimiter = RateLimiter.create(client.getMaxOpsPerSecond() / (threadCount * batchSize));
+        BlockingQueue<Integer> opOffsets = new ArrayBlockingQueue<>(client.getNumKeys() / batchSize);
+        for (int i = 0 ; i < client.getNumKeys() ; i += batchSize)
+            opOffsets.add(i);
 
-            consumers[i] = new Consumer(itemsPerThread, rateLimiter);
-        }
-
-        Producer producer = new Producer();
-        producer.start();
+        for (int i = 0; i < threadCount; i++)
+            consumers[i] = new Consumer(opOffsets, batchSize, rateLimiter);
 
         // starting worker threads
         for (int i = 0; i < threadCount; i++)
@@ -101,8 +98,6 @@ public class StressAction extends Thread
         {
             if (stop)
             {
-                producer.stopProducer();
-
                 for (Consumer consumer : consumers)
                     consumer.stopConsume();
 
@@ -130,24 +125,25 @@ public class StressAction extends Thread
                 total = client.operations.get();
                 keyCount = client.keys.get();
                 latency = client.latency.getSnapshot();
+                double meanLatency = client.latency.mean();
 
                 int opDelta = total - oldTotal;
                 int keyDelta = keyCount - oldKeyCount;
 
                 long currentTimeInSeconds = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - testStartTime);
 
-                output.println(String.format("%d,%d,%d,%.1f,%.1f,%.1f,%d",
+                output.println(String.format("%d,%d,%d,%.1f,%.1f,%.1f,%.1f,%d",
                                              total,
                                              opDelta / interval,
                                              keyDelta / interval,
-                                             latency.getMedian(), latency.get95thPercentile(), latency.get999thPercentile(),
+                                             meanLatency, latency.getMedian(), latency.get95thPercentile(), latency.get999thPercentile(),
                                              currentTimeInSeconds));
 
                 if (client.outputStatistics()) {
                     stats.addIntervalStats(total, 
                                            opDelta / interval, 
                                            keyDelta / interval, 
-                                           latency, 
+                                           latency, meanLatency,
                                            currentTimeInSeconds);
                         }
             }
@@ -155,11 +151,6 @@ public class StressAction extends Thread
 
         // if any consumer failed, set the return code to failure.
         returnCode = SUCCESS;
-        if (producer.isAlive())
-        {
-            producer.interrupt(); // if producer is still alive it means that we had errors in the consumers
-            returnCode = FAILURE;
-        }
         for (Consumer consumer : consumers)
             if (consumer.getReturnCode() == FAILURE)
                 returnCode = FAILURE;
@@ -181,100 +172,51 @@ public class StressAction extends Thread
     }
 
     /**
-     * Produces exactly N items (awaits each to be consumed)
-     */
-    private class Producer extends Thread
-    {
-        private volatile boolean stop = false;
-
-        public void run()
-        {
-            for (int i = 0; i < client.getNumKeys(); i++)
-            {
-                if (stop)
-                    break;
-
-                try
-                {
-                    operations.put(createOperation(i % client.getNumDifferentKeys()));
-                }
-                catch (InterruptedException e)
-                {
-                    if (e.getMessage() != null)
-                        System.err.println("Producer error - " + e.getMessage());
-                    return;
-                }
-            }
-        }
-
-        public void stopProducer()
-        {
-            stop = true;
-        }
-    }
-
-    /**
      * Each consumes exactly N items from queue
      */
     private class Consumer extends Thread
     {
-        private final int items;
+        private final BlockingQueue<Integer> opOffsets;
+        private final int batchSize;
         private final RateLimiter rateLimiter;
         private volatile boolean stop = false;
         private volatile int returnCode = StressAction.SUCCESS;
 
-        public Consumer(int toConsume, RateLimiter rateLimiter)
+        public Consumer(BlockingQueue<Integer> opOffsets, int batchSize, RateLimiter rateLimiter)
         {
-            items = toConsume;
+            this.opOffsets = opOffsets;
+            this.batchSize = batchSize;
             this.rateLimiter = rateLimiter;
         }
 
         public void run()
         {
+
+            Random rnd = new Random();
+            SimpleClient sclient = null;
+            CassandraClient cclient = null;
+
             if (client.use_native_protocol)
-            {
-                SimpleClient connection = client.getNativeClient();
-
-                for (int i = 0; i < items; i++)
-                {
-                    if (stop)
-                        break;
-
-                    try
-                    {
-                        rateLimiter.acquire();
-                        operations.take().run(connection); // running job
-                    }
-                    catch (Exception e)
-                    {
-                        if (output == null)
-                        {
-                            System.err.println(e.getMessage());
-                            returnCode = StressAction.FAILURE;
-                            System.exit(-1);
-                        }
-
-                        output.println(e.getMessage());
-                        returnCode = StressAction.FAILURE;
-                        break;
-                    }
-                }
-            }
+                sclient = client.getNativeClient();
             else
+                cclient = client.getClient();
+
+            Integer opOffset;
+            while ( null != (opOffset = opOffsets.poll()) )
             {
-                CassandraClient connection = client.getClient();
+                if (stop)
+                    break;
 
-                for (int i = 0; i < items; i++)
-                {
-                    if (stop)
-                        break;
-
+                rateLimiter.acquire(batchSize);
+                for (int i = 0 ; i < batchSize ; i++)
                     try
                     {
-                        rateLimiter.acquire();
-                        operations.take().run(connection); // running job
-                    }
-                    catch (Exception e)
+                        Operation op = createOperation((i + opOffset) % client.getNumDifferentKeys());
+                        if (sclient != null)
+                            op.run(sclient);
+                        else
+                            op.run(cclient);
+                    } catch (Exception e)
                     {
                         if (output == null)
                         {
@@ -287,8 +229,8 @@ public class StressAction extends Thread
                         returnCode = StressAction.FAILURE;
                         break;
                     }
-                }
             }
+
         }
 
         public void stopConsume()
