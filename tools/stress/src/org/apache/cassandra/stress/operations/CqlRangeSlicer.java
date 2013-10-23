@@ -21,45 +21,30 @@ package org.apache.cassandra.stress.operations;
  */
 
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.stress.StressMetrics;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.transport.SimpleClient;
-
-public class CqlRangeSlicer extends CQLOperation
+public class CqlRangeSlicer extends CqlOperation
 {
-    public CqlRangeSlicer(Settings settings, long idx)
+    public CqlRangeSlicer(State state, long idx)
     {
-        super(settings, idx);
+        super(state, idx);
     }
 
     @Override
     protected List<String> getQueryParameters(byte[] key)
     {
-        return Collections.singletonList(getUnQuotedCqlBlob(key, settings.isCql3()));
+        return Collections.singletonList(getUnQuotedCqlBlob(key, state.isCql3()));
     }
 
     @Override
     protected String buildQuery()
     {
-        StringBuilder query = new StringBuilder("SELECT FIRST ").append(settings.columnsPerKey)
-                .append(" ''..'' FROM Standard1");
+        StringBuilder query = new StringBuilder("SELECT FIRST ").append(state.settings.columns.maxColumnsPerKey)
+                .append(" ''..'' FROM ").append(state.settings.schema.columnFamily);
 
-        if (settings.isCql2())
-            query.append(" USING CONSISTENCY ").append(settings.consistencyLevel);
+        if (state.isCql2())
+            query.append(" USING CONSISTENCY ").append(state.settings.op.consistencyLevel);
 
         return query.append(" WHERE KEY > ?").toString();
     }

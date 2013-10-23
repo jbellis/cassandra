@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.google.common.base.*;
 import com.google.common.collect.*;
 import org.apache.cassandra.stress.Operation;
+import org.apache.cassandra.stress.settings.CqlVersion;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -45,19 +46,21 @@ public abstract class CqlOperation extends Operation
     protected abstract String buildQuery();
     protected abstract boolean validate(int rowCount);
 
-    public CqlOperation(Settings settings, long idx)
+    public CqlOperation(State state, long idx)
     {
-        super(settings, idx);
-        if (settings.useSuperColumns)
+        super(state, idx);
+        if (state.settings.columns.useSuperColumns)
             throw new IllegalStateException("Super columns are not implemented for CQL");
+        if (state.settings.columns.variableColumnCount)
+            throw new IllegalStateException("Variable column counts are not implemented for CQL");
     }
 
     private void run(final ClientWrapper wrapper) throws IOException
     {
-        if (settings.usePreparedStatements)
+        if (state.settings.mode.usePreparedStatements)
         {
             final byte[] id;
-            Object idobj = settings.getCqlCache();
+            Object idobj = state.getCqlCache();
             if (idobj == null)
             {
                 final String query = buildQuery();
@@ -108,9 +111,9 @@ public abstract class CqlOperation extends Operation
         else
         {
             final String query;
-            Object qobj = settings.getCqlCache();
+            Object qobj = state.getCqlCache();
             if (qobj == null)
-                settings.storeCqlCache(query = buildQuery());
+                state.storeCqlCache(query = buildQuery());
             else
                 query = qobj.toString();
 
@@ -143,7 +146,7 @@ public abstract class CqlOperation extends Operation
 
     public void run(final Cassandra.Client client) throws IOException
     {
-        run(settings.isCql3()
+        run(state.isCql3()
                 ? new Cql3CassandraClientWrapper(client)
                 : new Cql1or2CassandraClientWrapper(client)
         );
@@ -174,7 +177,7 @@ public abstract class CqlOperation extends Operation
         public int execute(String query, List<String> queryParams)
         {
             String formattedQuery = formatCqlQuery(query, queryParams);
-            return rowCount(client.execute(formattedQuery, ThriftConversion.fromThrift(settings.consistencyLevel)));
+            return rowCount(client.execute(formattedQuery, ThriftConversion.fromThrift(state.settings.op.consistencyLevel)));
         }
 
         @Override
@@ -184,7 +187,7 @@ public abstract class CqlOperation extends Operation
                     client.executePrepared(
                             preparedStatementId,
                             queryParamsAsByteBuffer(queryParams),
-                            ThriftConversion.fromThrift(settings.consistencyLevel)));
+                            ThriftConversion.fromThrift(state.settings.op.consistencyLevel)));
         }
 
         @Override
@@ -207,7 +210,7 @@ public abstract class CqlOperation extends Operation
         {
             String formattedQuery = formatCqlQuery(query, queryParams);
             return rowCount(
-                client.execute_cql3_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE, settings.consistencyLevel)
+                client.execute_cql3_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE, state.settings.op.consistencyLevel)
             );
         }
 
@@ -216,7 +219,7 @@ public abstract class CqlOperation extends Operation
         {
             Integer id = fromBytes(preparedStatementId);
             return rowCount(
-                    client.execute_prepared_cql3_query(id, queryParamsAsByteBuffer(queryParams), settings.consistencyLevel)
+                    client.execute_prepared_cql3_query(id, queryParamsAsByteBuffer(queryParams), state.settings.op.consistencyLevel)
             );
         }
 
@@ -345,7 +348,7 @@ public abstract class CqlOperation extends Operation
 
     protected String wrapInQuotesIfRequired(String string)
     {
-        return settings.cqlVersion == CqlVersion.CQL3
+        return state.settings.mode.cqlVersion == CqlVersion.CQL3
                 ? "\"" + string + "\""
                 : string;
     }

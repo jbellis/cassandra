@@ -11,32 +11,16 @@ public abstract class RowGen
 {
 
     final DataGen dataGen;
-    final int maxUniqueColumns;
-    protected RowGen(DataGen dataGenerator, int maxUniqueColumns)
+    protected RowGen(DataGen dataGenerator)
     {
         this.dataGen = dataGenerator;
-        this.maxUniqueColumns = maxUniqueColumns;
     }
 
     public List<ByteBuffer> generate(long operationIndex)
     {
-        List<ByteBuffer> columns = getColumns(operationIndex);
-
-        // only fill columns up to the max unique count
-        List<ByteBuffer> fill;
-        if (maxUniqueColumns < columns.size())
-            fill = columns.subList(0, maxUniqueColumns);
-        else
-            fill = columns;
-
+        List<ByteBuffer> fill = getColumns(operationIndex);
         dataGen.generate(fill, operationIndex);
-
-        // if there were more columns than we permit unique then duplicate them
-        if (fill.size() != columns.size())
-            for (int i = fill.size() ; i < columns.size() ; i++)
-                columns.set(i, fill.get(i % fill.size()).duplicate());
-
-        return columns;
+        return fill;
     }
 
     // these byte[] may be re-used

@@ -31,14 +31,14 @@
 //import org.apache.cassandra.db.ColumnFamilyType;
 //import org.apache.cassandra.stress.Session;
 //import org.apache.cassandra.stress.util.CassandraClient;
-//import org.apache.cassandra.stress.util.Operation;
+//import org.apache.cassandra.stress.Operation;
 //import org.apache.cassandra.transport.messages.ResultMessage;
 //import org.apache.cassandra.thrift.Compression;
 //import org.apache.cassandra.thrift.CqlResult;
 //import org.apache.cassandra.thrift.CqlRow;
 //import org.apache.cassandra.utils.ByteBufferUtil;
 //
-//public class CqlIndexedRangeSlicer extends CQLOperation
+//public class CqlIndexedRangeSlicer extends CqlOperation
 //{
 //    private static List<ByteBuffer> values = null;
 //    private static String cqlQuery = null;

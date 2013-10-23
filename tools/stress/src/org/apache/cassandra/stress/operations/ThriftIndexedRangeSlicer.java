@@ -18,6 +18,7 @@
 package org.apache.cassandra.stress.operations;
 
 import org.apache.cassandra.stress.Operation;
+import org.apache.cassandra.stress.settings.SettingsMultiOp;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -29,14 +30,14 @@ import java.util.List;
 
 public class ThriftIndexedRangeSlicer extends Operation
 {
-    public ThriftIndexedRangeSlicer(Settings settings, long index)
+    public ThriftIndexedRangeSlicer(State state, long index)
     {
-        super(settings, index);
-        if (!settings.rowGen.deterministic() || !settings.keyGen.deterministic())
+        super(state, index);
+        if (!state.rowGen.deterministic() || !state.keyGen.deterministic())
             throw new IllegalStateException("Only run with a deterministic row/key generator");
-        if (settings.useSuperColumns || settings.columnParents.size() != 1)
+        if (state.settings.columns.useSuperColumns || state.columnParents.size() != 1)
             throw new IllegalStateException("Does not support super columns");
-        if (settings.useTimeUUIDComparator)
+        if (state.settings.columns.useTimeUUIDComparator)
             throw new IllegalStateException("Does not support TimeUUID column names");
     }
 
@@ -46,9 +47,9 @@ public class ThriftIndexedRangeSlicer extends Operation
         final SlicePredicate predicate = new SlicePredicate()
                 .setSlice_range(new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
                         ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                        false, settings.columnsPerKey));
+                        false, state.settings.columns.maxColumnsPerKey));
         final List<ByteBuffer> columns = generateColumnValues();
-        final ColumnParent parent = settings.columnParents.get(0);
+        final ColumnParent parent = state.columnParents.get(0);
         // TODO : calculate min results from total keys and repeat frequency
 
         final ByteBuffer columnName = getColumnName(1);
@@ -63,14 +64,14 @@ public class ThriftIndexedRangeSlicer extends Operation
             final int minResults = 1;
             final IndexClause clause = new IndexClause(Arrays.asList(expression),
                                                  ByteBuffer.wrap(minKey),
-                                                 settings.maxKeysAtOnce);
+                                                ((SettingsMultiOp) state.settings.op).maxKeysAtOnce);
 
             timeWithRetry(new RunOp()
             {
                 @Override
                 public boolean run() throws Exception
                 {
-                    results[0] = client.get_indexed_slices(parent, clause, predicate, settings.consistencyLevel);
+                    results[0] = client.get_indexed_slices(parent, clause, predicate, state.settings.op.consistencyLevel);
                     return minResults == 0 || results[0].size() > 0;
                 }
 

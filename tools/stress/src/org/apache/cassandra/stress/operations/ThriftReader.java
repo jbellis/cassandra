@@ -26,33 +26,34 @@ import java.nio.ByteBuffer;
 public final class ThriftReader extends Operation
 {
 
-    public ThriftReader(Settings settings, long index)
+    public ThriftReader(State state, long index)
     {
-        super(settings, index);
+        super(state, index);
     }
 
     public void run(final Cassandra.Client client) throws IOException
     {
         final SlicePredicate predicate = new SlicePredicate();
-        if (settings.readColumnNames == null)
+        if (state.settings.columns.names == null)
             predicate.setSlice_range(new SliceRange()
                     .setStart(new byte[] {})
                     .setFinish(new byte[] {})
                     .setReversed(false)
-                    .setCount(settings.columnsPerKey)
+                    // TODO: does this count really mean what the parameter implies it means?
+                    .setCount(state.settings.columns.maxColumnsPerKey)
             );
         else // see CASSANDRA-3064 about why this is useful
-            predicate.setColumn_names(settings.readColumnNames);
+            predicate.setColumn_names(state.settings.columns.names);
 
         final ByteBuffer key = getKey();
-        for (final ColumnParent parent : settings.columnParents)
+        for (final ColumnParent parent : state.columnParents)
         {
             timeWithRetry(new RunOp()
             {
                 @Override
                 public boolean run() throws Exception
                 {
-                    return client.get_slice(key, parent, predicate, settings.consistencyLevel).size() != 0;
+                    return client.get_slice(key, parent, predicate, state.settings.op.consistencyLevel).size() != 0;
                 }
 
                 @Override

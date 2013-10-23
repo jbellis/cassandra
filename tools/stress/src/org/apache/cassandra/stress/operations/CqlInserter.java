@@ -21,49 +21,38 @@ package org.apache.cassandra.stress.operations;
  */
 
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.transport.SimpleClient;
-import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.utils.UUIDGen;
 
-public class CqlInserter extends CQLOperation
+public class CqlInserter extends CqlOperation
 {
 
-    public CqlInserter(Settings settings, long idx)
+    public CqlInserter(State state, long idx)
     {
-        super(settings, idx);
+        super(state, idx);
     }
 
     @Override
     protected String buildQuery()
     {
-        StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired("Standard1"));
+        StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired(state.settings.schema.columnFamily));
 
-        if (settings.isCql2())
-            query.append(" USING CONSISTENCY ").append(settings.consistencyLevel);
+        if (state.isCql2())
+            query.append(" USING CONSISTENCY ").append(state.settings.op.consistencyLevel);
 
         query.append(" SET ");
 
-        for (int i = 0 ; i < settings.columnsPerKey ; i++)
+        for (int i = 0 ; i < state.settings.columns.maxColumnsPerKey; i++)
         {
             if (i > 0)
                 query.append(',');
 
-            if (settings.useTimeUUIDComparator)
+            if (state.settings.columns.useTimeUUIDComparator)
             {
-                if (settings.isCql3())
+                if (state.isCql3())
                     throw new UnsupportedOperationException("Cannot use UUIDs in column names with CQL3");
 
                 query.append(wrapInQuotesIfRequired(UUIDGen.getTimeUUID().toString()))
@@ -85,8 +74,8 @@ public class CqlInserter extends CQLOperation
         final ArrayList<String> queryParams = new ArrayList<>();
         final List<ByteBuffer> values = generateColumnValues();
         for (int i = 0 ; i < values.size() ; i++)
-            queryParams.add(getUnQuotedCqlBlob(values.get(i).array(), settings.isCql3()));
-        queryParams.add(getUnQuotedCqlBlob(key, settings.isCql3()));
+            queryParams.add(getUnQuotedCqlBlob(values.get(i).array(), state.isCql3()));
+        queryParams.add(getUnQuotedCqlBlob(key, state.isCql3()));
         return queryParams;
     }
 

@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.stress;
 
+import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.commons.cli.Option;
 
 import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
-import java.util.Random;
 
 public final class Stress
 {
@@ -31,14 +31,15 @@ public final class Stress
         INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTER_ADD, COUNTER_GET, READWRITE
     }
 
-    public static Session session;
+//    private static Session session;
     private static volatile boolean stopped = false;
 
     public static void main(String[] arguments) throws Exception
     {
+        final StressSettings settings;
         try
         {
-            session = new Session(arguments);
+            settings = StressSettings.parse(arguments);
         }
         catch (IllegalArgumentException e)
         {
@@ -46,18 +47,18 @@ public final class Stress
             return;
         }
 
-        PrintStream outStream = session.getOutputStream();
+        PrintStream logout = settings.log.getOutput();
 
-        if (session.sendToDaemon != null)
+        if (settings.sendToDaemon != null)
         {
-            Socket socket = new Socket(session.sendToDaemon, 2159);
+            Socket socket = new Socket(settings.sendToDaemon, 2159);
 
             ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
             BufferedReader inp = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
             Runtime.getRuntime().addShutdownHook(new ShutDown(socket, out));
 
-            out.writeObject(session);
+            out.writeObject(settings);
 
             String line;
 
@@ -71,7 +72,7 @@ public final class Stress
                         break;
                     }
 
-                    outStream.println(line);
+                    logout.println(line);
                 }
             }
             catch (SocketException e)
@@ -87,7 +88,7 @@ public final class Stress
         }
         else
         {
-            StressAction stressAction = new StressAction(session, outStream);
+            StressAction stressAction = new StressAction(settings, logout);
             stressAction.run();
         }
     }

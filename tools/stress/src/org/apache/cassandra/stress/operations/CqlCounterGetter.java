@@ -21,34 +21,21 @@ package org.apache.cassandra.stress.operations;
  */
 
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.thrift.CqlResultType;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-public class CqlCounterGetter extends CQLOperation
+public class CqlCounterGetter extends CqlOperation
 {
 
-    public CqlCounterGetter(Settings settings, long idx)
+    public CqlCounterGetter(State state, long idx)
     {
-        super(settings, idx);
+        super(state, idx);
     }
 
     @Override
     protected List<String> getQueryParameters(byte[] key)
     {
-        return Collections.singletonList(getUnQuotedCqlBlob(key, settings.isCql3()));
+        return Collections.singletonList(getUnQuotedCqlBlob(key, state.isCql3()));
     }
 
     @Override
@@ -56,17 +43,17 @@ public class CqlCounterGetter extends CQLOperation
     {
         StringBuilder query = new StringBuilder("SELECT ");
 
-        if (settings.isCql2())
-            query.append("FIRST ").append(settings.columnsPerKey).append(" ''..''");
+        if (state.isCql2())
+            query.append("FIRST ").append(state.settings.columns.maxColumnsPerKey).append(" ''..''");
         else
             query.append("*");
 
-        String counterCF = settings.isCql2() ? "Counter1" : "Counter3";
+        String counterCF = state.isCql2() ? "Counter1" : "Counter3";
 
         query.append(" FROM ").append(wrapInQuotesIfRequired(counterCF));
 
-        if (settings.isCql2())
-            query.append(" USING CONSISTENCY ").append(settings.consistencyLevel);
+        if (state.isCql2())
+            query.append(" USING CONSISTENCY ").append(state.settings.op.consistencyLevel);
 
         return query.append(" WHERE KEY=?").toString();
     }

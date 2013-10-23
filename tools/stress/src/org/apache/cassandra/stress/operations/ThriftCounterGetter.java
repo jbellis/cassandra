@@ -25,9 +25,11 @@ import java.nio.ByteBuffer;
 
 public class ThriftCounterGetter extends Operation
 {
-    public ThriftCounterGetter(Settings settings, long index)
+    public ThriftCounterGetter(State state, long index)
     {
-        super(settings, index);
+        super(state, index);
+        if (state.settings.columns.variableColumnCount)
+            throw new IllegalStateException("Variable column counts not supported for counters");
     }
 
     public void run(final Cassandra.Client client) throws IOException
@@ -36,12 +38,12 @@ public class ThriftCounterGetter extends Operation
         // start/finish
         sliceRange.setStart(new byte[] {}).setFinish(new byte[] {});
         // reversed/count
-        sliceRange.setReversed(false).setCount(settings.columnsPerKey);
+        sliceRange.setReversed(false).setCount(state.settings.columns.maxColumnsPerKey);
         // initialize SlicePredicate with existing SliceRange
         final SlicePredicate predicate = new SlicePredicate().setSlice_range(sliceRange);
 
         final ByteBuffer key = getKey();
-        for (final ColumnParent parent : settings.columnParents)
+        for (final ColumnParent parent : state.columnParents)
         {
 
             timeWithRetry(new RunOp()
@@ -49,7 +51,7 @@ public class ThriftCounterGetter extends Operation
                 @Override
                 public boolean run() throws Exception
                 {
-                    return client.get_slice(key, parent, predicate, settings.consistencyLevel).size() != 0;
+                    return client.get_slice(key, parent, predicate, state.settings.op.consistencyLevel).size() != 0;
                 }
 
                 @Override

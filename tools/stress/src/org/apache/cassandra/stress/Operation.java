@@ -19,38 +19,30 @@ package org.apache.cassandra.stress;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.Stress;
-import org.apache.cassandra.stress.StressMetrics;
-import org.apache.cassandra.stress.generatedata.DataGen;
-import org.apache.cassandra.stress.generatedata.DataGenHexFromDistribution;
-import org.apache.cassandra.stress.generatedata.DataGenHexFromOpIndex;
-import org.apache.cassandra.stress.generatedata.DataGenStringFromColAndOpIndex;
+import org.apache.cassandra.stress.generatedata.KeyGen;
 import org.apache.cassandra.stress.generatedata.RowGen;
-import org.apache.cassandra.stress.generatedata.RowGenAverageSize;
-import org.apache.cassandra.stress.generatedata.RowGenFixedSize;
-import org.apache.cassandra.stress.util.CassandraClient;
+import org.apache.cassandra.stress.settings.CqlVersion;
+import org.apache.cassandra.stress.settings.OpType;
+import org.apache.cassandra.stress.settings.StressSettings;
+import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.transport.SimpleClient;
-import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class Operation
 {
     public final long index;
-    protected final Settings settings;
+    protected final State state;
 
-    public Operation(Settings settings, long idx)
+    public Operation(State state, long idx)
     {
         index = idx;
-        this.settings = settings;
+        this.state = state;
     }
 
     public static interface RunOp
@@ -60,126 +52,81 @@ public abstract class Operation
         public int keyCount();
     }
 
-    public static enum ConnectionAPI
-    {
-        CQL,
-        CQL_PREPARED,
-        THRIFT
-    }
-
-    public static enum CqlVersion
-    {
-        NOCQL, CQL1, CQL2, CQL3;
-        static CqlVersion get(String version)
-        {
-            if (version == null)
-                return NOCQL;
-            switch(version.charAt(0))
-            {
-                case '1':
-                    return CQL1;
-                case '2':
-                    return CQL2;
-                case '3':
-                    return CQL3;
-                default:
-                    throw new IllegalStateException();
-            }
-        }
-    }
-
     // one per thread!
-    public static final class Settings
+    public static final class State
     {
 
+        public final StressSettings settings;
         public final StressMetrics.Timer timer;
-        public final Stress.Operations kind;
-        public final DataGen keyGen;
+        public final OpType kind;
+        public final KeyGen keyGen;
         public final RowGen rowGen;
-        public final ConnectionAPI connectionApi;
+//        public final ConnectionAPI connectionApi;
         public final List<ColumnParent> columnParents;
         public final StressMetrics metrics;
-        public final boolean useSuperColumns;
-        public final int columnsPerKey;
-        public final int maxKeysAtOnce;
-        public final CqlVersion cqlVersion;
-        public final ConsistencyLevel consistencyLevel;
-        public final int retryTimes;
-        public final boolean ignoreErrors;
+//        public final boolean useSuperColumns;
+//        public final int columnsPerKey;
+//        public final int maxKeysAtOnce;
+//        public final CqlVersion cqlVersion;
+//        public final ConsistencyLevel consistencyLevel;
+//        public final int retryTimes;
+//        public final boolean ignoreErrors;
 
         // TODO : make configurable
-        private final int keySize = 10;
+//        private final int keySize = 10;
 
-        public final boolean useTimeUUIDComparator;
-        public final boolean usePreparedStatements;
-        public final List<ByteBuffer> readColumnNames;
-
-        private final List<ByteBuffer> keyBuffers = new ArrayList<>();
+//        public final boolean useTimeUUIDComparator;
+//        public final boolean usePreparedStatements;
+//        public final List<ByteBuffer> readColumnNames;
+//
+//        private final List<ByteBuffer> keyBuffers = new ArrayList<>();
         private Object cqlCache;
 
-        public Settings(Stress.Operations kind, Session session, StressMetrics metrics)
+        public State(OpType type, StressSettings settings, StressMetrics metrics)
         {
-            this.kind = kind;
+            this.kind = type;
             this.timer = metrics.newTimer();
             // TODO: this logic shouldn't be here - dataGen and keyGen should be passed in
-            switch (kind)
-            {
-                case COUNTER_ADD:
-                case INSERT:
-                    this.keyGen = new DataGenHexFromOpIndex(session.getMinKey(), session.getMaxKey());
-                    break;
-                default:
-                    if (session.useRandomGenerator())
-                        this.keyGen = DataGenHexFromDistribution.buildUniform(session.getMinKey(), session.getMaxKey());
-                    else
-                        this.keyGen = DataGenHexFromDistribution.buildGaussian(session.getMinKey(), session.getMaxKey(), session.getMean(), session.getSigma());
-            }
+//            switch (kind)
+//            {
+//                case COUNTER_ADD:
+//                case INSERT:
+//                    this.keyGen = new DataGenHexFromOpIndex(session.getMinKey(), session.getMaxKey());
+//                    break;
+//                default:
+//                    if (session.useRandomGenerator())
+//                        this.keyGen = DataGenHexFromDistribution.buildUniform(session.getMinKey(), session.getMaxKey());
+//                    else
+//                        this.keyGen = DataGenHexFromDistribution.buildGaussian(session.getMinKey(), session.getMaxKey(), session.getMean(), session.getSigma());
+//            }
+//
+//            if (session.averageSizeValues)
+//                this.rowGen = new RowGenAverageSize(new DataGenStringRepeats(session.getUniqueColumnCount()), session.getColumnsPerKey(), session.getColumnSize());
+//            else
+//                this.rowGen = new RowGenFixedSize(new DataGenStringRepeats(session.getUniqueRowCount()), session.getColumnsPerKey(), session.getColumnSize());
+//
 
-            if (session.averageSizeValues)
-                this.rowGen = new RowGenAverageSize(new DataGenStringFromColAndOpIndex(session.getUniqueColumnCount()), session.getColumnsPerKey(), session.getColumnSize());
-            else
-                this.rowGen = new RowGenFixedSize(new DataGenStringFromColAndOpIndex(session.getUniqueRowCount()), session.getColumnsPerKey(), session.getColumnSize());
-
-            this.connectionApi = session.isCQL() ?
-                    session.usePreparedStatements() ?
-                            ConnectionAPI.CQL_PREPARED :
-                            ConnectionAPI.CQL :
-                    ConnectionAPI.THRIFT;
+            this.settings = settings;
+            this.keyGen = settings.keys.keyGenerator();
+            this.rowGen = settings.columns.rowGen(settings.values.columnGen());
             this.metrics = metrics;
-            this.cqlVersion = CqlVersion.get(session.cqlVersion);
-            this.consistencyLevel = session.getConsistencyLevel();
-            this.retryTimes = session.getRetryTimes();
-            this.ignoreErrors = session.ignoreErrors();
-            this.useTimeUUIDComparator = session.timeUUIDComparator;
-            this.useSuperColumns = session.getColumnFamilyType() == ColumnFamilyType.Super;
-            this.columnsPerKey = session.getColumnsPerKey();
-            this.readColumnNames = session.columnNames;
-            this.maxKeysAtOnce = session.getKeysPerCall();
-            if (!useSuperColumns)
+            if (!settings.columns.useSuperColumns)
                 columnParents = Collections.singletonList(new ColumnParent("Standard1"));
             else
             {
-                ColumnParent[] cp = new ColumnParent[session.getSuperColumns()];
+                ColumnParent[] cp = new ColumnParent[settings.columns.superColumns];
                 for (int i = 0 ; i < cp.length ; i++)
                     cp[i] = new ColumnParent("Super1").setSuper_column(ByteBufferUtil.bytes("S" + i));
                 columnParents = Arrays.asList(cp);
             }
-            this.usePreparedStatements = session.usePreparedStatements();
-        }
-        List<ByteBuffer> getKeys(int n, long index)
-        {
-            while (keyBuffers.size() < n)
-                keyBuffers.add(ByteBuffer.wrap(new byte[keySize]));
-            keyGen.generate(keyBuffers, index);
-            return keyBuffers;
         }
         public boolean isCql3()
         {
-            return cqlVersion == CqlVersion.CQL3;
+            return settings.mode.cqlVersion == CqlVersion.CQL3;
         }
         public boolean isCql2()
         {
-            return cqlVersion == CqlVersion.CQL2;
+            return settings.mode.cqlVersion == CqlVersion.CQL2;
         }
         public Object getCqlCache()
         {
@@ -193,17 +140,17 @@ public abstract class Operation
 
     protected ByteBuffer getKey()
     {
-        return settings.getKeys(1, index).get(0);
+        return state.keyGen.getKeys(1, index).get(0);
     }
 
     protected List<ByteBuffer> getKeys(int count)
     {
-        return settings.getKeys(count, index);
+        return state.keyGen.getKeys(count, index);
     }
 
     protected List<ByteBuffer> generateColumnValues()
     {
-        return settings.rowGen.generate(index);
+        return state.rowGen.generate(index);
     }
 
     /**
@@ -211,7 +158,7 @@ public abstract class Operation
      * @param client Cassandra Thrift client connection
      * @throws IOException on any I/O error.
      */
-    public abstract void run(CassandraClient client) throws IOException;
+    public abstract void run(Cassandra.Client client) throws IOException;
 
     public void run(SimpleClient client) throws IOException {
         throw new UnsupportedOperationException();
@@ -219,12 +166,12 @@ public abstract class Operation
 
     public void timeWithRetry(RunOp run) throws IOException
     {
-        settings.timer.start();
+        state.timer.start();
 
         boolean success = false;
         String exceptionMessage = null;
 
-        for (int t = 0; t < settings.retryTimes; t++)
+        for (int t = 0; t < state.settings.op.retries ; t++)
         {
             if (success)
                 break;
@@ -241,13 +188,13 @@ public abstract class Operation
             }
         }
 
-        settings.timer.stop(run.keyCount());
+        state.timer.stop(run.keyCount());
 
         if (!success)
         {
             error(String.format("Operation [%d] retried %d times - error executing range slice with offset %s %s%n",
                     index,
-                    settings.retryTimes,
+                    state.settings.op.retries,
                     run.key(),
                     (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
         }
@@ -263,7 +210,7 @@ public abstract class Operation
 
     protected void error(String message) throws IOException
     {
-        if (!settings.ignoreErrors)
+        if (!state.settings.op.ignoreErrors)
             throw new IOException(message);
         else
             System.err.println(message);

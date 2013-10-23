@@ -27,9 +27,9 @@ import java.nio.ByteBuffer;
 public final class ThriftRangeSlicer extends Operation
 {
 
-    public ThriftRangeSlicer(Settings settings, long index)
+    public ThriftRangeSlicer(State state, long index)
     {
-        super(settings, index);
+        super(state, index);
     }
 
     @Override
@@ -40,7 +40,7 @@ public final class ThriftRangeSlicer extends Operation
                         new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                 ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                 false,
-                                settings.columnsPerKey)
+                                state.settings.columns.maxColumnsPerKey)
                 );
 
         final ByteBuffer start = getKey();
@@ -48,11 +48,11 @@ public final class ThriftRangeSlicer extends Operation
         // TODO do we REALLY want to range slice from key->infinity?
         // presumably want to slice from start -> start + keysPerCall
         final KeyRange range =
-                new KeyRange(settings.columnsPerKey)
+                new KeyRange(state.settings.columns.maxColumnsPerKey)
                         .setStart_key(start)
                         .setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER);
 
-        for (final ColumnParent parent : settings.columnParents)
+        for (final ColumnParent parent : state.columnParents)
         {
             timeWithRetry(new RunOp()
             {
@@ -60,7 +60,7 @@ public final class ThriftRangeSlicer extends Operation
                 @Override
                 public boolean run() throws Exception
                 {
-                    return (count = client.get_range_slices(parent, predicate, range, settings.consistencyLevel).size()) != 0;
+                    return (count = client.get_range_slices(parent, predicate, range, state.settings.op.consistencyLevel).size()) != 0;
                 }
 
                 @Override

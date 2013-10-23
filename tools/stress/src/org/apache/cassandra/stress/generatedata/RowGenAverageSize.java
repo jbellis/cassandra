@@ -17,9 +17,9 @@ public class RowGenAverageSize extends RowGen
     // array re-used for returning columns
     final ByteBuffer[] ret;
 
-    public RowGenAverageSize(DataGen dataGenerator, int maxUniqueColumns, int columnCount, int averageColumnSize)
+    public RowGenAverageSize(DataGen dataGenerator, int columnCount, int averageColumnSize)
     {
-        super(dataGenerator, maxUniqueColumns);
+        super(dataGenerator);
         columns = new ByteBuffer[averageColumnSize << 1];
         for (int i = 0 ; i < columns.length ; i++)
             columns[i] = ByteBuffer.wrap(new byte[i]);

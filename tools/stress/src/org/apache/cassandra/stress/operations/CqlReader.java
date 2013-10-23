@@ -21,30 +21,17 @@ package org.apache.cassandra.stress.operations;
  */
 
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.transport.SimpleClient;
-import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.thrift.ThriftConversion;
-
-public class CqlReader extends CQLOperation
+public class CqlReader extends CqlOperation
 {
 
-    public CqlReader(Settings settings, long idx)
+    public CqlReader(State state, long idx)
     {
-        super(settings, idx);
+        super(state, idx);
     }
 
     @Override
@@ -52,16 +39,16 @@ public class CqlReader extends CQLOperation
     {
         StringBuilder query = new StringBuilder("SELECT ");
 
-        if (settings.readColumnNames == null)
+        if (state.settings.columns.names == null)
         {
-            if (settings.isCql2())
-                query.append("FIRST ").append(settings.columnsPerKey).append(" ''..''");
+            if (state.isCql2())
+                query.append("FIRST ").append(state.settings.columns.maxColumnsPerKey).append(" ''..''");
             else
                 query.append("*");
         }
         else
         {
-            for (int i = 0; i < settings.readColumnNames.size() ; i++)
+            for (int i = 0; i < state.settings.columns.names.size() ; i++)
             {
                 if (i > 0)
                     query.append(",");
@@ -69,10 +56,10 @@ public class CqlReader extends CQLOperation
             }
         }
 
-        query.append(" FROM ").append(wrapInQuotesIfRequired("Standard1"));
+        query.append(" FROM ").append(wrapInQuotesIfRequired(state.settings.schema.columnFamily));
 
-        if (settings.isCql2())
-            query.append(" USING CONSISTENCY ").append(settings.consistencyLevel);
+        if (state.isCql2())
+            query.append(" USING CONSISTENCY ").append(state.settings.op.consistencyLevel);
         query.append(" WHERE KEY=?");
         return query.toString();
     }
@@ -80,15 +67,15 @@ public class CqlReader extends CQLOperation
     @Override
     protected List<String> getQueryParameters(byte[] key)
     {
-        if (settings.readColumnNames != null)
+        if (state.settings.columns.names != null)
         {
             final List<String> queryParams = new ArrayList<>();
-            for (ByteBuffer name : settings.readColumnNames)
-                queryParams.add(getUnQuotedCqlBlob(name.array(), settings.isCql3()));
-            queryParams.add(getUnQuotedCqlBlob(key, settings.isCql3()));
+            for (ByteBuffer name : state.settings.columns.names)
+                queryParams.add(getUnQuotedCqlBlob(name.array(), state.isCql3()));
+            queryParams.add(getUnQuotedCqlBlob(key, state.isCql3()));
             return queryParams;
         }
-        return Collections.singletonList(getUnQuotedCqlBlob(key, settings.isCql3()));
+        return Collections.singletonList(getUnQuotedCqlBlob(key, state.isCql3()));
     }
 
     @Override

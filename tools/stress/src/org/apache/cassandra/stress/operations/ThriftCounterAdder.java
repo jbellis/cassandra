@@ -29,22 +29,24 @@ import java.util.Map;
 
 public class ThriftCounterAdder extends Operation
 {
-    public ThriftCounterAdder(Settings settings, long index)
+    public ThriftCounterAdder(State state, long index)
     {
-        super(settings, index);
+        super(state, index);
+        if (state.settings.columns.variableColumnCount)
+            throw new IllegalStateException("Variable column counts not supported for counters");
     }
 
     public void run(final Cassandra.Client client) throws IOException
     {
         List<CounterColumn> columns = new ArrayList<CounterColumn>();
-        for (int i = 0; i < settings.columnsPerKey; i++)
+        for (int i = 0; i < state.settings.columns.maxColumnsPerKey; i++)
             columns.add(new CounterColumn(getColumnName(i), 1L));
 
         Map<String, List<Mutation>> row;
-        if (settings.useSuperColumns)
+        if (state.settings.columns.useSuperColumns)
         {
             List<Mutation> mutations = new ArrayList<>();
-            for (ColumnParent parent : settings.columnParents)
+            for (ColumnParent parent : state.columnParents)
             {
                 CounterSuperColumn csc = new CounterSuperColumn(ByteBuffer.wrap(parent.getSuper_column()), columns);
                 ColumnOrSuperColumn cosc = new ColumnOrSuperColumn().setCounter_super_column(csc);
@@ -71,7 +73,7 @@ public class ThriftCounterAdder extends Operation
             @Override
             public boolean run() throws Exception
             {
-                client.batch_mutate(record, settings.consistencyLevel);
+                client.batch_mutate(record, state.settings.op.consistencyLevel);
                 return true;
             }
 

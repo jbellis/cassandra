@@ -21,41 +21,30 @@ package org.apache.cassandra.stress.operations;
  */
 
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-public class CqlCounterAdder extends CQLOperation
+public class CqlCounterAdder extends CqlOperation
 {
-    public CqlCounterAdder(Settings settings, long idx)
+    public CqlCounterAdder(State state, long idx)
     {
-        super(settings, idx);
+        super(state, idx);
     }
 
     @Override
     protected String buildQuery()
     {
-        String counterCF = settings.isCql2() ? "Counter1" : "Counter3";
+        String counterCF = state.isCql2() ? "Counter1" : "Counter3";
 
         StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired(counterCF));
 
-        if (settings.isCql2())
-            query.append(" USING CONSISTENCY ").append(settings.consistencyLevel);
+        if (state.isCql2())
+            query.append(" USING CONSISTENCY ").append(state.settings.op.consistencyLevel);
 
         query.append(" SET ");
 
-        for (int i = 0; i < settings.columnsPerKey; i++)
+        // TODO : increment distribution subset of columns
+        for (int i = 0; i < state.settings.columns.maxColumnsPerKey; i++)
         {
             if (i > 0)
                 query.append(",");
@@ -69,7 +58,7 @@ public class CqlCounterAdder extends CQLOperation
     @Override
     protected List<String> getQueryParameters(byte[] key)
     {
-        return Collections.singletonList(getUnQuotedCqlBlob(key, settings.isCql3()));
+        return Collections.singletonList(getUnQuotedCqlBlob(key, state.isCql3()));
     }
 
     @Override

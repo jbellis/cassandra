@@ -18,6 +18,7 @@
 package org.apache.cassandra.stress.operations;
 
 import org.apache.cassandra.stress.Operation;
+import org.apache.cassandra.stress.settings.SettingsMultiOp;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -29,9 +30,9 @@ import java.util.List;
 public final class ThriftMultiGetter extends Operation
 {
 
-    public ThriftMultiGetter(Settings settings, long index)
+    public ThriftMultiGetter(State state, long index)
     {
-        super(settings, index);
+        super(state, index);
     }
 
     public void run(final Cassandra.Client client) throws IOException
@@ -39,11 +40,11 @@ public final class ThriftMultiGetter extends Operation
 
         final SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
                 ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                false, settings.columnsPerKey));
+                false, state.settings.columns.maxColumnsPerKey));
 
-        final List<ByteBuffer> keys = getKeys(settings.maxKeysAtOnce);
+        final List<ByteBuffer> keys = getKeys(((SettingsMultiOp) state.settings.op).maxKeysAtOnce);
 
-        for (final ColumnParent parent : settings.columnParents)
+        for (final ColumnParent parent : state.columnParents)
         {
             timeWithRetry(new RunOp()
             {
@@ -51,7 +52,7 @@ public final class ThriftMultiGetter extends Operation
                 @Override
                 public boolean run() throws Exception
                 {
-                    return (count = client.multiget_slice(keys, parent, predicate, settings.consistencyLevel).size()) != 0;
+                    return (count = client.multiget_slice(keys, parent, predicate, state.settings.op.consistencyLevel).size()) != 0;
                 }
 
                 @Override

@@ -20,64 +20,66 @@ package org.apache.cassandra.stress;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.stress.operations.*;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
+import org.apache.cassandra.stress.settings.OpType;
+import org.apache.cassandra.stress.settings.StressSettings;
+import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.transport.SimpleClient;
 
 public class StressAction
 {
 
-    private final Session session;
+    private final StressSettings settings;
     private final PrintStream output;
 
-    public StressAction(Session session, PrintStream out)
+    public StressAction(StressSettings settings, PrintStream out)
     {
-        this.session = session;
+        this.settings = settings;
         output = out;
     }
 
     public void run()
     {
         // creating keyspace and column families
-        if (session.getOperation() == Stress.Operations.INSERT || session.getOperation() == Stress.Operations.COUNTER_ADD)
-            session.createKeySpaces();
+        settings.maybeCreateKeyspaces();
 
-        // warmup
+        // warmup - do 50k iterations; by default hotspot compiles methods after 10k invocations
         PrintStream warmupOutput = new PrintStream(new OutputStream() { @Override public void write(int b) throws IOException { } } );
         output.println("Warming up...");
-        switch (session.getOperation())
-        {
-            case READWRITE:
-                run(Stress.Operations.INSERT, 20, 50000, warmupOutput);
-                run(Stress.Operations.READ, 20, 50000, warmupOutput);
-                break;
-            default:
-                run(session.getOperation(), 20, 50000, warmupOutput);
-        }
+        for (OpType type : settings.op.type.getWarmups())
+            run(type, 20, 50000, warmupOutput);
 
         output.println("Sleeping 2s...");
         try { Thread.sleep(2000); } catch (InterruptedException e) { }
 
-        if (session.auto)
+        if (settings.rate.auto)
             runAuto();
         else
-            run(session.getOperation(), session.getThreads(), session.getNumOperations(), output);
+            run(settings.op.type, settings.rate.threads, settings.op.count, output);
     }
 
     private void runAuto()
     {
-
+        int threadCount = 10;
+        List<StressMetrics> results = new ArrayList<>();
+        while (true)
+        {
+            // run until previous two have not been greater than previous plus (uncertainty * 1.5)
+            output.println(String.format("Running with %d threads", threadCount));
+            StressMetrics result = run(settings.op.type, threadCount, settings.op.count, output);
+            results.add(result);
+            threadCount *= 1.5;
+        }
     }
 
-    private StressMetrics run(Stress.Operations kind, int threadCount, int opCount, PrintStream output)
+    private StressMetrics run(OpType type, int threadCount, long opCount, PrintStream output)
     {
 
         final WorkQueue workQueue;
@@ -87,25 +89,27 @@ public class StressAction
             workQueue = FixedWorkQueue.build(opCount);
 
         RateLimiter rateLimiter = null;
-        if (session.getMaxOpsPerSecond() < 1000000000d)
-            rateLimiter = RateLimiter.create(session.getMaxOpsPerSecond());
+        // TODO : move this to a new queue wrapper that gates progress based on a poisson distribution
+        if (settings.rate.opLimitPerSecond > 0)
+            rateLimiter = RateLimiter.create(settings.rate.opLimitPerSecond);
 
         final StressMetrics metrics = new StressMetrics(output);
 
         final CountDownLatch done = new CountDownLatch(threadCount);
         final Consumer[] consumers = new Consumer[threadCount];
         for (int i = 0; i < threadCount; i++)
-            consumers[i] = new Consumer(kind, done, workQueue, metrics, rateLimiter);
+            consumers[i] = new Consumer(type, done, workQueue, metrics, rateLimiter);
 
         // starting worker threads
         for (int i = 0; i < threadCount; i++)
             consumers[i].start();
 
-        metrics.meterWithLogInterval(1000 * session.getProgressInterval());
+        metrics.meterWithLogInterval(settings.log.intervalMillis);
+
 
         if (opCount <= 0)
         {
-            metrics.runUntilConverges();
+            metrics.runUntilConverges(settings.op.targetUncertainty, settings.op.minimumUncertaintyMeasurements);
             workQueue.stop();
         }
 
@@ -138,18 +142,18 @@ public class StressAction
     private class Consumer extends Thread
     {
 
-        private final Operation.Settings settings;
+        private final Operation.State state;
         private final RateLimiter rateLimiter;
         private volatile boolean success = true;
         private final WorkQueue workQueue;
         private final CountDownLatch done;
 
-        public Consumer(Stress.Operations kind, CountDownLatch done, WorkQueue workQueue, StressMetrics metrics, RateLimiter rateLimiter)
+        public Consumer(OpType type, CountDownLatch done, WorkQueue workQueue, StressMetrics metrics, RateLimiter rateLimiter)
         {
             this.done = done;
             this.rateLimiter = rateLimiter;
             this.workQueue = workQueue;
-            this.settings = new Operation.Settings(kind, session, metrics);
+            this.state = new Operation.State(type, settings, metrics);
         }
 
         public void run()
@@ -159,13 +163,12 @@ public class StressAction
             {
 
                 SimpleClient sclient = null;
-                CassandraClient cclient = null;
-                final int uniqueKeyCount = session.getNumDifferentKeys();
+                Cassandra.Client cclient = null;
 
-                if (session.use_native_protocol)
-                    sclient = session.getNativeClient();
+                if (settings.mode.nativeProtocol)
+                    sclient = settings.getNativeClient();
                 else
-                    cclient = session.getClient();
+                    cclient = settings.getClient();
 
                 Work work;
                 while ( null != (work = workQueue.poll()) )
@@ -178,7 +181,7 @@ public class StressAction
                     {
                         try
                         {
-                            Operation op = createOperation(settings, (i + work.offset) % uniqueKeyCount);
+                            Operation op = createOperation(state, i + work.offset);
                             if (sclient != null)
                                 op.run(sclient);
                             else
@@ -195,7 +198,7 @@ public class StressAction
                             e.printStackTrace(output);
                             success = false;
                             workQueue.stop();
-                            settings.metrics.stop();
+                            state.metrics.stop();
                             return;
                         }
                     }
@@ -205,7 +208,7 @@ public class StressAction
             finally
             {
                 done.countDown();
-                settings.timer.close();
+                state.timer.close();
             }
 
         }
@@ -236,6 +239,8 @@ public class StressAction
         }
     }
 
+    // TODO : POISSON DISTRIBUTION WORK QUEUE
+
     private static final class FixedWorkQueue implements WorkQueue
     {
 
@@ -261,20 +266,22 @@ public class StressAction
             stop = true;
         }
 
-        static FixedWorkQueue build(int operations)
+        static FixedWorkQueue build(long operations)
         {
             // target splitting into around 50-500k items, with a minimum size of 20
-            int batchSize = operations / 500000;
+            if (operations > Integer.MAX_VALUE * (1 << 9))
+                throw new IllegalStateException("Cannot currently support more than approx 2^40 operations for one stress run. This is a LOT.");
+            int batchSize = (int) (operations / (1 << 9));
             if (batchSize < 20)
                 batchSize = 20;
             ArrayBlockingQueue<Work> work = new ArrayBlockingQueue<Work>(
-                    (operations / batchSize)
-                  + (operations % batchSize == 0 ? 0 : 1)
+                    (int) ((operations / batchSize)
+                  + (operations % batchSize == 0 ? 0 : 1))
             );
-            int offset = 0;
+            long offset = 0;
             while (offset < operations)
             {
-                work.add(new Work(offset, Math.min(batchSize, operations - offset)));
+                work.add(new Work(offset, (int) Math.min(batchSize, operations - offset)));
                 offset += batchSize;
             }
             return new FixedWorkQueue(work);
@@ -321,76 +328,76 @@ public class StressAction
 
     }
 
-    private Operation createOperation(Operation.Settings settings, long index)
+    private Operation createOperation(Operation.State state, long index)
     {
-        switch (settings.kind)
+        switch (state.kind)
         {
             case READ:
-                switch(settings.connectionApi)
+                switch(state.settings.mode.api)
                 {
                     case THRIFT:
-                        return new Reader(settings, index);
+                        return new ThriftReader(state, index);
                     case CQL:
                     case CQL_PREPARED:
-                        return new CqlReader(settings, index);
+                        return new CqlReader(state, index);
                     default:
                         throw new UnsupportedOperationException();
                 }
 
 
-            case COUNTER_GET:
-                switch(settings.connectionApi)
+            case COUNTER_READ:
+                switch(state.settings.mode.api)
                 {
                     case THRIFT:
-                        return new CounterGetter(settings, index);
+                        return new ThriftCounterGetter(state, index);
                     case CQL:
                     case CQL_PREPARED:
-                        return new CqlCounterGetter(settings, index);
+                        return new CqlCounterGetter(state, index);
                     default:
                         throw new UnsupportedOperationException();
                 }
 
             case INSERT:
-                switch(settings.connectionApi)
+                switch(state.settings.mode.api)
                 {
                     case THRIFT:
-                        return new Inserter(settings, index);
+                        return new ThriftInserter(state, index);
                     case CQL:
                     case CQL_PREPARED:
-                        return new CqlInserter(settings, index);
+                        return new CqlInserter(state, index);
                     default:
                         throw new UnsupportedOperationException();
                 }
 
             case COUNTER_ADD:
-                switch(settings.connectionApi)
+                switch(state.settings.mode.api)
                 {
                     case THRIFT:
-                        return new CounterAdder(settings, index);
+                        return new ThriftCounterAdder(state, index);
                     case CQL:
                     case CQL_PREPARED:
-                        return new CqlCounterAdder(settings, index);
+                        return new CqlCounterAdder(state, index);
                     default:
                         throw new UnsupportedOperationException();
                 }
 
             case RANGE_SLICE:
-                switch(settings.connectionApi)
+                switch(state.settings.mode.api)
                 {
                     case THRIFT:
-                        return new RangeSlicer(settings, index);
+                        return new ThriftRangeSlicer(state, index);
                     case CQL:
                     case CQL_PREPARED:
-                        return new CqlRangeSlicer(settings, index);
+                        return new CqlRangeSlicer(state, index);
                     default:
                         throw new UnsupportedOperationException();
                 }
 
             case INDEXED_RANGE_SLICE:
-                switch(settings.connectionApi)
+                switch(state.settings.mode.api)
                 {
                     case THRIFT:
-                        return new IndexedRangeSlicer(settings, index);
+                        return new ThriftIndexedRangeSlicer(state, index);
                     case CQL:
                     case CQL_PREPARED:
                         // TODO
@@ -399,18 +406,21 @@ public class StressAction
                         throw new UnsupportedOperationException();
                 }
 
-            case MULTI_GET:
-                switch(settings.connectionApi)
+            case READ_MULTI:
+                switch(state.settings.mode.api)
                 {
                     case THRIFT:
-                        return new MultiGetter(settings, index);
+                        return new ThriftMultiGetter(state, index);
                     case CQL:
                     case CQL_PREPARED:
-                        return new CqlMultiGetter(settings, index);
+                        return new CqlMultiGetter(state, index);
                     default:
                         throw new UnsupportedOperationException();
                 }
 
+            case MIXED:
+                // TODO : use arbitrary distribution for clustering of reads/writes, and uniform distribution
+                // for selecting which kind to do next
 
         }
 

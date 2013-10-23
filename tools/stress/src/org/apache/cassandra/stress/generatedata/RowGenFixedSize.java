@@ -8,9 +8,9 @@ public class RowGenFixedSize extends RowGen
 {
 
     final List<ByteBuffer> columns;
-    public RowGenFixedSize(DataGen dataGenerator, int columnCount, int uniqueColumnCount, int columnSize)
+    public RowGenFixedSize(DataGen dataGenerator, int columnCount, int columnSize)
     {
-        super(dataGenerator, uniqueColumnCount);
+        super(dataGenerator);
         final ByteBuffer[] buffers = new ByteBuffer[columnCount];
         for (int i = 0 ; i < buffers.length ; i++)
             buffers[i] = ByteBuffer.wrap(new byte[columnSize]);

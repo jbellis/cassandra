@@ -5,15 +5,11 @@ import org.apache.commons.math3.distribution.*;
 public class DataGenHexFromDistribution extends DataGenHex
 {
 
-    final AbstractRealDistribution distribution;
-    final long minKey;
-    final long maxKey;
+    final Distribution distribution;
 
-    public DataGenHexFromDistribution(AbstractRealDistribution distribution, long minKey, long maxKey)
+    public DataGenHexFromDistribution(Distribution distribution)
     {
         this.distribution = distribution;
-        this.minKey = minKey;
-        this.maxKey = maxKey;
     }
 
     @Override
@@ -25,24 +21,24 @@ public class DataGenHexFromDistribution extends DataGenHex
     @Override
     long nextInt(long operationIndex)
     {
-        while (true)
-        {
-            final long v = (long) distribution.sample();
-            if (v >= minKey && v <= maxKey)
-                return v;
-        }
+        return distribution.next();
     }
 
     public static DataGenHex buildGaussian(long minKey, long maxKey, double stdevsToLimit)
     {
         double midRange = (maxKey + minKey) / 2d;
         double halfRange = (maxKey - minKey) / 2d;
-        return new DataGenHexFromDistribution(new NormalDistribution(midRange, halfRange / stdevsToLimit), minKey, maxKey);
+        return new DataGenHexFromDistribution(new DistributionBoundApache(new NormalDistribution(midRange, halfRange / stdevsToLimit), minKey, maxKey));
     }
 
-    public static DataGenHex buildUniform(long minKey, long maxKey, double stdevsToLimit)
+    public static DataGenHex buildGaussian(long minKey, long maxKey, double mean, double stdev)
     {
-        return new DataGenHexFromDistribution(new UniformRealDistribution(minKey, maxKey), minKey, maxKey);
+        return new DataGenHexFromDistribution(new DistributionBoundApache(new NormalDistribution(mean, stdev), minKey, maxKey));
+    }
+
+    public static DataGenHex buildUniform(long minKey, long maxKey)
+    {
+        return new DataGenHexFromDistribution(new DistributionBoundApache(new UniformRealDistribution(minKey, maxKey), minKey, maxKey));
     }
 
 }

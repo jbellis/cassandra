@@ -17,12 +17,15 @@ import java.util.concurrent.TimeUnit;
 public class StressMetrics
 {
 
+    // TODO : maybe store a subsample of each interval's latency samples, so can easily calculate latencies over arbitrary intervals
+
     private final PrintStream output;
     private final ExecutorService exec = Executors.newFixedThreadPool(1, new NamedThreadFactory("StressMetrics"));
     private volatile boolean stop = false;
     private final CopyOnWriteArrayList<Timer> timers = new CopyOnWriteArrayList<>();
     private final Random rnd = new Random();
     private volatile TimerInterval fullHistory;
+    private final Uncertainty opRateUncertainty = new Uncertainty();
 
     public StressMetrics(PrintStream output)
     {
@@ -76,11 +79,73 @@ public class StressMetrics
                 interval.rankLatency(0.999f),
                 interval.maxLatency(),
                 fullHistory.runTime() / 1000f));
+        opRateUncertainty.update(interval.opRate());
     }
 
-    public void runUntilConverges()
+    // TODO: do not assume normal distribution of measurements.
+    private static class Uncertainty
     {
 
+        private int measurements;
+        private double sumsquares;
+        private double sum;
+        private double stdev;
+        private double mean;
+        private double uncertainty;
+
+        private CopyOnWriteArrayList<WaitForTargetUncertainty> waiting = new CopyOnWriteArrayList<>();
+
+        private static final class WaitForTargetUncertainty
+        {
+            final double targetUncertainty;
+            final int measurements;
+            final CountDownLatch latch = new CountDownLatch(1);
+
+            private WaitForTargetUncertainty(double targetUncertainty, int measurements)
+            {
+                this.targetUncertainty = targetUncertainty;
+                this.measurements = measurements;
+            }
+
+            void await() throws InterruptedException
+            {
+                latch.await();
+            }
+
+        }
+
+        private void update(double value)
+        {
+            measurements++;
+            sumsquares += value * value;
+            sum += value;
+            mean = sum / measurements;
+            stdev = Math.sqrt((sumsquares / measurements) - (mean * mean));
+            uncertainty = (stdev / Math.sqrt(measurements)) / mean;
+
+            for (WaitForTargetUncertainty waiter : waiting)
+            {
+                if (uncertainty < waiter.targetUncertainty && measurements >= waiter.measurements)
+                {
+                    waiter.latch.countDown();
+                    // can safely remove as working over snapshot with COWArrayList
+                    waiting.remove(waiter);
+                }
+            }
+        }
+
+        private void await(double targetUncertainty, int measurements) throws InterruptedException
+        {
+            final WaitForTargetUncertainty wait = new WaitForTargetUncertainty(targetUncertainty, measurements);
+            waiting.add(wait);
+            wait.await();
+        }
+
+    }
+
+    public void runUntilConverges(double targetUncertainty, int minMeasurements) throws InterruptedException
+    {
+        opRateUncertainty.await(targetUncertainty, minMeasurements);
     }
 
     public void stop()

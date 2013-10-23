@@ -30,9 +30,9 @@ import java.util.*;
 public final class ThriftInserter extends Operation
 {
 
-    public ThriftInserter(Settings settings, long index)
+    public ThriftInserter(State state, long index)
     {
-        super(settings, index);
+        super(state, index);
     }
 
     public void run(final Cassandra.Client client) throws IOException
@@ -41,7 +41,7 @@ public final class ThriftInserter extends Operation
         final List<Column> columns = generateColumns();
 
         Map<String, List<Mutation>> row;
-        if (!settings.useSuperColumns)
+        if (state.settings.columns.useSuperColumns)
         {
             List<Mutation> mutations = new ArrayList<>(columns.size());
             for (Column c : columns)
@@ -49,12 +49,12 @@ public final class ThriftInserter extends Operation
                 ColumnOrSuperColumn column = new ColumnOrSuperColumn().setColumn(c);
                 mutations.add(new Mutation().setColumn_or_supercolumn(column));
             }
-            row = Collections.singletonMap("Standard1", mutations);
+            row = Collections.singletonMap(state.settings.schema.columnFamily, mutations);
         }
         else
         {
-            List<Mutation> mutations = new ArrayList<>(settings.columnParents.size());
-            for (ColumnParent parent : settings.columnParents)
+            List<Mutation> mutations = new ArrayList<>(state.columnParents.size());
+            for (ColumnParent parent : state.columnParents)
             {
                 final SuperColumn s = new SuperColumn(parent.bufferForSuper_column(), columns);
                 final ColumnOrSuperColumn cosc = new ColumnOrSuperColumn().setSuper_column(s);
@@ -70,7 +70,7 @@ public final class ThriftInserter extends Operation
             @Override
             public boolean run() throws Exception
             {
-                client.batch_mutate(record, settings.consistencyLevel);
+                client.batch_mutate(record, state.settings.op.consistencyLevel);
                 return true;
             }
 
@@ -91,18 +91,16 @@ public final class ThriftInserter extends Operation
     protected List<Column> generateColumns()
     {
         final List<ByteBuffer> values = generateColumnValues();
-        final List<Column> columns = new ArrayList<>(settings.columnsPerKey);
-        assert columns.size() == values.size();
+        final List<Column> columns = new ArrayList<>(values.size());
 
-        // initialise columns to use string names, then override if want timeUUID
-        // on every call, as they need to be written each time anyway
-        if (columns.isEmpty())
+        if (state.settings.columns.useTimeUUIDComparator)
+            for (int i = 0 ; i < values.size() ; i++)
+                new Column(TimeUUIDType.instance.decompose(UUIDGen.getTimeUUID()));
+        else
+            // TODO : consider randomly allocating column names in case where have fewer than max columns
+            // but need to think about implications for indexes / indexed range slicer / other knock on effects
             for (int i = 0 ; i < values.size() ; i++)
                 columns.add(new Column(getColumnName(i)));
-
-        if (settings.useTimeUUIDComparator)
-            for (Column column : columns)
-                column.setName(TimeUUIDType.instance.decompose(UUIDGen.getTimeUUID()));
 
         for (int i = 0 ; i < values.size() ; i++)
             columns.get(i)
