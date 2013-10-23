@@ -52,7 +52,7 @@ public abstract class CQLOperation extends Operation
     protected abstract String buildQuery();
     protected abstract boolean validate(int rowCount);
 
-    public CQLOperation(Settings settings, int idx)
+    public CQLOperation(Settings settings, long idx)
     {
         super(settings, idx);
         if (settings.useSuperColumns)

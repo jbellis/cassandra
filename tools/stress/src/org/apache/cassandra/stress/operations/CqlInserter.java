@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.UUIDGen;
 public class CqlInserter extends CQLOperation
 {
 
-    public CqlInserter(Settings settings, int idx)
+    public CqlInserter(Settings settings, long idx)
     {
         super(settings, idx);
     }

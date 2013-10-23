@@ -40,7 +40,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class CqlCounterGetter extends CQLOperation
 {
 
-    public CqlCounterGetter(Settings settings, int idx)
+    public CqlCounterGetter(Settings settings, long idx)
     {
         super(settings, idx);
     }

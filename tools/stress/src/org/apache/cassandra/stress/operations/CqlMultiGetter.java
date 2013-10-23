@@ -30,7 +30,7 @@ import org.apache.cassandra.transport.SimpleClient;
 
 public class CqlMultiGetter extends Operation
 {
-    public CqlMultiGetter(Settings settings, int idx)
+    public CqlMultiGetter(Settings settings, long idx)
     {
         super(settings, idx);
         throw new RuntimeException("Multiget is not implemented for CQL");

@@ -41,7 +41,7 @@ import org.apache.cassandra.transport.SimpleClient;
 
 public class CqlRangeSlicer extends CQLOperation
 {
-    public CqlRangeSlicer(Settings settings, int idx)
+    public CqlRangeSlicer(Settings settings, long idx)
     {
         super(settings, idx);
     }

@@ -29,9 +29,7 @@ import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.Stress;
 import org.apache.cassandra.stress.StressMetrics;
 import org.apache.cassandra.stress.generatedata.DataGen;
-import org.apache.cassandra.stress.generatedata.DataGenGaussianHex;
-import org.apache.cassandra.stress.generatedata.DataGenOpIndexToHex;
-import org.apache.cassandra.stress.generatedata.DataGenRandomHex;
+import org.apache.cassandra.stress.generatedata.DataGenHexFromOpIndex;
 import org.apache.cassandra.stress.generatedata.DataGenUniform;
 import org.apache.cassandra.stress.generatedata.RowGen;
 import org.apache.cassandra.stress.generatedata.RowGenAverageSize;
@@ -44,10 +42,10 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class Operation
 {
-    public final int index;
+    public final long index;
     protected final Settings settings;
 
-    public Operation(Settings settings, int idx)
+    public Operation(Settings settings, long idx)
     {
         index = idx;
         this.settings = settings;
@@ -69,9 +67,11 @@ public abstract class Operation
 
     public static enum CqlVersion
     {
-        CQL1, CQL2, CQL3;
+        NOCQL, CQL1, CQL2, CQL3;
         static CqlVersion get(String version)
         {
+            if (version == null)
+                return NOCQL;
             switch(version.charAt(0))
             {
                 case '1':
@@ -90,7 +90,7 @@ public abstract class Operation
     public static final class Settings
     {
 
-        final StressMetrics.Timer timer;
+        public final StressMetrics.Timer timer;
         public final Stress.Operations kind;
         public final DataGen keyGen;
         public final RowGen rowGen;
@@ -115,16 +115,16 @@ public abstract class Operation
         private final List<ByteBuffer> keyBuffers = new ArrayList<>();
         private Object cqlCache;
 
-        public Settings(Session session, StressMetrics metrics)
+        public Settings(Stress.Operations kind, Session session, StressMetrics metrics)
         {
-            this.kind = session.getOperation();
+            this.kind = kind;
             this.timer = metrics.newTimer();
             // TODO: this logic shouldn't be here - dataGen and keyGen should be passed in
             switch (kind)
             {
                 case COUNTER_ADD:
                 case INSERT:
-                    this.keyGen = new DataGenOpIndexToHex(session.getNumDifferentKeys());
+                    this.keyGen = new DataGenHexFromOpIndex(session.getNumDifferentKeys());
                     break;
                 default:
                     if (session.useRandomGenerator())
@@ -134,7 +134,7 @@ public abstract class Operation
             }
 
             if (session.averageSizeValues)
-                this.rowGen = new RowGenAverageSize(new DataGenUniform(session.getUniqueColumnCount()), session.getColumnsPerKey(), session.getColumnSize());
+                this.rowGen = new RowGenAverageSize(new DataGenUniform(session.getUniqueColumnCount()), session.getColumnsPerKey(), session.getUniqueColumnCount(), session.getColumnSize());
             else
                 this.rowGen = new RowGenFixedSize(new DataGenUniform(session.getUniqueRowCount()), session.getColumnsPerKey(), session.getUniqueColumnCount(), session.getColumnSize());
 
@@ -164,7 +164,7 @@ public abstract class Operation
             }
             this.usePreparedStatements = session.usePreparedStatements();
         }
-        List<ByteBuffer> getKeys(int n, int index)
+        List<ByteBuffer> getKeys(int n, long index)
         {
             while (keyBuffers.size() < n)
                 keyBuffers.add(ByteBuffer.wrap(new byte[keySize]));

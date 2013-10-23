@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.yammer.metrics.Metrics;
 import org.apache.cassandra.cli.transport.FramedTransportFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.EncryptionOptions;
@@ -65,6 +64,26 @@ public class Session implements Serializable
     private static final String SSL_STORE_TYPE = "store-type";
     private static final String SSL_CIPHER_SUITES = "ssl-ciphers";
 
+    /**
+     *
+
+
+     -rate [threads=<N>] [limit=<N>/s] [auto]
+     -op OP [keys per call] [retry=] [super] [ignore_errors] count=
+     -key range=0..2000  [DISTRIBUTION]
+     -cols 1..5 [names="col1,col2,col3,.."] [DISTRIBUTION]
+     -values 20..50 (bytes) [DISTRIBUTION]
+     -schema [replication strategy class] [compression=] [index=] compaction_strategy=
+     -mode [thrift|([prepared] (cql1|cql2|[native] cql3))] [consistency level]
+     -nodes [file=<path>] [node1,node2,node3]
+     -log file=<path> [no-summary]
+     -ssl
+     -port
+
+
+     */
+
+
     static
     {
         availableOptions.addOption("h",  "help",                 false,  "Show this help message and exit");
@@ -73,7 +92,7 @@ public class Session implements Serializable
         availableOptions.addOption("t",  "threads",              true,   "Number of threads to use, default:50");
         availableOptions.addOption("c",  "columns",              true,   "Number of columns per key, default:5");
         availableOptions.addOption("S",  "column-size",          true,   "Size of column values in bytes, default:34");
-        availableOptions.addOption("C",  "unique columns",       true,   "Max number of unique columns, default:50");
+        availableOptions.addOption("C",  "unique columns",       true,   "Max number of unique columns per key, default:50");
         availableOptions.addOption("RC", "unique rows",          true,   "Max number of unique rows, default:50");
         availableOptions.addOption("d",  "nodes",                true,   "Host nodes (comma separated), default:locahost");
         availableOptions.addOption("D",  "nodesfile",            true,   "File containing host nodes (one per line)");
@@ -121,7 +140,8 @@ public class Session implements Serializable
     private int threads          = 50;
     private int columns          = 5;
     private int columnSize       = 34;
-    private int cardinality      = 50;
+    private int uniqueColumnCount = 50;
+    private int uniqueRowCount   = 50;
     public String[] nodes        = new String[] { "127.0.0.1" };
     private boolean random       = false;
     private int retryTimes       = 10;
@@ -204,7 +224,7 @@ public class Session implements Serializable
                 columnSize = Integer.parseInt(cmd.getOptionValue("S"));
 
             if (cmd.hasOption("C"))
-                cardinality = Integer.parseInt(cmd.getOptionValue("C"));
+                uniqueColumnCount = Integer.parseInt(cmd.getOptionValue("C"));
 
             if (cmd.hasOption("d"))
                 nodes = cmd.getOptionValue("d").split(",");
@@ -479,12 +499,12 @@ public class Session implements Serializable
 
     public int getUniqueColumnCount()
     {
-        return cardinality;
+        return uniqueColumnCount;
     }
 
     public int getUniqueRowCount()
     {
-        return ;
+        return uniqueRowCount;
     }
 
     public int getColumnSize()

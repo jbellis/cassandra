@@ -31,7 +31,7 @@ import java.util.*;
 public final class Inserter extends Operation
 {
 
-    public Inserter(Settings settings, int index)
+    public Inserter(Settings settings, long index)
     {
         super(settings, index);
     }

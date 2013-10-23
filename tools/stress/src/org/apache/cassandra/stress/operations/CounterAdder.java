@@ -36,7 +36,7 @@ import java.util.Map;
 
 public class CounterAdder extends Operation
 {
-    public CounterAdder(Settings settings, int index)
+    public CounterAdder(Settings settings, long index)
     {
         super(settings, index);
     }

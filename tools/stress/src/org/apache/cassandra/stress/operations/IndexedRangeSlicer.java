@@ -31,7 +31,7 @@ import java.util.List;
 
 public class IndexedRangeSlicer extends Operation
 {
-    public IndexedRangeSlicer(Settings settings, int index)
+    public IndexedRangeSlicer(Settings settings, long index)
     {
         super(settings, index);
         if (!settings.rowGen.deterministic() || !settings.keyGen.deterministic())

@@ -42,7 +42,7 @@ import org.apache.cassandra.thrift.ThriftConversion;
 public class CqlReader extends CQLOperation
 {
 
-    public CqlReader(Settings settings, int idx)
+    public CqlReader(Settings settings, long idx)
     {
         super(settings, idx);
     }

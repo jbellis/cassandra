@@ -28,7 +28,7 @@ import java.nio.ByteBuffer;
 public final class Reader extends Operation
 {
 
-    public Reader(Settings settings, int index)
+    public Reader(Settings settings, long index)
     {
         super(settings, index);
     }

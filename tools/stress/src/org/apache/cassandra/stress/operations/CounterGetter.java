@@ -30,7 +30,7 @@ import java.util.List;
 
 public class CounterGetter extends Operation
 {
-    public CounterGetter(Settings settings, int index)
+    public CounterGetter(Settings settings, long index)
     {
         super(settings, index);
     }

@@ -31,7 +31,7 @@ import java.util.List;
 public final class MultiGetter extends Operation
 {
 
-    public MultiGetter(Settings settings, int index)
+    public MultiGetter(Settings settings, long index)
     {
         super(settings, index);
     }

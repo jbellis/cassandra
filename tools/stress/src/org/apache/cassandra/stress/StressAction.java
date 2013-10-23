@@ -17,10 +17,14 @@
  */
 package org.apache.cassandra.stress;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.StringWriter;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.stress.operations.*;
@@ -47,20 +51,33 @@ public class StressAction
             session.createKeySpaces();
 
         // warmup
-        run(20, 50000);
+        PrintStream warmupOutput = new PrintStream(new OutputStream() { @Override public void write(int b) throws IOException { } } );
+        output.println("Warming up...");
+        switch (session.getOperation())
+        {
+            case READWRITE:
+                run(Stress.Operations.INSERT, 20, 50000, warmupOutput);
+                run(Stress.Operations.READ, 20, 50000, warmupOutput);
+                break;
+            default:
+                run(session.getOperation(), 20, 50000, warmupOutput);
+        }
+
+        output.println("Sleeping 2s...");
+        try { Thread.sleep(2000); } catch (InterruptedException e) { }
 
         if (session.auto)
             runAuto();
         else
-            run(session.getThreads(), session.getNumOperations());
+            run(session.getOperation(), session.getThreads(), session.getNumOperations(), output);
     }
 
-    private void runAuto(boolean varyColumnSize)
+    private void runAuto()
     {
 
     }
 
-    private StressMetrics run(int threadCount, int opCount)
+    private StressMetrics run(Stress.Operations kind, int threadCount, int opCount, PrintStream output)
     {
 
         final WorkQueue workQueue;
@@ -78,7 +95,7 @@ public class StressAction
         final CountDownLatch done = new CountDownLatch(threadCount);
         final Consumer[] consumers = new Consumer[threadCount];
         for (int i = 0; i < threadCount; i++)
-            consumers[i] = new Consumer(done, workQueue, metrics, rateLimiter);
+            consumers[i] = new Consumer(kind, done, workQueue, metrics, rateLimiter);
 
         // starting worker threads
         for (int i = 0; i < threadCount; i++)
@@ -86,7 +103,7 @@ public class StressAction
 
         metrics.meterWithLogInterval(1000 * session.getProgressInterval());
 
-        if (auto)
+        if (opCount <= 0)
         {
             metrics.runUntilConverges();
             workQueue.stop();
@@ -127,12 +144,12 @@ public class StressAction
         private final WorkQueue workQueue;
         private final CountDownLatch done;
 
-        public Consumer(CountDownLatch done, WorkQueue workQueue, StressMetrics metrics, RateLimiter rateLimiter)
+        public Consumer(Stress.Operations kind, CountDownLatch done, WorkQueue workQueue, StressMetrics metrics, RateLimiter rateLimiter)
         {
             this.done = done;
             this.rateLimiter = rateLimiter;
             this.workQueue = workQueue;
-            this.settings = new Operation.Settings(session, metrics);
+            this.settings = new Operation.Settings(kind, session, metrics);
         }
 
         public void run()
@@ -188,6 +205,7 @@ public class StressAction
             finally
             {
                 done.countDown();
+                settings.timer.close();
             }
 
         }
@@ -198,15 +216,20 @@ public class StressAction
     {
         // null indicates consumer should terminate
         Work poll();
+
+        // signal all consumers to terminate
         void stop();
     }
 
     private static final class Work
     {
-        final int offset;
+        // index of operations
+        final long offset;
+
+        // how many operations to perform
         final int count;
 
-        public Work(int offset, int count)
+        public Work(long offset, int count)
         {
             this.offset = offset;
             this.count = count;
@@ -262,7 +285,7 @@ public class StressAction
     private static final class ContinuousWorkQueue implements WorkQueue
     {
 
-        final AtomicInteger offset = new AtomicInteger();
+        final AtomicLong offset = new AtomicLong();
         final int batchSize;
         volatile boolean stop = false;
 
@@ -279,12 +302,12 @@ public class StressAction
             return new Work(nextOffset(), batchSize);
         }
 
-        private int nextOffset()
+        private long nextOffset()
         {
             final int inc = batchSize;
             while (true)
             {
-                final int cur = offset.get();
+                final long cur = offset.get();
                 if (offset.compareAndSet(cur, cur + inc))
                     return cur;
             }
@@ -298,7 +321,7 @@ public class StressAction
 
     }
 
-    private Operation createOperation(Operation.Settings settings, int index)
+    private Operation createOperation(Operation.Settings settings, long index)
     {
         switch (settings.kind)
         {

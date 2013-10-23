@@ -28,7 +28,7 @@ public final class Stress
 {
     public static enum Operations
     {
-        INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTER_ADD, COUNTER_GET
+        INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTER_ADD, COUNTER_GET, READWRITE
     }
 
     public static Session session;

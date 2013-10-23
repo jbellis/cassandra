@@ -28,7 +28,7 @@ import java.nio.ByteBuffer;
 public final class RangeSlicer extends Operation
 {
 
-    public RangeSlicer(Settings settings, int index)
+    public RangeSlicer(Settings settings, long index)
     {
         super(settings, index);
     }
@@ -47,6 +47,7 @@ public final class RangeSlicer extends Operation
         final ByteBuffer start = getKey();
 
         // TODO do we REALLY want to range slice from key->infinity?
+        // presumably want to slice from start -> start + keysPerCall
         final KeyRange range =
                 new KeyRange(settings.columnsPerKey)
                         .setStart_key(start)
