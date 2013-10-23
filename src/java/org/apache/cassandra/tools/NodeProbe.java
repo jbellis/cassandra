@@ -871,9 +871,14 @@ public class NodeProbe
         return spProxy.getReadRepairRepairedBackground();
     }
 
-    public TabularData compactionHistory()
+    public TabularData getCompactionHistory()
     {
         return compactionProxy.getCompactionHistory();
+    }
+
+    public void reloadTriggers()
+    {
+        spProxy.reloadTriggerClasses();
     }
 }
 

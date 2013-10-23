@@ -82,7 +82,7 @@ public final class CFMetaData
     public final static Class<? extends AbstractCompactionStrategy> DEFAULT_COMPACTION_STRATEGY_CLASS = SizeTieredCompactionStrategy.class;
     public final static Caching DEFAULT_CACHING_STRATEGY = Caching.KEYS_ONLY;
     public final static int DEFAULT_DEFAULT_TIME_TO_LIVE = 0;
-    public final static SpeculativeRetry DEFAULT_SPECULATIVE_RETRY = new SpeculativeRetry(SpeculativeRetry.RetryType.PERCENTILE, 0.99);
+    public final static SpeculativeRetry DEFAULT_SPECULATIVE_RETRY = new SpeculativeRetry(SpeculativeRetry.RetryType.NONE, 0);
     public final static int DEFAULT_INDEX_INTERVAL = 128;
     public final static boolean DEFAULT_POPULATE_IO_CACHE_ON_FLUSH = false;
 
@@ -455,10 +455,6 @@ public final class CFMetaData
     @VisibleForTesting
     CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp,  UUID id)
     {
-        assert keyspace != null;
-        assert name != null;
-        assert type != null;
-        assert id != null;
         // (subcc may be null for non-supercolumns)
         // (comp may also be null for custom indexes, which is kind of broken if you ask me)
 

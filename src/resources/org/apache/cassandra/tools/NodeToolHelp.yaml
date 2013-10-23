@@ -28,9 +28,9 @@ commands:
   - name: status
     help: |
       Print cluster information (state, load, IDs, ...)
-  - name: cfstats
+  - name: cfstats [keyspace].[cfname] ...
     help: |
-      Print statistics on column families
+      Print statistics on column families. Use the -i flag to ignore the list of column families and display the remaining cfs.
   - name: version
     help: |
       Print cassandra version
@@ -208,3 +208,6 @@ commands:
   - name: predictconsistency <replication_factor> <time> [versions] [latency_percentile]
     help: |
       Predict latency and consistency "t" ms after writes
+  - name: reloadtriggers
+    help: |
+      reload trigger classes

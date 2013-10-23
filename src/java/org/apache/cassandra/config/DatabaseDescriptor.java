@@ -267,6 +267,8 @@ public class DatabaseDescriptor
         /* Local IP or hostname to bind services to */
         if (conf.listen_address != null)
         {
+            if (conf.listen_address.equals("0.0.0.0"))
+                throw new ConfigurationException("listen_address cannot be 0.0.0.0!");
             try
             {
                 listenAddress = InetAddress.getByName(conf.listen_address);
@@ -275,17 +277,6 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("Unknown listen_address '" + conf.listen_address + "'");
             }
-        }
-        if (conf.listen_address.equals("0.0.0.0"))
-            throw new ConfigurationException("listen_address cannot be 0.0.0.0!");
-
-        try
-        {
-            listenAddress = InetAddress.getByName(conf.listen_address);
-        }
-        catch (UnknownHostException e)
-        {
-            throw new ConfigurationException("Unknown listen_address '" + conf.listen_address + "'");
         }
 
         /* Gossip Address to broadcast */
@@ -667,6 +658,21 @@ public class DatabaseDescriptor
         return conf.num_tokens;
     }
 
+    public static InetAddress getReplaceAddress()
+    {
+        try
+        {
+            if (System.getProperty("cassandra.replace_address", null) != null)
+                return InetAddress.getByName(System.getProperty("cassandra.replace_address", null));
+            else
+                return null;
+        }
+        catch (UnknownHostException e)
+        {
+            return null;
+        }
+    }
+
     public static Collection<String> getReplaceTokens()
     {
         return tokensFromString(System.getProperty("cassandra.replace_token", null));
@@ -685,7 +691,7 @@ public class DatabaseDescriptor
 
     public static boolean isReplacing()
     {
-        return 0 != getReplaceTokens().size() || getReplaceNode() != null;
+        return getReplaceAddress() != null;
     }
 
     public static String getClusterName()

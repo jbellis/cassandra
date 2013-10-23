@@ -36,10 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
@@ -117,7 +114,7 @@ public class SSTableReader extends SSTable implements Closeable
             int indexKeyCount = sstable.getKeySampleSize();
             count = count + (indexKeyCount + 1) * sstable.indexSummary.getIndexInterval();
             if (logger.isDebugEnabled())
-                logger.debug("index size for bloom filter calc for file  : " + sstable.getFilename() + "   : " + count);
+                logger.debug("index size for bloom filter calc for file  : {}  : {}", sstable.getFilename(), count);
         }
 
         return count;
@@ -239,9 +236,9 @@ public class SSTableReader extends SSTable implements Closeable
     public static void logOpenException(Descriptor descriptor, IOException e)
     {
         if (e instanceof FileNotFoundException)
-            logger.error("Missing sstable component in " + descriptor + "; skipped because of " + e.getMessage());
+            logger.error("Missing sstable component in {}; skipped because of {}", descriptor, e.getMessage());
         else
-            logger.error("Corrupt sstable " + descriptor + "; skipped", e);
+            logger.error("Corrupt sstable {}; skipped", descriptor, e);
     }
 
     public static Collection<SSTableReader> openAll(Set<Map.Entry<Descriptor, Set<Component>>> entries,
@@ -264,7 +261,7 @@ public class SSTableReader extends SSTable implements Closeable
                     }
                     catch (IOException ex)
                     {
-                        logger.error("Corrupt sstable " + entry + "; skipped", ex);
+                        logger.error("Corrupt sstable {}; skipped", entry, ex);
                         return;
                     }
                     sstables.add(sstable);
@@ -327,8 +324,9 @@ public class SSTableReader extends SSTable implements Closeable
 
         deletingTask = new SSTableDeletingTask(this);
 
-        // Don't track read rates for tables in the system keyspace
-        if (Keyspace.SYSTEM_KS.equals(desc.ksname))
+        // Don't track read rates for tables in the system keyspace and don't bother trying to load or persist
+        // the read meter when in client mode
+        if (Keyspace.SYSTEM_KS.equals(desc.ksname) || Config.isClientMode())
         {
             readMeter = null;
             return;
@@ -1108,7 +1106,7 @@ public class SSTableReader extends SSTable implements Closeable
     public boolean markObsolete()
     {
         if (logger.isDebugEnabled())
-            logger.debug("Marking " + getFilename() + " compacted");
+            logger.debug("Marking {} compacted", getFilename());
 
         return !isCompacted.getAndSet(true);
     }
@@ -1116,7 +1114,7 @@ public class SSTableReader extends SSTable implements Closeable
     public void markSuspect()
     {
         if (logger.isDebugEnabled())
-            logger.debug("Marking " + getFilename() + " as a suspect for blacklisting.");
+            logger.debug("Marking {} as a suspect for blacklisting.", getFilename());
 
         isSuspect.getAndSet(true);
     }
