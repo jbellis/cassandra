@@ -17,31 +17,24 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.StressMetrics;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class CounterAdder extends Operation
+public class ThriftCounterAdder extends Operation
 {
-    public CounterAdder(Settings settings, long index)
+    public ThriftCounterAdder(Settings settings, long index)
     {
         super(settings, index);
     }
 
-    public void run(final CassandraClient client) throws IOException
+    public void run(final Cassandra.Client client) throws IOException
     {
         List<CounterColumn> columns = new ArrayList<CounterColumn>();
         for (int i = 0; i < settings.columnsPerKey; i++)

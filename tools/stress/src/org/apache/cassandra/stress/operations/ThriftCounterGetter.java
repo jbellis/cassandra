@@ -17,63 +17,51 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
+import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public final class RangeSlicer extends Operation
+public class ThriftCounterGetter extends Operation
 {
-
-    public RangeSlicer(Settings settings, long index)
+    public ThriftCounterGetter(Settings settings, long index)
     {
         super(settings, index);
     }
 
-    @Override
-    public void run(final CassandraClient client) throws IOException
+    public void run(final Cassandra.Client client) throws IOException
     {
-        final SlicePredicate predicate = new SlicePredicate()
-                .setSlice_range(
-                        new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                false,
-                                settings.columnsPerKey)
-                );
+        SliceRange sliceRange = new SliceRange();
+        // start/finish
+        sliceRange.setStart(new byte[] {}).setFinish(new byte[] {});
+        // reversed/count
+        sliceRange.setReversed(false).setCount(settings.columnsPerKey);
+        // initialize SlicePredicate with existing SliceRange
+        final SlicePredicate predicate = new SlicePredicate().setSlice_range(sliceRange);
 
-        final ByteBuffer start = getKey();
-
-        // TODO do we REALLY want to range slice from key->infinity?
-        // presumably want to slice from start -> start + keysPerCall
-        final KeyRange range =
-                new KeyRange(settings.columnsPerKey)
-                        .setStart_key(start)
-                        .setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER);
-
+        final ByteBuffer key = getKey();
         for (final ColumnParent parent : settings.columnParents)
         {
+
             timeWithRetry(new RunOp()
             {
-                private int count = 0;
                 @Override
                 public boolean run() throws Exception
                 {
-                    return (count = client.get_range_slices(parent, predicate, range, settings.consistencyLevel).size()) != 0;
+                    return client.get_slice(key, parent, predicate, settings.consistencyLevel).size() != 0;
                 }
 
                 @Override
                 public String key()
                 {
-                    return new String(range.bufferForStart_key().array());
+                    return new String(key.array());
                 }
 
                 @Override
                 public int keyCount()
                 {
-                    return count;
+                    return 1;
                 }
             });
         }

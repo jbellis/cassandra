@@ -18,8 +18,7 @@
 package org.apache.cassandra.stress.operations;
 
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
+import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -28,15 +27,15 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-public final class Inserter extends Operation
+public final class ThriftInserter extends Operation
 {
 
-    public Inserter(Settings settings, long index)
+    public ThriftInserter(Settings settings, long index)
     {
         super(settings, index);
     }
 
-    public void run(final CassandraClient client) throws IOException
+    public void run(final Cassandra.Client client) throws IOException
     {
         final ByteBuffer key = getKey();
         final List<Column> columns = generateColumns();

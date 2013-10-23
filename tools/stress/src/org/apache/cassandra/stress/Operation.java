@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.stress.util;
+package org.apache.cassandra.stress;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -29,11 +29,13 @@ import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.Stress;
 import org.apache.cassandra.stress.StressMetrics;
 import org.apache.cassandra.stress.generatedata.DataGen;
+import org.apache.cassandra.stress.generatedata.DataGenHexFromDistribution;
 import org.apache.cassandra.stress.generatedata.DataGenHexFromOpIndex;
-import org.apache.cassandra.stress.generatedata.DataGenUniform;
+import org.apache.cassandra.stress.generatedata.DataGenStringFromColAndOpIndex;
 import org.apache.cassandra.stress.generatedata.RowGen;
 import org.apache.cassandra.stress.generatedata.RowGenAverageSize;
 import org.apache.cassandra.stress.generatedata.RowGenFixedSize;
+import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.thrift.ConsistencyLevel;
@@ -124,19 +126,19 @@ public abstract class Operation
             {
                 case COUNTER_ADD:
                 case INSERT:
-                    this.keyGen = new DataGenHexFromOpIndex(session.getNumDifferentKeys());
+                    this.keyGen = new DataGenHexFromOpIndex(session.getMinKey(), session.getMaxKey());
                     break;
                 default:
                     if (session.useRandomGenerator())
-                        this.keyGen = new DataGenRandomHex(session.getNumDifferentKeys());
+                        this.keyGen = DataGenHexFromDistribution.buildUniform(session.getMinKey(), session.getMaxKey());
                     else
-                        this.keyGen = new DataGenGaussianHex(session.getNumDifferentKeys(), session.getMean(), session.getSigma());
+                        this.keyGen = DataGenHexFromDistribution.buildGaussian(session.getMinKey(), session.getMaxKey(), session.getMean(), session.getSigma());
             }
 
             if (session.averageSizeValues)
-                this.rowGen = new RowGenAverageSize(new DataGenUniform(session.getUniqueColumnCount()), session.getColumnsPerKey(), session.getUniqueColumnCount(), session.getColumnSize());
+                this.rowGen = new RowGenAverageSize(new DataGenStringFromColAndOpIndex(session.getUniqueColumnCount()), session.getColumnsPerKey(), session.getColumnSize());
             else
-                this.rowGen = new RowGenFixedSize(new DataGenUniform(session.getUniqueRowCount()), session.getColumnsPerKey(), session.getUniqueColumnCount(), session.getColumnSize());
+                this.rowGen = new RowGenFixedSize(new DataGenStringFromColAndOpIndex(session.getUniqueRowCount()), session.getColumnsPerKey(), session.getColumnSize());
 
             this.connectionApi = session.isCQL() ?
                     session.usePreparedStatements() ?

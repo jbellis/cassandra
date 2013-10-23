@@ -20,20 +20,13 @@ package org.apache.cassandra.stress.operations;
 
 import java.nio.ByteBuffer;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.base.*;
 import com.google.common.collect.*;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.CqlPreparedResult;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.stress.Operation;
+import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.thrift.Compression;
@@ -43,7 +36,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Hex;
 import org.apache.thrift.TException;
 
-public abstract class CQLOperation extends Operation
+public abstract class CqlOperation extends Operation
 {
 
     private static final ConcurrentHashMap<String, byte[]> preparedStatementLookup = new ConcurrentHashMap<>();
@@ -52,7 +45,7 @@ public abstract class CQLOperation extends Operation
     protected abstract String buildQuery();
     protected abstract boolean validate(int rowCount);
 
-    public CQLOperation(Settings settings, long idx)
+    public CqlOperation(Settings settings, long idx)
     {
         super(settings, idx);
         if (settings.useSuperColumns)
@@ -148,7 +141,7 @@ public abstract class CQLOperation extends Operation
         }
     }
 
-    public void run(final CassandraClient client) throws IOException
+    public void run(final Cassandra.Client client) throws IOException
     {
         run(settings.isCql3()
                 ? new Cql3CassandraClientWrapper(client)
@@ -203,8 +196,8 @@ public abstract class CQLOperation extends Operation
 
     private final class Cql3CassandraClientWrapper implements ClientWrapper
     {
-        final CassandraClient client;
-        private Cql3CassandraClientWrapper(CassandraClient client)
+        final Cassandra.Client client;
+        private Cql3CassandraClientWrapper(Cassandra.Client client)
         {
             this.client = client;
         }
@@ -236,8 +229,8 @@ public abstract class CQLOperation extends Operation
 
     private final class Cql1or2CassandraClientWrapper implements ClientWrapper
     {
-        final CassandraClient client;
-        private Cql1or2CassandraClientWrapper(CassandraClient client)
+        final Cassandra.Client client;
+        private Cql1or2CassandraClientWrapper(Cassandra.Client client)
         {
             this.client = client;
         }

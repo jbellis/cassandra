@@ -17,56 +17,53 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-public class CounterGetter extends Operation
+
+public final class ThriftMultiGetter extends Operation
 {
-    public CounterGetter(Settings settings, long index)
+
+    public ThriftMultiGetter(Settings settings, long index)
     {
         super(settings, index);
     }
 
-    public void run(final CassandraClient client) throws IOException
+    public void run(final Cassandra.Client client) throws IOException
     {
-        SliceRange sliceRange = new SliceRange();
-        // start/finish
-        sliceRange.setStart(new byte[] {}).setFinish(new byte[] {});
-        // reversed/count
-        sliceRange.setReversed(false).setCount(settings.columnsPerKey);
-        // initialize SlicePredicate with existing SliceRange
-        final SlicePredicate predicate = new SlicePredicate().setSlice_range(sliceRange);
 
-        final ByteBuffer key = getKey();
+        final SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                false, settings.columnsPerKey));
+
+        final List<ByteBuffer> keys = getKeys(settings.maxKeysAtOnce);
+
         for (final ColumnParent parent : settings.columnParents)
         {
-
             timeWithRetry(new RunOp()
             {
+                int count;
                 @Override
                 public boolean run() throws Exception
                 {
-                    return client.get_slice(key, parent, predicate, settings.consistencyLevel).size() != 0;
+                    return (count = client.multiget_slice(keys, parent, predicate, settings.consistencyLevel).size()) != 0;
                 }
 
                 @Override
                 public String key()
                 {
-                    return new String(key.array());
+                    return keys.toString();
                 }
 
                 @Override
                 public int keyCount()
                 {
-                    return 1;
+                    return count;
                 }
             });
         }

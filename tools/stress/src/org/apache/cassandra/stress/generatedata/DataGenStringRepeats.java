@@ -11,14 +11,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static com.google.common.base.Charsets.UTF_8;
 
-public class DataGenUniform extends DataGen
+public class DataGenStringRepeats extends DataGen
 {
 
     private static final ConcurrentHashMap<Integer, ConcurrentHashMap<Long, byte[]>> CACHE_LOOKUP = new ConcurrentHashMap<>();
 
     private final ConcurrentHashMap<Long, byte[]> cache;
     private final int repeatFrequency;
-    public DataGenUniform(int repeatFrequency)
+    public DataGenStringRepeats(int repeatFrequency)
     {
         if (!CACHE_LOOKUP.containsKey(repeatFrequency))
             CACHE_LOOKUP.putIfAbsent(repeatFrequency, new ConcurrentHashMap<Long, byte[]>());

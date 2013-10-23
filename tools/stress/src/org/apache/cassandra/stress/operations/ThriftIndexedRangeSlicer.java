@@ -17,9 +17,7 @@
 */
 package org.apache.cassandra.stress.operations;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
+import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -29,9 +27,9 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
-public class IndexedRangeSlicer extends Operation
+public class ThriftIndexedRangeSlicer extends Operation
 {
-    public IndexedRangeSlicer(Settings settings, long index)
+    public ThriftIndexedRangeSlicer(Settings settings, long index)
     {
         super(settings, index);
         if (!settings.rowGen.deterministic() || !settings.keyGen.deterministic())
@@ -42,7 +40,7 @@ public class IndexedRangeSlicer extends Operation
             throw new IllegalStateException("Does not support TimeUUID column names");
     }
 
-    public void run(final CassandraClient client) throws IOException
+    public void run(final Cassandra.Client client) throws IOException
     {
 
         final SlicePredicate predicate = new SlicePredicate()

@@ -17,23 +17,21 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
+import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.thrift.*;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public final class Reader extends Operation
+public final class ThriftReader extends Operation
 {
 
-    public Reader(Settings settings, long index)
+    public ThriftReader(Settings settings, long index)
     {
         super(settings, index);
     }
 
-    public void run(final CassandraClient client) throws IOException
+    public void run(final Cassandra.Client client) throws IOException
     {
         final SlicePredicate predicate = new SlicePredicate();
         if (settings.readColumnNames == null)
