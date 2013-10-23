@@ -203,4 +203,19 @@ public class SettingsSchema
         return ByteBufferUtil.bytes(counter3.toString());
     }
 
+    public static SettingsSchema get(Map<String, String[]> clArgs)
+    {
+        String[] params = clArgs.get("-schema");
+        if (params == null)
+            return new SettingsSchema(new Options());
+
+        GroupedOptions options = GroupedOptions.select(params, new Options());
+        if (options == null)
+        {
+            GroupedOptions.printOptions(System.out, new Options());
+            throw new IllegalArgumentException("Invalid -log options provided, see output for valid options");
+        }
+        return new SettingsSchema((Options) options);
+    }
+
 }

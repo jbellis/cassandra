@@ -1,5 +1,12 @@
 package org.apache.cassandra.stress.settings;
 
+import org.apache.cassandra.cli.transport.FramedTransportFactory;
+import org.apache.commons.lang.*;
+import org.apache.thrift.transport.TTransportFactory;
+
+import java.util.Arrays;
+import java.util.List;
+
 public class SettingsTransport
 {
 
@@ -10,5 +17,60 @@ public class SettingsTransport
 //    availableOptions.addOption("st", SSL_STORE_TYPE,         true, "SSL: type of store");
 //    availableOptions.addOption("ciphers", SSL_CIPHER_SUITES, true, "SSL: comma-separated list of encryption suites to use");
 //    availableOptions.addOption("tf", "transport-factory",    true,   "Fully-qualified TTransportFactory class name for creating a connection. Note: For Thrift over SSL, use org.apache.cassandra.stress.SSLTransportFactory.");
+
+//    private static final String SSL_TRUSTSTORE = "truststore";
+//    private static final String SSL_TRUSTSTORE_PW = "truststore-password";
+//    private static final String SSL_PROTOCOL = "ssl-protocol";
+//    private static final String SSL_ALGORITHM = "ssl-alg";
+//    private static final String SSL_STORE_TYPE = "store-type";
+//    private static final String SSL_CIPHER_SUITES = "ssl-ciphers";
+
+    public final TTransportFactory factory;
+
+    static class TOptions extends GroupedOptions
+    {
+        final OptionSimple factory = new OptionSimple("factory=", ".*", "org.apache.cassandra.cli.transport.FramedTransportFactory", "Fully-qualified TTransportFactory class name for creating a connection. Note: For Thrift over SSL, use org.apache.cassandra.stress.SSLTransportFactory.", false);
+
+        @Override
+        public List<? extends Option> options()
+        {
+            return Arrays.asList(factory);
+        }
+    }
+
+    static final class SSLOptions extends TOptions
+    {
+        final OptionSimple trustStore = new OptionSimple("truststore=", ".*", null, "SSL: full path to truststore", false);
+        final OptionSimple trustStorePw = new OptionSimple("truststore-password=", ".*", null, "", false);
+        final OptionSimple protocol = new OptionSimple("ssl-protocol=", ".*", "TLS", "SSL: connections protocol to use", false);
+        final OptionSimple alg = new OptionSimple("ssl-alg=", ".*", "SunX509", "SSL: algorithm", false);
+        final OptionSimple storeType = new OptionSimple("store-type=", ".*", "TLS", "SSL: comma delimited list of encryption suites to use", false);
+        final OptionSimple ciphers = new OptionSimple("ssl-ciphers=", ".*", "TLS", "SSL: comma delimited list of encryption suites to use", false);
+
+        @Override
+        public List<? extends Option> options()
+        {
+            return Arrays.asList(factory, trustStore, trustStorePw, protocol, alg, storeType, ciphers);
+        }
+    }
+
+    public SettingsTransport(TOptions options)
+    {
+        if (options instanceof SSLOptions)
+        {
+            throw new NotImplementedException();
+        }
+        else
+        {
+            try
+            {
+                this.factory = (TTransportFactory) Class.forName(options.factory.value()).newInstance();
+            }
+            catch (Exception e)
+            {
+                throw new IllegalArgumentException("Invalid transport factory class: " + options.factory.value(), e);
+            }
+        }
+    }
 
 }

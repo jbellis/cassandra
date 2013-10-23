@@ -3,6 +3,7 @@ package org.apache.cassandra.stress.settings;
 import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 public class SettingsRate
 {
@@ -55,12 +56,15 @@ public class SettingsRate
         }
     }
 
-    public static SettingsRate build(String[] params, PrintStream out)
+    public static SettingsRate get(Map<String, String[]> clArgs)
     {
+        String[] params = clArgs.get("-rate");
+        if (params == null)
+            return new SettingsRate();
         GroupedOptions options = GroupedOptions.select(params, new AutoOptions(), new ThreadOptions());
         if (options == null)
         {
-            GroupedOptions.printOptions(out, new AutoOptions(), new ThreadOptions());
+            GroupedOptions.printOptions(System.out, new AutoOptions(), new ThreadOptions());
             throw new IllegalArgumentException("Invalid -rate options provided, see output for valid options");
         }
         if (options instanceof AutoOptions)
@@ -69,12 +73,6 @@ public class SettingsRate
             return new SettingsRate((ThreadOptions) options);
         else
             throw new IllegalStateException();
-    }
-
-
-    public static SettingsRate getDefault()
-    {
-        return new SettingsRate();
     }
 
 }

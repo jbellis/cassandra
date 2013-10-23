@@ -2,13 +2,14 @@ package org.apache.cassandra.stress.settings;
 
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
+import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.List;
 
 public class SettingsOp
 {
 
-//    availableOptions.addOption("o",  "operation",            true,   "Operation to perform (INSERT, READ, READWRITE, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTER_ADD, COUNTER_GET), default:INSERT");
+//    availableOptions.addOption("o",  "operation",            true,   "Operation to perform (INSERT, READ, READWRITE, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTERWRITE, COUNTER_GET), default:INSERT");
 //    availableOptions.addOption("n",  "num-keys",             true,   "Number of keys, default:1000000");
 //    availableOptions.addOption("g",  "keys-per-call",        true,   "Number of keys to get_range_slices or multiget per call, default:1000");
 
@@ -26,14 +27,14 @@ public class SettingsOp
     public final double targetUncertainty;
     public final int minimumUncertaintyMeasurements;
 
-    private static abstract class Options extends GroupedOptions
+    static abstract class Options extends GroupedOptions
     {
         final OptionSimple retries = new OptionSimple("retries=", "[0-9]+", "10", "Number of retries to perform for each operation before failing", false);
         final OptionSimple ignoreErrors = new OptionSimple("ignore_errors=", "true|false", "false", "Do not print/log errors", false);
         final OptionSimple consistencyLevel = new OptionSimple("consistency_level=", "ONE|QUORUM|LOCAL_QUORUM|EACH_QUORUM|ALL|ANY", "ONE", "Consistency level to use", false);
     }
 
-    private static class Count extends Options
+    static class Count extends Options
     {
 
         final OptionSimple count = new OptionSimple("n=", "[0-9]+", null, "Number of operations to perform", true);
@@ -45,7 +46,7 @@ public class SettingsOp
         }
     }
 
-    private static class Uncertainty extends Options
+    static class Uncertainty extends Options
     {
 
         final OptionSimple uncertainty = new OptionSimple("uncertainty<", "0\\.[0-9]+", null, "Run until the standard error of the mean is below this fraction", true);
@@ -84,6 +85,17 @@ public class SettingsOp
             this.targetUncertainty = Double.parseDouble(uncertainty.uncertainty.value());
             this.minimumUncertaintyMeasurements = Integer.parseInt(uncertainty.minMeasurements.value());
         }
+    }
+
+    public static SettingsOp build(OpType type, String[] params)
+    {
+        GroupedOptions options = GroupedOptions.select(params, new Uncertainty(), new Count());
+        if (options == null)
+        {
+            GroupedOptions.printOptions(System.out, new Uncertainty(), new Count());
+            throw new IllegalArgumentException("Invalid " + type + " options provided, see output for valid options");
+        }
+        return new SettingsOp(type, options);
     }
 
 }

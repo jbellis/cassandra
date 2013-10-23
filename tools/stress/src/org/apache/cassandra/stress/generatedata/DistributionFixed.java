@@ -24,4 +24,10 @@ public class DistributionFixed implements Distribution
         return key;
     }
 
+    @Override
+    public long minValue()
+    {
+        return key;
+    }
+
 }

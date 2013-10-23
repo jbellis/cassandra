@@ -64,7 +64,7 @@ public class ThriftIndexedRangeSlicer extends Operation
             final int minResults = 1;
             final IndexClause clause = new IndexClause(Arrays.asList(expression),
                                                  ByteBuffer.wrap(minKey),
-                                                ((SettingsMultiOp) state.settings.op).maxKeysAtOnce);
+                                                ((SettingsMultiOp) state.settings.op).keysAtOnce);
 
             timeWithRetry(new RunOp()
             {

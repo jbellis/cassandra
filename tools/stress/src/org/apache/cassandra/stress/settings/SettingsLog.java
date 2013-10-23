@@ -5,6 +5,7 @@ import java.io.FileNotFoundException;
 import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 public class SettingsLog
 {
@@ -45,6 +46,21 @@ public class SettingsLog
     public PrintStream getOutput() throws FileNotFoundException
     {
         return file == null ? new PrintStream(System.out) : new PrintStream(file);
+    }
+
+    public static SettingsLog get(Map<String, String[]> clArgs)
+    {
+        String[] params = clArgs.get("-log");
+        if (params == null)
+            return new SettingsLog(new Options());
+
+        GroupedOptions options = GroupedOptions.select(params, new Options());
+        if (options == null)
+        {
+            GroupedOptions.printOptions(System.out, new Options());
+            throw new IllegalArgumentException("Invalid -log options provided, see output for valid options");
+        }
+        return new SettingsLog((Options) options);
     }
 
 }

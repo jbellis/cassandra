@@ -42,7 +42,7 @@ public final class ThriftMultiGetter extends Operation
                 ByteBufferUtil.EMPTY_BYTE_BUFFER,
                 false, state.settings.columns.maxColumnsPerKey));
 
-        final List<ByteBuffer> keys = getKeys(((SettingsMultiOp) state.settings.op).maxKeysAtOnce);
+        final List<ByteBuffer> keys = getKeys(((SettingsMultiOp) state.settings.op).keysAtOnce);
 
         for (final ColumnParent parent : state.columnParents)
         {

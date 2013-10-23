@@ -33,4 +33,10 @@ public class DistributionBoundApache implements Distribution
         return Math.min(maxKey, (long) delegate.inverseCumulativeProbability(1d));
     }
 
+    @Override
+    public long minValue()
+    {
+        return Math.max(minKey, (long) delegate.inverseCumulativeProbability(0d));
+    }
+
 }

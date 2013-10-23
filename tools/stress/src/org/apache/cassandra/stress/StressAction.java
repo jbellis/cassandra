@@ -109,7 +109,14 @@ public class StressAction
 
         if (opCount <= 0)
         {
-            metrics.runUntilConverges(settings.op.targetUncertainty, settings.op.minimumUncertaintyMeasurements);
+            try
+            {
+                metrics.runUntilConverges(settings.op.targetUncertainty, settings.op.minimumUncertaintyMeasurements);
+            } catch (InterruptedException e)
+            {
+                // TODO : terminate gracefully
+                throw new IllegalStateException();
+            }
             workQueue.stop();
         }
 
@@ -165,7 +172,7 @@ public class StressAction
                 SimpleClient sclient = null;
                 Cassandra.Client cclient = null;
 
-                if (settings.mode.nativeProtocol)
+                if (settings.mode.useNativeProtocol)
                     sclient = settings.getNativeClient();
                 else
                     cclient = settings.getClient();
@@ -330,7 +337,11 @@ public class StressAction
 
     private Operation createOperation(Operation.State state, long index)
     {
-        switch (state.kind)
+        return createOperation(state.type, state, index);
+    }
+    private Operation createOperation(OpType type, Operation.State state, long index)
+    {
+        switch (type)
         {
             case READ:
                 switch(state.settings.mode.api)
@@ -345,7 +356,7 @@ public class StressAction
                 }
 
 
-            case COUNTER_READ:
+            case COUNTERREAD:
                 switch(state.settings.mode.api)
                 {
                     case THRIFT:
@@ -369,7 +380,7 @@ public class StressAction
                         throw new UnsupportedOperationException();
                 }
 
-            case COUNTER_ADD:
+            case COUNTERWRITE:
                 switch(state.settings.mode.api)
                 {
                     case THRIFT:
@@ -406,7 +417,7 @@ public class StressAction
                         throw new UnsupportedOperationException();
                 }
 
-            case READ_MULTI:
+            case READMULTI:
                 switch(state.settings.mode.api)
                 {
                     case THRIFT:
@@ -419,8 +430,7 @@ public class StressAction
                 }
 
             case MIXED:
-                // TODO : use arbitrary distribution for clustering of reads/writes, and uniform distribution
-                // for selecting which kind to do next
+                return createOperation(state.readWriteSelector.next(), state, index);
 
         }
 

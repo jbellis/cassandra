@@ -27,6 +27,7 @@ import org.apache.cassandra.stress.generatedata.KeyGen;
 import org.apache.cassandra.stress.generatedata.RowGen;
 import org.apache.cassandra.stress.settings.CqlVersion;
 import org.apache.cassandra.stress.settings.OpType;
+import org.apache.cassandra.stress.settings.SettingsMixedOp;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.ColumnParent;
@@ -58,38 +59,22 @@ public abstract class Operation
 
         public final StressSettings settings;
         public final StressMetrics.Timer timer;
-        public final OpType kind;
+        public final OpType type;
         public final KeyGen keyGen;
         public final RowGen rowGen;
-//        public final ConnectionAPI connectionApi;
         public final List<ColumnParent> columnParents;
         public final StressMetrics metrics;
-//        public final boolean useSuperColumns;
-//        public final int columnsPerKey;
-//        public final int maxKeysAtOnce;
-//        public final CqlVersion cqlVersion;
-//        public final ConsistencyLevel consistencyLevel;
-//        public final int retryTimes;
-//        public final boolean ignoreErrors;
-
-        // TODO : make configurable
-//        private final int keySize = 10;
-
-//        public final boolean useTimeUUIDComparator;
-//        public final boolean usePreparedStatements;
-//        public final List<ByteBuffer> readColumnNames;
-//
-//        private final List<ByteBuffer> keyBuffers = new ArrayList<>();
+        public final SettingsMixedOp.ReadWriteSelector readWriteSelector;
         private Object cqlCache;
 
         public State(OpType type, StressSettings settings, StressMetrics metrics)
         {
-            this.kind = type;
+            this.type = type;
             this.timer = metrics.newTimer();
             // TODO: this logic shouldn't be here - dataGen and keyGen should be passed in
-//            switch (kind)
+//            switch (type)
 //            {
-//                case COUNTER_ADD:
+//                case COUNTERWRITE:
 //                case INSERT:
 //                    this.keyGen = new DataGenHexFromOpIndex(session.getMinKey(), session.getMaxKey());
 //                    break;
@@ -105,10 +90,13 @@ public abstract class Operation
 //            else
 //                this.rowGen = new RowGenFixedSize(new DataGenStringRepeats(session.getUniqueRowCount()), session.getColumnsPerKey(), session.getColumnSize());
 //
-
+            if (type == OpType.MIXED)
+                readWriteSelector = ((SettingsMixedOp) settings.op).selector();
+            else
+                readWriteSelector = null;
             this.settings = settings;
             this.keyGen = settings.keys.keyGenerator();
-            this.rowGen = settings.columns.rowGen(settings.values.columnGen());
+            this.rowGen = settings.columns.rowGen();
             this.metrics = metrics;
             if (!settings.columns.useSuperColumns)
                 columnParents = Collections.singletonList(new ColumnParent("Standard1"));

@@ -6,6 +6,9 @@ import org.apache.cassandra.stress.generatedata.DistributionFactory;
 import org.apache.cassandra.stress.generatedata.KeyGen;
 
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 public class SettingsKey implements Serializable
 {
@@ -34,16 +37,28 @@ public class SettingsKey implements Serializable
         this.range = new long[] { Long.parseLong(bounds[0]), Long.parseLong(bounds[1]) };
     }
 
-    private static final class DistributionOptions
+    private static final class DistributionOptions extends GroupedOptions
     {
         final OptionDistribution dist = new OptionDistribution("dist=", "GAUSSIAN(0..1000000)");
         final OptionSimple size = new OptionSimple("size=", "[0-9]+", "10", "Key size in bytes", false);
+
+        @Override
+        public List<? extends Option> options()
+        {
+            return Arrays.asList(dist, size);
+        }
     }
 
-    private static final class PopulateOptions
+    private static final class PopulateOptions extends GroupedOptions
     {
         final OptionSimple populate = new OptionSimple("populate=", "[0-9]+\\.\\.+[0-9]+", "0..1000000", "Populate all keys in sequence", true);
         final OptionSimple size = new OptionSimple("size=", "[0-9]+", "10", "Key size in bytes", false);
+
+        @Override
+        public List<? extends Option> options()
+        {
+            return Arrays.asList(populate, size);
+        }
     }
 
     public KeyGen keyGenerator()
@@ -53,4 +68,26 @@ public class SettingsKey implements Serializable
         return new KeyGen(new DataGenHexFromDistribution(distribution.get()), keySize);
     }
 
+    public static SettingsKey get(Map<String, String[]> clArgs, OpType opType)
+    {
+        String[] params = clArgs.get("-key");
+        if (params == null)
+        {
+            // return defaults:
+            if (opType == OpType.INSERT)
+                return new SettingsKey(new PopulateOptions());
+            return new SettingsKey(new DistributionOptions());
+        }
+        GroupedOptions options = GroupedOptions.select(params, new PopulateOptions(), new DistributionOptions());
+        if (options == null)
+        {
+            GroupedOptions.printOptions(System.out, new PopulateOptions(), new DistributionOptions());
+            throw new IllegalArgumentException("Invalid -key options provided, see output for valid options");
+        }
+        return options instanceof PopulateOptions ?
+                new SettingsKey((PopulateOptions) options) :
+                new SettingsKey((DistributionOptions) options);
+    }
+
 }
+

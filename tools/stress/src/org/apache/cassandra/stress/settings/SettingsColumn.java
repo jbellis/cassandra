@@ -18,6 +18,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 public class SettingsColumn implements Serializable
 {
@@ -149,6 +150,21 @@ public class SettingsColumn implements Serializable
     public RowGen rowGen()
     {
         return new RowGenDistributedSize(dataGenFactory.get(), countDistribution.get(), sizeDistribution.get());
+    }
+
+    public static SettingsColumn get(Map<String, String[]> clArgs)
+    {
+        String[] params = clArgs.get("-col");
+        if (params == null)
+            return new SettingsColumn(new CountOptions());
+
+        GroupedOptions options = GroupedOptions.select(params, new NameOptions(), new CountOptions());
+        if (options == null)
+        {
+            GroupedOptions.printOptions(System.out, new NameOptions(), new CountOptions());
+            throw new IllegalArgumentException("Invalid -col options provided, see output for valid options");
+        }
+        return new SettingsColumn(options);
     }
 
 }

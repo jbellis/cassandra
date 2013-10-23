@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.google.common.base.*;
 import com.google.common.collect.*;
 import org.apache.cassandra.stress.Operation;
+import org.apache.cassandra.stress.settings.ConnectionAPI;
 import org.apache.cassandra.stress.settings.CqlVersion;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.transport.SimpleClient;
@@ -57,7 +58,7 @@ public abstract class CqlOperation extends Operation
 
     private void run(final ClientWrapper wrapper) throws IOException
     {
-        if (state.settings.mode.usePreparedStatements)
+        if (state.settings.mode.api == ConnectionAPI.CQL_PREPARED)
         {
             final byte[] id;
             Object idobj = state.getCqlCache();

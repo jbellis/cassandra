@@ -27,8 +27,13 @@ public abstract class GroupedOptions
     public static GroupedOptions select(String[] params, GroupedOptions... groupings)
     {
         for (String param : params)
+        {
+            boolean accepted = false;
             for (GroupedOptions grouping : groupings)
-                grouping.accept(param);
+                accepted |= grouping.accept(param);
+            if (!accepted)
+                throw new IllegalArgumentException("Invalid parameter " + param);
+        }
         for (GroupedOptions grouping : groupings)
             if (grouping.happy())
                 return grouping;
