@@ -12,6 +12,7 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.KsDef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,16 +20,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class SettingsSchema
+public class SettingsSchema implements Serializable
 {
-
-//    availableOptions.addOption("l",  "replication-factor",   true,   "Replication Factor to use when creating needed column families, default:1");
-//    availableOptions.addOption("x",  "create-index",         true,   "Type of index to create on needed column families (KEYS)");
-//    availableOptions.addOption("R",  "replication-strategy", true,   "Replication strategy to use (only on insert if keyspace does not exist), default:org.apache.cassandra.locator.SimpleStrategy");
-//    availableOptions.addOption("O",  "strategy-properties",  true,   "Replication strategy properties in the following format <dc_name>:<num>,<dc_name>:<num>,...");
-//    availableOptions.addOption("W",  "no-replicate-on-write",false,  "Set replicate_on_write to false for counters. Only counter add with CL=ONE will work");
-//    availableOptions.addOption("I",  "compression",          true,   "Specify the compression to use for sstable, default:no compression");
-//    availableOptions.addOption("Z",  "compaction-strategy",  true,   "CompactionStrategy to use.");
 
     public static final String DEFAULT_COMPARATOR = "AsciiType";
     public static final String DEFAULT_VALIDATOR  = "BytesType";

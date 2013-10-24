@@ -1,10 +1,12 @@
 package org.apache.cassandra.stress.settings;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
+/**
+ * For parsing a simple (sub)option for a command/major option
+ */
 public class OptionSimple extends Option
 {
 

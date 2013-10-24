@@ -18,6 +18,7 @@
 package org.apache.cassandra.stress.operations;
 
 import org.apache.cassandra.stress.Operation;
+import org.apache.cassandra.stress.settings.SettingsCommandMulti;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -37,20 +38,20 @@ public final class ThriftRangeSlicer extends Operation
     {
         final SlicePredicate predicate = new SlicePredicate()
                 .setSlice_range(
-                        new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                        new SliceRange(
+                                ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                 ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                 false,
-                                state.settings.columns.maxColumnsPerKey)
+                                state.settings.columns.maxColumnsPerKey
+                        )
                 );
 
         final ByteBuffer start = getKey();
-
-        // TODO do we REALLY want to range slice from key->infinity?
-        // presumably want to slice from start -> start + keysPerCall
         final KeyRange range =
                 new KeyRange(state.settings.columns.maxColumnsPerKey)
                         .setStart_key(start)
-                        .setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+                        .setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER)
+                        .setCount(((SettingsCommandMulti)state.settings.command).keysAtOnce);
 
         for (final ColumnParent parent : state.columnParents)
         {
@@ -60,7 +61,7 @@ public final class ThriftRangeSlicer extends Operation
                 @Override
                 public boolean run() throws Exception
                 {
-                    return (count = client.get_range_slices(parent, predicate, range, state.settings.op.consistencyLevel).size()) != 0;
+                    return (count = client.get_range_slices(parent, predicate, range, state.settings.command.consistencyLevel).size()) != 0;
                 }
 
                 @Override

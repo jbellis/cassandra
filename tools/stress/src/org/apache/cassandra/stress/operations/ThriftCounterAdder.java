@@ -40,7 +40,7 @@ public class ThriftCounterAdder extends Operation
     {
         List<CounterColumn> columns = new ArrayList<CounterColumn>();
         for (int i = 0; i < state.settings.columns.maxColumnsPerKey; i++)
-            columns.add(new CounterColumn(getColumnName(i), 1L));
+            columns.add(new CounterColumn(getColumnNameBytes(i), 1L));
 
         Map<String, List<Mutation>> row;
         if (state.settings.columns.useSuperColumns)
@@ -73,7 +73,7 @@ public class ThriftCounterAdder extends Operation
             @Override
             public boolean run() throws Exception
             {
-                client.batch_mutate(record, state.settings.op.consistencyLevel);
+                client.batch_mutate(record, state.settings.command.consistencyLevel);
                 return true;
             }
 

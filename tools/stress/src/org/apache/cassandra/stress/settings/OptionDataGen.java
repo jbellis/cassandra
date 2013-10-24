@@ -15,6 +15,9 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * For selecting a data generator
+ */
 public class OptionDataGen extends Option
 {
 

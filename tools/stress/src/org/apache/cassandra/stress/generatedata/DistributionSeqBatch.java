@@ -10,7 +10,7 @@ public class DistributionSeqBatch extends DataGenHex
     private int batchIndex;
     private long batchKey;
 
-    // object must be published safely if passed between threads, due to batchIndex not being volatile. various
+    // object must be published safely if passed between threadCount, due to batchIndex not being volatile. various
     // hacks possible, but not ideal. don't want to use volatile as object intended for single threaded use.
     public DistributionSeqBatch(int batchSize, long maxKey, Distribution delegate)
     {

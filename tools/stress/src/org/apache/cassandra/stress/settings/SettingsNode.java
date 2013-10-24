@@ -4,16 +4,14 @@ import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class SettingsNode
+public class SettingsNode implements Serializable
 {
-
-//    availableOptions.addOption("d",  "nodes",                true,   "Host nodes (comma separated), default:locahost");
-//    availableOptions.addOption("D",  "nodesfile",            true,   "File containing host nodes (one per line)");
 
     public final List<String> nodes;
 

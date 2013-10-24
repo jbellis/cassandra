@@ -26,7 +26,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class CqlReader extends CqlOperation
+public class CqlReader extends CqlOperation<Integer>
 {
 
     public CqlReader(State state, long idx)
@@ -59,7 +59,7 @@ public class CqlReader extends CqlOperation
         query.append(" FROM ").append(wrapInQuotesIfRequired(state.settings.schema.columnFamily));
 
         if (state.isCql2())
-            query.append(" USING CONSISTENCY ").append(state.settings.op.consistencyLevel);
+            query.append(" USING CONSISTENCY ").append(state.settings.command.consistencyLevel);
         query.append(" WHERE KEY=?");
         return query.toString();
     }
@@ -79,9 +79,9 @@ public class CqlReader extends CqlOperation
     }
 
     @Override
-    protected boolean validate(int rowCount)
+    protected CqlRunOp buildRunOp(ClientWrapper client, String query, byte[] queryId, List<String> params, String key)
     {
-        return rowCount != 0;
+        return new CqlRunOpTestNonEmpty(client, query, queryId, params, key);
     }
 
 }

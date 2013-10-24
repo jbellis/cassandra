@@ -7,17 +7,17 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class StressSettings
+public class StressSettings implements Serializable
 {
 
-    public final SettingsCommand op;
+    public final SettingsCommand command;
     public final SettingsRate rate;
     public final SettingsKey keys;
     public final SettingsColumn columns;
@@ -29,9 +29,9 @@ public class StressSettings
     private final int port;
     public final String sendToDaemon;
 
-    public StressSettings(SettingsCommand op, SettingsRate rate, SettingsKey keys, SettingsColumn columns, SettingsLog log, SettingsMode mode, SettingsNode node, SettingsSchema schema, SettingsTransport transport, int port, String sendToDaemon)
+    public StressSettings(SettingsCommand command, SettingsRate rate, SettingsKey keys, SettingsColumn columns, SettingsLog log, SettingsMode mode, SettingsNode node, SettingsSchema schema, SettingsTransport transport, int port, String sendToDaemon)
     {
-        this.op = op;
+        this.command = command;
         this.rate = rate;
         this.keys = keys;
         this.columns = columns;
@@ -110,7 +110,7 @@ public class StressSettings
 
     public void maybeCreateKeyspaces()
     {
-        if (op.type == Command.WRITE || op.type == Command.COUNTERWRITE)
+        if (command.type == Command.WRITE || command.type == Command.COUNTERWRITE)
             schema.createKeySpaces(this);
 
     }

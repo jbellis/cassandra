@@ -50,9 +50,8 @@ public class ThriftIndexedRangeSlicer extends Operation
                         false, state.settings.columns.maxColumnsPerKey));
         final List<ByteBuffer> columns = generateColumnValues();
         final ColumnParent parent = state.columnParents.get(0);
-        // TODO : calculate min results from total keys and repeat frequency
 
-        final ByteBuffer columnName = getColumnName(1);
+        final ByteBuffer columnName = getColumnNameBytes(1);
         final ByteBuffer value = columns.get(1); // only C1 column is indexed
 
         IndexExpression expression = new IndexExpression(columnName, IndexOperator.EQ, value);
@@ -61,18 +60,18 @@ public class ThriftIndexedRangeSlicer extends Operation
         do
         {
 
-            final int minResults = 1;
+            final boolean first = minKey.length == 0;
             final IndexClause clause = new IndexClause(Arrays.asList(expression),
                                                  ByteBuffer.wrap(minKey),
-                                                ((SettingsCommandMulti) state.settings.op).keysAtOnce);
+                                                ((SettingsCommandMulti) state.settings.command).keysAtOnce);
 
             timeWithRetry(new RunOp()
             {
                 @Override
                 public boolean run() throws Exception
                 {
-                    results[0] = client.get_indexed_slices(parent, clause, predicate, state.settings.op.consistencyLevel);
-                    return minResults == 0 || results[0].size() > 0;
+                    results[0] = client.get_indexed_slices(parent, clause, predicate, state.settings.command.consistencyLevel);
+                    return !first || results[0].size() > 0;
                 }
 
                 @Override
@@ -98,7 +97,7 @@ public class ThriftIndexedRangeSlicer extends Operation
      * @param slices list of the KeySlice objects
      * @return maximum key value of the list
      */
-    private byte[] getNextMinKey(byte[] cur, List<KeySlice> slices)
+    private static byte[] getNextMinKey(byte[] cur, List<KeySlice> slices)
     {
         // find max
         for (KeySlice slice : slices)

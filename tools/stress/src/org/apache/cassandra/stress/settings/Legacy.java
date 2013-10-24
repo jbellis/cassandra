@@ -18,44 +18,17 @@
 package org.apache.cassandra.stress.settings;
 
 import java.io.*;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.cli.transport.FramedTransportFactory;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.db.marshal.*;
 import org.apache.commons.cli.*;
 
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.thrift.*;
-
-import org.apache.thrift.transport.TTransportFactory;
 import org.apache.commons.cli.Option;
 
 public class Legacy implements Serializable
 {
 
-    public static enum Operations
-    {
-        INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTER_ADD, COUNTER_GET, READWRITE
-    }
-
     // command line options
     public static final Options availableOptions = new Options();
-
-    public static final String KEYSPACE_NAME = "Keyspace1";
-    public static final String DEFAULT_COMPARATOR = "AsciiType";
-    public static final String DEFAULT_VALIDATOR  = "BytesType";
-
-    private static InetAddress localInetAddress;
-    public final AtomicInteger keys = new AtomicInteger();
 
     private static final String SSL_TRUSTSTORE = "truststore";
     private static final String SSL_TRUSTSTORE_PW = "truststore-password";
@@ -64,32 +37,12 @@ public class Legacy implements Serializable
     private static final String SSL_STORE_TYPE = "store-type";
     private static final String SSL_CIPHER_SUITES = "ssl-ciphers";
 
-    /**
-     *
-
-
-     -rate [threads=<N>] [limit=<N>/s] [auto]
-     -op OP [keys per call] [retry=] [super] [ignore_errors] count=
-     -key range=0..2000  [DISTRIBUTION]
-     -cols 1..5 [names="col1,col2,col3,.."] [DISTRIBUTION]
-     -values 20..50 (bytes) [DISTRIBUTION]
-     -schema [replication strategy class] [compression=] [index=] compaction_strategy=
-     -mode [thrift|([prepared] (cql1|cql2|[native] cql3))] [consistency level]
-     -nodes [file=<path>] [node1,node2,node3]
-     -log file=<path> [no-summary]
-     -ssl
-     -port
-
-
-     */
-
-
     static
     {
         availableOptions.addOption("h",  "help",                 false,  "Show this help message and exit");
         availableOptions.addOption("n",  "num-keys",             true,   "Number of keys, default:1000000");
         availableOptions.addOption("F",  "num-different-keys",   true,   "Number of different keys (if < NUM-KEYS, the same key will re-used multiple times), default:NUM-KEYS");
-        availableOptions.addOption("t",  "threads",              true,   "Number of threads to use, default:50");
+        availableOptions.addOption("t",  "threadCount",              true,   "Number of threadCount to use, default:50");
         availableOptions.addOption("c",  "columns",              true,   "Number of columns per key, default:5");
         availableOptions.addOption("S",  "column-size",          true,   "Size of column values in bytes, default:34");
         availableOptions.addOption("C",  "unique columns",       true,   "Max number of unique columns per key, default:50");
@@ -240,9 +193,9 @@ public class Legacy implements Serializable
                 r.add("-col", "super=" + (cmd.hasOption("u") ? cmd.getOptionValue("u") : "1"));
 
             if (cmd.hasOption("t"))
-                r.add("-rate", "threads=" + cmd.getOptionValue("t"));
+                r.add("-rate", "threadCount=" + cmd.getOptionValue("t"));
             else
-                r.add("-rate", "threads=50");
+                r.add("-rate", "threadCount=50");
 
             if (cmd.hasOption("th"))
                 r.add("-rate", "limit=" + cmd.getOptionValue("th") + "/s");
@@ -383,24 +336,6 @@ public class Legacy implements Serializable
             }
             System.out.println("Running in legacy support mode. Translating command to: ");
             System.out.println(sb.toString());
-        }
-    }
-
-    private TTransportFactory validateAndSetTransportFactory(String transportFactory)
-    {
-        try
-        {
-            Class factory = Class.forName(transportFactory);
-
-            if(!TTransportFactory.class.isAssignableFrom(factory))
-                throw new IllegalArgumentException(String.format("transport factory '%s' " +
-                        "not derived from TTransportFactory", transportFactory));
-
-            return (TTransportFactory) factory.newInstance();
-        }
-        catch (Exception e)
-        {
-            throw new IllegalArgumentException(String.format("Cannot create a transport factory '%s'.", transportFactory), e);
         }
     }
 

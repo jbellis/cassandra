@@ -1,23 +1,23 @@
 package org.apache.cassandra.stress.settings;
 
-import java.io.PrintStream;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class SettingsRate
+public class SettingsRate implements Serializable
 {
 
     public final boolean auto;
-    public final int threads;
-    public final int opLimitPerSecond;
+    public final int threadCount;
+    public final int opRateTargetPerSecond;
 
     public SettingsRate(ThreadOptions options)
     {
         auto = false;
-        threads = Integer.parseInt(options.threads.value());
+        threadCount = Integer.parseInt(options.threads.value());
         String rateOpt = options.rate.value();
-        opLimitPerSecond = Integer.parseInt(rateOpt.substring(0, rateOpt.length() - 2));
+        opRateTargetPerSecond = Integer.parseInt(rateOpt.substring(0, rateOpt.length() - 2));
 
     }
 
@@ -29,13 +29,13 @@ public class SettingsRate
     public SettingsRate()
     {
         this.auto = true;
-        this.threads = -1;
-        this.opLimitPerSecond = 0;
+        this.threadCount = -1;
+        this.opRateTargetPerSecond = 0;
     }
 
     private static final class AutoOptions extends GroupedOptions
     {
-        final OptionSimple auto = new OptionSimple("auto", "", null, "test with increasing number of threads until performance plateaus", true);
+        final OptionSimple auto = new OptionSimple("auto", "", null, "test with increasing number of threadCount until performance plateaus", true);
 
         @Override
         public List<? extends Option> options()
@@ -46,7 +46,7 @@ public class SettingsRate
 
     private static final class ThreadOptions extends GroupedOptions
     {
-        final OptionSimple threads = new OptionSimple("threads=", "[0-9]+", null, "run this many clients concurrently", true);
+        final OptionSimple threads = new OptionSimple("threadCount=", "[0-9]+", null, "run this many clients concurrently", true);
         final OptionSimple rate = new OptionSimple("limit=", "[0-9]+/s", "0/s", "limit operations per second across all clients", false);
 
         @Override
@@ -64,7 +64,7 @@ public class SettingsRate
             if (command.type == Command.WRITE)
             {
                 ThreadOptions options = new ThreadOptions();
-                options.accept("threads=50");
+                options.accept("threadCount=50");
                 return new SettingsRate(options);
             }
             return new SettingsRate();

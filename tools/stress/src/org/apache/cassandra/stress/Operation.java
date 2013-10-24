@@ -91,7 +91,7 @@ public abstract class Operation
 //                this.rowGen = new RowGenFixedSize(new DataGenStringRepeats(session.getUniqueRowCount()), session.getColumnsPerKey(), session.getColumnSize());
 //
             if (type == Command.MIXED)
-                readWriteSelector = ((SettingsCommandMixed) settings.op).selector();
+                readWriteSelector = ((SettingsCommandMixed) settings.command).selector();
             else
                 readWriteSelector = null;
             this.settings = settings;
@@ -159,7 +159,7 @@ public abstract class Operation
         boolean success = false;
         String exceptionMessage = null;
 
-        for (int t = 0; t < state.settings.op.tries; t++)
+        for (int t = 0; t < state.settings.command.tries; t++)
         {
             if (success)
                 break;
@@ -182,7 +182,7 @@ public abstract class Operation
         {
             error(String.format("Operation [%d] retried %d times - error executing for key %s %s%n",
                     index,
-                    state.settings.op.tries,
+                    state.settings.command.tries,
                     run.key(),
                     (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
         }
@@ -198,15 +198,20 @@ public abstract class Operation
 
     protected void error(String message) throws IOException
     {
-        if (!state.settings.op.ignoreErrors)
+        if (!state.settings.command.ignoreErrors)
             throw new IOException(message);
         else
             System.err.println(message);
     }
 
-    public static ByteBuffer getColumnName(int i)
+    public static ByteBuffer getColumnNameBytes(int i)
     {
         return ByteBufferUtil.bytes("C" + i);
+    }
+
+    public static String getColumnName(int i)
+    {
+        return "C" + i;
     }
 
 }

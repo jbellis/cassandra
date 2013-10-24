@@ -1,7 +1,9 @@
 package org.apache.cassandra.stress.generatedata;
 
-public interface DataGenFactory
-    {
-        DataGen get();
-    }
+import java.io.Serializable;
+
+public interface DataGenFactory extends Serializable
+{
+    DataGen get();
+}
 

@@ -33,7 +33,7 @@ import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.transport.SimpleClient;
 
-public class StressAction
+public class StressAction implements Runnable
 {
 
     private final StressSettings settings;
@@ -53,21 +53,27 @@ public class StressAction
         // warmup - do 50k iterations; by default hotspot compiles methods after 10k invocations
         PrintStream warmupOutput = new PrintStream(new OutputStream() { @Override public void write(int b) throws IOException { } } );
         output.println("Warming up...");
-        for (Command type : settings.op.type.getWarmups())
+        for (Command type : settings.command.type.getWarmups())
             run(type, 20, 50000, warmupOutput);
 
         output.println("Sleeping 2s...");
         try { Thread.sleep(2000); } catch (InterruptedException e) { }
 
+        boolean success;
         if (settings.rate.auto)
-            runAuto();
+            success = runAuto();
         else
-            run(settings.op.type, settings.rate.threads, settings.op.count, output);
+            success = null != run(settings.command.type, settings.rate.threadCount, settings.command.count, output);
+
+        if (success)
+            output.println("END");
+        else
+            output.println("FAILURE");
     }
 
     // TODO : permit varying more than just thread count
     // TODO : vary thread count based on percentage improvement of previous increment, not by fixed amounts
-    private void runAuto()
+    private boolean runAuto()
     {
         int prevThreadCount = -1;
         int threadCount = 4;
@@ -75,23 +81,25 @@ public class StressAction
         List<String> runIds = new ArrayList<>();
         do
         {
-            output.println(String.format("Running with %d threads", threadCount));
+            output.println(String.format("Running with %d threadCount", threadCount));
 
-            StressMetrics result = run(settings.op.type, threadCount, settings.op.count, output);
+            StressMetrics result = run(settings.command.type, threadCount, settings.command.count, output);
+            if (result == null)
+                return false;
             results.add(result);
 
             if (prevThreadCount > 0)
-                System.out.println(String.format("Improvement over %d threads: %.0f%%",
+                System.out.println(String.format("Improvement over %d threadCount: %.0f%%",
                         prevThreadCount, 100 * averageImprovement(results, 1)));
 
-            runIds.add(threadCount + " threads");
+            runIds.add(threadCount + " threadCount");
             prevThreadCount = threadCount;
             if (threadCount < 16)
                 threadCount *= 2;
             else
                 threadCount *= 1.5;
 
-            if (settings.op.type.updates)
+            if (settings.command.type.updates)
             {
                 // pause an arbitrary period of time to let the commit log flush, etc. shouldn't make much difference
                 // as we only increase load, never decrease it
@@ -101,8 +109,7 @@ public class StressAction
                     Thread.sleep(15 * 1000);
                 } catch (InterruptedException e)
                 {
-                    // TODO : terminate gracefully
-                    throw new IllegalStateException();
+                    return false;
                 }
             }
             // run until we have not improved throughput significantly for previous three runs
@@ -110,6 +117,7 @@ public class StressAction
 
         // summarise all results
         StressMetrics.summarise(runIds, results, output);
+        return true;
     }
 
     private double averageImprovement(List<StressMetrics> results, int count)
@@ -135,8 +143,8 @@ public class StressAction
 
         RateLimiter rateLimiter = null;
         // TODO : move this to a new queue wrapper that gates progress based on a poisson (or configurable) distribution
-        if (settings.rate.opLimitPerSecond > 0)
-            rateLimiter = RateLimiter.create(settings.rate.opLimitPerSecond);
+        if (settings.rate.opRateTargetPerSecond > 0)
+            rateLimiter = RateLimiter.create(settings.rate.opRateTargetPerSecond);
 
         final StressMetrics metrics = new StressMetrics(output);
 
@@ -145,7 +153,7 @@ public class StressAction
         for (int i = 0; i < threadCount; i++)
             consumers[i] = new Consumer(type, done, workQueue, metrics, rateLimiter);
 
-        // starting worker threads
+        // starting worker threadCount
         for (int i = 0; i < threadCount; i++)
             consumers[i].start();
 
@@ -155,11 +163,12 @@ public class StressAction
         {
             try
             {
-                metrics.runUntilConverges(settings.op.targetUncertainty, settings.op.minimumUncertaintyMeasurements);
+                metrics.runUntilConverges(settings.command.targetUncertainty, settings.command.minimumUncertaintyMeasurements);
             } catch (InterruptedException e)
             {
-                // TODO : terminate gracefully
-                throw new IllegalStateException();
+                // termination signalled
+                workQueue.stop();
+                return null;
             }
             workQueue.stop();
         }
@@ -169,7 +178,7 @@ public class StressAction
             done.await();
         } catch (InterruptedException e)
         {
-            throw new IllegalStateException();
+            return null;
         }
 
         metrics.stop();
@@ -179,13 +188,8 @@ public class StressAction
         for (Consumer consumer : consumers)
             success &= consumer.success;
 
-        if (success) {
-            // marking an end of the output to the client
-            output.println("END");
-        } else {
-            output.println("FAILURE");
-            System.exit(-1);
-        }
+        if (!success)
+            return null;
 
         return metrics;
     }
@@ -289,8 +293,6 @@ public class StressAction
             this.count = count;
         }
     }
-
-    // TODO : POISSON DISTRIBUTION WORK QUEUE
 
     private static final class FixedWorkQueue implements WorkQueue
     {

@@ -38,11 +38,16 @@ public final class ThriftMultiGetter extends Operation
     public void run(final Cassandra.Client client) throws IOException
     {
 
-        final SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                false, state.settings.columns.maxColumnsPerKey));
+        final SlicePredicate predicate = new SlicePredicate().setSlice_range(
+                new SliceRange(
+                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                        false,
+                        state.settings.columns.maxColumnsPerKey
+                )
+        );
 
-        final List<ByteBuffer> keys = getKeys(((SettingsCommandMulti) state.settings.op).keysAtOnce);
+        final List<ByteBuffer> keys = getKeys(((SettingsCommandMulti) state.settings.command).keysAtOnce);
 
         for (final ColumnParent parent : state.columnParents)
         {
@@ -52,7 +57,7 @@ public final class ThriftMultiGetter extends Operation
                 @Override
                 public boolean run() throws Exception
                 {
-                    return (count = client.multiget_slice(keys, parent, predicate, state.settings.op.consistencyLevel).size()) != 0;
+                    return (count = client.multiget_slice(keys, parent, predicate, state.settings.command.consistencyLevel).size()) != 0;
                 }
 
                 @Override

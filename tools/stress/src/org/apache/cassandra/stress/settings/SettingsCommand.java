@@ -2,22 +2,13 @@ package org.apache.cassandra.stress.settings;
 
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class SettingsCommand
+public class SettingsCommand implements Serializable
 {
-
-//    availableOptions.addOption("o",  "operation",            true,   "Operation to perform (WRITE, READ, READWRITE, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTERWRITE, COUNTER_GET), default:WRITE");
-//    availableOptions.addOption("n",  "num-keys",             true,   "Number of keys, default:1000000");
-//    availableOptions.addOption("g",  "keys-per-call",        true,   "Number of keys to get_range_slices or multiget per call, default:1000");
-
-//    availableOptions.addOption("u",  "supercolumns",         true,   "Number of super columns per key, default:1");
-//    availableOptions.addOption("y",  "family-type",          true,   "Column Family Type (Super, Standard), default:Standard");
-//    availableOptions.addOption("K",  "keep-trying",          true,   "Retry on-going operation N times (in case of failure). positive integer, default:10");
-//    availableOptions.addOption("k",  "keep-going",           false,  "Ignore errors inserting or reading (when set, --keep-trying has no effect), default:false");
-//    availableOptions.addOption("e",  "consistency-level",    true,   "Consistency Level to use (ONE, QUORUM, LOCAL_QUORUM, EACH_QUORUM, ALL, ANY), default:ONE");
 
     public final Command type;
     public final long count;

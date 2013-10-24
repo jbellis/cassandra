@@ -19,15 +19,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * For parsing column options
+ */
 public class SettingsColumn implements Serializable
 {
-
-//    availableOptions.addOption("S",  "column-size",          true,   "Size of column values in bytes, default:34");
-//    availableOptions.addOption("V",  "average-size-values",  false,  "Generate column values of average rather than specific size");
-//    availableOptions.addOption("RC", "unique values per column",          true,   "Max number of unique rows, default:50");
-//    availableOptions.addOption("c",  "columns",              true,   "Number of columns per key, default:5");
-//    availableOptions.addOption("Q",  "query-names",          true,   "Comma-separated list of column names to retrieve from each row.");
-//    availableOptions.addOption("U",  "comparator",           true,   "Column Comparator to use. Currently supported types are: TimeUUIDType, AsciiType, UTF8Type.");
 
     private static abstract class Options extends GroupedOptions
     {
@@ -66,7 +62,6 @@ public class SettingsColumn implements Serializable
     public final int superColumns;
     public final boolean useSuperColumns;
     public final boolean variableColumnCount;
-
 
     private final DistributionFactory sizeDistribution;
     private final DistributionFactory countDistribution;

@@ -27,7 +27,7 @@ import java.util.List;
 
 import org.apache.cassandra.utils.UUIDGen;
 
-public class CqlInserter extends CqlOperation
+public class CqlInserter extends CqlOperation<Integer>
 {
 
     public CqlInserter(State state, long idx)
@@ -41,7 +41,7 @@ public class CqlInserter extends CqlOperation
         StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired(state.settings.schema.columnFamily));
 
         if (state.isCql2())
-            query.append(" USING CONSISTENCY ").append(state.settings.op.consistencyLevel);
+            query.append(" USING CONSISTENCY ").append(state.settings.command.consistencyLevel);
 
         query.append(" SET ");
 
@@ -80,9 +80,8 @@ public class CqlInserter extends CqlOperation
     }
 
     @Override
-    protected boolean validate(int rowCount)
+    protected CqlRunOp buildRunOp(ClientWrapper client, String query, byte[] queryId, List<String> params, String key)
     {
-        return true;
+        return new CqlRunOpAlwaysSucceed(client, query, queryId, params, key, 1);
     }
-
 }

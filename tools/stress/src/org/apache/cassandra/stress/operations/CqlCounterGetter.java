@@ -24,7 +24,7 @@ package org.apache.cassandra.stress.operations;
 import java.util.Collections;
 import java.util.List;
 
-public class CqlCounterGetter extends CqlOperation
+public class CqlCounterGetter extends CqlOperation<Integer>
 {
 
     public CqlCounterGetter(State state, long idx)
@@ -53,15 +53,15 @@ public class CqlCounterGetter extends CqlOperation
         query.append(" FROM ").append(wrapInQuotesIfRequired(counterCF));
 
         if (state.isCql2())
-            query.append(" USING CONSISTENCY ").append(state.settings.op.consistencyLevel);
+            query.append(" USING CONSISTENCY ").append(state.settings.command.consistencyLevel);
 
         return query.append(" WHERE KEY=?").toString();
     }
 
     @Override
-    protected boolean validate(int rowCount)
+    protected CqlRunOp buildRunOp(ClientWrapper client, String query, byte[] queryId, List<String> params, String key)
     {
-        return rowCount != 0;
+        return new CqlRunOpTestNonEmpty(client, query, queryId, params, key);
     }
 
 }

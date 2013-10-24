@@ -1,9 +1,10 @@
 package org.apache.cassandra.stress.settings;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Map;
 
-public class SettingsMisc
+public class SettingsMisc implements Serializable
 {
 
     public static Runnable helpHelpPrinter()

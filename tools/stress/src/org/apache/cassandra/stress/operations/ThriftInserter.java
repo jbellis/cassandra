@@ -70,7 +70,7 @@ public final class ThriftInserter extends Operation
             @Override
             public boolean run() throws Exception
             {
-                client.batch_mutate(record, state.settings.op.consistencyLevel);
+                client.batch_mutate(record, state.settings.command.consistencyLevel);
                 return true;
             }
 
@@ -100,7 +100,7 @@ public final class ThriftInserter extends Operation
             // TODO : consider randomly allocating column names in case where have fewer than max columns
             // but need to think about implications for indexes / indexed range slicer / other knock on effects
             for (int i = 0 ; i < values.size() ; i++)
-                columns.add(new Column(getColumnName(i)));
+                columns.add(new Column(getColumnNameBytes(i)));
 
         for (int i = 0 ; i < values.size() ; i++)
             columns.get(i)

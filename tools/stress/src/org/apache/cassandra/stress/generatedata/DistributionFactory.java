@@ -1,6 +1,8 @@
 package org.apache.cassandra.stress.generatedata;
 
-public interface DistributionFactory
+import java.io.Serializable;
+
+public interface DistributionFactory extends Serializable
 {
 
     Distribution get();

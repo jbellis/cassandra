@@ -51,7 +51,7 @@ public class ThriftCounterGetter extends Operation
                 @Override
                 public boolean run() throws Exception
                 {
-                    return client.get_slice(key, parent, predicate, state.settings.op.consistencyLevel).size() != 0;
+                    return client.get_slice(key, parent, predicate, state.settings.command.consistencyLevel).size() != 0;
                 }
 
                 @Override

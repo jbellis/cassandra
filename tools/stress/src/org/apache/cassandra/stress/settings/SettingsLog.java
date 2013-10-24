@@ -3,16 +3,13 @@ package org.apache.cassandra.stress.settings;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class SettingsLog
+public class SettingsLog implements Serializable
 {
-
-//    availableOptions.addOption("ns", "no-statistics",        false,  "Turn off the aggegate statistics that is normally output after completion.");
-//    availableOptions.addOption("f",  "file",                 true,   "Write output to given file");
-//    availableOptions.addOption("i",  "progress-interval",    true,   "Progress Report Interval (seconds), default:10");
 
     public final boolean noSummary;
     public final File file;
@@ -22,7 +19,7 @@ public class SettingsLog
     {
         final OptionSimple noSummmary = new OptionSimple("no-summary", "", null, "Disable printing of aggregate statistics at the end of a test", false);
         final OptionSimple outputFile = new OptionSimple("file=", ".*", null, "Log to a file", false);
-        final OptionSimple interval = new OptionSimple("interval=", "[0-9]+", "1", "Log progress every <value> seconds", false);
+        final OptionSimple interval = new OptionSimple("interval=", "[0-9]+(ms|s|)", "1s", "Log progress every <value> seconds or milliseconds", false);
 
         @Override
         public List<? extends Option> options()
@@ -33,12 +30,20 @@ public class SettingsLog
 
     public SettingsLog(Options options)
     {
-        this.noSummary = options.noSummmary.present();
+        noSummary = options.noSummmary.present();
+
         if (options.outputFile.present())
-            this.file = new File(options.outputFile.value());
+            file = new File(options.outputFile.value());
         else
-            this.file = null;
-        this.intervalMillis = 1000 * Integer.parseInt(options.interval.value());
+            file = null;
+
+        String interval = options.interval.value();
+        if (interval.endsWith("ms"))
+            intervalMillis = Integer.parseInt(interval.substring(0, interval.length() - 2));
+        else if (interval.endsWith("s"))
+            intervalMillis = 1000 * Integer.parseInt(interval.substring(0, interval.length() - 1));
+        else
+            intervalMillis = 1000 * Integer.parseInt(interval);
         if (intervalMillis <= 0)
             throw new IllegalArgumentException("Log interval must be greater than zero");
     }

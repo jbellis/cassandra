@@ -13,11 +13,6 @@ import java.util.Map;
 public class SettingsKey implements Serializable
 {
 
-//    availableOptions.addOption("s",  "stdev",                true,   "Standard Deviation for gaussian read key generation, default:0.1");
-//    availableOptions.addOption("r",  "random",               false,  "Use random key generator for read key generation (STDEV will have no effect), default:false");
-//    availableOptions.addOption("F",  "num-different-keys",   true,   "Number of different keys (if < NUM-KEYS, the same key will re-used multiple times), default:NUM-KEYS");
-    // key size
-
     private final int keySize;
     private final DistributionFactory distribution;
     private final long[] range;

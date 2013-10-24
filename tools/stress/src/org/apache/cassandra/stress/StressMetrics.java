@@ -32,7 +32,7 @@ public class StressMetrics
 
     private static void printHeader(String prefix, PrintStream output)
     {
-        output.println(prefix + String.format(HEADFORMAT, "ops","op/s","key/s","mean","med",".95",".99",".999","max","time","err"));
+        output.println(prefix + String.format(HEADFORMAT, "ops","command/s","key/s","mean","med",".95",".99",".999","max","time","err"));
     }
 
     private static void printRow(String prefix, TimerInterval interval, TimerInterval total, Uncertainty opRateUncertainty, PrintStream output)
@@ -200,7 +200,7 @@ public class StressMetrics
     {
         output.println("\n");
         output.println("Results:");
-        output.println(String.format("op rate                   : %.0f", fullHistory.opRate()));
+        output.println(String.format("command rate                   : %.0f", fullHistory.opRate()));
         output.println(String.format("key rate                  : %.0f", fullHistory.keyRate()));
         output.println(String.format("latency mean              : %.1f", fullHistory.meanLatency()));
         output.println(String.format("latency median            : %.1f", fullHistory.medianLatency()));
@@ -225,7 +225,7 @@ public class StressMetrics
         // TODO fail gracefully after timeout if a thread is stuck
         ready.await();
 
-        // reports have been filled in by timer threads, so merge
+        // reports have been filled in by timer threadCount, so merge
         List<TimerInterval> intervals = new ArrayList<>();
         for (Timer timer : timers)
             intervals.add(timer.report);

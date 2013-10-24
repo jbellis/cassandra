@@ -4,6 +4,7 @@ import org.apache.cassandra.stress.generatedata.Distribution;
 import org.apache.cassandra.stress.generatedata.DistributionBoundApache;
 import org.apache.cassandra.stress.generatedata.DistributionFactory;
 import org.apache.cassandra.stress.generatedata.DistributionFixed;
+import org.apache.cassandra.stress.generatedata.DistributionOffsetApache;
 import org.apache.commons.math3.distribution.*;
 
 import java.util.ArrayList;
@@ -14,6 +15,9 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * For selecting a mathematical distribution
+ */
 public class OptionDistribution extends Option
 {
 
@@ -75,6 +79,7 @@ public class OptionDistribution extends Option
     public List<String> multiLineDisplay()
     {
         return Arrays.asList(
+                GroupedOptions.formatMultiLine("EXP(min..max)", "An exponential distribution over the range [min..max]"),
                 GroupedOptions.formatMultiLine("GAUSSIAN(min..max,stdvrng)", "A gaussian/normal distribution, where mean=(min+max)/2, and stdev is (mean-min)/stdvrng"),
                 GroupedOptions.formatMultiLine("GAUSSIAN(min..max,mean,stdev)", "A gaussian/normal distribution, with explicitly defined mean and stdev"),
                 GroupedOptions.formatMultiLine("UNIFORM(min..max)", "A uniform distribution over the range [min, max]"),
@@ -92,6 +97,7 @@ public class OptionDistribution extends Option
     static
     {
         final Map<String, Impl> lookup = new HashMap<>();
+        lookup.put("exp", new ExponentialImpl());
         lookup.put("gaussian", new GaussianImpl());
         lookup.put("normal", new GaussianImpl());
         lookup.put("gauss", new GaussianImpl());
@@ -146,27 +152,25 @@ public class OptionDistribution extends Option
         }
     }
 
-    private static final class LogNormalImpl implements Impl
+    private static final class ExponentialImpl implements Impl
     {
         @Override
         public DistributionFactory getFactory(List<String> params)
         {
-            if (params.size() > 3 || params.size() < 1)
+            if (params.size() != 1)
                 throw new IllegalArgumentException("Invalid parameter list for gaussian distribution: " + params);
             try
             {
                 String[] bounds = params.get(0).split("\\.\\.+");
                 final long minKey = Long.parseLong(bounds[0]);
                 final long maxKey = Long.parseLong(bounds[1]);
-                final double stdevsToEdge = params.size() == 1 ? 3d : Double.parseDouble(params.get(1));
-                final double mean = (minKey + maxKey) / 2d;
-                final double stdev = ((maxKey - minKey) / 2d) / stdevsToEdge;
+                final double mean = (maxKey - minKey) / 4.605170d;
                 return new DistributionFactory()
                 {
                     @Override
                     public Distribution get()
                     {
-                        return new DistributionBoundApache(new LogNormalDistribution(mean, stdev), minKey, maxKey);
+                        return new DistributionOffsetApache(new ExponentialDistribution(mean), minKey, maxKey);
                     }
                 };
             } catch (Exception _)
@@ -241,4 +245,18 @@ public class OptionDistribution extends Option
     {
         return super.equals(that) && ((OptionDistribution) that).prefix.equals(this.prefix);
     }
+
+    public static void main(String[] args)
+    {
+        final ExponentialDistribution exp = new ExponentialDistribution(1000000);
+        final LogNormalDistribution ln = new LogNormalDistribution(10, Math.log(10));
+        for (double d = 0d ; d <= 1d ; d += 0.01d)
+        {
+            for (AbstractRealDistribution dist : Arrays.asList(exp, ln))
+                System.out.print(String.format("%20.0f", dist.inverseCumulativeProbability(d)));
+            System.out.println();
+        }
+    }
+
+
 }

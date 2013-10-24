@@ -5,6 +5,9 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * For specifying multiple grouped sub-options in the form: group(arg1=,arg2,arg3) etc.
+ */
 public abstract class OptionMulti extends Option
 {
 

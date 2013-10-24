@@ -11,7 +11,7 @@ public enum Command
     READ(false, SettingsCommand.helpPrinter("read"), "Multiple concurrent reads - the cluster must first be populated by a write test", CommandCategory.BASIC),
     WRITE(true, SettingsCommand.helpPrinter("write"), "insert", "Multiple concurrent writes against the cluster", CommandCategory.BASIC),
     MIXED(true, SettingsCommandMixed.helpPrinter(), "Both reads and writes with configurable ratio and distribution - the cluster must first be populated by a write test", CommandCategory.MIXED, WRITE, READ),
-    RANGE_SLICE(false, SettingsCommand.helpPrinter("range_slice"), "Range slice queries - the cluster must first be populated by a write test", CommandCategory.BASIC),
+    RANGE_SLICE(false, SettingsCommandMulti.helpPrinter("range_slice"), "Range slice queries - the cluster must first be populated by a write test", CommandCategory.MULTI),
     INDEXED_RANGE_SLICE(false, SettingsCommandMulti.helpPrinter("indexed_range_slice"), "Range slice queries through a secondary index. The cluster must first be populated by a write test, with indexing enabled.", CommandCategory.MULTI),
     READMULTI(false, SettingsCommandMulti.helpPrinter("readmulti"), "multi_read", "Multiple concurrent reads fetching multiple rows at once. The cluster must first be populated by a write test.", CommandCategory.MULTI),
     COUNTERWRITE(true, SettingsCommand.helpPrinter("counterwrite"), "counter_add", "Multiple concurrent updates of counters.", CommandCategory.BASIC),

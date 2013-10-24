@@ -24,7 +24,7 @@ package org.apache.cassandra.stress.operations;
 import java.util.Collections;
 import java.util.List;
 
-public class CqlRangeSlicer extends CqlOperation
+public class CqlRangeSlicer extends CqlOperation<Integer>
 {
     public CqlRangeSlicer(State state, long idx)
     {
@@ -44,14 +44,15 @@ public class CqlRangeSlicer extends CqlOperation
                 .append(" ''..'' FROM ").append(state.settings.schema.columnFamily);
 
         if (state.isCql2())
-            query.append(" USING CONSISTENCY ").append(state.settings.op.consistencyLevel);
+            query.append(" USING CONSISTENCY ").append(state.settings.command.consistencyLevel);
 
         return query.append(" WHERE KEY > ?").toString();
     }
 
-    protected boolean validate(int rowCount)
+    @Override
+    protected CqlRunOp buildRunOp(ClientWrapper client, String query, byte[] queryId, List<String> params, String key)
     {
-        return rowCount != 0;
+        return new CqlRunOpTestNonEmpty(client, query, queryId, params, key);
     }
 
 }

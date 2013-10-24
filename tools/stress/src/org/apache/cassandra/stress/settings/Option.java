@@ -1,5 +1,6 @@
 package org.apache.cassandra.stress.settings;
 
+import java.io.Serializable;
 import java.util.List;
 
 public abstract class Option
