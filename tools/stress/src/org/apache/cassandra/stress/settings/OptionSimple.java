@@ -1,8 +1,11 @@
 package org.apache.cassandra.stress.settings;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.regex.Pattern;
 
-public class OptionSimple implements Option
+public class OptionSimple extends Option
 {
 
     final String prefix;
@@ -38,7 +41,7 @@ public class OptionSimple implements Option
             if (value != null)
                 throw new IllegalArgumentException("Suboption " + prefix + " has been specified more than once");
             String v = param.substring(prefix.length());
-            if (!pattern.matcher(param).matches())
+            if (!pattern.matcher(v).matches())
                 throw new IllegalArgumentException("Invalid option " + param + "; must match pattern " + pattern);
             value = v;
             return true;
@@ -52,28 +55,56 @@ public class OptionSimple implements Option
         return !required || value != null;
     }
 
-    public String toString()
+    public String shortDisplay()
     {
         StringBuilder sb = new StringBuilder();
         if (!required)
             sb.append("[");
         sb.append(prefix);
         if (prefix.endsWith("="))
-            sb.append("<value>");
+            sb.append("?");
+        if (prefix.endsWith("<"))
+            sb.append("?");
+        if (prefix.endsWith(">"))
+            sb.append("?");
+        if (!required)
+            sb.append("]");
+        return sb.toString();
+    }
+
+    public String longDisplay()
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append(prefix);
+        if (prefix.endsWith("="))
+            sb.append("?");
+        if (prefix.endsWith("<"))
+            sb.append("?");
+        if (prefix.endsWith(">"))
+            sb.append("?");
         if (defaultValue != null)
         {
             sb.append(" (default=");
             sb.append(defaultValue);
             sb.append(")");
         }
-        sb.append("]");
-        return sb.toString();
+        return GroupedOptions.formatLong(sb.toString(), description);
+    }
+
+    public List<String> multiLineDisplay()
+    {
+        return Collections.emptyList();
+    }
+
+    public int hashCode()
+    {
+        return prefix.hashCode();
     }
 
     @Override
-    public String description()
+    public boolean equals(Object that)
     {
-        return description;
+        return that instanceof OptionSimple && ((OptionSimple) that).prefix.equals(this.prefix);
     }
 
 }

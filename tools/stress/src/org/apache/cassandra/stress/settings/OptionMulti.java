@@ -1,16 +1,30 @@
 package org.apache.cassandra.stress.settings;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public abstract class OptionMulti extends GroupedOptions implements Option
+public abstract class OptionMulti extends Option
 {
 
     private static final Pattern ARGS = Pattern.compile("([^,]+)", Pattern.CASE_INSENSITIVE);
 
+    private final class Delegate extends GroupedOptions
+    {
+        @Override
+        public List<? extends Option> options()
+        {
+            return OptionMulti.this.options();
+        }
+    }
+
+    protected abstract List<? extends Option> options();
+
     private final String name;
     private final Pattern pattern;
     private final String description;
+    private final Delegate delegate = new Delegate();
     public OptionMulti(String name, String description)
     {
         this.name = name;
@@ -31,16 +45,10 @@ public abstract class OptionMulti extends GroupedOptions implements Option
             if (m.start() != last)
                 throw new IllegalArgumentException("Invalid " + name + " specification: " + param);
             last = m.end() + 1;
-            if (!super.accept(m.group()))
+            if (!delegate.accept(m.group()))
                 throw new IllegalArgumentException("Invalid " + name + " specification: " + m.group());
         }
         return true;
-    }
-
-    @Override
-    public String description()
-    {
-        return description;
     }
 
     public String toString()
@@ -55,6 +63,41 @@ public abstract class OptionMulti extends GroupedOptions implements Option
         }
         sb.append(")");
         return sb.toString();
+    }
+
+    @Override
+    public String shortDisplay()
+    {
+        return name + "(?)";
+    }
+
+    @Override
+    public String longDisplay()
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append(name);
+        sb.append("(");
+        for (Option opt : options())
+        {
+            sb.append(opt.shortDisplay());
+        }
+        sb.append(")");
+        return sb.toString();
+    }
+
+    @Override
+    public List<String> multiLineDisplay()
+    {
+        final List<String> r = new ArrayList<>();
+        for (Option option : options())
+            r.add(option.longDisplay());
+        return r;
+    }
+
+    @Override
+    boolean happy()
+    {
+        return delegate.happy();
     }
 
 }

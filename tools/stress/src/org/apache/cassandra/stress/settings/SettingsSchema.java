@@ -39,7 +39,7 @@ public class SettingsSchema
         final OptionSimple index = new OptionSimple("index=", "KEYS|CUSTOM|COMPOSITES", null, "Type of index to create on needed column families (KEYS)", false);
         final OptionSimple keyspace = new OptionSimple("keyspace=", ".*", "Keyspace1", "The keyspace name to use", false);
         final OptionSimple columnFamily = new OptionSimple("columnfamily=", ".*", "Standard1", "The column family name to use", false);
-        final OptionSimple compactionStrategy = new OptionSimple("compaction=", ".*", "", "The compaction strategy to use", false);
+        final OptionSimple compactionStrategy = new OptionSimple("compaction=", ".*", null, "The compaction strategy to use", false);
         final OptionSimple noReplicateOnWrite = new OptionSimple("no-replicate-on-write", "", null, "Set replicate_on_write to false for counters. Only counter add with CL=ONE will work", false);
         final OptionSimple compression = new OptionSimple("compression=", ".*", null, "Specify the compression to use for sstable, default:no compression", false);
 
@@ -66,7 +66,7 @@ public class SettingsSchema
         replicationStrategy = options.replication.getStrategy();
         replicationStrategyOptions = options.replication.getOptions();
         if (options.index.present())
-            indexType = IndexType.valueOf(options.index.value());
+            indexType = IndexType.valueOf(options.index.value().toUpperCase());
         else
             indexType = null;
         compression = options.compression.value();
@@ -205,17 +205,35 @@ public class SettingsSchema
 
     public static SettingsSchema get(Map<String, String[]> clArgs)
     {
-        String[] params = clArgs.get("-schema");
+        String[] params = clArgs.remove("-schema");
         if (params == null)
             return new SettingsSchema(new Options());
 
         GroupedOptions options = GroupedOptions.select(params, new Options());
         if (options == null)
         {
-            GroupedOptions.printOptions(System.out, new Options());
-            throw new IllegalArgumentException("Invalid -log options provided, see output for valid options");
+            printHelp();
+            System.out.println("Invalid -schema options provided, see output for valid options");
+            System.exit(1);
         }
         return new SettingsSchema((Options) options);
+    }
+
+    public static void printHelp()
+    {
+        GroupedOptions.printOptions(System.out, "-schema", new Options());
+    }
+
+    public static Runnable helpPrinter()
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelp();
+            }
+        };
     }
 
 }

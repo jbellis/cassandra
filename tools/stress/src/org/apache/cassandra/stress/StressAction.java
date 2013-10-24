@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.stress.operations.*;
-import org.apache.cassandra.stress.settings.OpType;
+import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.transport.SimpleClient;
@@ -53,7 +53,7 @@ public class StressAction
         // warmup - do 50k iterations; by default hotspot compiles methods after 10k invocations
         PrintStream warmupOutput = new PrintStream(new OutputStream() { @Override public void write(int b) throws IOException { } } );
         output.println("Warming up...");
-        for (OpType type : settings.op.type.getWarmups())
+        for (Command type : settings.op.type.getWarmups())
             run(type, 20, 50000, warmupOutput);
 
         output.println("Sleeping 2s...");
@@ -65,21 +65,66 @@ public class StressAction
             run(settings.op.type, settings.rate.threads, settings.op.count, output);
     }
 
+    // TODO : permit varying more than just thread count
+    // TODO : vary thread count based on percentage improvement of previous increment, not by fixed amounts
     private void runAuto()
     {
-        int threadCount = 10;
+        int prevThreadCount = -1;
+        int threadCount = 4;
         List<StressMetrics> results = new ArrayList<>();
-        while (true)
+        List<String> runIds = new ArrayList<>();
+        do
         {
-            // run until previous two have not been greater than previous plus (uncertainty * 1.5)
             output.println(String.format("Running with %d threads", threadCount));
+
             StressMetrics result = run(settings.op.type, threadCount, settings.op.count, output);
             results.add(result);
-            threadCount *= 1.5;
-        }
+
+            if (prevThreadCount > 0)
+                System.out.println(String.format("Improvement over %d threads: %.0f%%",
+                        prevThreadCount, 100 * averageImprovement(results, 1)));
+
+            runIds.add(threadCount + " threads");
+            prevThreadCount = threadCount;
+            if (threadCount < 16)
+                threadCount *= 2;
+            else
+                threadCount *= 1.5;
+
+            if (settings.op.type.updates)
+            {
+                // pause an arbitrary period of time to let the commit log flush, etc. shouldn't make much difference
+                // as we only increase load, never decrease it
+                output.println("Sleeping for 15s");
+                try
+                {
+                    Thread.sleep(15 * 1000);
+                } catch (InterruptedException e)
+                {
+                    // TODO : terminate gracefully
+                    throw new IllegalStateException();
+                }
+            }
+            // run until we have not improved throughput significantly for previous three runs
+        } while (results.size() < 4 || averageImprovement(results, 3) > 0);
+
+        // summarise all results
+        StressMetrics.summarise(runIds, results, output);
     }
 
-    private StressMetrics run(OpType type, int threadCount, long opCount, PrintStream output)
+    private double averageImprovement(List<StressMetrics> results, int count)
+    {
+        double improvement = 0;
+        for (int i = results.size() - count ; i < results.size() ; i++)
+        {
+            double prev = results.get(i - 1).getFullHistory().opRate();
+            double cur = results.get(i).getFullHistory().opRate();
+            improvement += (cur - prev) / prev;
+        }
+        return improvement / (results.size() - 1);
+    }
+
+    private StressMetrics run(Command type, int threadCount, long opCount, PrintStream output)
     {
 
         final WorkQueue workQueue;
@@ -89,7 +134,7 @@ public class StressAction
             workQueue = FixedWorkQueue.build(opCount);
 
         RateLimiter rateLimiter = null;
-        // TODO : move this to a new queue wrapper that gates progress based on a poisson distribution
+        // TODO : move this to a new queue wrapper that gates progress based on a poisson (or configurable) distribution
         if (settings.rate.opLimitPerSecond > 0)
             rateLimiter = RateLimiter.create(settings.rate.opLimitPerSecond);
 
@@ -105,7 +150,6 @@ public class StressAction
             consumers[i].start();
 
         metrics.meterWithLogInterval(settings.log.intervalMillis);
-
 
         if (opCount <= 0)
         {
@@ -155,7 +199,7 @@ public class StressAction
         private final WorkQueue workQueue;
         private final CountDownLatch done;
 
-        public Consumer(OpType type, CountDownLatch done, WorkQueue workQueue, StressMetrics metrics, RateLimiter rateLimiter)
+        public Consumer(Command type, CountDownLatch done, WorkQueue workQueue, StressMetrics metrics, RateLimiter rateLimiter)
         {
             this.done = done;
             this.rateLimiter = rateLimiter;
@@ -276,7 +320,7 @@ public class StressAction
         static FixedWorkQueue build(long operations)
         {
             // target splitting into around 50-500k items, with a minimum size of 20
-            if (operations > Integer.MAX_VALUE * (1 << 9))
+            if (operations > Integer.MAX_VALUE * (1L << 9))
                 throw new IllegalStateException("Cannot currently support more than approx 2^40 operations for one stress run. This is a LOT.");
             int batchSize = (int) (operations / (1 << 9));
             if (batchSize < 20)
@@ -339,7 +383,7 @@ public class StressAction
     {
         return createOperation(state.type, state, index);
     }
-    private Operation createOperation(OpType type, Operation.State state, long index)
+    private Operation createOperation(Command type, Operation.State state, long index)
     {
         switch (type)
         {
@@ -368,7 +412,7 @@ public class StressAction
                         throw new UnsupportedOperationException();
                 }
 
-            case INSERT:
+            case WRITE:
                 switch(state.settings.mode.api)
                 {
                     case THRIFT:

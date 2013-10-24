@@ -1,6 +1,8 @@
 package org.apache.cassandra.stress.settings;
 
 import java.io.PrintStream;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 
 public abstract class GroupedOptions
@@ -40,22 +42,55 @@ public abstract class GroupedOptions
         return null;
     }
 
-    public static void printOptions(PrintStream out, GroupedOptions... groupings)
+    public static void printOptions(PrintStream out, String command, GroupedOptions... groupings)
     {
+        out.println();
+        boolean firstRow = true;
         for (GroupedOptions grouping : groupings)
         {
-            StringBuilder sb = new StringBuilder();
-            boolean first = true;
+            if (!firstRow)
+            {
+                out.println(" OR ");
+            }
+            firstRow = false;
+
+            StringBuilder sb = new StringBuilder("Usage: " + command);
             for (Option option : grouping.options())
             {
-                if (first)
-                    first = false;
-                else
-                    sb.append(" ");
-                sb.append(option);
+                sb.append(" ");
+                sb.append(option.shortDisplay());
             }
             out.println(sb.toString());
         }
+        out.println();
+        final HashSet<Option> printed = new HashSet<>();
+        for (GroupedOptions grouping : groupings)
+        {
+            for (Option option : grouping.options())
+            {
+                if (printed.add(option))
+                {
+                    out.println("  " + option.longDisplay());
+                    for (String row : option.multiLineDisplay())
+                        out.println("      " + row);
+                }
+            }
+        }
+    }
+
+    public static String formatLong(String longDisplay, String description)
+    {
+        return String.format("%-40s %s", longDisplay, description);
+    }
+
+    public static String formatHeaderLong(String longDisplay, String description)
+    {
+        return String.format("%-40s %s", longDisplay, description);
+    }
+
+    public static String formatMultiLine(String longDisplay, String description)
+    {
+        return String.format("%-36s %s", longDisplay, description);
     }
 
 }

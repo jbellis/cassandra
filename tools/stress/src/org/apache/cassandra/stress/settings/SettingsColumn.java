@@ -11,7 +11,6 @@ import org.apache.cassandra.stress.generatedata.DistributionFactory;
 import org.apache.cassandra.stress.generatedata.DistributionFixed;
 import org.apache.cassandra.stress.generatedata.RowGen;
 import org.apache.cassandra.stress.generatedata.RowGenDistributedSize;
-import org.apache.commons.lang.*;
 
 import java.io.Serializable;
 import java.nio.ByteBuffer;
@@ -32,10 +31,10 @@ public class SettingsColumn implements Serializable
 
     private static abstract class Options extends GroupedOptions
     {
-        final OptionSimple superColumns = new OptionSimple("super=", "[0-9]+", "-1", "Number of super columns to use (no super columns used if not specified)", false);
+        final OptionSimple superColumns = new OptionSimple("super=", "[0-9]+", "0", "Number of super columns to use (no super columns used if not specified)", false);
         final OptionSimple comparator = new OptionSimple("comparator=", "TimeUUIDType|AsciiType|UTF8Type", "AsciiType", "Column Comparator to use", false);
         final OptionDistribution size = new OptionDistribution("size=", "FIXED(34)");
-        final OptionDataGen generator = new OptionDataGen("data=", "REPEAT(10000)");
+        final OptionDataGen generator = new OptionDataGen("data=", "REPEAT(50)");
     }
 
     private static final class NameOptions extends Options
@@ -45,7 +44,7 @@ public class SettingsColumn implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(name, superColumns, comparator, size);
+            return Arrays.asList(name, superColumns, comparator, size, generator);
         }
     }
 
@@ -56,7 +55,7 @@ public class SettingsColumn implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(count, superColumns, comparator, size);
+            return Arrays.asList(count, superColumns, comparator, size, generator);
         }
     }
 
@@ -115,7 +114,7 @@ public class SettingsColumn implements Serializable
         {
             assert count == null;
 
-            AbstractType comparator = null;
+            AbstractType comparator;
             try
             {
                 comparator = TypeParser.parse(this.comparator);
@@ -124,7 +123,7 @@ public class SettingsColumn implements Serializable
                 throw new IllegalStateException(e);
             }
 
-            final String[] names = StringUtils.split(name.name.value(), ",");
+            final String[] names = name.name.value().split(",");
             this.names = new ArrayList<>(names.length);
 
             for (String columnName : names)
@@ -154,17 +153,34 @@ public class SettingsColumn implements Serializable
 
     public static SettingsColumn get(Map<String, String[]> clArgs)
     {
-        String[] params = clArgs.get("-col");
+        String[] params = clArgs.remove("-col");
         if (params == null)
             return new SettingsColumn(new CountOptions());
 
         GroupedOptions options = GroupedOptions.select(params, new NameOptions(), new CountOptions());
         if (options == null)
         {
-            GroupedOptions.printOptions(System.out, new NameOptions(), new CountOptions());
-            throw new IllegalArgumentException("Invalid -col options provided, see output for valid options");
+            printHelp();
+            System.out.println("Invalid -col options provided, see output for valid options");
+            System.exit(1);
         }
         return new SettingsColumn(options);
     }
 
+    public static void printHelp()
+    {
+        GroupedOptions.printOptions(System.out, "-col", new NameOptions(), new CountOptions());
+    }
+
+    public static Runnable helpPrinter()
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelp();
+            }
+        };
+    }
 }

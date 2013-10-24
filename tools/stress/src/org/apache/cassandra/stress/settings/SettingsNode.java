@@ -72,18 +72,34 @@ public class SettingsNode
 
     public static SettingsNode get(Map<String, String[]> clArgs)
     {
-        String[] params = clArgs.get("-node");
+        String[] params = clArgs.remove("-node");
         if (params == null)
             return new SettingsNode(new Options());
 
         GroupedOptions options = GroupedOptions.select(params, new Options());
         if (options == null)
         {
-            GroupedOptions.printOptions(System.out, new Options());
-            throw new IllegalArgumentException("Invalid -node options provided, see output for valid options");
+            printHelp();
+            System.out.println("Invalid -node options provided, see output for valid options");
+            System.exit(1);
         }
         return new SettingsNode((Options) options);
     }
 
+    public static void printHelp()
+    {
+        GroupedOptions.printOptions(System.out, "-node", new Options());
+    }
 
+    public static Runnable helpPrinter()
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelp();
+            }
+        };
+    }
 }

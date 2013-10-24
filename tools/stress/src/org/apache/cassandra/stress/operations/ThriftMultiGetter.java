@@ -18,7 +18,7 @@
 package org.apache.cassandra.stress.operations;
 
 import org.apache.cassandra.stress.Operation;
-import org.apache.cassandra.stress.settings.SettingsMultiOp;
+import org.apache.cassandra.stress.settings.SettingsCommandMulti;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -42,7 +42,7 @@ public final class ThriftMultiGetter extends Operation
                 ByteBufferUtil.EMPTY_BYTE_BUFFER,
                 false, state.settings.columns.maxColumnsPerKey));
 
-        final List<ByteBuffer> keys = getKeys(((SettingsMultiOp) state.settings.op).keysAtOnce);
+        final List<ByteBuffer> keys = getKeys(((SettingsCommandMulti) state.settings.op).keysAtOnce);
 
         for (final ColumnParent parent : state.columnParents)
         {

@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class SettingsMixedOp extends SettingsOp
+public class SettingsCommandMixed extends SettingsCommand
 {
 
     private final double readProbability;
@@ -55,9 +55,9 @@ public class SettingsMixedOp extends SettingsOp
 
     }
 
-    public SettingsMixedOp(Options options)
+    public SettingsCommandMixed(Options options)
     {
-        super(OpType.MIXED, options.parent);
+        super(Command.MIXED, options.parent);
         readProbability = Double.parseDouble(options.probabilities.read.value());
         writeProbability = Double.parseDouble(options.probabilities.write.value());
         clustering = options.clustering.get();
@@ -66,22 +66,22 @@ public class SettingsMixedOp extends SettingsOp
     public static final class ReadWriteSelector
     {
 
-        final EnumeratedDistribution<OpType> selector;
+        final EnumeratedDistribution<Command> selector;
         final Distribution count;
-        private OpType cur;
+        private Command cur;
         private long remaining;
 
         public ReadWriteSelector(double readProbability, double writeProbability, Distribution count)
         {
             selector = new EnumeratedDistribution<>(
                     Arrays.asList(
-                            new Pair<>(OpType.READ, readProbability),
-                            new Pair<>(OpType.INSERT, writeProbability)
+                            new Pair<>(Command.READ, readProbability),
+                            new Pair<>(Command.WRITE, writeProbability)
                     ));
             this.count = count;
         }
 
-        public OpType next()
+        public Command next()
         {
             while (remaining == 0)
             {
@@ -98,15 +98,32 @@ public class SettingsMixedOp extends SettingsOp
         return new ReadWriteSelector(readProbability, writeProbability, clustering.get());
     }
 
-    public static SettingsMixedOp build(String[] params)
+    public static SettingsCommandMixed build(String[] params)
     {
         GroupedOptions options = GroupedOptions.select(params, new Options(new Uncertainty()), new Options(new Count()));
         if (options == null)
         {
-            GroupedOptions.printOptions(System.out, new Options(new Uncertainty()), new Options(new Count()));
-            throw new IllegalArgumentException("Invalid MIXED options provided, see output for valid options");
+            printHelp();
+            System.out.println("Invalid MIXED options provided, see output for valid options");
+            System.exit(1);
         }
-        return new SettingsMixedOp((Options) options);
+        return new SettingsCommandMixed((Options) options);
     }
 
+    public static void printHelp()
+    {
+        GroupedOptions.printOptions(System.out, "mixed", new Options(new Uncertainty()), new Options(new Count()));
+    }
+
+    public static Runnable helpPrinter()
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelp();
+            }
+        };
+    }
 }

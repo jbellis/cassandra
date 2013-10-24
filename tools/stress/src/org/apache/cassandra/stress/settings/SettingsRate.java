@@ -30,7 +30,7 @@ public class SettingsRate
     {
         this.auto = true;
         this.threads = -1;
-        this.opLimitPerSecond = -1;
+        this.opLimitPerSecond = 0;
     }
 
     private static final class AutoOptions extends GroupedOptions
@@ -47,7 +47,7 @@ public class SettingsRate
     private static final class ThreadOptions extends GroupedOptions
     {
         final OptionSimple threads = new OptionSimple("threads=", "[0-9]+", null, "run this many clients concurrently", true);
-        final OptionSimple rate = new OptionSimple("limit=", "[0-9]+/s", null, "limit operations per second across all clients", false);
+        final OptionSimple rate = new OptionSimple("limit=", "[0-9]+/s", "0/s", "limit operations per second across all clients", false);
 
         @Override
         public List<? extends Option> options()
@@ -56,16 +56,25 @@ public class SettingsRate
         }
     }
 
-    public static SettingsRate get(Map<String, String[]> clArgs)
+    public static SettingsRate get(Map<String, String[]> clArgs, SettingsCommand command)
     {
-        String[] params = clArgs.get("-rate");
+        String[] params = clArgs.remove("-rate");
         if (params == null)
+        {
+            if (command.type == Command.WRITE)
+            {
+                ThreadOptions options = new ThreadOptions();
+                options.accept("threads=50");
+                return new SettingsRate(options);
+            }
             return new SettingsRate();
+        }
         GroupedOptions options = GroupedOptions.select(params, new AutoOptions(), new ThreadOptions());
         if (options == null)
         {
-            GroupedOptions.printOptions(System.out, new AutoOptions(), new ThreadOptions());
-            throw new IllegalArgumentException("Invalid -rate options provided, see output for valid options");
+            printHelp();
+            System.out.println("Invalid -rate options provided, see output for valid options");
+            System.exit(1);
         }
         if (options instanceof AutoOptions)
             return new SettingsRate((AutoOptions) options);
@@ -75,5 +84,21 @@ public class SettingsRate
             throw new IllegalStateException();
     }
 
+    public static void printHelp()
+    {
+        GroupedOptions.printOptions(System.out, "-rate", new AutoOptions(), new ThreadOptions());
+    }
+
+    public static Runnable helpPrinter()
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelp();
+            }
+        };
+    }
 }
 

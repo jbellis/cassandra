@@ -1,11 +1,61 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.cassandra.stress.settings;
 
+import java.io.*;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.apache.cassandra.cli.transport.FramedTransportFactory;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.commons.cli.*;
 
-public class Legacy
+import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.thrift.*;
+
+import org.apache.thrift.transport.TTransportFactory;
+import org.apache.commons.cli.Option;
+
+public class Legacy implements Serializable
 {
 
+    public static enum Operations
+    {
+        INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTER_ADD, COUNTER_GET, READWRITE
+    }
+
+    // command line options
     public static final Options availableOptions = new Options();
+
+    public static final String KEYSPACE_NAME = "Keyspace1";
+    public static final String DEFAULT_COMPARATOR = "AsciiType";
+    public static final String DEFAULT_VALIDATOR  = "BytesType";
+
+    private static InetAddress localInetAddress;
+    public final AtomicInteger keys = new AtomicInteger();
 
     private static final String SSL_TRUSTSTORE = "truststore";
     private static final String SSL_TRUSTSTORE_PW = "truststore-password";
@@ -13,6 +63,26 @@ public class Legacy
     private static final String SSL_ALGORITHM = "ssl-alg";
     private static final String SSL_STORE_TYPE = "store-type";
     private static final String SSL_CIPHER_SUITES = "ssl-ciphers";
+
+    /**
+     *
+
+
+     -rate [threads=<N>] [limit=<N>/s] [auto]
+     -op OP [keys per call] [retry=] [super] [ignore_errors] count=
+     -key range=0..2000  [DISTRIBUTION]
+     -cols 1..5 [names="col1,col2,col3,.."] [DISTRIBUTION]
+     -values 20..50 (bytes) [DISTRIBUTION]
+     -schema [replication strategy class] [compression=] [index=] compaction_strategy=
+     -mode [thrift|([prepared] (cql1|cql2|[native] cql3))] [consistency level]
+     -nodes [file=<path>] [node1,node2,node3]
+     -log file=<path> [no-summary]
+     -ssl
+     -port
+
+
+     */
+
 
     static
     {
@@ -30,7 +100,7 @@ public class Legacy
         availableOptions.addOption("r",  "random",               false,  "Use random key generator for read key generation (STDEV will have no effect), default:false");
         availableOptions.addOption("f",  "file",                 true,   "Write output to given file");
         availableOptions.addOption("p",  "port",                 true,   "Thrift port, default:9160");
-        availableOptions.addOption("o",  "operation",            true,   "Operation to perform (INSERT, READ, READWRITE, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTERWRITE, COUNTER_GET), default:INSERT");
+        availableOptions.addOption("o",  "operation",            true,   "Operation to perform (WRITE, READ, READWRITE, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTERWRITE, COUNTER_GET), default:WRITE");
         availableOptions.addOption("u",  "supercolumns",         true,   "Number of super columns per key, default:1");
         availableOptions.addOption("y",  "family-type",          true,   "Column Family Type (Super, Standard), default:Standard");
         availableOptions.addOption("K",  "keep-trying",          true,   "Retry on-going operation N times (in case of failure). positive integer, default:10");
@@ -64,4 +134,287 @@ public class Legacy
         availableOptions.addOption("th",  "throttle",            true,   "Throttle the total number of operations per second to a maximum amount.");
     }
 
+    public static StressSettings build(String[] arguments)
+    {
+        CommandLineParser parser = new PosixParser();
+
+        final Converter r = new Converter();
+        try
+        {
+            CommandLine cmd = parser.parse(availableOptions, arguments);
+
+            if (cmd.getArgs().length > 0)
+            {
+                System.err.println("Application does not allow arbitrary arguments: " + Arrays.asList(cmd.getArgList()));
+                System.exit(1);
+            }
+
+            if (cmd.hasOption("h"))
+                printHelpMessage();
+
+            if (cmd.hasOption("C"))
+                System.out.println("Ignoring deprecated option -C");
+
+            if (cmd.hasOption("o"))
+                r.setCommand(cmd.getOptionValue("o").toLowerCase());
+            else
+                r.setCommand("insert");
+
+            if (cmd.hasOption("K"))
+                r.add("command", "retry=" + cmd.getOptionValue("K"));
+
+            if (cmd.hasOption("k"))
+            {
+                if (!cmd.hasOption("K"))
+                    r.add("command", "retry=1");
+                r.add("command", "ignore_errors");
+            }
+
+            if (cmd.hasOption("g"))
+                r.add("command", "at-once=" + cmd.getOptionValue("g"));
+
+            if (cmd.hasOption("e"))
+                r.add("command", "cl=" + cmd.getOptionValue("e"));
+
+            String numKeys;
+            if (cmd.hasOption("n"))
+                numKeys = cmd.getOptionValue("n");
+            else
+                numKeys = "1000000";
+            r.add("command", "n=" + numKeys);
+
+            String uniqueKeys;
+            if (cmd.hasOption("F"))
+                uniqueKeys = cmd.getOptionValue("F");
+            else
+                uniqueKeys = numKeys;
+
+            if (r.command.equals("insert") || r.command.equals("counter_add"))
+            {
+                if (!uniqueKeys.equals(numKeys))
+                    r.add("command", "populate=1.." + uniqueKeys);
+            }
+            else if (cmd.hasOption("r"))
+            {
+                r.add("-key", "dist=uniform(1.." + uniqueKeys + ")");
+            }
+            else
+            {
+                if (!cmd.hasOption("s"))
+                    r.add("-key", "dist=gauss(1.." + uniqueKeys + ",5)");
+                else
+                    r.add("-key", String.format("dist=gauss(1..%s,%.2f)", uniqueKeys,
+                            0.5 / Float.parseFloat(cmd.getOptionValue("s"))));
+            }
+
+            String colCount;
+            if (cmd.hasOption("c"))
+                r.add("-col", "count=FIXED(" + (colCount = cmd.getOptionValue("c")) + ")");
+            else
+                colCount = "5";
+
+            String colSize;
+            if (cmd.hasOption("S"))
+                colSize = cmd.getOptionValue("S");
+            else
+                colSize = "34";
+
+            r.add("-col", "count=fixed(" + colCount + ")");
+            if (cmd.hasOption("V"))
+            {
+                r.add("-col", "size=uniform(1.." + Integer.parseInt(colSize) * 2 + ")");
+                r.add("-col", "data=rand()");
+            }
+            else
+            {
+                r.add("-col", "size=fixed(" + colSize + ")");
+                r.add("-col", "data=repeat(1)");
+            }
+            if (cmd.hasOption("Q"))
+                r.add("-col", "names=" + cmd.getOptionValue("Q"));
+
+            if (cmd.hasOption("U"))
+                r.add("-col", "comparator=" + cmd.getOptionValue("U"));
+
+            if (cmd.hasOption("y") && cmd.getOptionValue("y").equals("Super"))
+                r.add("-col", "super=" + (cmd.hasOption("u") ? cmd.getOptionValue("u") : "1"));
+
+            if (cmd.hasOption("t"))
+                r.add("-rate", "threads=" + cmd.getOptionValue("t"));
+            else
+                r.add("-rate", "threads=50");
+
+            if (cmd.hasOption("th"))
+                r.add("-rate", "limit=" + cmd.getOptionValue("th") + "/s");
+
+            if (cmd.hasOption("f"))
+                r.add("-log", "file=" + cmd.getOptionValue("f"));
+
+            if (cmd.hasOption("p"))
+                r.add("-port", cmd.getOptionValue("p"));
+
+            if (cmd.hasOption("i"))
+                r.add("-log", cmd.getOptionValue("i"));
+            else
+                r.add("-log", "interval=10");
+
+            if (cmd.hasOption("x"))
+                r.add("-schema", "index=" + cmd.getOptionValue("x"));
+
+            if (cmd.hasOption("R") || cmd.hasOption("l") || cmd.hasOption("O"))
+            {
+                StringBuilder rep = new StringBuilder();
+                if (cmd.hasOption("R"))
+                    rep.append("strategy=" + cmd.getOptionValue("R"));
+                if (cmd.hasOption("l"))
+                {
+                    if (rep.length() > 0)
+                        rep.append(",");
+                    rep.append("factor=" + cmd.getOptionValue("l"));
+                }
+                if (cmd.hasOption("O"))
+                {
+                    if (rep.length() > 0)
+                        rep.append(",");
+                    rep.append(cmd.getOptionValue("O").replace(':','='));
+                }
+                r.add("-schema", "replication(" + rep + ")");
+            }
+
+            if (cmd.hasOption("L"))
+                r.add("-mode", cmd.hasOption("P") ? "prepared cql2" : "cql2");
+            else if (cmd.hasOption("L3"))
+                r.add("-mode", (cmd.hasOption("P") ? "prepared" : "") + (cmd.hasOption("b") ? "native" : "") +  "cql3");
+            else
+                r.add("-mode", "thrift");
+
+            if (cmd.hasOption("W"))
+                r.add("-schema", "no-replicate-on-write");
+
+            if (cmd.hasOption("I"))
+                r.add("-schema", "compression=" + cmd.getOptionValue("I"));
+
+            if (cmd.hasOption("d"))
+                r.add("-node", cmd.getOptionValue("d"));
+
+            if (cmd.hasOption("D"))
+                r.add("-node", "file=" + cmd.getOptionValue("D"));
+
+
+            if (cmd.hasOption("send-to"))
+                r.add("-send-to", cmd.getOptionValue("send-to"));
+
+            if (cmd.hasOption("Z"))
+                r.add("-schema", "compaction=" + cmd.getOptionValue("Z"));
+
+            if (cmd.hasOption("ns"))
+                r.add("-log", "no-summary");
+
+            if (cmd.hasOption("tf"))
+                r.add("-transport", "factory=" + cmd.getOptionValue("tf"));
+
+            // THESE DON'T SEEM TO AFFECT PROGRAM BEHAVIOUR
+//            if(cmd.hasOption(SSL_TRUSTSTORE))
+//                encOptions.truststore = cmd.getOptionValue(SSL_TRUSTSTORE);
+//
+//            if(cmd.hasOption(SSL_TRUSTSTORE_PW))
+//                encOptions.truststore_password = cmd.getOptionValue(SSL_TRUSTSTORE_PW);
+//
+//            if(cmd.hasOption(SSL_PROTOCOL))
+//                encOptions.protocol = cmd.getOptionValue(SSL_PROTOCOL);
+//
+//            if(cmd.hasOption(SSL_ALGORITHM))
+//                encOptions.algorithm = cmd.getOptionValue(SSL_ALGORITHM);
+//
+//            if(cmd.hasOption(SSL_STORE_TYPE))
+//                encOptions.store_type = cmd.getOptionValue(SSL_STORE_TYPE);
+//
+//            if(cmd.hasOption(SSL_CIPHER_SUITES))
+//                encOptions.cipher_suites = cmd.getOptionValue(SSL_CIPHER_SUITES).split(",");
+
+        }
+        catch (ParseException e)
+        {
+            printHelpMessage();
+            System.exit(1);
+        }
+
+        r.printNewCommand();
+        return r.get();
+    }
+
+    private static final class Converter
+    {
+        private Map<String, List<String>> opts = new LinkedHashMap<>();
+        List<String> command;
+        public void add(String option, String suboption)
+        {
+            if (option.equals("command"))
+            {
+                command.add(suboption);
+                return;
+            }
+            List<String> params = opts.get(option);
+            if (params == null)
+                opts.put(option, params = new ArrayList());
+            params.add(suboption);
+        }
+        StressSettings get(){
+            Map<String, String[]> clArgs = new HashMap<>();
+            for (Map.Entry<String, List<String>> e : opts.entrySet())
+                clArgs .put(e.getKey(), e.getValue().toArray(new String[0]));
+            return StressSettings.get(clArgs);
+        }
+        void setCommand(String command)
+        {
+            opts.put(command, this.command = new ArrayList<>());
+        }
+        void printNewCommand()
+        {
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<String, List<String>> e : opts.entrySet())
+            {
+                sb.append(e.getKey());
+                for (String opt : e.getValue())
+                {
+                    sb.append(" ");
+                    sb.append(opt);
+                }
+            }
+            System.out.println("Running in legacy support mode. Translating command to: ");
+            System.out.println(sb.toString());
+        }
+    }
+
+    private TTransportFactory validateAndSetTransportFactory(String transportFactory)
+    {
+        try
+        {
+            Class factory = Class.forName(transportFactory);
+
+            if(!TTransportFactory.class.isAssignableFrom(factory))
+                throw new IllegalArgumentException(String.format("transport factory '%s' " +
+                        "not derived from TTransportFactory", transportFactory));
+
+            return (TTransportFactory) factory.newInstance();
+        }
+        catch (Exception e)
+        {
+            throw new IllegalArgumentException(String.format("Cannot create a transport factory '%s'.", transportFactory), e);
+        }
+    }
+
+    public static void printHelpMessage()
+    {
+        System.out.println("Usage: ./bin/cassandra-stress legacy [options]\n\nOptions:");
+        System.out.println("THIS IS A LEGACY SUPPORT MODE");
+
+        for(Object o : availableOptions.getOptions())
+        {
+            Option option = (Option) o;
+            String upperCaseName = option.getLongOpt().toUpperCase();
+            System.out.println(String.format("-%s%s, --%s%s%n\t\t%s%n", option.getOpt(), (option.hasArg()) ? " "+upperCaseName : "",
+                    option.getLongOpt(), (option.hasArg()) ? "="+upperCaseName : "", option.getDescription()));
+        }
+    }
 }

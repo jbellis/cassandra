@@ -7,16 +7,17 @@ import org.apache.cassandra.stress.generatedata.DistributionFixed;
 import org.apache.commons.math3.distribution.*;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class OptionDistribution implements Option
+public class OptionDistribution extends Option
 {
 
-    private static final Pattern FULL = Pattern.compile("([A-Z]+)\\((.+)\\)");
+    private static final Pattern FULL = Pattern.compile("([A-Z]+)\\((.+)\\)", Pattern.CASE_INSENSITIVE);
     private static final Pattern ARGS = Pattern.compile("[^,]+");
 
     final String prefix;
@@ -65,15 +66,26 @@ public class OptionDistribution implements Option
         return factory != null || defaultFactory != null;
     }
 
-    @Override
-    public String description()
+    public String longDisplay()
     {
-        return "Specify a mathematical distribution";
+        return shortDisplay() + ": Specify a mathematical distribution";
     }
 
-    public String toString()
+    @Override
+    public List<String> multiLineDisplay()
     {
-        return "GAUSSIAN(<minKey>..<maxKey>,<stdevs from mean to minKey/maxKey>), UNIFORM(minKey..maxKey), ";
+        return Arrays.asList(
+                GroupedOptions.formatMultiLine("GAUSSIAN(min..max,stdvrng)", "A gaussian/normal distribution, where mean=(min+max)/2, and stdev is (mean-min)/stdvrng"),
+                GroupedOptions.formatMultiLine("GAUSSIAN(min..max,mean,stdev)", "A gaussian/normal distribution, with explicitly defined mean and stdev"),
+                GroupedOptions.formatMultiLine("UNIFORM(min..max)", "A uniform distribution over the range [min, max]"),
+                GroupedOptions.formatMultiLine("FIXED(val)", "A fixed distribution, always returning the same value")
+        );
+    }
+
+    @Override
+    public String shortDisplay()
+    {
+        return prefix + "DIST(?)";
     }
 
     private static final Map<String, Impl> LOOKUP;
@@ -85,6 +97,7 @@ public class OptionDistribution implements Option
         lookup.put("gauss", new GaussianImpl());
         lookup.put("norm", new GaussianImpl());
         lookup.put("uniform", new UniformImpl());
+        lookup.put("fixed", new FixedImpl());
         LOOKUP = lookup;
     }
 
@@ -94,6 +107,46 @@ public class OptionDistribution implements Option
     }
 
     private static final class GaussianImpl implements Impl
+    {
+
+        @Override
+        public DistributionFactory getFactory(List<String> params)
+        {
+            if (params.size() > 3 || params.size() < 1)
+                throw new IllegalArgumentException("Invalid parameter list for gaussian distribution: " + params);
+            try
+            {
+                String[] bounds = params.get(0).split("\\.\\.+");
+                final long minKey = Long.parseLong(bounds[0]);
+                final long maxKey = Long.parseLong(bounds[1]);
+                final double mean, stdev;
+                if (params.size() == 3)
+                {
+                    mean = Double.parseDouble(params.get(1));
+                    stdev = Double.parseDouble(params.get(2));
+                }
+                else
+                {
+                    final double stdevsToEdge = params.size() == 1 ? 3d : Double.parseDouble(params.get(1));
+                    mean = (minKey + maxKey) / 2d;
+                    stdev = ((maxKey - minKey) / 2d) / stdevsToEdge;
+                }
+                return new DistributionFactory()
+                {
+                    @Override
+                    public Distribution get()
+                    {
+                        return new DistributionBoundApache(new NormalDistribution(mean, stdev), minKey, maxKey);
+                    }
+                };
+            } catch (Exception _)
+            {
+                throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
+            }
+        }
+    }
+
+    private static final class LogNormalImpl implements Impl
     {
         @Override
         public DistributionFactory getFactory(List<String> params)
@@ -113,7 +166,7 @@ public class OptionDistribution implements Option
                     @Override
                     public Distribution get()
                     {
-                        return new DistributionBoundApache(new NormalDistribution(mean, stdev), minKey, maxKey);
+                        return new DistributionBoundApache(new LogNormalDistribution(mean, stdev), minKey, maxKey);
                     }
                 };
             } catch (Exception _)
@@ -177,4 +230,15 @@ public class OptionDistribution implements Option
         }
     }
 
+    @Override
+    public int hashCode()
+    {
+        return prefix.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object that)
+    {
+        return super.equals(that) && ((OptionDistribution) that).prefix.equals(this.prefix);
+    }
 }

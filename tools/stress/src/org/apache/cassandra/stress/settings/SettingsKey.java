@@ -51,7 +51,7 @@ public class SettingsKey implements Serializable
 
     private static final class PopulateOptions extends GroupedOptions
     {
-        final OptionSimple populate = new OptionSimple("populate=", "[0-9]+\\.\\.+[0-9]+", "0..1000000", "Populate all keys in sequence", true);
+        final OptionSimple populate = new OptionSimple("populate=", "[0-9]+\\.\\.+[0-9]+", "1..N", "Populate all keys in sequence", true);
         final OptionSimple size = new OptionSimple("size=", "[0-9]+", "10", "Key size in bytes", false);
 
         @Override
@@ -68,26 +68,48 @@ public class SettingsKey implements Serializable
         return new KeyGen(new DataGenHexFromDistribution(distribution.get()), keySize);
     }
 
-    public static SettingsKey get(Map<String, String[]> clArgs, OpType opType)
+    public static SettingsKey get(Map<String, String[]> clArgs, SettingsCommand command)
     {
-        String[] params = clArgs.get("-key");
+        String[] params = clArgs.remove("-key");
         if (params == null)
         {
             // return defaults:
-            if (opType == OpType.INSERT)
-                return new SettingsKey(new PopulateOptions());
+            if (command.type == Command.WRITE)
+            {
+                // default to populating as many keys as doing ops
+                PopulateOptions opts = new PopulateOptions();
+                opts.populate.accept("populate=1.." + command.count);
+                return new SettingsKey(opts);
+            }
             return new SettingsKey(new DistributionOptions());
         }
         GroupedOptions options = GroupedOptions.select(params, new PopulateOptions(), new DistributionOptions());
         if (options == null)
         {
-            GroupedOptions.printOptions(System.out, new PopulateOptions(), new DistributionOptions());
-            throw new IllegalArgumentException("Invalid -key options provided, see output for valid options");
+            printHelp();
+            System.out.println("Invalid -key options provided, see output for valid options");
+            System.exit(1);
         }
         return options instanceof PopulateOptions ?
                 new SettingsKey((PopulateOptions) options) :
                 new SettingsKey((DistributionOptions) options);
     }
 
+    public static void printHelp()
+    {
+        GroupedOptions.printOptions(System.out, "-key", new PopulateOptions(), new DistributionOptions());
+    }
+
+    public static Runnable helpPrinter()
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelp();
+            }
+        };
+    }
 }
 

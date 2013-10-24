@@ -1,7 +1,7 @@
 package org.apache.cassandra.stress;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.commons.lang.time.*;
+import org.apache.commons.lang3.time.*;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -27,10 +27,39 @@ public class StressMetrics
     private volatile TimerInterval fullHistory;
     private final Uncertainty opRateUncertainty = new Uncertainty();
 
+    public static final String HEADFORMAT = "%-10s,%8s,%8s,%5s,%5s,%6s,%8s,%8s,%8s,%7s,%7s";
+    public static final String ROWFORMAT =  "%-10d,%8.0f,%8.0f,%5.1f,%5.1f,%6.1f,%8.1f,%8.1f,%8.1f,%7.1f,%7.3f";
+
+    private static void printHeader(String prefix, PrintStream output)
+    {
+        output.println(prefix + String.format(HEADFORMAT, "ops","op/s","key/s","mean","med",".95",".99",".999","max","time","err"));
+    }
+
+    private static void printRow(String prefix, TimerInterval interval, TimerInterval total, Uncertainty opRateUncertainty, PrintStream output)
+    {
+        output.println(prefix + String.format(ROWFORMAT,
+                total.operationCount,
+                interval.opRate(),
+                interval.keyRate(),
+                interval.meanLatency(),
+                interval.medianLatency(),
+                interval.rankLatency(0.95f),
+                interval.rankLatency(0.99f),
+                interval.rankLatency(0.999f),
+                interval.maxLatency(),
+                total.runTime() / 1000f,
+                opRateUncertainty.uncertainty));
+    }
+
     public StressMetrics(PrintStream output)
     {
         this.output = output;
-        output.println("total,interval:op_rate,key_rate,mean,median,95th,99th,99.9th,max,elapsed_time");
+        printHeader("", output);
+    }
+
+    public TimerInterval getFullHistory()
+    {
+        return fullHistory;
     }
 
     public void meterWithLogInterval(final int intervalMillis)
@@ -64,21 +93,27 @@ public class StressMetrics
         });
     }
 
+    public static final void summarise(List<String> ids, List<StressMetrics> summarise, PrintStream out)
+    {
+        int idLen = 0;
+        for (String id : ids)
+            idLen = Math.max(id.length(), idLen);
+        String formatstr = "%" + idLen + "s, ";
+        printHeader(String.format(formatstr, "id"), out);
+        for (int i = 0 ; i < ids.size() ; i++)
+            printRow(String.format(formatstr, ids.get(i)),
+                    summarise.get(i).fullHistory,
+                    summarise.get(i).fullHistory,
+                    summarise.get(i).opRateUncertainty,
+                    out
+            );
+    }
+
     private void update() throws InterruptedException
     {
         final TimerInterval interval = snapInterval(rnd);
         fullHistory = TimerInterval.merge(rnd, Arrays.asList(interval, fullHistory), 50000, fullHistory.start);
-        output.println(String.format("%d,%.0f,%.0f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f",
-                fullHistory.operationCount,
-                interval.opRate(),
-                interval.keyRate(),
-                interval.meanLatency(),
-                interval.medianLatency(),
-                interval.rankLatency(0.95f),
-                interval.rankLatency(0.99f),
-                interval.rankLatency(0.999f),
-                interval.maxLatency(),
-                fullHistory.runTime() / 1000f));
+        printRow("", interval, fullHistory, opRateUncertainty, output);
         opRateUncertainty.update(interval.opRate());
     }
 
@@ -198,19 +233,19 @@ public class StressMetrics
         return TimerInterval.merge(rnd, intervals, Integer.MAX_VALUE, fullHistory.end);
     }
 
-    private static final class TimerInterval
+    public static final class TimerInterval
     {
         // millis
-        final long start;
-        final long end;
+        public final long start;
+        public final long end;
 
         // nanos
-        final long maxLatency;
-        final long totalLatency;
+        public final long maxLatency;
+        public final long totalLatency;
 
         // discrete
-        final long keyCount;
-        final long operationCount;
+        public final long keyCount;
+        public final long operationCount;
 
         final TimerLatencies[] sampleLatencies;
 
@@ -346,7 +381,7 @@ public class StressMetrics
             }
             if (count > maxSamples)
             {
-                targetp = subsample(rnd, maxSamples, sample, targetp);
+                targetp = subsample(rnd, maxSamples, sample, count, targetp);
                 count = maxSamples;
             }
             sample = Arrays.copyOf(sample, count);
@@ -360,17 +395,17 @@ public class StressMetrics
                 return this;
 
             long[] sample = this.sample.clone();
-            double p = subsample(rnd, maxSamples, sample, this.p);
+            double p = subsample(rnd, maxSamples, sample, sample.length, this.p);
             sample = Arrays.copyOf(sample, maxSamples);
             return new TimerLatencies(sample, p);
         }
 
-        private static double subsample(Random rnd, int maxSamples, long[] sample, double p)
+        private static double subsample(Random rnd, int maxSamples, long[] sample, int count, double p)
         {
             // want exactly maxSamples, so select random indexes up to maxSamples
             for (int i = 0 ; i < maxSamples ; i++)
             {
-                int take = i + rnd.nextInt(sample.length - i);
+                int take = i + rnd.nextInt(count - i);
                 long tmp = sample[i];
                 sample[i] = sample[take];
                 sample[take] = tmp;

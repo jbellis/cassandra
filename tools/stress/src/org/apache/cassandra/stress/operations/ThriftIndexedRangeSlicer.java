@@ -18,7 +18,7 @@
 package org.apache.cassandra.stress.operations;
 
 import org.apache.cassandra.stress.Operation;
-import org.apache.cassandra.stress.settings.SettingsMultiOp;
+import org.apache.cassandra.stress.settings.SettingsCommandMulti;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -64,7 +64,7 @@ public class ThriftIndexedRangeSlicer extends Operation
             final int minResults = 1;
             final IndexClause clause = new IndexClause(Arrays.asList(expression),
                                                  ByteBuffer.wrap(minKey),
-                                                ((SettingsMultiOp) state.settings.op).keysAtOnce);
+                                                ((SettingsCommandMulti) state.settings.op).keysAtOnce);
 
             timeWithRetry(new RunOp()
             {

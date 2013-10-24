@@ -50,17 +50,34 @@ public class SettingsLog
 
     public static SettingsLog get(Map<String, String[]> clArgs)
     {
-        String[] params = clArgs.get("-log");
+        String[] params = clArgs.remove("-log");
         if (params == null)
             return new SettingsLog(new Options());
 
         GroupedOptions options = GroupedOptions.select(params, new Options());
         if (options == null)
         {
-            GroupedOptions.printOptions(System.out, new Options());
-            throw new IllegalArgumentException("Invalid -log options provided, see output for valid options");
+            printHelp();
+            System.out.println("Invalid -log options provided, see output for valid options");
+            System.exit(1);
         }
         return new SettingsLog((Options) options);
     }
 
+    public static void printHelp()
+    {
+        GroupedOptions.printOptions(System.out, "-log", new Options());
+    }
+
+    public static Runnable helpPrinter()
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelp();
+            }
+        };
+    }
 }

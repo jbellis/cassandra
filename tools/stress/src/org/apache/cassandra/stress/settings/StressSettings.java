@@ -9,6 +9,7 @@ import org.apache.thrift.transport.TTransport;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,12 +17,7 @@ import java.util.Map;
 public class StressSettings
 {
 
-//    availableOptions.addOption("h",  "help",                 false,  "Show this help message and exit");
-//    availableOptions.addOption("T",  "send-to",              true,   "Send this as a request to the stress daemon at specified address.");
-//    availableOptions.addOption("p",  "port",                 true,   "Thrift port, default:9160");
-//
-
-    public final SettingsOp op;
+    public final SettingsCommand op;
     public final SettingsRate rate;
     public final SettingsKey keys;
     public final SettingsColumn columns;
@@ -33,7 +29,7 @@ public class StressSettings
     private final int port;
     public final String sendToDaemon;
 
-    public StressSettings(SettingsOp op, SettingsRate rate, SettingsKey keys, SettingsColumn columns, SettingsLog log, SettingsMode mode, SettingsNode node, SettingsSchema schema, SettingsTransport transport, int port, String sendToDaemon)
+    public StressSettings(SettingsCommand op, SettingsRate rate, SettingsKey keys, SettingsColumn columns, SettingsLog log, SettingsMode mode, SettingsNode node, SettingsSchema schema, SettingsTransport transport, int port, String sendToDaemon)
     {
         this.op = op;
         this.rate = rate;
@@ -68,7 +64,7 @@ public class StressSettings
         String currentNode = node.randomNode();
 
         TSocket socket = new TSocket(currentNode, port);
-        TTransport transport = this.transport.transportFactory.getTransport(socket);
+        TTransport transport = this.transport.factory.getTransport(socket);
         Cassandra.Client client = new Cassandra.Client(new TBinaryProtocol(transport));
 
         try
@@ -114,73 +110,53 @@ public class StressSettings
 
     public void maybeCreateKeyspaces()
     {
-        if (op.type == OpType.INSERT || op.type == OpType.COUNTERWRITE)
+        if (op.type == Command.WRITE || op.type == Command.COUNTERWRITE)
             schema.createKeySpaces(this);
 
     }
 
     public static StressSettings parse(String[] args)
     {
-        try
-        {
-            final Map<String, String[]> map = parseMap(args);
+        final Map<String, String[]> clArgs = parseMap(args);
+        if (clArgs.containsKey("legacy"))
+            return Legacy.build(Arrays.copyOfRange(args, 1, args.length));
+        if (maybePrintHelp(clArgs))
+            System.exit(1);
+        return get(clArgs);
+    }
 
-            SettingsOp op = null;
-            int port = 9160;
-            String sendToDaemon = null;
-            for (Map.Entry<String, String[]> e : map.entrySet())
-            {
-                switch (e.getKey().toLowerCase())
-                {
-                    case "read":
-                    case "write":
-                    case "counterwrite":
-                    case "counterread":
-                    case "range_slice":
-                        op = SettingsOp.build(OpType.valueOf(e.getKey().toUpperCase()), e.getValue());
-                    break;
-                    case "mixed":
-                        op = SettingsMixedOp.build(e.getValue());
-                        break;
-                    case "indexed_range_slice":
-                    case "readmulti":
-                        op = SettingsMultiOp.build(OpType.valueOf(e.getKey().toUpperCase()), e.getValue());
-                        break;
-                    case "help":
-                        if (e.getValue().length > 0)
-                            printHelp(e.getValue()[0]);
-                        printHelp();
-                        System.exit(1);
-                        break;
-                    case "port":
-                        if (e.getValue().length != 1)
-                            throw new IllegalArgumentException("Illegal port specifier: " + Arrays.toString(e.getValue()));
-                        port = Integer.parseInt(e.getValue()[0]);
-                        break;
-                    case "sendToDaemon":
-                        if (e.getValue().length != 1)
-                            throw new IllegalArgumentException("Illegal sendToDaemon specifier: " + Arrays.toString(e.getValue()));
-                        sendToDaemon = e.getValue()[0];
-                        break;
-                }
-            }
-            if (op == null)
-                throw new IllegalArgumentException("No operation specified");
-            SettingsRate rate = SettingsRate.get(map);
-            SettingsKey keys = SettingsKey.get(map, op.type);
-            SettingsColumn columns = SettingsColumn.get(map);
-            SettingsLog log = SettingsLog.get(map);
-            SettingsMode mode = SettingsMode.get(map);
-            SettingsNode node = null;
-            SettingsSchema schema = SettingsSchema.get(map);
-            SettingsTransport transport = new SettingsTransport();
-            return new StressSettings(op, rate, keys, columns, log, mode, node, schema, transport, port, sendToDaemon);
-        } catch (IllegalArgumentException e)
+    public static StressSettings get(Map<String, String[]> clArgs)
+    {
+        SettingsCommand command = SettingsCommand.get(clArgs);
+        if (command == null)
+            throw new IllegalArgumentException("No operation specified");
+        int port = SettingsMisc.getPort(clArgs);
+        String sendToDaemon = SettingsMisc.getSendToDaemon(clArgs);
+        SettingsRate rate = SettingsRate.get(clArgs, command);
+        SettingsKey keys = SettingsKey.get(clArgs, command);
+        SettingsColumn columns = SettingsColumn.get(clArgs);
+        SettingsLog log = SettingsLog.get(clArgs);
+        SettingsMode mode = SettingsMode.get(clArgs);
+        SettingsNode node = SettingsNode.get(clArgs);
+        SettingsSchema schema = SettingsSchema.get(clArgs);
+        SettingsTransport transport = SettingsTransport.get(clArgs);
+        if (!clArgs.isEmpty())
         {
             printHelp();
+            System.out.println("Error processing command line arguments. The following were ignored:");
+            for (Map.Entry<String, String[]> e : clArgs.entrySet())
+            {
+                System.out.print(e.getKey());
+                for (String v : e.getValue())
+                {
+                    System.out.print(" ");
+                    System.out.print(v);
+                }
+                System.out.println();
+            }
             System.exit(1);
-            throw new IllegalStateException();
         }
+        return new StressSettings(command, rate, keys, columns, log, mode, node, schema, transport, port, sendToDaemon);
     }
 
     private static final Map<String, String[]> parseMap(String[] args)
@@ -193,11 +169,11 @@ public class StressSettings
         List<String> params = new ArrayList<>();
         for (int i = 0 ; i < args.length ; i++)
         {
-            if (i == 0 || args[0].startsWith("-"))
+            if (i == 0 || args[i].startsWith("-"))
             {
                 if (i > 0)
                     r.put(key, params.toArray(new String[0]));
-                key = args[i];
+                key = args[i].toLowerCase();
                 params.clear();
             }
             else
@@ -207,14 +183,71 @@ public class StressSettings
         return r;
     }
 
-    private static void printHelp()
+    private static boolean maybePrintHelp(Map<String, String[]> clArgs)
     {
-
+        if (!clArgs.containsKey("-?") && !clArgs.containsKey("help"))
+            return false;
+        String[] params = clArgs.remove("-?");
+        if (params == null)
+            params = clArgs.remove("help");
+        if (params.length == 0)
+        {
+            if (!clArgs.isEmpty())
+            {
+                if (clArgs.size() == 1)
+                {
+                    String p = clArgs.keySet().iterator().next();
+                    if (clArgs.get(p).length == 0)
+                        params = new String[] {p};
+                }
+            }
+            else
+            {
+                printHelp();
+                return true;
+            }
+        }
+        if (params.length == 1)
+        {
+            printHelp(params[0]);
+            return true;
+        }
+        throw new IllegalArgumentException("Invalid command/option provided to help");
     }
 
-    private static void printHelp(String command)
+    public static void printHelp()
     {
+        System.out.println("Usage: ./bin/cassandra-stress <command> [options]");
+        System.out.println();
+        System.out.println("---Commands---");
+        for (Command cmd : Command.values())
+        {
+            System.out.println(String.format("%-20s : %s", cmd.toString().toLowerCase(), cmd.description));
+        }
+        System.out.println();
+        System.out.println("---Options---");
+        for (CliOption cmd : CliOption.values())
+        {
+            System.out.println(String.format("-%-20s : %s", cmd.toString().toLowerCase(), cmd.description));
+        }
+    }
 
+    public static void printHelp(String command)
+    {
+        Command cmd = Command.get(command);
+        if (cmd != null)
+        {
+            cmd.printHelp();
+            return;
+        }
+        CliOption opt = CliOption.get(command);
+        if (opt != null)
+        {
+            opt.printHelp();
+            return;
+        }
+        printHelp();
+        throw new IllegalArgumentException("Invalid command or option provided to command help");
     }
 
 }

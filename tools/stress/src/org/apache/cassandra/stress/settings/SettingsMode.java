@@ -25,7 +25,7 @@ public class SettingsMode
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(api, useNative, usePrepared);
+            return Arrays.asList(useNative, usePrepared, api);
         }
     }
 
@@ -37,7 +37,7 @@ public class SettingsMode
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(api, usePrepared);
+            return Arrays.asList(usePrepared, api);
         }
     }
 
@@ -81,17 +81,34 @@ public class SettingsMode
 
     public static SettingsMode get(Map<String, String[]> clArgs)
     {
-        String[] params = clArgs.get("-mode");
+        String[] params = clArgs.remove("-mode");
         if (params == null)
             return new SettingsMode(new ThriftOptions());
 
         GroupedOptions options = GroupedOptions.select(params, new ThriftOptions(), new Cql2Options(), new Cql3Options());
         if (options == null)
         {
-            GroupedOptions.printOptions(System.out, new ThriftOptions(), new Cql2Options(), new Cql3Options());
-            throw new IllegalArgumentException("Invalid -mode options provided, see output for valid options");
+            printHelp();
+            System.out.println("Invalid -mode options provided, see output for valid options");
+            System.exit(1);
         }
         return new SettingsMode(options);
     }
 
+    public static void printHelp()
+    {
+        GroupedOptions.printOptions(System.out, "-mode", new ThriftOptions(), new Cql2Options(), new Cql3Options());
+    }
+
+    public static Runnable helpPrinter()
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelp();
+            }
+        };
+    }
 }

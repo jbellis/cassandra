@@ -1,12 +1,18 @@
 package org.apache.cassandra.stress.generatedata;
 
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.commons.math3.distribution.*;
+import org.apache.commons.math3.util.*;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static com.google.common.base.Charsets.*;
 
@@ -14,46 +20,37 @@ public class DataGenStringDictionary extends DataGen
 {
 
     private final byte space = ' ';
+    private final EnumeratedDistribution<byte[]> words;
 
-    public DataGenStringDictionary(File dictionary)
+    public DataGenStringDictionary(EnumeratedDistribution<byte[]> wordDistribution)
     {
-
+        words = wordDistribution;
     }
 
     @Override
     public void generate(ByteBuffer fill, long index)
     {
-        fill(fill, index, 0);
+        fill(fill, 0);
     }
 
     @Override
     public void generate(List<ByteBuffer> fills, long index)
     {
         for (int i = 0 ; i < fills.size() ; i++)
-        {
-            fill(fills.get(0), index, i);
-        }
+            fill(fills.get(0), i);
     }
 
-    private void fill(ByteBuffer fill, long index, int column)
+    private void fill(ByteBuffer fill, int column)
     {
         fill.clear();
         byte[] trg = fill.array();
-        byte[] src = getData(index, column);
-        for (int j = 0 ; j < trg.length ; j += src.length)
-            System.arraycopy(src, 0, trg, j, Math.min(src.length, trg.length - j));
-    }
-
-    private byte[] getData(long index, int column)
-    {
-        final long key = (column * repeatFrequency) + (index % repeatFrequency);
-        byte[] r = cache.get(key);
-        if (r != null)
-            return r;
-        MessageDigest md = FBUtilities.threadLocalMD5Digest();
-        r = md.digest(Long.toString(key).getBytes(UTF_8));
-        cache.putIfAbsent(key, r);
-        return r;
+        int i = 0;
+        while (i < trg.length)
+        {
+            byte[] src = words.sample();
+            System.arraycopy(src, 0, trg, i, Math.min(src.length, trg.length - i));
+            i += src.length;
+        }
     }
 
     @Override
@@ -62,9 +59,27 @@ public class DataGenStringDictionary extends DataGen
         return true;
     }
 
-    public static DataGenFactory getFactory(File file)
+    public static DataGenFactory getFactory(File file) throws IOException
     {
-
+        final List<Pair<byte[], Double>> words = new ArrayList<>();
+        final BufferedReader reader = new BufferedReader(new FileReader(file));
+        String line;
+        while ( null != (line = reader.readLine()) )
+        {
+            String[] pair = line.split(" +");
+            if (pair.length != 2)
+                throw new IllegalArgumentException("Invalid record in dictionary: \"" + line + "\"");
+            words.add(new Pair<>(pair[1].getBytes(UTF_8), Double.parseDouble(pair[0])));
+        }
+        final EnumeratedDistribution<byte[]> dist = new EnumeratedDistribution<byte[]>(words);
+        return new DataGenFactory()
+        {
+            @Override
+            public DataGen get()
+            {
+                return new DataGenStringDictionary(dist);
+            }
+        };
     }
 
 }

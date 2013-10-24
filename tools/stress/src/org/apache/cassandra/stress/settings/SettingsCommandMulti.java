@@ -1,10 +1,9 @@
 package org.apache.cassandra.stress.settings;
 
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SettingsMultiOp extends SettingsOp
+public class SettingsCommandMulti extends SettingsCommand
 {
 
     static final class Options extends GroupedOptions
@@ -28,21 +27,38 @@ public class SettingsMultiOp extends SettingsOp
 
     public final int keysAtOnce;
 
-    public SettingsMultiOp(OpType type, Options options)
+    public SettingsCommandMulti(Command type, Options options)
     {
         super(type, options.parent);
         this.keysAtOnce = Integer.parseInt(options.maxKeys.value());
     }
 
-    public static SettingsOp build(OpType type, String[] params)
+    public static SettingsCommand build(Command type, String[] params)
     {
         GroupedOptions options = GroupedOptions.select(params, new Options(new Uncertainty()), new Options(new Count()));
         if (options == null)
         {
-            GroupedOptions.printOptions(System.out, new Options(new Uncertainty()), new Options(new Count()));
-            throw new IllegalArgumentException("Invalid " + type + " options provided, see output for valid options");
+            printHelp(type);
+            System.out.println("Invalid " + type + " options provided, see output for valid options");
+            System.exit(1);
         }
-        return new SettingsMultiOp(type, (Options) options);
+        return new SettingsCommandMulti(type, (Options) options);
     }
 
+    public static void printHelp(Command type)
+    {
+        GroupedOptions.printOptions(System.out, type.toString().toLowerCase(), new Options(new Uncertainty()), new Options(new Count()));
+    }
+
+    public static Runnable helpPrinter(final Command type)
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelp(type);
+            }
+        };
+    }
 }

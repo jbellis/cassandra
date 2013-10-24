@@ -8,13 +8,14 @@ import org.apache.cassandra.stress.generatedata.DataGenStringRepeats;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class OptionDataGen implements Option
+public class OptionDataGen extends Option
 {
 
     private static final Pattern FULL = Pattern.compile("([A-Z]+)\\(([^)]+)\\)");
@@ -67,14 +68,24 @@ public class OptionDataGen implements Option
     }
 
     @Override
-    public String description()
+    public String shortDisplay()
     {
-        return "Specify a data generator";
+        return prefix + "ALG()";
     }
 
-    public String toString()
+    public String longDisplay()
     {
-        return "RANDOM(), REPEAT(<frequency>), DICT(<file>)";
+        return shortDisplay() + ": Specify a data generator from:";
+    }
+
+    @Override
+    public List<String> multiLineDisplay()
+    {
+        return Arrays.asList(
+                GroupedOptions.formatMultiLine("RANDOM()", "Completely random byte generation"),
+                GroupedOptions.formatMultiLine("REPEAT(<freq>)", "An MD5 hash of (opIndex % freq) combined with the column index"),
+                GroupedOptions.formatMultiLine("DICT(<file>)","Random words from a dictionary; the file should be in the format \"<freq> <word>\"")
+        );
     }
 
     private static final Map<String, Impl> LOOKUP;

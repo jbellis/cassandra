@@ -25,9 +25,9 @@ import java.util.List;
 
 import org.apache.cassandra.stress.generatedata.KeyGen;
 import org.apache.cassandra.stress.generatedata.RowGen;
+import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.CqlVersion;
-import org.apache.cassandra.stress.settings.OpType;
-import org.apache.cassandra.stress.settings.SettingsMixedOp;
+import org.apache.cassandra.stress.settings.SettingsCommandMixed;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.ColumnParent;
@@ -59,15 +59,15 @@ public abstract class Operation
 
         public final StressSettings settings;
         public final StressMetrics.Timer timer;
-        public final OpType type;
+        public final Command type;
         public final KeyGen keyGen;
         public final RowGen rowGen;
         public final List<ColumnParent> columnParents;
         public final StressMetrics metrics;
-        public final SettingsMixedOp.ReadWriteSelector readWriteSelector;
+        public final SettingsCommandMixed.ReadWriteSelector readWriteSelector;
         private Object cqlCache;
 
-        public State(OpType type, StressSettings settings, StressMetrics metrics)
+        public State(Command type, StressSettings settings, StressMetrics metrics)
         {
             this.type = type;
             this.timer = metrics.newTimer();
@@ -75,7 +75,7 @@ public abstract class Operation
 //            switch (type)
 //            {
 //                case COUNTERWRITE:
-//                case INSERT:
+//                case WRITE:
 //                    this.keyGen = new DataGenHexFromOpIndex(session.getMinKey(), session.getMaxKey());
 //                    break;
 //                default:
@@ -90,8 +90,8 @@ public abstract class Operation
 //            else
 //                this.rowGen = new RowGenFixedSize(new DataGenStringRepeats(session.getUniqueRowCount()), session.getColumnsPerKey(), session.getColumnSize());
 //
-            if (type == OpType.MIXED)
-                readWriteSelector = ((SettingsMixedOp) settings.op).selector();
+            if (type == Command.MIXED)
+                readWriteSelector = ((SettingsCommandMixed) settings.op).selector();
             else
                 readWriteSelector = null;
             this.settings = settings;
@@ -159,7 +159,7 @@ public abstract class Operation
         boolean success = false;
         String exceptionMessage = null;
 
-        for (int t = 0; t < state.settings.op.retries ; t++)
+        for (int t = 0; t < state.settings.op.tries; t++)
         {
             if (success)
                 break;
@@ -180,9 +180,9 @@ public abstract class Operation
 
         if (!success)
         {
-            error(String.format("Operation [%d] retried %d times - error executing range slice with offset %s %s%n",
+            error(String.format("Operation [%d] retried %d times - error executing for key %s %s%n",
                     index,
-                    state.settings.op.retries,
+                    state.settings.op.tries,
                     run.key(),
                     (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
         }

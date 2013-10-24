@@ -41,7 +41,7 @@ public final class ThriftInserter extends Operation
         final List<Column> columns = generateColumns();
 
         Map<String, List<Mutation>> row;
-        if (state.settings.columns.useSuperColumns)
+        if (!state.settings.columns.useSuperColumns)
         {
             List<Mutation> mutations = new ArrayList<>(columns.size());
             for (Column c : columns)

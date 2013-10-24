@@ -1,9 +1,12 @@
 package org.apache.cassandra.stress.settings;
 
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-public class OptionMap implements Option
+public class OptionMap extends Option
 {
 
     final Map<String, String> map = new HashMap<>();
@@ -24,8 +27,20 @@ public class OptionMap implements Option
     }
 
     @Override
-    public String description()
+    public List<String> multiLineDisplay()
     {
-        return "key1=value1,key2=value2...";
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public String longDisplay()
+    {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public String shortDisplay()
+    {
+        throw new NotImplementedException();
     }
 }

@@ -1,0 +1,159 @@
+package org.apache.cassandra.stress.settings;
+
+import org.apache.cassandra.thrift.ConsistencyLevel;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
+public class SettingsCommand
+{
+
+//    availableOptions.addOption("o",  "operation",            true,   "Operation to perform (WRITE, READ, READWRITE, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTERWRITE, COUNTER_GET), default:WRITE");
+//    availableOptions.addOption("n",  "num-keys",             true,   "Number of keys, default:1000000");
+//    availableOptions.addOption("g",  "keys-per-call",        true,   "Number of keys to get_range_slices or multiget per call, default:1000");
+
+//    availableOptions.addOption("u",  "supercolumns",         true,   "Number of super columns per key, default:1");
+//    availableOptions.addOption("y",  "family-type",          true,   "Column Family Type (Super, Standard), default:Standard");
+//    availableOptions.addOption("K",  "keep-trying",          true,   "Retry on-going operation N times (in case of failure). positive integer, default:10");
+//    availableOptions.addOption("k",  "keep-going",           false,  "Ignore errors inserting or reading (when set, --keep-trying has no effect), default:false");
+//    availableOptions.addOption("e",  "consistency-level",    true,   "Consistency Level to use (ONE, QUORUM, LOCAL_QUORUM, EACH_QUORUM, ALL, ANY), default:ONE");
+
+    public final Command type;
+    public final long count;
+    public final int tries;
+    public final boolean ignoreErrors;
+    public final ConsistencyLevel consistencyLevel;
+    public final double targetUncertainty;
+    public final int minimumUncertaintyMeasurements;
+
+    static abstract class Options extends GroupedOptions
+    {
+        final OptionSimple retries = new OptionSimple("tries=", "[0-9]+", "9", "Number of tries to perform for each operation before failing", false);
+        final OptionSimple ignoreErrors = new OptionSimple("ignore_errors", "", null, "Do not print/log errors", false);
+        final OptionSimple consistencyLevel = new OptionSimple("cl=", "ONE|QUORUM|LOCAL_QUORUM|EACH_QUORUM|ALL|ANY", "ONE", "Consistency level to use", false);
+    }
+
+    static class Count extends Options
+    {
+
+        final OptionSimple count = new OptionSimple("n=", "[0-9]+", null, "Number of operations to perform", true);
+
+        @Override
+        public List<? extends Option> options()
+        {
+            return Arrays.asList(count, retries, ignoreErrors, consistencyLevel);
+        }
+    }
+
+    static class Uncertainty extends Options
+    {
+
+        final OptionSimple uncertainty = new OptionSimple("err<", "0\\.[0-9]+", "0.01", "Run until the standard error of the mean is below this fraction", false);
+        final OptionSimple minMeasurements = new OptionSimple("n>", "[0-9]+", "30", "Run at least this many iterations before accepting uncertainty convergence", false);
+
+        @Override
+        public List<? extends Option> options()
+        {
+            return Arrays.asList(uncertainty, minMeasurements, retries, ignoreErrors, consistencyLevel);
+        }
+    }
+
+    public SettingsCommand(Command type, GroupedOptions options)
+    {
+        this(type, (Options) options,
+                options instanceof Count ? (Count) options : null,
+                options instanceof Uncertainty ? (Uncertainty) options : null
+        );
+    }
+
+    public SettingsCommand(Command type, Options options, Count count, Uncertainty uncertainty)
+    {
+        this.type = type;
+        this.tries = Math.max(1, Integer.parseInt(options.retries.value()) + 1);
+        this.ignoreErrors = options.ignoreErrors.present();
+        this.consistencyLevel = ConsistencyLevel.valueOf(options.consistencyLevel.value().toUpperCase());
+        if (count != null)
+        {
+            this.count = Long.parseLong(count.count.value());
+            this.targetUncertainty = -1;
+            this.minimumUncertaintyMeasurements = -1;
+        }
+        else
+        {
+            this.count = -1;
+            this.targetUncertainty = Double.parseDouble(uncertainty.uncertainty.value());
+            this.minimumUncertaintyMeasurements = Integer.parseInt(uncertainty.minMeasurements.value());
+        }
+    }
+
+    public static SettingsCommand get(Map<String, String[]> clArgs)
+    {
+        for (Command cmd : Command.values())
+        {
+            if (cmd.category == null)
+                continue;
+            final String[] params = clArgs.remove(cmd.toString().toLowerCase());
+            if (params != null)
+            {
+                switch (cmd.category)
+                {
+                    case BASIC:
+                        return build(cmd, params);
+                    case MULTI:
+                        return SettingsCommandMulti.build(cmd, params);
+                    case MIXED:
+                        return SettingsCommandMixed.build(params);
+                }
+            }
+        }
+        return null;
+    }
+
+    public static SettingsCommand build(Command type, String[] params)
+    {
+        GroupedOptions options = GroupedOptions.select(params, new Count(), new Uncertainty());
+        if (options == null)
+        {
+            printHelp(type);
+            System.out.println("Invalid " + type + " options provided, see output for valid options");
+            System.exit(1);
+        }
+        return new SettingsCommand(type, options);
+    }
+
+    public static void printHelp(Command type)
+    {
+        printHelp(type.toString().toLowerCase());
+    }
+
+    public static void printHelp(String type)
+    {
+        GroupedOptions.printOptions(System.out, type.toString().toLowerCase(), new Uncertainty(), new Count());
+    }
+
+    public static Runnable helpPrinter(final String type)
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelp(type);
+            }
+        };
+    }
+
+    public static Runnable helpPrinter(final Command type)
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelp(type);
+            }
+        };
+    }
+}
+

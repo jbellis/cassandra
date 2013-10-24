@@ -9,13 +9,14 @@ import org.apache.cassandra.stress.generatedata.DistributionFixed;
 import org.apache.commons.math3.distribution.*;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class OptionReplication implements Option
+public class OptionReplication extends Option
 {
 
     private static final Pattern FULL = Pattern.compile("replication\\((.*)\\)", Pattern.CASE_INSENSITIVE);
@@ -93,14 +94,25 @@ public class OptionReplication implements Option
     }
 
     @Override
-    public String description()
+    public String shortDisplay()
     {
-        return "Specify replication settings; default is replication(factor=1,strategy=SimpleStrategy)";
+        return "replication(?)";
     }
 
-    public String toString()
+    @Override
+    public String longDisplay()
     {
-        return "replication(factor=?,strategy=?,<option>=?,...)";
+        return "replication(factor=?,strategy=?,<option1>=?,...)";
+    }
+
+    @Override
+    public List<String> multiLineDisplay()
+    {
+        return Arrays.asList(
+                GroupedOptions.formatMultiLine("factor=?","The replication factor to use (default 1)"),
+                GroupedOptions.formatMultiLine("strategy=?","The replication strategy to use (default SimpleStrategy)"),
+                GroupedOptions.formatMultiLine("option=?","Arbitrary replication strategy options")
+        );
     }
 
 }

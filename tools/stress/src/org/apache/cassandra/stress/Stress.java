@@ -26,12 +26,7 @@ import java.net.SocketException;
 
 public final class Stress
 {
-    public static enum Operations
-    {
-        INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTER_ADD, COUNTER_GET, READWRITE
-    }
 
-//    private static Session session;
     private static volatile boolean stopped = false;
 
     public static void main(String[] arguments) throws Exception
@@ -44,6 +39,7 @@ public final class Stress
         catch (IllegalArgumentException e)
         {
             printHelpMessage();
+            e.printStackTrace();
             return;
         }
 
@@ -98,15 +94,7 @@ public final class Stress
      */
     public static void printHelpMessage()
     {
-        System.out.println("Usage: ./bin/cassandra-stress [options]\n\nOptions:");
-
-        for(Object o : Session.availableOptions.getOptions())
-        {
-            Option option = (Option) o;
-            String upperCaseName = option.getLongOpt().toUpperCase();
-            System.out.println(String.format("-%s%s, --%s%s%n\t\t%s%n", option.getOpt(), (option.hasArg()) ? " "+upperCaseName : "",
-                                                            option.getLongOpt(), (option.hasArg()) ? "="+upperCaseName : "", option.getDescription()));
-        }
+        StressSettings.printHelp();
     }
 
     private static class ShutDown extends Thread

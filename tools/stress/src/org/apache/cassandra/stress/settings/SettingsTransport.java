@@ -1,11 +1,11 @@
 package org.apache.cassandra.stress.settings;
 
-import org.apache.cassandra.cli.transport.FramedTransportFactory;
-import org.apache.commons.lang.*;
 import org.apache.thrift.transport.TTransportFactory;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 public class SettingsTransport
 {
@@ -71,6 +71,39 @@ public class SettingsTransport
                 throw new IllegalArgumentException("Invalid transport factory class: " + options.factory.value(), e);
             }
         }
+    }
+
+    public static SettingsTransport get(Map<String, String[]> clArgs)
+    {
+        String[] params = clArgs.remove("-transport");
+        if (params == null)
+            return new SettingsTransport(new TOptions());
+
+        GroupedOptions options = GroupedOptions.select(params, new TOptions());
+        if (options == null)
+        {
+            printHelp();
+            System.out.println("Invalid -transport options provided, see output for valid options");
+            System.exit(1);
+        }
+        return new SettingsTransport((TOptions) options);
+    }
+
+    public static void printHelp()
+    {
+        GroupedOptions.printOptions(System.out, "-transport", new TOptions());
+    }
+
+    public static Runnable helpPrinter()
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelp();
+            }
+        };
     }
 
 }
