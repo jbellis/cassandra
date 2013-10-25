@@ -6,76 +6,49 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 public class RowGenDistributedSize extends RowGen
 {
 
-    static final int MAX_BUFFER_CACHE_SIZE = 1024 * 1024;
-    static final int MAX_COLUMN_COUNT = 1024;
+    // TODO - make configurable
+    static final int MAX_SINGLE_CACHE_SIZE = 16 * 1024;
 
     final Distribution countDistribution;
     final Distribution sizeDistribution;
 
-    final LinkedHashMap<CacheKey, CachedBuffer> cache = new LinkedHashMap<>();
-    int cacheSize;
-
-    static final class CachedBuffer
-    {
-        final ByteBuffer buffer;
-        final CacheKey key;
-        boolean using;
-
-        CachedBuffer(ByteBuffer buffer, CacheKey key)
-        {
-            this.buffer = buffer;
-            this.key = key;
-        }
-    }
-
-    static final class CacheKey
-    {
-        final int size;
-        final int offset;
-
-        CacheKey(int size, int offset)
-        {
-            this.size = size;
-            this.offset = offset;
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return (size * 31) + offset;
-        }
-
-        @Override
-        public boolean equals(Object that)
-        {
-            return that instanceof CacheKey & equals((CacheKey) that);
-        }
-
-        public boolean equals(CacheKey that)
-        {
-            return this.size == that.size && this.offset == that.offset;
-        }
-        public CacheKey dup()
-        {
-            return new CacheKey(size, offset);
-        }
-    }
+    final TreeMap<Integer, ByteBuffer> cache = new TreeMap<>();
 
     // array re-used for returning columns
     final ByteBuffer[] ret;
-    final CachedBuffer[] cached;
+    final int[] sizes;
 
     public RowGenDistributedSize(DataGen dataGenerator, Distribution countDistribution, Distribution sizeDistribution)
     {
         super(dataGenerator);
         this.countDistribution = countDistribution;
         this.sizeDistribution = sizeDistribution;
-        ret = new ByteBuffer[Math.min(MAX_COLUMN_COUNT, (int) sizeDistribution.maxValue())];
-        cached = new CachedBuffer[ret.length];
+        ret = new ByteBuffer[(int) countDistribution.maxValue()];
+        sizes = new int[ret.length];
+    }
+
+    ByteBuffer getBuffer(int size)
+    {
+        if (size >= MAX_SINGLE_CACHE_SIZE)
+            return ByteBuffer.allocate(size);
+        Map.Entry<Integer, ByteBuffer> found = cache.ceilingEntry(size);
+        if (found == null)
+        {
+            // remove the next entry down, and replace it with a cache of this size
+            Integer del = cache.lowerKey(size);
+            if (del != null)
+                cache.remove(del);
+            return ByteBuffer.allocate(size);
+        }
+        ByteBuffer r = found.getValue();
+        cache.remove(found.getKey());
+        return r;
     }
 
     @Override
@@ -86,38 +59,22 @@ public class RowGenDistributedSize extends RowGen
         while (i < count)
         {
             int columnSize = (int) sizeDistribution.next();
-            CachedBuffer buf = null;
-            int offset = 0;
-            while (buf == null)
-            {
-                CacheKey key = new CacheKey(columnSize, offset);
-                buf = cache.get(key);
-                if (buf == null)
-                {
-                    buf = new CachedBuffer(ByteBuffer.allocate(columnSize), key.dup());
-                    cacheSize += columnSize;
-                    if (cacheSize > MAX_BUFFER_CACHE_SIZE)
-                    {
-                        Iterator<CacheKey> iter = cache.keySet().iterator();
-                        while (cacheSize > MAX_BUFFER_CACHE_SIZE)
-                        {
-                            cacheSize -= iter.next().size;
-                            iter.remove();
-                        }
-                    }
-                }
-                else if (buf.using)
-                    buf = null;
-                offset++;
-            }
-            cached[i] = buf;
-            buf.using = true;
-            cache.put(buf.key, buf);
-            ret[i] = buf.buffer;
+            sizes[i] = columnSize;
+            ret[i] = getBuffer(columnSize);
             i++;
         }
-        for ( i = 0 ; i < count ; i++ )
-            cached[i].using = false;
+        while (i < ret.length && ret[i] != null)
+            ret[i] = null;
+        i = 0;
+        while (i < count)
+        {
+            ByteBuffer b = ret[i];
+            cache.put(b.capacity(), b);
+            b.position(b.capacity() - sizes[i]);
+            ret[i] = b.slice();
+            b.position(0);
+            i++;
+        }
         return Arrays.asList(ret).subList(0, count);
     }
 
