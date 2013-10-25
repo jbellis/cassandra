@@ -207,7 +207,7 @@ public class Legacy implements Serializable
                 r.add("-port", cmd.getOptionValue("p"));
 
             if (cmd.hasOption("i"))
-                r.add("-log", cmd.getOptionValue("i"));
+                r.add("-log", "interval=" + cmd.getOptionValue("i"));
             else
                 r.add("-log", "interval=10");
 
