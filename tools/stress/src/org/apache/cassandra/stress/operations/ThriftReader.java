@@ -39,7 +39,6 @@ public final class ThriftReader extends Operation
                     .setStart(new byte[] {})
                     .setFinish(new byte[] {})
                     .setReversed(false)
-                    // TODO: does this count really mean what the parameter implies it means?
                     .setCount(state.settings.columns.maxColumnsPerKey)
             );
         else // see CASSANDRA-3064 about why this is useful

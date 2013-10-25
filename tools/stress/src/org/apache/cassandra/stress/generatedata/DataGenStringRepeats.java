@@ -63,7 +63,7 @@ public class DataGenStringRepeats extends DataGen
     }
 
     @Override
-    public boolean deterministic()
+    public boolean isDeterministic()
     {
         return true;
     }

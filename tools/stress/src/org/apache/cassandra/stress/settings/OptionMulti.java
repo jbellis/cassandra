@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 /**
  * For specifying multiple grouped sub-options in the form: group(arg1=,arg2,arg3) etc.
  */
-public abstract class OptionMulti extends Option
+abstract class OptionMulti extends Option
 {
 
     private static final Pattern ARGS = Pattern.compile("([^,]+)", Pattern.CASE_INSENSITIVE);
@@ -31,7 +31,7 @@ public abstract class OptionMulti extends Option
     public OptionMulti(String name, String description)
     {
         this.name = name;
-        pattern = Pattern.compile(name + "\\((.*)\\)");
+        pattern = Pattern.compile(name + "\\((.*)\\)", Pattern.CASE_INSENSITIVE);
         this.description = description;
     }
 
@@ -45,9 +45,9 @@ public abstract class OptionMulti extends Option
         int last = -1;
         while (m.find())
         {
-            if (m.start() != last)
+            if (m.start() != last + 1)
                 throw new IllegalArgumentException("Invalid " + name + " specification: " + param);
-            last = m.end() + 1;
+            last = m.end();
             if (!delegate.accept(m.group()))
                 throw new IllegalArgumentException("Invalid " + name + " specification: " + m.group());
         }
@@ -84,7 +84,8 @@ public abstract class OptionMulti extends Option
         {
             sb.append(opt.shortDisplay());
         }
-        sb.append(")");
+        sb.append("): ");
+        sb.append(description);
         return sb.toString();
     }
 

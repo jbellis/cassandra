@@ -11,7 +11,51 @@ import java.util.Map;
 public class SettingsTransport implements Serializable
 {
 
-    public final TTransportFactory factory;
+    private final String fqFactoryClass;
+    private TTransportFactory factory;
+
+    public SettingsTransport(TOptions options)
+    {
+        if (options instanceof SSLOptions)
+        {
+            throw new NotImplementedException();
+        }
+        else
+        {
+            this.fqFactoryClass = options.factory.value();
+            try
+            {
+                Class<?> clazz = Class.forName(fqFactoryClass);
+                if (!TTransportFactory.class.isAssignableFrom(clazz))
+                    throw new ClassCastException();
+                // check we can instantiate it
+                clazz.newInstance();
+            }
+            catch (Exception e)
+            {
+                throw new IllegalArgumentException("Invalid transport factory class: " + options.factory.value(), e);
+            }
+
+        }
+    }
+
+    public synchronized TTransportFactory getFactory()
+    {
+        if (factory == null)
+        {
+            try
+            {
+                this.factory = (TTransportFactory) Class.forName(fqFactoryClass).newInstance();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+        return factory;
+    }
+
+    // Option Declarations
 
     static class TOptions extends GroupedOptions
     {
@@ -40,24 +84,7 @@ public class SettingsTransport implements Serializable
         }
     }
 
-    public SettingsTransport(TOptions options)
-    {
-        if (options instanceof SSLOptions)
-        {
-            throw new NotImplementedException();
-        }
-        else
-        {
-            try
-            {
-                this.factory = (TTransportFactory) Class.forName(options.factory.value()).newInstance();
-            }
-            catch (Exception e)
-            {
-                throw new IllegalArgumentException("Invalid transport factory class: " + options.factory.value(), e);
-            }
-        }
-    }
+    // CLI Utility Methods
 
     public static SettingsTransport get(Map<String, String[]> clArgs)
     {

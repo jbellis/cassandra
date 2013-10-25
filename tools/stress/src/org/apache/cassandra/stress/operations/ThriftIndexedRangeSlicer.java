@@ -33,8 +33,8 @@ public class ThriftIndexedRangeSlicer extends Operation
     public ThriftIndexedRangeSlicer(State state, long index)
     {
         super(state, index);
-        if (!state.rowGen.deterministic() || !state.keyGen.deterministic())
-            throw new IllegalStateException("Only run with a deterministic row/key generator");
+        if (!state.rowGen.isDeterministic() || !state.keyGen.isDeterministic())
+            throw new IllegalStateException("Only run with a isDeterministic row/key generator");
         if (state.settings.columns.useSuperColumns || state.columnParents.size() != 1)
             throw new IllegalStateException("Does not support super columns");
         if (state.settings.columns.useTimeUUIDComparator)

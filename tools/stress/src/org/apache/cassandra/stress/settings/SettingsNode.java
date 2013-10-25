@@ -15,21 +15,9 @@ public class SettingsNode implements Serializable
 
     public final List<String> nodes;
 
-    public static final class Options extends GroupedOptions
-    {
-        final OptionSimple file = new OptionSimple("file=", ".*", null, "Node file (one per line)", false);
-        final OptionSimple list = new OptionSimple("", "[^=,]+(,[^=,]+)*", "localhost", "comma delimited list of hosts", false);
-
-        @Override
-        public List<? extends Option> options()
-        {
-            return Arrays.asList(file, list);
-        }
-    }
-
     public SettingsNode(Options options)
     {
-        if (options.file.present())
+        if (options.file.setByUser())
         {
             try
             {
@@ -67,6 +55,22 @@ public class SettingsNode implements Serializable
             index = nodes.size() - 1;
         return nodes.get(index);
     }
+
+    // Option Declarations
+
+    public static final class Options extends GroupedOptions
+    {
+        final OptionSimple file = new OptionSimple("file=", ".*", null, "Node file (one per line)", false);
+        final OptionSimple list = new OptionSimple("", "[^=,]+(,[^=,]+)*", "localhost", "comma delimited list of hosts", false);
+
+        @Override
+        public List<? extends Option> options()
+        {
+            return Arrays.asList(file, list);
+        }
+    }
+
+    // CLI Utility Methods
 
     public static SettingsNode get(Map<String, String[]> clArgs)
     {

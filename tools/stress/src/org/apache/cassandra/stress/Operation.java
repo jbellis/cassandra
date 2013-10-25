@@ -29,6 +29,7 @@ import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.CqlVersion;
 import org.apache.cassandra.stress.settings.SettingsCommandMixed;
 import org.apache.cassandra.stress.settings.StressSettings;
+import org.apache.cassandra.stress.util.Timer;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.transport.SimpleClient;
@@ -58,48 +59,29 @@ public abstract class Operation
     {
 
         public final StressSettings settings;
-        public final StressMetrics.Timer timer;
+        public final Timer timer;
         public final Command type;
         public final KeyGen keyGen;
         public final RowGen rowGen;
         public final List<ColumnParent> columnParents;
         public final StressMetrics metrics;
-        public final SettingsCommandMixed.ReadWriteSelector readWriteSelector;
+        public final SettingsCommandMixed.CommandSelector readWriteSelector;
         private Object cqlCache;
 
         public State(Command type, StressSettings settings, StressMetrics metrics)
         {
             this.type = type;
-            this.timer = metrics.newTimer();
-            // TODO: this logic shouldn't be here - dataGen and keyGen should be passed in
-//            switch (type)
-//            {
-//                case COUNTERWRITE:
-//                case WRITE:
-//                    this.keyGen = new DataGenHexFromOpIndex(session.getMinKey(), session.getMaxKey());
-//                    break;
-//                default:
-//                    if (session.useRandomGenerator())
-//                        this.keyGen = DataGenHexFromDistribution.buildUniform(session.getMinKey(), session.getMaxKey());
-//                    else
-//                        this.keyGen = DataGenHexFromDistribution.buildGaussian(session.getMinKey(), session.getMaxKey(), session.getMean(), session.getSigma());
-//            }
-//
-//            if (session.averageSizeValues)
-//                this.rowGen = new RowGenAverageSize(new DataGenStringRepeats(session.getUniqueColumnCount()), session.getColumnsPerKey(), session.getColumnSize());
-//            else
-//                this.rowGen = new RowGenFixedSize(new DataGenStringRepeats(session.getUniqueRowCount()), session.getColumnsPerKey(), session.getColumnSize());
-//
+            this.timer = metrics.getTiming().newTimer();
             if (type == Command.MIXED)
                 readWriteSelector = ((SettingsCommandMixed) settings.command).selector();
             else
                 readWriteSelector = null;
             this.settings = settings;
-            this.keyGen = settings.keys.keyGenerator();
-            this.rowGen = settings.columns.rowGen();
+            this.keyGen = settings.keys.newKeyGen();
+            this.rowGen = settings.columns.newRowGen();
             this.metrics = metrics;
             if (!settings.columns.useSuperColumns)
-                columnParents = Collections.singletonList(new ColumnParent("Standard1"));
+                columnParents = Collections.singletonList(new ColumnParent(settings.schema.columnFamily));
             else
             {
                 ColumnParent[] cp = new ColumnParent[settings.columns.superColumns];

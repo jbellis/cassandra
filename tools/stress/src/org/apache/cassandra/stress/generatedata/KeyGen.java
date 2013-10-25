@@ -25,9 +25,9 @@ public class KeyGen
         return keyBuffers;
     }
 
-    public boolean deterministic()
+    public boolean isDeterministic()
     {
-        return dataGen.deterministic();
+        return dataGen.isDeterministic();
     }
 
 }

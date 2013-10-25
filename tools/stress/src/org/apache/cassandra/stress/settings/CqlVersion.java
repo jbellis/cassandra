@@ -2,7 +2,11 @@ package org.apache.cassandra.stress.settings;
 
 public enum CqlVersion
 {
-    NOCQL(null), CQL2("2.0.0"), CQL3("3.0.0");
+
+    NOCQL(null),
+    CQL2("2.0.0"),
+    CQL3("3.0.0");
+
     public final String connectVersion;
 
     private CqlVersion(String connectVersion)
@@ -29,5 +33,16 @@ public enum CqlVersion
     {
         return this != NOCQL;
     }
+
+    public boolean isCql2()
+    {
+        return this == CQL2;
+    }
+
+    public boolean isCql3()
+    {
+        return this == CQL3;
+    }
+
 }
 

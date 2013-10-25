@@ -3,8 +3,19 @@ package org.apache.cassandra.stress.settings;
 import java.util.ArrayList;
 import java.util.List;
 
+// Settings common to commands that operate over multiple keys at once
 public class SettingsCommandMulti extends SettingsCommand
 {
+
+    public final int keysAtOnce;
+
+    public SettingsCommandMulti(Command type, Options options)
+    {
+        super(type, options.parent);
+        this.keysAtOnce = Integer.parseInt(options.maxKeys.value());
+    }
+
+    // Option Declarations
 
     static final class Options extends GroupedOptions
     {
@@ -25,13 +36,7 @@ public class SettingsCommandMulti extends SettingsCommand
         }
     }
 
-    public final int keysAtOnce;
-
-    public SettingsCommandMulti(Command type, Options options)
-    {
-        super(type, options.parent);
-        this.keysAtOnce = Integer.parseInt(options.maxKeys.value());
-    }
+    // CLI Utility Methods
 
     public static SettingsCommand build(Command type, String[] params)
     {

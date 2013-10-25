@@ -12,6 +12,35 @@ public class SettingsMode implements Serializable
     public final CqlVersion cqlVersion;
     public final boolean useNativeProtocol;
 
+    public SettingsMode(GroupedOptions options)
+    {
+        if (options instanceof Cql3Options)
+        {
+            cqlVersion = CqlVersion.CQL3;
+            Cql3Options opts = (Cql3Options) options;
+            useNativeProtocol = opts.useNative.setByUser();
+            api = opts.usePrepared.setByUser() ? ConnectionAPI.CQL_PREPARED : ConnectionAPI.CQL;
+        }
+        else if (options instanceof Cql2Options)
+        {
+            cqlVersion = CqlVersion.CQL2;
+            useNativeProtocol = false;
+            Cql2Options opts = (Cql2Options) options;
+            api = opts.usePrepared.setByUser() ? ConnectionAPI.CQL_PREPARED : ConnectionAPI.CQL;
+
+        }
+        else if (options instanceof ThriftOptions)
+        {
+            cqlVersion = CqlVersion.NOCQL;
+            useNativeProtocol = false;
+            api = ConnectionAPI.THRIFT;
+        }
+        else
+            throw new IllegalStateException();
+    }
+
+    // Option Declarations
+
     private static final class Cql3Options extends GroupedOptions
     {
         final OptionSimple api = new OptionSimple("cql3", "", null, "", true);
@@ -48,32 +77,7 @@ public class SettingsMode implements Serializable
         }
     }
 
-    public SettingsMode(GroupedOptions options)
-    {
-        if (options instanceof Cql3Options)
-        {
-            cqlVersion = CqlVersion.CQL3;
-            Cql3Options opts = (Cql3Options) options;
-            useNativeProtocol = opts.useNative.present();
-            api = opts.usePrepared.present() ? ConnectionAPI.CQL_PREPARED : ConnectionAPI.CQL;
-        }
-        else if (options instanceof Cql2Options)
-        {
-            cqlVersion = CqlVersion.CQL2;
-            useNativeProtocol = false;
-            Cql2Options opts = (Cql2Options) options;
-            api = opts.usePrepared.present() ? ConnectionAPI.CQL_PREPARED : ConnectionAPI.CQL;
-
-        }
-        else if (options instanceof ThriftOptions)
-        {
-            cqlVersion = CqlVersion.NOCQL;
-            useNativeProtocol = false;
-            api = ConnectionAPI.THRIFT;
-        }
-        else
-            throw new IllegalStateException();
-    }
+    // CLI Utility Methods
 
     public static SettingsMode get(Map<String, String[]> clArgs)
     {

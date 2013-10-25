@@ -65,21 +65,21 @@ public class CqlReader extends CqlOperation<Integer>
     }
 
     @Override
-    protected List<String> getQueryParameters(byte[] key)
+    protected List<ByteBuffer> getQueryParameters(byte[] key)
     {
         if (state.settings.columns.names != null)
         {
-            final List<String> queryParams = new ArrayList<>();
+            final List<ByteBuffer> queryParams = new ArrayList<>();
             for (ByteBuffer name : state.settings.columns.names)
-                queryParams.add(getUnQuotedCqlBlob(name.array(), state.isCql3()));
-            queryParams.add(getUnQuotedCqlBlob(key, state.isCql3()));
+                queryParams.add(name);
+            queryParams.add(ByteBuffer.wrap(key));
             return queryParams;
         }
-        return Collections.singletonList(getUnQuotedCqlBlob(key, state.isCql3()));
+        return Collections.singletonList(ByteBuffer.wrap(key));
     }
 
     @Override
-    protected CqlRunOp buildRunOp(ClientWrapper client, String query, byte[] queryId, List<String> params, String key)
+    protected CqlRunOp buildRunOp(ClientWrapper client, String query, byte[] queryId, List<ByteBuffer> params, String key)
     {
         return new CqlRunOpTestNonEmpty(client, query, queryId, params, key);
     }

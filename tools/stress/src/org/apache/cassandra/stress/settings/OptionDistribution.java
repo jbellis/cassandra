@@ -18,20 +18,20 @@ import java.util.regex.Pattern;
 /**
  * For selecting a mathematical distribution
  */
-public class OptionDistribution extends Option
+class OptionDistribution extends Option
 {
 
     private static final Pattern FULL = Pattern.compile("([A-Z]+)\\((.+)\\)", Pattern.CASE_INSENSITIVE);
     private static final Pattern ARGS = Pattern.compile("[^,]+");
 
     final String prefix;
-    private DistributionFactory factory;
-    private final DistributionFactory defaultFactory;
+    private String spec;
+    private final String defaultSpec;
 
     public OptionDistribution(String prefix, String defaultSpec)
     {
         this.prefix = prefix;
-        this.defaultFactory = defaultSpec == null ? null : get(defaultSpec);
+        this.defaultSpec = defaultSpec;
     }
 
     @Override
@@ -39,7 +39,7 @@ public class OptionDistribution extends Option
     {
         if (!param.toLowerCase().startsWith(prefix))
             return false;
-        factory = get(param.substring(prefix.length()));
+        spec = param.substring(prefix.length());
         return true;
     }
 
@@ -61,13 +61,13 @@ public class OptionDistribution extends Option
 
     public DistributionFactory get()
     {
-        return factory != null ? factory : defaultFactory;
+        return spec != null ? get(spec) : get(defaultSpec);
     }
 
     @Override
     public boolean happy()
     {
-        return factory != null || defaultFactory != null;
+        return spec != null || defaultSpec != null;
     }
 
     public String longDisplay()
@@ -80,10 +80,12 @@ public class OptionDistribution extends Option
     {
         return Arrays.asList(
                 GroupedOptions.formatMultiLine("EXP(min..max)", "An exponential distribution over the range [min..max]"),
+                GroupedOptions.formatMultiLine("EXTREME(min..max,shape)", "An extreme value (Weibull) distribution over the range [min..max]"),
                 GroupedOptions.formatMultiLine("GAUSSIAN(min..max,stdvrng)", "A gaussian/normal distribution, where mean=(min+max)/2, and stdev is (mean-min)/stdvrng"),
                 GroupedOptions.formatMultiLine("GAUSSIAN(min..max,mean,stdev)", "A gaussian/normal distribution, with explicitly defined mean and stdev"),
                 GroupedOptions.formatMultiLine("UNIFORM(min..max)", "A uniform distribution over the range [min, max]"),
-                GroupedOptions.formatMultiLine("FIXED(val)", "A fixed distribution, always returning the same value")
+                GroupedOptions.formatMultiLine("FIXED(val)", "A fixed distribution, always returning the same value"),
+                "Aliases: extr, gauss, normal, norm, weibull"
         );
     }
 
@@ -98,14 +100,19 @@ public class OptionDistribution extends Option
     {
         final Map<String, Impl> lookup = new HashMap<>();
         lookup.put("exp", new ExponentialImpl());
+        lookup.put("extr", new ExtremeImpl());
+        lookup.put("extreme", lookup.get("extreme"));
+        lookup.put("weibull", lookup.get("weibull"));
         lookup.put("gaussian", new GaussianImpl());
-        lookup.put("normal", new GaussianImpl());
-        lookup.put("gauss", new GaussianImpl());
-        lookup.put("norm", new GaussianImpl());
+        lookup.put("normal", lookup.get("gaussian"));
+        lookup.put("gauss", lookup.get("gaussian"));
+        lookup.put("norm", lookup.get("gaussian"));
         lookup.put("uniform", new UniformImpl());
         lookup.put("fixed", new FixedImpl());
         LOOKUP = lookup;
     }
+
+    // factory builders
 
     private static interface Impl
     {
@@ -123,8 +130,8 @@ public class OptionDistribution extends Option
             try
             {
                 String[] bounds = params.get(0).split("\\.\\.+");
-                final long minKey = Long.parseLong(bounds[0]);
-                final long maxKey = Long.parseLong(bounds[1]);
+                final long min = Long.parseLong(bounds[0]);
+                final long max = Long.parseLong(bounds[1]);
                 final double mean, stdev;
                 if (params.size() == 3)
                 {
@@ -134,17 +141,10 @@ public class OptionDistribution extends Option
                 else
                 {
                     final double stdevsToEdge = params.size() == 1 ? 3d : Double.parseDouble(params.get(1));
-                    mean = (minKey + maxKey) / 2d;
-                    stdev = ((maxKey - minKey) / 2d) / stdevsToEdge;
+                    mean = (min + max) / 2d;
+                    stdev = ((max - min) / 2d) / stdevsToEdge;
                 }
-                return new DistributionFactory()
-                {
-                    @Override
-                    public Distribution get()
-                    {
-                        return new DistributionBoundApache(new NormalDistribution(mean, stdev), minKey, maxKey);
-                    }
-                };
+                return new GaussianFactory(min, max, mean, stdev);
             } catch (Exception _)
             {
                 throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
@@ -162,20 +162,41 @@ public class OptionDistribution extends Option
             try
             {
                 String[] bounds = params.get(0).split("\\.\\.+");
-                final long minKey = Long.parseLong(bounds[0]);
-                final long maxKey = Long.parseLong(bounds[1]);
-                final double mean = (maxKey - minKey) / 4.605170d;
-                return new DistributionFactory()
-                {
-                    @Override
-                    public Distribution get()
-                    {
-                        return new DistributionOffsetApache(new ExponentialDistribution(mean), minKey, maxKey);
-                    }
-                };
+                final long min = Long.parseLong(bounds[0]);
+                final long max = Long.parseLong(bounds[1]);
+                ExponentialDistribution findBounds = new ExponentialDistribution(1d);
+                // max probability should be roughly equal to accuracy of (max-min) to ensure all values are visitable,
+                // over entire range, but this results in overly skewed distribution, so take sqrt
+                final double mean = (max - min) / findBounds.inverseCumulativeProbability(1d - Math.sqrt(1d/(max-min)));
+                return new ExpFactory(min, max, mean);
             } catch (Exception _)
             {
                 throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
+            }
+        }
+    }
+
+    private static final class ExtremeImpl implements Impl
+    {
+        @Override
+        public DistributionFactory getFactory(List<String> params)
+        {
+            if (params.size() != 2)
+                throw new IllegalArgumentException("Invalid parameter list for extreme (Weibull) distribution: " + params);
+            try
+            {
+                String[] bounds = params.get(0).split("\\.\\.+");
+                final long min = Long.parseLong(bounds[0]);
+                final long max = Long.parseLong(bounds[1]);
+                final double shape = Double.parseDouble(params.get(1));
+                WeibullDistribution findBounds = new WeibullDistribution(shape, 1d);
+                // max probability should be roughly equal to accuracy of (max-min) to ensure all values are visitable,
+                // over entire range, but this results in overly skewed distribution, so take sqrt
+                final double scale = (max - min) / findBounds.inverseCumulativeProbability(1d - Math.sqrt(1d/(max-min)));
+                return new ExtremeFactory(min, max, shape, scale);
+            } catch (Exception _)
+            {
+                throw new IllegalArgumentException("Invalid parameter list for extreme (Weibull) distribution: " + params);
             }
         }
     }
@@ -191,16 +212,9 @@ public class OptionDistribution extends Option
             try
             {
                 String[] bounds = params.get(0).split("\\.\\.+");
-                final long minKey = Long.parseLong(bounds[0]);
-                final long maxKey = Long.parseLong(bounds[1]);
-                return new DistributionFactory()
-                {
-                    @Override
-                    public Distribution get()
-                    {
-                        return new DistributionBoundApache(new UniformRealDistribution(minKey, maxKey), minKey, maxKey);
-                    }
-                };
+                final long min = Long.parseLong(bounds[0]);
+                final long max = Long.parseLong(bounds[1]);
+                return new UniformFactory(min, max);
             } catch (Exception _)
             {
                 throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
@@ -219,18 +233,100 @@ public class OptionDistribution extends Option
             try
             {
                 final long key = Long.parseLong(params.get(0));
-                return new DistributionFactory()
-                {
-                    @Override
-                    public Distribution get()
-                    {
-                        return new DistributionFixed(key);
-                    }
-                };
+                return new FixedFactory(key);
             } catch (Exception _)
             {
                 throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
             }
+        }
+    }
+
+    // factories
+
+    private static final class ExpFactory implements DistributionFactory
+    {
+        final long min, max;
+        final double mean;
+        private ExpFactory(long min, long max, double mean)
+        {
+            this.min = min;
+            this.max = max;
+            this.mean = mean;
+        }
+
+        @Override
+        public Distribution get()
+        {
+            return new DistributionOffsetApache(new ExponentialDistribution(mean), min, max);
+        }
+    }
+
+    private static final class ExtremeFactory implements DistributionFactory
+    {
+        final long min, max;
+        final double shape, scale;
+        private ExtremeFactory(long min, long max, double shape, double scale)
+        {
+            this.min = min;
+            this.max = max;
+            this.shape = shape;
+            this.scale = scale;
+        }
+
+        @Override
+        public Distribution get()
+        {
+            return new DistributionOffsetApache(new WeibullDistribution(shape, scale), min, max);
+        }
+    }
+
+    private static final class GaussianFactory implements DistributionFactory
+    {
+        final long min, max;
+        final double mean, stdev;
+        private GaussianFactory(long min, long max, double mean, double stdev)
+        {
+            this.min = min;
+            this.max = max;
+            this.stdev = stdev;
+            this.mean = mean;
+        }
+
+        @Override
+        public Distribution get()
+        {
+            return new DistributionBoundApache(new NormalDistribution(mean, stdev), min, max);
+        }
+    }
+
+    private static final class UniformFactory implements DistributionFactory
+    {
+        final long min, max;
+        private UniformFactory(long min, long max)
+        {
+            this.min = min;
+            this.max = max;
+        }
+
+        @Override
+        public Distribution get()
+        {
+            return new DistributionBoundApache(new UniformRealDistribution(min, max), min, max);
+        }
+    }
+
+    private static final class FixedFactory implements DistributionFactory
+    {
+        final long key;
+        private FixedFactory(long key)
+        {
+            this.key = key;
+        }
+
+        @Override
+        public Distribution get()
+        {
+            return new DistributionFixed(key);
         }
     }
 
@@ -245,18 +341,5 @@ public class OptionDistribution extends Option
     {
         return super.equals(that) && ((OptionDistribution) that).prefix.equals(this.prefix);
     }
-
-    public static void main(String[] args)
-    {
-        final ExponentialDistribution exp = new ExponentialDistribution(1000000);
-        final LogNormalDistribution ln = new LogNormalDistribution(10, Math.log(10));
-        for (double d = 0d ; d <= 1d ; d += 0.01d)
-        {
-            for (AbstractRealDistribution dist : Arrays.asList(exp, ln))
-                System.out.print(String.format("%20.0f", dist.inverseCumulativeProbability(d)));
-            System.out.println();
-        }
-    }
-
 
 }

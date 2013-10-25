@@ -2,7 +2,7 @@ package org.apache.cassandra.stress.generatedata;
 
 import org.apache.commons.math3.distribution.*;
 
-public class DistributionFixed implements Distribution
+public class DistributionFixed extends Distribution
 {
 
     final long key;
@@ -19,13 +19,7 @@ public class DistributionFixed implements Distribution
     }
 
     @Override
-    public long maxValue()
-    {
-        return key;
-    }
-
-    @Override
-    public long minValue()
+    public long inverseCumProb(double cumProb)
     {
         return key;
     }

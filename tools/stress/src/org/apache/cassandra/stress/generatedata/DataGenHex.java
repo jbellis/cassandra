@@ -5,13 +5,13 @@ import java.nio.ByteBuffer;
 public abstract class DataGenHex extends DataGen
 {
 
-    abstract long nextInt(long operationIndex);
+    abstract long next(long operationIndex);
 
     @Override
     public final void generate(ByteBuffer fill, long operationIndex)
     {
         fill.clear();
-        fillKeyStringBytes(nextInt(operationIndex), fill.array());
+        fillKeyStringBytes(next(operationIndex), fill.array());
     }
 
     public static void fillKeyStringBytes(long key, byte[] fill)

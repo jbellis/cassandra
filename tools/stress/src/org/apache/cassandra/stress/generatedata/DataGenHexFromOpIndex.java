@@ -13,13 +13,13 @@ public class DataGenHexFromOpIndex extends DataGenHex
     }
 
     @Override
-    public boolean deterministic()
+    public boolean isDeterministic()
     {
         return true;
     }
 
     @Override
-    long nextInt(long operationIndex)
+    long next(long operationIndex)
     {
         long range = maxKey + 1 - minKey;
         return Math.abs((operationIndex % range) + minKey);

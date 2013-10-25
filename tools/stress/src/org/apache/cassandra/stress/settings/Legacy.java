@@ -172,7 +172,7 @@ public class Legacy implements Serializable
             else
                 colSize = "34";
 
-            r.add("-col", "count=fixed(" + colCount + ")");
+            r.add("-col", "n=fixed(" + colCount + ")");
             if (cmd.hasOption("V"))
             {
                 r.add("-col", "size=uniform(1.." + Integer.parseInt(colSize) * 2 + ")");
@@ -193,9 +193,9 @@ public class Legacy implements Serializable
                 r.add("-col", "super=" + (cmd.hasOption("u") ? cmd.getOptionValue("u") : "1"));
 
             if (cmd.hasOption("t"))
-                r.add("-rate", "threadCount=" + cmd.getOptionValue("t"));
+                r.add("-rate", "threads=" + cmd.getOptionValue("t"));
             else
-                r.add("-rate", "threadCount=50");
+                r.add("-rate", "threads=50");
 
             if (cmd.hasOption("th"))
                 r.add("-rate", "limit=" + cmd.getOptionValue("th") + "/s");
@@ -320,13 +320,15 @@ public class Legacy implements Serializable
         }
         void setCommand(String command)
         {
+            command = Command.get(command).toString().toLowerCase();
             opts.put(command, this.command = new ArrayList<>());
         }
         void printNewCommand()
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new StringBuilder("stress");
             for (Map.Entry<String, List<String>> e : opts.entrySet())
             {
+                sb.append(" ");
                 sb.append(e.getKey());
                 for (String opt : e.getValue())
                 {
@@ -352,4 +354,17 @@ public class Legacy implements Serializable
                     option.getLongOpt(), (option.hasArg()) ? "="+upperCaseName : "", option.getDescription()));
         }
     }
+
+    public static Runnable helpPrinter()
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelpMessage();
+            }
+        };
+    }
+
 }

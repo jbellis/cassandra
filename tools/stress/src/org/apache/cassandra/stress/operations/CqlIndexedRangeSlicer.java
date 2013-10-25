@@ -35,13 +35,13 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
 
     volatile boolean acceptNoResults = false;
 
-    public CqlIndexedRangeSlicer(State state, int idx)
+    public CqlIndexedRangeSlicer(State state, long idx)
     {
         super(state, idx);
     }
 
     @Override
-    protected List<String> getQueryParameters(byte[] key)
+    protected List<ByteBuffer> getQueryParameters(byte[] key)
     {
         throw new NotImplementedException();
     }
@@ -77,9 +77,7 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
         int rowCount;
         do
         {
-            List<String> params = Arrays.asList(
-                    getUnQuotedCqlBlob(value.array(), state.isCql3()),
-                    getUnQuotedCqlBlob(minKey, state.isCql3()));
+            List<ByteBuffer> params = Arrays.asList(value, ByteBuffer.wrap(minKey));
             CqlRunOp<byte[][]> op = run(client, params, new String(value.array()));
             byte[][] keys = op.result;
             rowCount = keys.length;
@@ -91,7 +89,7 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
     private final class IndexedRangeSliceRunOp extends CqlRunOpFetchKeys
     {
 
-        protected IndexedRangeSliceRunOp(ClientWrapper client, String query, byte[] queryId, List<String> params, String key)
+        protected IndexedRangeSliceRunOp(ClientWrapper client, String query, byte[] queryId, List<ByteBuffer> params, String key)
         {
             super(client, query, queryId, params, key);
         }
@@ -104,7 +102,7 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
     }
 
     @Override
-    protected CqlRunOp<byte[][]> buildRunOp(ClientWrapper client, String query, byte[] queryId, List<String> params, String key)
+    protected CqlRunOp<byte[][]> buildRunOp(ClientWrapper client, String query, byte[] queryId, List<ByteBuffer> params, String key)
     {
         return new IndexedRangeSliceRunOp(client, query, queryId, params, key);
     }

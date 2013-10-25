@@ -25,36 +25,6 @@ import java.util.Map;
 public class SettingsColumn implements Serializable
 {
 
-    private static abstract class Options extends GroupedOptions
-    {
-        final OptionSimple superColumns = new OptionSimple("super=", "[0-9]+", "0", "Number of super columns to use (no super columns used if not specified)", false);
-        final OptionSimple comparator = new OptionSimple("comparator=", "TimeUUIDType|AsciiType|UTF8Type", "AsciiType", "Column Comparator to use", false);
-        final OptionDistribution size = new OptionDistribution("size=", "FIXED(34)");
-        final OptionDataGen generator = new OptionDataGen("data=", "REPEAT(50)");
-    }
-
-    private static final class NameOptions extends Options
-    {
-        final OptionSimple name = new OptionSimple("names=", ".*", null, "Column names", true);
-
-        @Override
-        public List<? extends Option> options()
-        {
-            return Arrays.asList(name, superColumns, comparator, size, generator);
-        }
-    }
-
-    private static final class CountOptions extends Options
-    {
-        final OptionDistribution count = new OptionDistribution("n=", "FIXED(5)");
-
-        @Override
-        public List<? extends Option> options()
-        {
-            return Arrays.asList(count, superColumns, comparator, size, generator);
-        }
-    }
-
     public final int maxColumnsPerKey;
     public final List<ByteBuffer> names;
     public final String comparator;
@@ -141,12 +111,46 @@ public class SettingsColumn implements Serializable
         }
     }
 
-    public RowGen rowGen()
+    public RowGen newRowGen()
     {
         return new RowGenDistributedSize(dataGenFactory.get(), countDistribution.get(), sizeDistribution.get());
     }
 
-    public static SettingsColumn get(Map<String, String[]> clArgs)
+    // Option Declarations
+
+    private static abstract class Options extends GroupedOptions
+    {
+        final OptionSimple superColumns = new OptionSimple("super=", "[0-9]+", "0", "Number of super columns to use (no super columns used if not specified)", false);
+        final OptionSimple comparator = new OptionSimple("comparator=", "TimeUUIDType|AsciiType|UTF8Type", "AsciiType", "Column Comparator to use", false);
+        final OptionDistribution size = new OptionDistribution("size=", "FIXED(34)");
+        final OptionDataGen generator = new OptionDataGen("data=", "REPEAT(50)");
+    }
+
+    private static final class NameOptions extends Options
+    {
+        final OptionSimple name = new OptionSimple("names=", ".*", null, "Column names", true);
+
+        @Override
+        public List<? extends Option> options()
+        {
+            return Arrays.asList(name, superColumns, comparator, size, generator);
+        }
+    }
+
+    private static final class CountOptions extends Options
+    {
+        final OptionDistribution count = new OptionDistribution("n=", "FIXED(5)");
+
+        @Override
+        public List<? extends Option> options()
+        {
+            return Arrays.asList(count, superColumns, comparator, size, generator);
+        }
+    }
+
+    // CLI Utility Methods
+
+    static SettingsColumn get(Map<String, String[]> clArgs)
     {
         String[] params = clArgs.remove("-col");
         if (params == null)
@@ -162,12 +166,12 @@ public class SettingsColumn implements Serializable
         return new SettingsColumn(options);
     }
 
-    public static void printHelp()
+    static void printHelp()
     {
         GroupedOptions.printOptions(System.out, "-col", new NameOptions(), new CountOptions());
     }
 
-    public static Runnable helpPrinter()
+    static Runnable helpPrinter()
     {
         return new Runnable()
         {

@@ -2,41 +2,41 @@ package org.apache.cassandra.stress.generatedata;
 
 import org.apache.commons.math3.distribution.*;
 
-public class DistributionBoundApache implements Distribution
+public class DistributionBoundApache extends Distribution
 {
 
     final AbstractRealDistribution delegate;
-    final long minKey;
-    final long maxKey;
+    final long min, max;
 
-    public DistributionBoundApache(AbstractRealDistribution delegate, long minKey, long maxKey)
+    public DistributionBoundApache(AbstractRealDistribution delegate, long min, long max)
     {
         this.delegate = delegate;
-        this.minKey = minKey;
-        this.maxKey = maxKey;
+        this.min = min;
+        this.max = max;
     }
 
     @Override
     public long next()
     {
-        while (true)
-        {
-            long r = (long) delegate.sample();
-            if ((r >= minKey) & (r <= maxKey))
-                return r;
-        }
+        return bound(min, max, delegate.sample());
     }
 
     @Override
-    public long maxValue()
+    public long inverseCumProb(double cumProb)
     {
-        return Math.min(maxKey, (long) delegate.inverseCumulativeProbability(1d));
+        return bound(min, max, delegate.inverseCumulativeProbability(cumProb));
     }
 
-    @Override
-    public long minValue()
+    private static long bound(long min, long max, double val)
     {
-        return Math.max(minKey, (long) delegate.inverseCumulativeProbability(0d));
+        long r = (long) val;
+        if ((r >= min) & (r <= max))
+            return r;
+        if (r < min)
+            return min;
+        if (r > max)
+            return max;
+        throw new IllegalStateException();
     }
 
 }

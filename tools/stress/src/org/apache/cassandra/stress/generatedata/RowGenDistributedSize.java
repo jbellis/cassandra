@@ -122,7 +122,7 @@ public class RowGenDistributedSize extends RowGen
     }
 
     @Override
-    public boolean deterministic()
+    public boolean isDeterministic()
     {
         return false;
     }

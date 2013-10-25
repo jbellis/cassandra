@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 /**
  * For specifying replication options
  */
-public class OptionReplication extends Option
+class OptionReplication extends Option
 {
 
     private static final Pattern FULL = Pattern.compile("replication\\((.*)\\)", Pattern.CASE_INSENSITIVE);
@@ -49,10 +49,10 @@ public class OptionReplication extends Option
             return false;
         String args = m.group(1);
         m = OPTION.matcher(args);
-        int last = 0;
+        int last = -1;
         while (m.find())
         {
-            if (m.start() != last)
+            if (m.start() != last + 1)
                 throw new IllegalArgumentException("Invalid replication specification: " + param);
             last = m.end();
             String key = m.group(1).toLowerCase();

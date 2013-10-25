@@ -26,23 +26,6 @@ public class SettingsSchema implements Serializable
     public static final String DEFAULT_COMPARATOR = "AsciiType";
     public static final String DEFAULT_VALIDATOR  = "BytesType";
 
-    private static final class Options extends GroupedOptions
-    {
-        final OptionReplication replication = new OptionReplication();
-        final OptionSimple index = new OptionSimple("index=", "KEYS|CUSTOM|COMPOSITES", null, "Type of index to create on needed column families (KEYS)", false);
-        final OptionSimple keyspace = new OptionSimple("keyspace=", ".*", "Keyspace1", "The keyspace name to use", false);
-        final OptionSimple columnFamily = new OptionSimple("columnfamily=", ".*", "Standard1", "The column family name to use", false);
-        final OptionSimple compactionStrategy = new OptionSimple("compaction=", ".*", null, "The compaction strategy to use", false);
-        final OptionSimple noReplicateOnWrite = new OptionSimple("no-replicate-on-write", "", null, "Set replicate_on_write to false for counters. Only counter add with CL=ONE will work", false);
-        final OptionSimple compression = new OptionSimple("compression=", ".*", null, "Specify the compression to use for sstable, default:no compression", false);
-
-        @Override
-        public List<? extends Option> options()
-        {
-            return Arrays.asList(replication, index, keyspace, columnFamily, compactionStrategy, noReplicateOnWrite, compression);
-        }
-    }
-
     private final String replicationStrategy;
     private final Map<String, String> replicationStrategyOptions;
 
@@ -55,10 +38,10 @@ public class SettingsSchema implements Serializable
 
     public SettingsSchema(Options options)
     {
-        replicateOnWrite = !options.noReplicateOnWrite.present();
+        replicateOnWrite = !options.noReplicateOnWrite.setByUser();
         replicationStrategy = options.replication.getStrategy();
         replicationStrategyOptions = options.replication.getOptions();
-        if (options.index.present())
+        if (options.index.setByUser())
             indexType = IndexType.valueOf(options.index.value().toUpperCase());
         else
             indexType = null;
@@ -195,6 +178,27 @@ public class SettingsSchema implements Serializable
 
         return ByteBufferUtil.bytes(counter3.toString());
     }
+
+    // Option Declarations
+
+    private static final class Options extends GroupedOptions
+    {
+        final OptionReplication replication = new OptionReplication();
+        final OptionSimple index = new OptionSimple("index=", "KEYS|CUSTOM|COMPOSITES", null, "Type of index to create on needed column families (KEYS)", false);
+        final OptionSimple keyspace = new OptionSimple("keyspace=", ".*", "Keyspace1", "The keyspace name to use", false);
+        final OptionSimple columnFamily = new OptionSimple("columnfamily=", ".*", "Standard1", "The column family name to use", false);
+        final OptionSimple compactionStrategy = new OptionSimple("compaction=", ".*", null, "The compaction strategy to use", false);
+        final OptionSimple noReplicateOnWrite = new OptionSimple("no-replicate-on-write", "", null, "Set replicate_on_write to false for counters. Only counter add with CL=ONE will work", false);
+        final OptionSimple compression = new OptionSimple("compression=", ".*", null, "Specify the compression to use for sstable, default:no compression", false);
+
+        @Override
+        public List<? extends Option> options()
+        {
+            return Arrays.asList(replication, index, keyspace, columnFamily, compactionStrategy, noReplicateOnWrite, compression);
+        }
+    }
+
+    // CLI Utility Methods
 
     public static SettingsSchema get(Map<String, String[]> clArgs)
     {

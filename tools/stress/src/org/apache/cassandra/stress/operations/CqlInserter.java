@@ -69,18 +69,17 @@ public class CqlInserter extends CqlOperation<Integer>
     }
 
     @Override
-    protected List<String> getQueryParameters(byte[] key)
+    protected List<ByteBuffer> getQueryParameters(byte[] key)
     {
-        final ArrayList<String> queryParams = new ArrayList<>();
+        final ArrayList<ByteBuffer> queryParams = new ArrayList<>();
         final List<ByteBuffer> values = generateColumnValues();
-        for (int i = 0 ; i < values.size() ; i++)
-            queryParams.add(getUnQuotedCqlBlob(values.get(i).array(), state.isCql3()));
-        queryParams.add(getUnQuotedCqlBlob(key, state.isCql3()));
+        queryParams.addAll(values);
+        queryParams.add(ByteBuffer.wrap(key));
         return queryParams;
     }
 
     @Override
-    protected CqlRunOp buildRunOp(ClientWrapper client, String query, byte[] queryId, List<String> params, String key)
+    protected CqlRunOp buildRunOp(ClientWrapper client, String query, byte[] queryId, List<ByteBuffer> params, String key)
     {
         return new CqlRunOpAlwaysSucceed(client, query, queryId, params, key, 1);
     }

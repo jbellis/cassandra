@@ -47,6 +47,8 @@ public class DataGenStringDictionary extends DataGen
         int i = 0;
         while (i < trg.length)
         {
+            if (i > 0)
+                trg[i++] = space;
             byte[] src = words.sample();
             System.arraycopy(src, 0, trg, i, Math.min(src.length, trg.length - i));
             i += src.length;
@@ -54,7 +56,7 @@ public class DataGenStringDictionary extends DataGen
     }
 
     @Override
-    public boolean deterministic()
+    public boolean isDeterministic()
     {
         return true;
     }

@@ -46,7 +46,7 @@ public class RowGenAverageSize extends RowGen
     }
 
     @Override
-    public boolean deterministic()
+    public boolean isDeterministic()
     {
         return false;
     }

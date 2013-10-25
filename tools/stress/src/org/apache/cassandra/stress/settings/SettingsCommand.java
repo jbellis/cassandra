@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+// Generic command settings - common to read/write/etc
 public class SettingsCommand implements Serializable
 {
 
@@ -17,6 +18,36 @@ public class SettingsCommand implements Serializable
     public final ConsistencyLevel consistencyLevel;
     public final double targetUncertainty;
     public final int minimumUncertaintyMeasurements;
+
+    public SettingsCommand(Command type, GroupedOptions options)
+    {
+        this(type, (Options) options,
+                options instanceof Count ? (Count) options : null,
+                options instanceof Uncertainty ? (Uncertainty) options : null
+        );
+    }
+
+    public SettingsCommand(Command type, Options options, Count count, Uncertainty uncertainty)
+    {
+        this.type = type;
+        this.tries = Math.max(1, Integer.parseInt(options.retries.value()) + 1);
+        this.ignoreErrors = options.ignoreErrors.setByUser();
+        this.consistencyLevel = ConsistencyLevel.valueOf(options.consistencyLevel.value().toUpperCase());
+        if (count != null)
+        {
+            this.count = Long.parseLong(count.count.value());
+            this.targetUncertainty = -1;
+            this.minimumUncertaintyMeasurements = -1;
+        }
+        else
+        {
+            this.count = -1;
+            this.targetUncertainty = Double.parseDouble(uncertainty.uncertainty.value());
+            this.minimumUncertaintyMeasurements = Integer.parseInt(uncertainty.minMeasurements.value());
+        }
+    }
+
+    // Option Declarations
 
     static abstract class Options extends GroupedOptions
     {
@@ -40,7 +71,7 @@ public class SettingsCommand implements Serializable
     static class Uncertainty extends Options
     {
 
-        final OptionSimple uncertainty = new OptionSimple("err<", "0\\.[0-9]+", "0.01", "Run until the standard error of the mean is below this fraction", false);
+        final OptionSimple uncertainty = new OptionSimple("err<", "0\\.[0-9]+", "0.02", "Run until the standard error of the mean is below this fraction", false);
         final OptionSimple minMeasurements = new OptionSimple("n>", "[0-9]+", "30", "Run at least this many iterations before accepting uncertainty convergence", false);
 
         @Override
@@ -50,35 +81,9 @@ public class SettingsCommand implements Serializable
         }
     }
 
-    public SettingsCommand(Command type, GroupedOptions options)
-    {
-        this(type, (Options) options,
-                options instanceof Count ? (Count) options : null,
-                options instanceof Uncertainty ? (Uncertainty) options : null
-        );
-    }
+    // CLI Utility Methods
 
-    public SettingsCommand(Command type, Options options, Count count, Uncertainty uncertainty)
-    {
-        this.type = type;
-        this.tries = Math.max(1, Integer.parseInt(options.retries.value()) + 1);
-        this.ignoreErrors = options.ignoreErrors.present();
-        this.consistencyLevel = ConsistencyLevel.valueOf(options.consistencyLevel.value().toUpperCase());
-        if (count != null)
-        {
-            this.count = Long.parseLong(count.count.value());
-            this.targetUncertainty = -1;
-            this.minimumUncertaintyMeasurements = -1;
-        }
-        else
-        {
-            this.count = -1;
-            this.targetUncertainty = Double.parseDouble(uncertainty.uncertainty.value());
-            this.minimumUncertaintyMeasurements = Integer.parseInt(uncertainty.minMeasurements.value());
-        }
-    }
-
-    public static SettingsCommand get(Map<String, String[]> clArgs)
+    static SettingsCommand get(Map<String, String[]> clArgs)
     {
         for (Command cmd : Command.values())
         {
@@ -101,7 +106,7 @@ public class SettingsCommand implements Serializable
         return null;
     }
 
-    public static SettingsCommand build(Command type, String[] params)
+    static SettingsCommand build(Command type, String[] params)
     {
         GroupedOptions options = GroupedOptions.select(params, new Count(), new Uncertainty());
         if (options == null)
@@ -113,17 +118,17 @@ public class SettingsCommand implements Serializable
         return new SettingsCommand(type, options);
     }
 
-    public static void printHelp(Command type)
+    static void printHelp(Command type)
     {
         printHelp(type.toString().toLowerCase());
     }
 
-    public static void printHelp(String type)
+    static void printHelp(String type)
     {
         GroupedOptions.printOptions(System.out, type.toString().toLowerCase(), new Uncertainty(), new Count());
     }
 
-    public static Runnable helpPrinter(final String type)
+    static Runnable helpPrinter(final String type)
     {
         return new Runnable()
         {
@@ -135,7 +140,7 @@ public class SettingsCommand implements Serializable
         };
     }
 
-    public static Runnable helpPrinter(final Command type)
+    static Runnable helpPrinter(final Command type)
     {
         return new Runnable()
         {

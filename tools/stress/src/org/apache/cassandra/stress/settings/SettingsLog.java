@@ -15,24 +15,11 @@ public class SettingsLog implements Serializable
     public final File file;
     public final int intervalMillis;
 
-    public static final class Options extends GroupedOptions
-    {
-        final OptionSimple noSummmary = new OptionSimple("no-summary", "", null, "Disable printing of aggregate statistics at the end of a test", false);
-        final OptionSimple outputFile = new OptionSimple("file=", ".*", null, "Log to a file", false);
-        final OptionSimple interval = new OptionSimple("interval=", "[0-9]+(ms|s|)", "1s", "Log progress every <value> seconds or milliseconds", false);
-
-        @Override
-        public List<? extends Option> options()
-        {
-            return Arrays.asList(noSummmary, outputFile, interval);
-        }
-    }
-
     public SettingsLog(Options options)
     {
-        noSummary = options.noSummmary.present();
+        noSummary = options.noSummmary.setByUser();
 
-        if (options.outputFile.present())
+        if (options.outputFile.setByUser())
             file = new File(options.outputFile.value());
         else
             file = null;
@@ -52,6 +39,23 @@ public class SettingsLog implements Serializable
     {
         return file == null ? new PrintStream(System.out) : new PrintStream(file);
     }
+
+    // Option Declarations
+
+    public static final class Options extends GroupedOptions
+    {
+        final OptionSimple noSummmary = new OptionSimple("no-summary", "", null, "Disable printing of aggregate statistics at the end of a test", false);
+        final OptionSimple outputFile = new OptionSimple("file=", ".*", null, "Log to a file", false);
+        final OptionSimple interval = new OptionSimple("interval=", "[0-9]+(ms|s|)", "1s", "Log progress every <value> seconds or milliseconds", false);
+
+        @Override
+        public List<? extends Option> options()
+        {
+            return Arrays.asList(noSummmary, outputFile, interval);
+        }
+    }
+
+    // CLI Utility Methods
 
     public static SettingsLog get(Map<String, String[]> clArgs)
     {

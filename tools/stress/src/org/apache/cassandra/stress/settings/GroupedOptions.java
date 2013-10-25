@@ -4,15 +4,23 @@ import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public abstract class GroupedOptions
 {
 
+    int accepted = 0;
+
     public boolean accept(String param)
     {
         for (Option option : options())
+        {
             if (option.accept(param))
+            {
+                accepted++;
                 return true;
+            }
+        }
         return false;
     }
 
@@ -26,6 +34,8 @@ public abstract class GroupedOptions
 
     public abstract List<? extends Option> options();
 
+    // hands the parameters to each of the option groups, and returns the first provided
+    // option group that is happy() after this is done, that also accepted all the parameters
     public static GroupedOptions select(String[] params, GroupedOptions... groupings)
     {
         for (String param : params)
@@ -37,11 +47,12 @@ public abstract class GroupedOptions
                 throw new IllegalArgumentException("Invalid parameter " + param);
         }
         for (GroupedOptions grouping : groupings)
-            if (grouping.happy())
+            if (grouping.happy() && grouping.accepted == params.length)
                 return grouping;
         return null;
     }
 
+    // pretty prints all of the option groupings
     public static void printOptions(PrintStream out, String command, GroupedOptions... groupings)
     {
         out.println();
@@ -63,7 +74,7 @@ public abstract class GroupedOptions
             out.println(sb.toString());
         }
         out.println();
-        final HashSet<Option> printed = new HashSet<>();
+        final Set<Option> printed = new HashSet<>();
         for (GroupedOptions grouping : groupings)
         {
             for (Option option : grouping.options())
@@ -79,11 +90,6 @@ public abstract class GroupedOptions
     }
 
     public static String formatLong(String longDisplay, String description)
-    {
-        return String.format("%-40s %s", longDisplay, description);
-    }
-
-    public static String formatHeaderLong(String longDisplay, String description)
     {
         return String.format("%-40s %s", longDisplay, description);
     }

@@ -33,6 +33,8 @@ public class SettingsRate implements Serializable
         this.opRateTargetPerSecond = 0;
     }
 
+    // Option Declarations
+
     private static final class AutoOptions extends GroupedOptions
     {
         final OptionSimple auto = new OptionSimple("auto", "", null, "test with increasing number of threadCount until performance plateaus", true);
@@ -46,7 +48,7 @@ public class SettingsRate implements Serializable
 
     private static final class ThreadOptions extends GroupedOptions
     {
-        final OptionSimple threads = new OptionSimple("threadCount=", "[0-9]+", null, "run this many clients concurrently", true);
+        final OptionSimple threads = new OptionSimple("threads=", "[0-9]+", null, "run this many clients concurrently", true);
         final OptionSimple rate = new OptionSimple("limit=", "[0-9]+/s", "0/s", "limit operations per second across all clients", false);
 
         @Override
@@ -56,16 +58,23 @@ public class SettingsRate implements Serializable
         }
     }
 
+    // CLI Utility Methods
+
     public static SettingsRate get(Map<String, String[]> clArgs, SettingsCommand command)
     {
         String[] params = clArgs.remove("-rate");
         if (params == null)
         {
-            if (command.type == Command.WRITE)
+            switch (command.type)
             {
-                ThreadOptions options = new ThreadOptions();
-                options.accept("threadCount=50");
-                return new SettingsRate(options);
+                case WRITE:
+                case COUNTERWRITE:
+                    if (command.count > 0)
+                    {
+                        ThreadOptions options = new ThreadOptions();
+                        options.accept("threads=50");
+                        return new SettingsRate(options);
+                    }
             }
             return new SettingsRate();
         }

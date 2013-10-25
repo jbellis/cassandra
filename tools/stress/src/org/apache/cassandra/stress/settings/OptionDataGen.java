@@ -18,10 +18,10 @@ import java.util.regex.Pattern;
 /**
  * For selecting a data generator
  */
-public class OptionDataGen extends Option
+class OptionDataGen extends Option
 {
 
-    private static final Pattern FULL = Pattern.compile("([A-Z]+)\\(([^)]+)\\)");
+    private static final Pattern FULL = Pattern.compile("([A-Z]+)\\(([^)]+)\\)", Pattern.CASE_INSENSITIVE);
     private static final Pattern ARGS = Pattern.compile("[^,]+");
 
     final String prefix;
@@ -47,11 +47,11 @@ public class OptionDataGen extends Option
     {
         Matcher m = FULL.matcher(spec);
         if (!m.matches())
-            throw new IllegalArgumentException("Illegal distribution specification: " + spec);
+            throw new IllegalArgumentException("Illegal data generator specification: " + spec);
         String name = m.group(1);
         Impl impl = LOOKUP.get(name.toLowerCase());
         if (impl == null)
-            throw new IllegalArgumentException("Illegal distribution type: " + name);
+            throw new IllegalArgumentException("Illegal data generator type: " + name);
         List<String> params = new ArrayList<>();
         m = ARGS.matcher(m.group(2));
         while (m.find())
@@ -116,14 +116,7 @@ public class OptionDataGen extends Option
         {
             if (params.size() != 0)
                 throw new IllegalArgumentException("Invalid parameter list for random generator: " + params);
-            return new DataGenFactory()
-            {
-                @Override
-                public DataGen get()
-                {
-                    return new DataGenBytesRandom();
-                }
-            };
+            return new RandomFactory();
         }
     }
 
@@ -137,15 +130,8 @@ public class OptionDataGen extends Option
                 throw new IllegalArgumentException("Invalid parameter list for repeating generator: " + params);
             try
             {
-                final int repeatFrequency = Integer.parseInt(params.get(0));
-                return new DataGenFactory()
-                {
-                    @Override
-                    public DataGen get()
-                    {
-                        return new DataGenStringRepeats(repeatFrequency);
-                    }
-                };
+                int repeatFrequency = Integer.parseInt(params.get(0));
+                return new RepeatsFactory(repeatFrequency);
             } catch (Exception _)
             {
                 throw new IllegalArgumentException("Invalid parameter list for repeating generator: " + params);
@@ -169,6 +155,30 @@ public class OptionDataGen extends Option
             {
                 throw new IllegalArgumentException("Invalid parameter list for dictionary generator: " + params);
             }
+        }
+    }
+
+    private static final class RandomFactory implements DataGenFactory
+    {
+        @Override
+        public DataGen get()
+        {
+            return new DataGenBytesRandom();
+        }
+    }
+
+    private static final class RepeatsFactory implements DataGenFactory
+    {
+        final int frequency;
+        private RepeatsFactory(int frequency)
+        {
+            this.frequency = frequency;
+        }
+
+        @Override
+        public DataGen get()
+        {
+            return new DataGenStringRepeats(frequency);
         }
     }
 

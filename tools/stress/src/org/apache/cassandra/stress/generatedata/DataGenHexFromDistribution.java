@@ -13,13 +13,13 @@ public class DataGenHexFromDistribution extends DataGenHex
     }
 
     @Override
-    public boolean deterministic()
+    public boolean isDeterministic()
     {
         return false;
     }
 
     @Override
-    long nextInt(long operationIndex)
+    long next(long operationIndex)
     {
         return distribution.next();
     }

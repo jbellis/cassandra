@@ -2,42 +2,39 @@ package org.apache.cassandra.stress.generatedata;
 
 import org.apache.commons.math3.distribution.*;
 
-public class DistributionOffsetApache implements Distribution
+public class DistributionOffsetApache extends Distribution
 {
 
     final AbstractRealDistribution delegate;
-    final long minKey;
-    final long maxKey;
+    final long min, delta;
 
-    public DistributionOffsetApache(AbstractRealDistribution delegate, long minKey, long maxKey)
+    public DistributionOffsetApache(AbstractRealDistribution delegate, long min, long max)
     {
         this.delegate = delegate;
-        this.minKey = minKey;
-        this.maxKey = maxKey;
+        this.min = min;
+        this.delta = max - min;
     }
 
     @Override
     public long next()
     {
-        long delta = maxKey - minKey;
-        while (true)
-        {
-            long r = (long) delegate.sample();
-            if (r < delta)
-                return minKey + r;
-        }
+        return offset(min, delta, delegate.sample());
     }
 
     @Override
-    public long maxValue()
+    public long inverseCumProb(double cumProb)
     {
-        return Math.min(maxKey, minKey + (long) delegate.inverseCumulativeProbability(1d));
+        return offset(min, delta, delegate.inverseCumulativeProbability(cumProb));
     }
 
-    @Override
-    public long minValue()
+    private long offset(long min, long delta, double val)
     {
-        return minKey + (long) delegate.inverseCumulativeProbability(0d);
+        long r = (long) val;
+        if (r < 0)
+            r = 0;
+        if (r > delta)
+            r = delta;
+        return min + r;
     }
 
 }

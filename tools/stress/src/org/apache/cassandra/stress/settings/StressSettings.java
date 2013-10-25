@@ -64,7 +64,7 @@ public class StressSettings implements Serializable
         String currentNode = node.randomNode();
 
         TSocket socket = new TSocket(currentNode, port);
-        TTransport transport = this.transport.factory.getTransport(socket);
+        TTransport transport = this.transport.getFactory().getTransport(socket);
         Cassandra.Client client = new Cassandra.Client(new TBinaryProtocol(transport));
 
         try
@@ -120,7 +120,7 @@ public class StressSettings implements Serializable
         final Map<String, String[]> clArgs = parseMap(args);
         if (clArgs.containsKey("legacy"))
             return Legacy.build(Arrays.copyOfRange(args, 1, args.length));
-        if (maybePrintHelp(clArgs))
+        if (SettingsMisc.maybeDoSpecial(clArgs))
             System.exit(1);
         return get(clArgs);
     }
@@ -129,7 +129,7 @@ public class StressSettings implements Serializable
     {
         SettingsCommand command = SettingsCommand.get(clArgs);
         if (command == null)
-            throw new IllegalArgumentException("No operation specified");
+            throw new IllegalArgumentException("No command specified");
         int port = SettingsMisc.getPort(clArgs);
         String sendToDaemon = SettingsMisc.getSendToDaemon(clArgs);
         SettingsRate rate = SettingsRate.get(clArgs, command);
@@ -183,71 +183,9 @@ public class StressSettings implements Serializable
         return r;
     }
 
-    private static boolean maybePrintHelp(Map<String, String[]> clArgs)
-    {
-        if (!clArgs.containsKey("-?") && !clArgs.containsKey("help"))
-            return false;
-        String[] params = clArgs.remove("-?");
-        if (params == null)
-            params = clArgs.remove("help");
-        if (params.length == 0)
-        {
-            if (!clArgs.isEmpty())
-            {
-                if (clArgs.size() == 1)
-                {
-                    String p = clArgs.keySet().iterator().next();
-                    if (clArgs.get(p).length == 0)
-                        params = new String[] {p};
-                }
-            }
-            else
-            {
-                printHelp();
-                return true;
-            }
-        }
-        if (params.length == 1)
-        {
-            printHelp(params[0]);
-            return true;
-        }
-        throw new IllegalArgumentException("Invalid command/option provided to help");
-    }
-
     public static void printHelp()
     {
-        System.out.println("Usage: ./bin/cassandra-stress <command> [options]");
-        System.out.println();
-        System.out.println("---Commands---");
-        for (Command cmd : Command.values())
-        {
-            System.out.println(String.format("%-20s : %s", cmd.toString().toLowerCase(), cmd.description));
-        }
-        System.out.println();
-        System.out.println("---Options---");
-        for (CliOption cmd : CliOption.values())
-        {
-            System.out.println(String.format("-%-20s : %s", cmd.toString().toLowerCase(), cmd.description));
-        }
-    }
-
-    public static void printHelp(String command)
-    {
-        Command cmd = Command.get(command);
-        if (cmd != null)
-        {
-            cmd.printHelp();
-            return;
-        }
-        CliOption opt = CliOption.get(command);
-        if (opt != null)
-        {
-            opt.printHelp();
-            return;
-        }
-        printHelp();
-        throw new IllegalArgumentException("Invalid command or option provided to command help");
+        SettingsMisc.printHelp();
     }
 
 }

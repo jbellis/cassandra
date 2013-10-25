@@ -26,6 +26,6 @@ public abstract class RowGen
     // these byte[] may be re-used
     abstract List<ByteBuffer> getColumns(long operationIndex);
 
-    abstract public boolean deterministic();
+    abstract public boolean isDeterministic();
 
 }

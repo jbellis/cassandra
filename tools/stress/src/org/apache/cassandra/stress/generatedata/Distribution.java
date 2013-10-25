@@ -1,10 +1,19 @@
 package org.apache.cassandra.stress.generatedata;
 
-public interface Distribution
+public abstract class Distribution
 {
 
-    long next();
-    long maxValue();
-    long minValue();
+    public abstract long next();
+    public abstract long inverseCumProb(double cumProb);
+
+    public long maxValue()
+    {
+        return inverseCumProb(1d);
+    }
+
+    public long minValue()
+    {
+        return inverseCumProb(0d);
+    }
 
 }

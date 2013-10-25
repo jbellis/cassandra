@@ -29,6 +29,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.stress.operations.*;
 import org.apache.cassandra.stress.settings.Command;
+import org.apache.cassandra.stress.settings.SettingsCommand;
+import org.apache.cassandra.stress.settings.SettingsCommandMixed;
+import org.apache.cassandra.stress.settings.SettingsCommandMulti;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.transport.SimpleClient;
@@ -50,11 +53,7 @@ public class StressAction implements Runnable
         // creating keyspace and column families
         settings.maybeCreateKeyspaces();
 
-        // warmup - do 50k iterations; by default hotspot compiles methods after 10k invocations
-        PrintStream warmupOutput = new PrintStream(new OutputStream() { @Override public void write(int b) throws IOException { } } );
-        output.println("Warming up...");
-        for (Command type : settings.command.type.getWarmups())
-            run(type, 20, 50000, warmupOutput);
+        warmup(settings.command.type, settings.command);
 
         output.println("Sleeping 2s...");
         try { Thread.sleep(2000); } catch (InterruptedException e) { }
@@ -69,6 +68,32 @@ public class StressAction implements Runnable
             output.println("END");
         else
             output.println("FAILURE");
+    }
+
+    // type provided separately to support recursive call for mixed command with each command type it is performing
+    private void warmup(Command type, SettingsCommand command)
+    {
+        // warmup - do 50k iterations; by default hotspot compiles methods after 10k invocations
+        PrintStream warmupOutput = new PrintStream(new OutputStream() { @Override public void write(int b) throws IOException { } } );
+        int iterations;
+        switch (type.category)
+        {
+            case BASIC:
+                iterations = 50000;
+                break;
+            case MIXED:
+                for (Command subtype : ((SettingsCommandMixed) command).getCommands())
+                    warmup(subtype, command);
+                return;
+            case MULTI:
+                int keysAtOnce = ((SettingsCommandMulti) command).keysAtOnce;
+                iterations = Math.min(50000, (int) Math.ceil(500000d / keysAtOnce));
+                break;
+            default:
+                throw new IllegalStateException();
+        }
+        output.println(String.format("Warming up %s with %d iterations...", type, iterations));
+        run(type, 20, iterations, warmupOutput);
     }
 
     // TODO : permit varying more than just thread count
@@ -125,8 +150,8 @@ public class StressAction implements Runnable
         double improvement = 0;
         for (int i = results.size() - count ; i < results.size() ; i++)
         {
-            double prev = results.get(i - 1).getFullHistory().opRate();
-            double cur = results.get(i).getFullHistory().opRate();
+            double prev = results.get(i - 1).getTiming().getHistory().opRate();
+            double cur = results.get(i).getTiming().getHistory().opRate();
             improvement += (cur - prev) / prev;
         }
         return improvement / (results.size() - 1);
@@ -135,6 +160,10 @@ public class StressAction implements Runnable
     private StressMetrics run(Command type, int threadCount, long opCount, PrintStream output)
     {
 
+        output.println(String.format("Running %s with %d threads %s",
+                type.toString(),
+                threadCount,
+                opCount > 0 ? " for " + opCount + " iterations" : "until stderr of mean < " + settings.command.targetUncertainty));
         final WorkQueue workQueue;
         if (opCount < 0)
             workQueue = new ContinuousWorkQueue(50);
@@ -146,7 +175,7 @@ public class StressAction implements Runnable
         if (settings.rate.opRateTargetPerSecond > 0)
             rateLimiter = RateLimiter.create(settings.rate.opRateTargetPerSecond);
 
-        final StressMetrics metrics = new StressMetrics(output);
+        final StressMetrics metrics = new StressMetrics(output, settings.log.intervalMillis);
 
         final CountDownLatch done = new CountDownLatch(threadCount);
         final Consumer[] consumers = new Consumer[threadCount];
@@ -157,31 +186,26 @@ public class StressAction implements Runnable
         for (int i = 0; i < threadCount; i++)
             consumers[i].start();
 
-        metrics.meterWithLogInterval(settings.log.intervalMillis);
+        metrics.start();
 
         if (opCount <= 0)
         {
             try
             {
-                metrics.runUntilConverges(settings.command.targetUncertainty, settings.command.minimumUncertaintyMeasurements);
-            } catch (InterruptedException e)
-            {
-                // termination signalled
-                workQueue.stop();
-                return null;
-            }
+                metrics.waitUntilConverges(settings.command.targetUncertainty, settings.command.minimumUncertaintyMeasurements);
+            } catch (InterruptedException e) { }
             workQueue.stop();
         }
 
         try
         {
             done.await();
-        } catch (InterruptedException e)
-        {
-            return null;
-        }
+            metrics.stop();
+        } catch (InterruptedException e) {}
 
-        metrics.stop();
+        if (metrics.wasCancelled())
+            return null;
+
         metrics.summarise();
 
         boolean success = true;
@@ -253,7 +277,7 @@ public class StressAction implements Runnable
                             e.printStackTrace(output);
                             success = false;
                             workQueue.stop();
-                            state.metrics.stop();
+                            state.metrics.cancel();
                             return;
                         }
                     }
@@ -438,7 +462,7 @@ public class StressAction implements Runnable
                         throw new UnsupportedOperationException();
                 }
 
-            case RANGE_SLICE:
+            case RANGESLICE:
                 switch(state.settings.mode.api)
                 {
                     case THRIFT:
@@ -450,15 +474,14 @@ public class StressAction implements Runnable
                         throw new UnsupportedOperationException();
                 }
 
-            case INDEXED_RANGE_SLICE:
+            case IRANGESLICE:
                 switch(state.settings.mode.api)
                 {
                     case THRIFT:
                         return new ThriftIndexedRangeSlicer(state, index);
                     case CQL:
                     case CQL_PREPARED:
-                        // TODO
-                        throw new UnsupportedOperationException();
+                        return new CqlIndexedRangeSlicer(state, index);
                     default:
                         throw new UnsupportedOperationException();
                 }

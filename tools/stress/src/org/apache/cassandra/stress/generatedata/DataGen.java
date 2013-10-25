@@ -7,7 +7,7 @@ public abstract class DataGen
 {
 
     public abstract void generate(ByteBuffer fill, long offset);
-    public abstract boolean deterministic();
+    public abstract boolean isDeterministic();
 
     public void generate(List<ByteBuffer> fills, long offset)
     {

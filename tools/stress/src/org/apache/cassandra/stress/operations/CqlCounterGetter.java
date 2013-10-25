@@ -21,6 +21,7 @@ package org.apache.cassandra.stress.operations;
  */
 
 
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
@@ -33,9 +34,9 @@ public class CqlCounterGetter extends CqlOperation<Integer>
     }
 
     @Override
-    protected List<String> getQueryParameters(byte[] key)
+    protected List<ByteBuffer> getQueryParameters(byte[] key)
     {
-        return Collections.singletonList(getUnQuotedCqlBlob(key, state.isCql3()));
+        return Collections.singletonList(ByteBuffer.wrap(key));
     }
 
     @Override
@@ -59,7 +60,7 @@ public class CqlCounterGetter extends CqlOperation<Integer>
     }
 
     @Override
-    protected CqlRunOp buildRunOp(ClientWrapper client, String query, byte[] queryId, List<String> params, String key)
+    protected CqlRunOp buildRunOp(ClientWrapper client, String query, byte[] queryId, List<ByteBuffer> params, String key)
     {
         return new CqlRunOpTestNonEmpty(client, query, queryId, params, key);
     }

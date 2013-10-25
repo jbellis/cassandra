@@ -21,7 +21,7 @@ public class DistributionSeqBatch extends DataGenHex
     }
 
     @Override
-    long nextInt(long operationIndex)
+    long next(long operationIndex)
     {
         if (batchIndex >= batchSize)
         {
@@ -39,7 +39,7 @@ public class DistributionSeqBatch extends DataGenHex
     }
 
     @Override
-    public boolean deterministic()
+    public boolean isDeterministic()
     {
         return false;
     }

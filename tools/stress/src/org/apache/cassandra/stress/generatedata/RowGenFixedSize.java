@@ -24,9 +24,9 @@ public class RowGenFixedSize extends RowGen
     }
 
     @Override
-    public boolean deterministic()
+    public boolean isDeterministic()
     {
-        return dataGen.deterministic();
+        return dataGen.isDeterministic();
     }
 
 }
