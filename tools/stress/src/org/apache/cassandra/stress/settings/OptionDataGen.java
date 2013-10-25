@@ -151,9 +151,9 @@ class OptionDataGen extends Option
             {
                 final File file = new File(params.get(0));
                 return DataGenStringDictionary.getFactory(file);
-            } catch (Exception _)
+            } catch (Exception e)
             {
-                throw new IllegalArgumentException("Invalid parameter list for dictionary generator: " + params);
+                throw new IllegalArgumentException("Invalid parameter list for dictionary generator: " + params, e);
             }
         }
     }
