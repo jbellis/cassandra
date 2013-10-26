@@ -39,6 +39,8 @@ public final class Stress
      *
      *
      * Future improvements:
+     * - Configurable connection compression
+     * - Java driver support
      * - Per column data generators
      * - Automatic column/schema detection if provided with a CF
      * - target rate produces a very steady work rate, and if we want to simulate a real op rate for an
