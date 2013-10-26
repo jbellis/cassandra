@@ -82,7 +82,7 @@ public final class CFMetaData
     public final static Class<? extends AbstractCompactionStrategy> DEFAULT_COMPACTION_STRATEGY_CLASS = SizeTieredCompactionStrategy.class;
     public final static Caching DEFAULT_CACHING_STRATEGY = Caching.KEYS_ONLY;
     public final static int DEFAULT_DEFAULT_TIME_TO_LIVE = 0;
-    public final static SpeculativeRetry DEFAULT_SPECULATIVE_RETRY = new SpeculativeRetry(SpeculativeRetry.RetryType.NONE, 0);
+    public final static SpeculativeRetry DEFAULT_SPECULATIVE_RETRY = new SpeculativeRetry(SpeculativeRetry.RetryType.PERCENTILE, 0.99);
     public final static int DEFAULT_INDEX_INTERVAL = 128;
     public final static boolean DEFAULT_POPULATE_IO_CACHE_ON_FLUSH = false;
 
@@ -1460,7 +1460,7 @@ public final class CFMetaData
             if (fromThrift && cd.type != ColumnDefinition.Type.REGULAR)
                 continue;
 
-            cd.deleteFromSchema(rm, cfName, modificationTimestamp);
+            cd.deleteFromSchema(rm, cfName, getColumnDefinitionComparator(cd), modificationTimestamp);
         }
 
         // newly added columns
@@ -1505,7 +1505,7 @@ public final class CFMetaData
         cf.addAtom(new RangeTombstone(builder.build(), builder.buildAsEndOfRange(), timestamp, ldt));
 
         for (ColumnDefinition cd : column_metadata.values())
-            cd.deleteFromSchema(rm, cfName, timestamp);
+            cd.deleteFromSchema(rm, cfName, getColumnDefinitionComparator(cd), timestamp);
 
         for (TriggerDefinition td : triggers.values())
             td.deleteFromSchema(rm, cfName, timestamp);
