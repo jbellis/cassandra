@@ -142,7 +142,7 @@ public class Legacy implements Serializable
             else
                 uniqueKeys = numKeys;
 
-            if (r.command.equals("insert") || r.command.equals("counter_add"))
+            if (r.opts.containsKey("write") || r.opts.containsKey("counterwrite"))
             {
                 if (!uniqueKeys.equals(numKeys))
                     r.add("command", "populate=1.." + uniqueKeys);
