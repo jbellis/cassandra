@@ -145,7 +145,7 @@ public class Legacy implements Serializable
             if (r.opts.containsKey("write") || r.opts.containsKey("counterwrite"))
             {
                 if (!uniqueKeys.equals(numKeys))
-                    r.add("command", "populate=1.." + uniqueKeys);
+                    r.add("-key", "populate=1.." + uniqueKeys);
             }
             else if (cmd.hasOption("r"))
             {

@@ -40,8 +40,11 @@ public class StressMetrics
                     {
                         try
                         {
-                            long sleep = timing.getHistory().end + logIntervalMillis - System.currentTimeMillis();
-                            if (sleep > 0)
+                            long sleep = timing.getHistory().endMillis() + logIntervalMillis - System.currentTimeMillis();
+                            if (sleep < logIntervalMillis >>> 3)
+                                // if had a major hiccup, sleep full interval
+                                Thread.sleep(logIntervalMillis);
+                            else
                                 Thread.sleep(sleep);
                             update();
                         } catch (InterruptedException e)
@@ -96,25 +99,26 @@ public class StressMetrics
     {
         TimingInterval interval = timing.snapInterval();
         printRow("", interval, timing.getHistory(), opRateUncertainty, output);
-        opRateUncertainty.update(interval.opRate());
+        opRateUncertainty.update(interval.adjustedOpRate());
     }
 
 
     // PRINT FORMATTING
 
-    public static final String HEADFORMAT = "%-10s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%7s,%9s";
-    public static final String ROWFORMAT =  "%-10d,%8.0f,%8.0f,%8.1f,%8.1f,%8.1f,%8.1f,%8.1f,%8.1f,%7.1f,%9.5f";
+    public static final String HEADFORMAT = "%-10s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%7s,%9s";
+    public static final String ROWFORMAT =  "%-10d,%8.0f,%8.0f,%8.0f,%8.1f,%8.1f,%8.1f,%8.1f,%8.1f,%8.1f,%7.1f,%9.5f";
 
     private static void printHeader(String prefix, PrintStream output)
     {
-        output.println(prefix + String.format(HEADFORMAT, "ops","op/s","key/s","mean","med",".95",".99",".999","max","time","stderr"));
+        output.println(prefix + String.format(HEADFORMAT, "ops","op/s", "adj op/s","key/s","mean","med",".95",".99",".999","max","time","stderr"));
     }
 
     private static void printRow(String prefix, TimingInterval interval, TimingInterval total, Uncertainty opRateUncertainty, PrintStream output)
     {
         output.println(prefix + String.format(ROWFORMAT,
                 total.operationCount,
-                interval.opRate(),
+                interval.realOpRate(),
+                interval.adjustedOpRate(),
                 interval.keyRate(),
                 interval.meanLatency(),
                 interval.medianLatency(),
@@ -131,7 +135,9 @@ public class StressMetrics
         output.println("\n");
         output.println("Results:");
         TimingInterval history = timing.getHistory();
-        output.println(String.format("op rate                   : %.0f", history.opRate()));
+        output.println(String.format("real op rate              : %.0f", history.realOpRate()));
+        output.println(String.format("adjusted op rate          : %.0f", history.adjustedOpRate()));
+        output.println(String.format("adjusted op rate stderr   : %.0f", opRateUncertainty.getUncertainty()));
         output.println(String.format("key rate                  : %.0f", history.keyRate()));
         output.println(String.format("latency mean              : %.1f", history.meanLatency()));
         output.println(String.format("latency median            : %.1f", history.medianLatency()));

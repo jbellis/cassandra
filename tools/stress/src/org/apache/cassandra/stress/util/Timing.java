@@ -41,7 +41,7 @@ public class Timing
         for (Timer timer : timers)
             intervals.add(timer.report);
 
-        return TimingInterval.merge(rnd, intervals, Integer.MAX_VALUE, history.end);
+        return TimingInterval.merge(rnd, intervals, Integer.MAX_VALUE, history.endNanos());
     }
 
     // build a new timer and add it to the set of running timers
@@ -54,13 +54,13 @@ public class Timing
 
     public void start()
     {
-        history = new TimingInterval(System.currentTimeMillis());
+        history = new TimingInterval(System.nanoTime());
     }
 
     public TimingInterval snapInterval() throws InterruptedException
     {
         final TimingInterval interval = snapInterval(rnd);
-        history = TimingInterval.merge(rnd, Arrays.asList(interval, history), 50000, history.start);
+        history = TimingInterval.merge(rnd, Arrays.asList(interval, history), 50000, history.startNanos());
         return interval;
     }
 

@@ -150,8 +150,8 @@ public class StressAction implements Runnable
         double improvement = 0;
         for (int i = results.size() - count ; i < results.size() ; i++)
         {
-            double prev = results.get(i - 1).getTiming().getHistory().opRate();
-            double cur = results.get(i).getTiming().getHistory().opRate();
+            double prev = results.get(i - 1).getTiming().getHistory().realOpRate();
+            double cur = results.get(i).getTiming().getHistory().realOpRate();
             improvement += (cur - prev) / prev;
         }
         return improvement / (results.size() - 1);
@@ -347,7 +347,7 @@ public class StressAction implements Runnable
         {
             // target splitting into around 50-500k items, with a minimum size of 20
             if (operations > Integer.MAX_VALUE * (1L << 19))
-                throw new IllegalStateException("Cannot currently support more than approx 2^40 operations for one stress run. This is a LOT.");
+                throw new IllegalStateException("Cannot currently support more than approx 2^50 operations for one stress run. This is a LOT.");
             int batchSize = (int) (operations / (1 << 19));
             if (batchSize < 20)
                 batchSize = 20;

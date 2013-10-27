@@ -18,15 +18,16 @@ public final class Timer
     private long sampleStartNanos;
 
     // each entry is present with probability 1/p(opCount) or 1/(p(opCount)-1)
-    private long[] sample = new long[1 << SAMPLE_SIZE_SHIFT];
+    private final long[] sample = new long[1 << SAMPLE_SIZE_SHIFT];
     private int opCount;
 
     // aggregate info
     private int keyCount;
     private long total;
     private long max;
+    private long maxStart;
     private long upToDateAsOf;
-    private long lastSnap = System.currentTimeMillis();
+    private long lastSnap = System.nanoTime();
 
     // communication with summary/logging thread
     private volatile CountDownLatch reportRequest;
@@ -46,15 +47,19 @@ public final class Timer
     public void stop(int keys)
     {
         maybeReport();
-        long time = System.nanoTime() - sampleStartNanos;
+        long now = System.nanoTime();
+        long time = now - sampleStartNanos;
         if (rnd.nextInt(p(opCount)) == 0)
             sample[index(opCount)] = time;
         if (time > max)
+        {
+            maxStart = sampleStartNanos;
             max = time;
+        }
         total += time;
         opCount += 1;
         keyCount += keys;
-        upToDateAsOf = System.currentTimeMillis();
+        upToDateAsOf = now;
     }
 
     private static int index(int count)
@@ -68,7 +73,7 @@ public final class Timer
                 (       new SampleOfLongs(Arrays.copyOf(sample, index(opCount)), p(opCount)),
                         new SampleOfLongs(Arrays.copyOfRange(sample, index(opCount), Math.min(opCount, sample.length)), p(opCount) - 1)
                 );
-        final TimingInterval report = new TimingInterval(lastSnap, upToDateAsOf, max, keyCount, total, opCount,
+        final TimingInterval report = new TimingInterval(lastSnap, upToDateAsOf, max, maxStart, max, keyCount, total, opCount,
                 SampleOfLongs.merge(rnd, sampleLatencies, Integer.MAX_VALUE));
         // reset counters
         opCount = 0;

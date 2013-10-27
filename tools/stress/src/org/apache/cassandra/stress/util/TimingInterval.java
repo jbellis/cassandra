@@ -9,12 +9,12 @@ import java.util.Random;
 // used for both single timer results and merged timer results
 public final class TimingInterval
 {
-    // millis
-    public final long start;
-    public final long end;
-
     // nanos
+    private final long start;
+    private final long end;
     public final long maxLatency;
+    public final long pauseLength;
+    public final long pauseStart;
     public final long totalLatency;
 
     // discrete
@@ -28,9 +28,10 @@ public final class TimingInterval
         start = end = time;
         maxLatency = totalLatency = 0;
         keyCount = operationCount = 0;
+        pauseStart = pauseLength = 0;
         sample = new SampleOfLongs(new long[0], 1d);
     }
-    TimingInterval(long start, long end, long maxLatency, long keyCount, long totalLatency, long operationCount, SampleOfLongs sample)
+    TimingInterval(long start, long end, long maxLatency, long pauseStart, long pauseLength, long keyCount, long totalLatency, long operationCount, SampleOfLongs sample)
     {
         this.start = start;
         this.end = Math.max(end, start);
@@ -38,6 +39,8 @@ public final class TimingInterval
         this.keyCount = keyCount;
         this.totalLatency = totalLatency;
         this.operationCount = operationCount;
+        this.pauseStart = pauseStart;
+        this.pauseLength = pauseLength;
         this.sample = sample;
     }
 
@@ -48,6 +51,7 @@ public final class TimingInterval
         long maxLatency = 0, totalLatency = 0;
         List<SampleOfLongs> latencies = new ArrayList<>();
         long end = 0;
+        long pauseStart = 0, pauseEnd = Long.MAX_VALUE;
         for (TimingInterval interval : intervals)
         {
             end = Math.max(end, interval.end);
@@ -56,21 +60,32 @@ public final class TimingInterval
             totalLatency += interval.totalLatency;
             keyCount += interval.keyCount;
             latencies.addAll(Arrays.asList(interval.sample));
+            if (interval.pauseLength > 0)
+            {
+                pauseStart = Math.max(pauseStart, interval.pauseStart);
+                pauseEnd = Math.min(pauseEnd, interval.pauseStart + interval.pauseLength);
+            }
         }
-
-        return new TimingInterval(start, end, maxLatency, keyCount, totalLatency, operationCount,
+        if (pauseEnd < pauseStart)
+            pauseEnd = pauseStart = 0;
+        return new TimingInterval(start, end, maxLatency, pauseStart, pauseEnd - pauseStart, keyCount, totalLatency, operationCount,
                 SampleOfLongs.merge(rnd, latencies, maxSamples));
 
     }
 
-    public double opRate()
+    public double realOpRate()
     {
-        return operationCount / ((end - start) * 0.001d);
+        return operationCount / ((end - start) * 0.000000001d);
+    }
+
+    public double adjustedOpRate()
+    {
+        return operationCount / ((end - (start + pauseLength)) * 0.000000001d);
     }
 
     public double keyRate()
     {
-        return keyCount / ((end - start) * 0.001d);
+        return keyCount / ((end - start) * 0.000000001d);
     }
 
     public double meanLatency()
@@ -85,7 +100,7 @@ public final class TimingInterval
 
     public long runTime()
     {
-        return end - start;
+        return (end - start) / 1000000;
     }
 
     public double medianLatency()
@@ -99,5 +114,19 @@ public final class TimingInterval
         return sample.rankLatency(rank);
     }
 
+    public final long endNanos()
+    {
+        return end;
+    }
+
+    public final long endMillis()
+    {
+        return end / 1000000;
+    }
+
+    public long startNanos()
+    {
+        return start;
+    }
 }
 
