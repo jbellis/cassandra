@@ -150,8 +150,8 @@ public class StressAction implements Runnable
         double improvement = 0;
         for (int i = results.size() - count ; i < results.size() ; i++)
         {
-            double prev = results.get(i - 1).getTiming().getHistory().opRate();
-            double cur = results.get(i).getTiming().getHistory().opRate();
+            double prev = results.get(i - 1).getTiming().getHistory().realOpRate();
+            double cur = results.get(i).getTiming().getHistory().realOpRate();
             improvement += (cur - prev) / prev;
         }
         return improvement / (results.size() - 1);
