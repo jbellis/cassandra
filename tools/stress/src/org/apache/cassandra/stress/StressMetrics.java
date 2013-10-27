@@ -1,18 +1,13 @@
 package org.apache.cassandra.stress;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.stress.util.Timer;
 import org.apache.cassandra.stress.util.Timing;
 import org.apache.cassandra.stress.util.TimingInterval;
 import org.apache.cassandra.stress.util.Uncertainty;
 import org.apache.commons.lang3.time.*;
 
 import java.io.PrintStream;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
 
