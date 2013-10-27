@@ -346,9 +346,9 @@ public class StressAction implements Runnable
         static FixedWorkQueue build(long operations)
         {
             // target splitting into around 50-500k items, with a minimum size of 20
-            if (operations > Integer.MAX_VALUE * (1L << 9))
-                throw new IllegalStateException("Cannot currently support more than approx 2^40 operations for one stress run. This is a LOT.");
-            int batchSize = (int) (operations / (1 << 9));
+            if (operations > Integer.MAX_VALUE * (1L << 19))
+                throw new IllegalStateException("Cannot currently support more than approx 2^50 operations for one stress run. This is a LOT.");
+            int batchSize = (int) (operations / (1 << 19));
             if (batchSize < 20)
                 batchSize = 20;
             ArrayBlockingQueue<Work> work = new ArrayBlockingQueue<Work>(

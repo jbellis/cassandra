@@ -18,13 +18,17 @@ public final class Timer
     private long sampleStartNanos;
 
     // each entry is present with probability 1/p(opCount) or 1/(p(opCount)-1)
-    private long[] sample = new long[1 << SAMPLE_SIZE_SHIFT];
+    private final long[] sample = new long[1 << SAMPLE_SIZE_SHIFT];
     private int opCount;
+
+    // the four longest latencies, and the times at which they started
+    // in (length, start) pairs, in increasing length order
+    private static final int MAX_SAVE_COUNT = 4;
+    private final long[] max = new long[MAX_SAVE_COUNT * 2];
 
     // aggregate info
     private int keyCount;
     private long total;
-    private long max;
     private long upToDateAsOf;
     private long lastSnap = System.currentTimeMillis();
 
@@ -41,6 +45,44 @@ public final class Timer
     private static int p(int index)
     {
         return 1 + (index >>> SAMPLE_SIZE_SHIFT);
+    }
+
+    private void updateMax(long length, long start)
+    {
+        // quick terminate to help branch predictor
+        if (length < max[0])
+            return;
+        int i;
+        // find position to insert
+        for (i = 0 ; i < MAX_SAVE_COUNT ; i += 2)
+        {
+            if (max[i] == 0)
+            {
+                // empty insert, so just place and return
+                max[i] = length;
+                max[i + 1] = start;
+                return;
+            }
+            // found item larger, so
+            if (max[i] > length)
+                break;
+        }
+        if (max[MAX_SAVE_COUNT - 1] == 0)
+        {
+            // not full, so shuffle up
+            for (int j = MAX_SAVE_COUNT ; j > i + 2 ; j -= 2)
+            {
+                max[j - 2] = max[j - 4];
+                max[j - 1] = max[j - 3];
+            }
+        }
+        else
+        {
+            // full, so shuffle down (dropping smallest)
+
+        }
+        max[i] = length;
+        max[i + 1] = start;
     }
 
     public void stop(int keys)
