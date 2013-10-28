@@ -42,6 +42,8 @@ public class StressStatistics
     private int tallyKeyRateSum;
     /** The number of interval_key_rate values collected by tallyAverages */
     private int tallyKeyRateCount;
+    private long startNanos = -1, startOps = -1;
+    private long endNanos = -1, endOps = -1;
 
     /** The sum of the latency values collected by tallyAverages */
     private double tallyLatencySum;
@@ -69,20 +71,20 @@ public class StressStatistics
     /**
      * Collect statistics per-interval
      */
-    public void addIntervalStats(int totalOperations, int intervalOpRate, 
+    public void addIntervalStats(int totalOperations, int intervalOpRate,
                                  int intervalKeyRate, Snapshot latency, 
-                                 long currentTimeInSeconds)
+                                 long currentTimeInSeconds, long now)
     {
-        this.tallyAverages(totalOperations, intervalKeyRate, intervalKeyRate, 
-                                latency, currentTimeInSeconds);
+        this.tallyAverages(totalOperations, intervalOpRate, intervalKeyRate,
+                                latency, currentTimeInSeconds, now);
     }
 
     /**
      * Collect interval_op_rate and interval_key_rate averages
      */
-    private void tallyAverages(int totalOperations, int intervalOpRate, 
+    private void tallyAverages(int totalOperations, int intervalOpRate,
                                  int intervalKeyRate, Snapshot latency, 
-                                 long currentTimeInSeconds)
+                                 long currentTimeInSeconds, long now)
     {
         //Skip the first and last 10% of values.
         //The middle values of the operation are the ones worthwhile
@@ -99,6 +101,13 @@ public class StressStatistics
                 tally95thLatencyCount += 1;
                 tally999thLatencySum += latency.get999thPercentile();
                 tally999thLatencyCount += 1;
+                if (startNanos <= 0)
+                {
+                    startOps = totalOperations;
+                    startNanos = now;
+                }
+                endOps = totalOperations;
+                endNanos = now;
             }
         durationInSeconds = currentTimeInSeconds;
     }
@@ -108,7 +117,9 @@ public class StressStatistics
         output.println("\n");
         if (tallyOpRateCount > 0) {
             output.println("Averages from the middle 80% of values:");
-            output.println(String.format("interval_op_rate          : %d", 
+            output.println(String.format("actual interval_op_rate   : %.0f",
+                    ((endOps - startOps) / ((endNanos - startNanos) * 0.000000001d))));
+            output.println(String.format("interval_op_rate          : %d",
                                          (tallyOpRateSum / tallyOpRateCount)));
             output.println(String.format("interval_key_rate         : %d", 
                                          (tallyKeyRateSum / tallyKeyRateCount)));

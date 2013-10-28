@@ -66,7 +66,7 @@ public class StressAction extends Thread
         int threadCount = client.getThreads();
         Consumer[] consumers = new Consumer[threadCount];
 
-        output.println("total,interval_op_rate,interval_key_rate,latency,95th,99.9th,elapsed_time");
+        output.println("total,actual_op_rate,interval_op_rate,interval_key_rate,latency,95th,99.9th,elapsed_time");
 
         int itemsPerThread = client.getKeysPerThread();
         int modulo = client.getNumKeys() % threadCount;
@@ -94,7 +94,8 @@ public class StressAction extends Thread
         int interval = client.getProgressInterval();
         int epochIntervals = client.getProgressInterval() * 10;
         long testStartTime = System.nanoTime();
-        
+        long prevTime = testStartTime;
+
         StressStatistics stats = new StressStatistics(client, output);
 
         while (!terminate)
@@ -134,22 +135,26 @@ public class StressAction extends Thread
                 int opDelta = total - oldTotal;
                 int keyDelta = keyCount - oldKeyCount;
 
-                long currentTimeInSeconds = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - testStartTime);
+                long now = System.nanoTime();
+                long currentTimeInSeconds = TimeUnit.NANOSECONDS.toSeconds(now - testStartTime);
 
-                output.println(String.format("%d,%d,%d,%.1f,%.1f,%.1f,%d",
+                output.println(String.format("%d,%.0f,%d,%d,%.1f,%.1f,%.1f,%d",
                                              total,
+                                             opDelta / ((now - prevTime) * 0.000000001d),
                                              opDelta / interval,
                                              keyDelta / interval,
                                              latency.getMedian(), latency.get95thPercentile(), latency.get999thPercentile(),
                                              currentTimeInSeconds));
 
                 if (client.outputStatistics()) {
-                    stats.addIntervalStats(total, 
-                                           opDelta / interval, 
+                    stats.addIntervalStats(total,
+                                           opDelta / interval,
                                            keyDelta / interval, 
                                            latency, 
-                                           currentTimeInSeconds);
+                                           currentTimeInSeconds,
+                                           now);
                         }
+                prevTime = now;
             }
         }
 
