@@ -292,7 +292,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
         return new SlicesIterator(columns, getComparator(), slices, !reversed);
     }
 
-    private static class SlicesIterator extends AbstractIterator<Column>
+    public static class SlicesIterator extends AbstractIterator<Column>
     {
         private final List<Column> list;
         private final ColumnSlice[] slices;

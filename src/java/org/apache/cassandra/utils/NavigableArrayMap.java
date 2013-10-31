@@ -15,198 +15,185 @@ public class NavigableArrayMap<K, V>  implements NavigableMap<K, V>
     static final Object[] EMPTY = new Object[0];
 
     final Comparator<K> cmp;
-    final K[] keys;
-    final V[] values;
-
-    public NavigableArrayMap(Comparator<K> cmp, K[] keys, V[] values)
-    {
-        this.cmp = cmp;
-        this.keys = keys;
-        this.values = values;
-    }
+    volatile ImmutableSortedArrayMap<K, V> map = ImmutableSortedArrayMap.EMPTY;
 
     public NavigableArrayMap(Comparator<K> cmp)
     {
         this.cmp = cmp;
-        this.keys = (K[]) EMPTY;
-        this.values = (V[]) EMPTY;
     }
-
 
     @Override
     public V get(Object key)
     {
-
-        return null;
+        return map.getValue(map.index((K) key, cmp));
     }
 
     @Override
     public Entry<K, V> lowerEntry(K key)
     {
-        int i = Arrays.binarySearch(keys, key, comparator());
-        return null;
-    }
-
-    @Override
-    public K lowerKey(K key)
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return map.getEntry(map.lowerIndex(key, cmp));
     }
 
     @Override
     public Entry<K, V> floorEntry(K key)
     {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public K floorKey(K key)
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return map.getEntry(map.floorIndex(key, cmp));
     }
 
     @Override
     public Entry<K, V> ceilingEntry(K key)
     {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public K ceilingKey(K key)
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return map.getEntry(map.ceilIndex(key, cmp));
     }
 
     @Override
     public Entry<K, V> higherEntry(K key)
     {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return map.getEntry(map.higherIndex(key, cmp));
+    }
+
+    @Override
+    public K lowerKey(K key)
+    {
+        return map.getKey(map.lowerIndex(key, cmp));
+    }
+
+    @Override
+    public K floorKey(K key)
+    {
+        return map.getKey(map.floorIndex(key, cmp));
+    }
+
+    @Override
+    public K ceilingKey(K key)
+    {
+        return map.getKey(map.ceilIndex(key, cmp));
     }
 
     @Override
     public K higherKey(K key)
     {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return map.getKey(map.higherIndex(key, cmp));
     }
 
     @Override
     public Entry<K, V> firstEntry()
     {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return map.length() > 0 ? map.getEntry(0) : null;
     }
 
     @Override
     public Entry<K, V> lastEntry()
     {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public Entry<K, V> pollFirstEntry()
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public Entry<K, V> pollLastEntry()
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public NavigableMap<K, V> descendingMap()
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public NavigableSet<K> navigableKeySet()
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public NavigableSet<K> descendingKeySet()
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public NavigableMap<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive)
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public NavigableMap<K, V> headMap(K toKey, boolean inclusive)
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public NavigableMap<K, V> tailMap(K fromKey, boolean inclusive)
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public Comparator<? super K> comparator()
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public SortedMap<K, V> subMap(K fromKey, K toKey)
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public SortedMap<K, V> headMap(K toKey)
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    @Override
-    public SortedMap<K, V> tailMap(K fromKey)
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return map.length() > 0 ? map.getEntry(map.length() - 1) : null;
     }
 
     @Override
     public K firstKey()
     {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return map.length() > 0 ? map.getKey(0) : null;
     }
 
     @Override
     public K lastKey()
     {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return map.length() > 0 ? map.getKey(map.length() - 1) : null;
+    }
+
+    @Override
+    public Entry<K, V> pollFirstEntry()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Entry<K, V> pollLastEntry()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public NavigableMap<K, V> descendingMap()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public NavigableSet<K> navigableKeySet()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public NavigableSet<K> descendingKeySet()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public NavigableMap<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public NavigableMap<K, V> headMap(K toKey, boolean inclusive)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public NavigableMap<K, V> tailMap(K fromKey, boolean inclusive)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Comparator<? super K> comparator()
+    {
+        return cmp;
+    }
+
+    @Override
+    public SortedMap<K, V> subMap(K fromKey, K toKey)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public SortedMap<K, V> headMap(K toKey)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public SortedMap<K, V> tailMap(K fromKey)
+    {
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public int size()
     {
-        return 0;  //To change body of implemented methods use File | Settings | File Templates.
+        return map.length();
     }
 
     @Override
     public boolean isEmpty()
     {
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        return map.length() == 0;
     }
 
     @Override
     public boolean containsKey(Object key)
     {
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public boolean containsValue(Object value)
     {
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -222,33 +209,32 @@ public class NavigableArrayMap<K, V>  implements NavigableMap<K, V>
     }
 
     @Override
-    public void putAll(Map<? extends K, ? extends V> m)
+    public Set<K> keySet()
     {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void putAll(Map<? extends K, ? extends V> m)
+    {
     }
 
     @Override
     public void clear()
     {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Set<K> keySet()
-    {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        map = ImmutableSortedArrayMap.EMPTY;
     }
 
     @Override
     public Collection<V> values()
     {
-        return Arrays.asList(values);
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public Set<Entry<K, V>> entrySet()
     {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        throw new UnsupportedOperationException();
     }
 
 }
