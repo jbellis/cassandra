@@ -138,11 +138,18 @@ public class StressAction implements Runnable
                 }
             }
             // run until we have not improved throughput significantly for previous three runs
-        } while (results.size() < 4 || averageImprovement(results, 3) > 0);
+        } while (hasAverageImprovement(results, 3, 0) && hasAverageImprovement(results, 5, settings.command.targetUncertainty));
 
         // summarise all results
         StressMetrics.summarise(runIds, results, output);
         return true;
+    }
+
+    private boolean hasAverageImprovement(List<StressMetrics> results, int count, double minImprovement)
+    {
+        if (results.size() < count + 1)
+            return true;
+        return averageImprovement(results, count) >= minImprovement;
     }
 
     private double averageImprovement(List<StressMetrics> results, int count)
