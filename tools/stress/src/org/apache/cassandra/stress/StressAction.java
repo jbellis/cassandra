@@ -161,7 +161,7 @@ public class StressAction implements Runnable
             double cur = results.get(i).getTiming().getHistory().realOpRate();
             improvement += (cur - prev) / prev;
         }
-        return improvement / (results.size() - 1);
+        return improvement / count;
     }
 
     private StressMetrics run(Command type, int threadCount, long opCount, PrintStream output)
