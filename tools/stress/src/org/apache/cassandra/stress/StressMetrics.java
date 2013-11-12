@@ -75,9 +75,9 @@ public class StressMetrics
         thread.start();
     }
 
-    public void waitUntilConverges(double targetUncertainty, int minMeasurements) throws InterruptedException
+    public void waitUntilConverges(double targetUncertainty, int minMeasurements, int maxMeasurements) throws InterruptedException
     {
-        opRateUncertainty.await(targetUncertainty, minMeasurements);
+        opRateUncertainty.await(targetUncertainty, minMeasurements, maxMeasurements);
     }
 
     public void cancel()

@@ -18,6 +18,7 @@ public class SettingsCommand implements Serializable
     public final ConsistencyLevel consistencyLevel;
     public final double targetUncertainty;
     public final int minimumUncertaintyMeasurements;
+    public final int maximumUncertaintyMeasurements;
 
     public SettingsCommand(Command type, GroupedOptions options)
     {
@@ -38,12 +39,14 @@ public class SettingsCommand implements Serializable
             this.count = Long.parseLong(count.count.value());
             this.targetUncertainty = -1;
             this.minimumUncertaintyMeasurements = -1;
+            this.maximumUncertaintyMeasurements = -1;
         }
         else
         {
             this.count = -1;
             this.targetUncertainty = Double.parseDouble(uncertainty.uncertainty.value());
             this.minimumUncertaintyMeasurements = Integer.parseInt(uncertainty.minMeasurements.value());
+            this.maximumUncertaintyMeasurements = Integer.parseInt(uncertainty.maxMeasurements.value());
         }
     }
 
@@ -73,11 +76,12 @@ public class SettingsCommand implements Serializable
 
         final OptionSimple uncertainty = new OptionSimple("err<", "0\\.[0-9]+", "0.02", "Run until the standard error of the mean is below this fraction", false);
         final OptionSimple minMeasurements = new OptionSimple("n>", "[0-9]+", "30", "Run at least this many iterations before accepting uncertainty convergence", false);
+        final OptionSimple maxMeasurements = new OptionSimple("n<", "[0-9]+", "200", "Run at most this many iterations before accepting uncertainty convergence", false);
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(uncertainty, minMeasurements, retries, ignoreErrors, consistencyLevel);
+            return Arrays.asList(uncertainty, minMeasurements, maxMeasurements, retries, ignoreErrors, consistencyLevel);
         }
     }
 

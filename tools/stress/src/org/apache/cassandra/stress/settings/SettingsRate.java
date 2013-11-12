@@ -9,6 +9,8 @@ public class SettingsRate implements Serializable
 {
 
     public final boolean auto;
+    public final int minAutoThreads;
+    public final int maxAutoThreads;
     public final int threadCount;
     public final int opRateTargetPerSecond;
 
@@ -18,31 +20,32 @@ public class SettingsRate implements Serializable
         threadCount = Integer.parseInt(options.threads.value());
         String rateOpt = options.rate.value();
         opRateTargetPerSecond = Integer.parseInt(rateOpt.substring(0, rateOpt.length() - 2));
-
+        minAutoThreads = -1;
+        maxAutoThreads = -1;
     }
 
     public SettingsRate(AutoOptions auto)
     {
-        this();
-    }
-
-    public SettingsRate()
-    {
         this.auto = true;
+        this.minAutoThreads = Integer.parseInt(auto.minThreads.value());
+        this.maxAutoThreads = Integer.parseInt(auto.maxThreads.value());
         this.threadCount = -1;
         this.opRateTargetPerSecond = 0;
     }
+
 
     // Option Declarations
 
     private static final class AutoOptions extends GroupedOptions
     {
-        final OptionSimple auto = new OptionSimple("auto", "", null, "test with increasing number of threadCount until performance plateaus", true);
+        final OptionSimple auto = new OptionSimple("auto", "", null, "test with increasing number of threadCount until performance plateaus", false);
+        final OptionSimple minThreads = new OptionSimple("threads>=", "[0-9]+", "4", "run at least this many clients concurrently", false);
+        final OptionSimple maxThreads = new OptionSimple("threads<=", "[0-9]+", "1000", "run at most this many clients concurrently", false);
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(auto);
+            return Arrays.asList(auto, minThreads, maxThreads);
         }
     }
 
@@ -76,7 +79,7 @@ public class SettingsRate implements Serializable
                         return new SettingsRate(options);
                     }
             }
-            return new SettingsRate();
+            return new SettingsRate(new AutoOptions());
         }
         GroupedOptions options = GroupedOptions.select(params, new AutoOptions(), new ThreadOptions());
         if (options == null)
@@ -95,7 +98,7 @@ public class SettingsRate implements Serializable
 
     public static void printHelp()
     {
-        GroupedOptions.printOptions(System.out, "-rate", new AutoOptions(), new ThreadOptions());
+        GroupedOptions.printOptions(System.out, "-rate", new ThreadOptions(), new AutoOptions());
     }
 
     public static Runnable helpPrinter()

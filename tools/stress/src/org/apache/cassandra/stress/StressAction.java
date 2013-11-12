@@ -101,7 +101,7 @@ public class StressAction implements Runnable
     private boolean runAuto()
     {
         int prevThreadCount = -1;
-        int threadCount = 4;
+        int threadCount = settings.rate.minAutoThreads;
         List<StressMetrics> results = new ArrayList<>();
         List<String> runIds = new ArrayList<>();
         do
@@ -123,6 +123,9 @@ public class StressAction implements Runnable
                 threadCount *= 2;
             else
                 threadCount *= 1.5;
+
+            if (!results.isEmpty() && threadCount > settings.rate.maxAutoThreads)
+                break;
 
             if (settings.command.type.updates)
             {
@@ -199,7 +202,9 @@ public class StressAction implements Runnable
         {
             try
             {
-                metrics.waitUntilConverges(settings.command.targetUncertainty, settings.command.minimumUncertaintyMeasurements);
+                metrics.waitUntilConverges(settings.command.targetUncertainty,
+                        settings.command.minimumUncertaintyMeasurements,
+                        settings.command.maximumUncertaintyMeasurements);
             } catch (InterruptedException e) { }
             workQueue.stop();
         }
