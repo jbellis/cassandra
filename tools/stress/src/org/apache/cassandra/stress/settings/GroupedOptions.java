@@ -81,9 +81,12 @@ public abstract class GroupedOptions
             {
                 if (printed.add(option))
                 {
-                    out.println("  " + option.longDisplay());
-                    for (String row : option.multiLineDisplay())
-                        out.println("      " + row);
+                    if (option.longDisplay() != null)
+                    {
+                        out.println("  " + option.longDisplay());
+                        for (String row : option.multiLineDisplay())
+                            out.println("      " + row);
+                    }
                 }
             }
         }
