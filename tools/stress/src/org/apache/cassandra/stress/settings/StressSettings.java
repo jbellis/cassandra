@@ -163,7 +163,11 @@ public class StressSettings implements Serializable
     {
         // first is the main command/operation, so specified without a -
         if (args.length == 0)
-            throw new IllegalArgumentException("Invalid command line arguments - none provided!");
+        {
+            System.out.println("No command provided");
+            printHelp();
+            System.exit(1);
+        }
         final LinkedHashMap<String, String[]> r = new LinkedHashMap<>();
         String key = null;
         List<String> params = new ArrayList<>();
