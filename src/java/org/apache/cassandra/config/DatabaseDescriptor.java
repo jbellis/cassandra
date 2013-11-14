@@ -460,9 +460,6 @@ public class DatabaseDescriptor
             throw new ConfigurationException("index_summary_capacity_in_mb option was set incorrectly to '"
                     + conf.index_summary_capacity_in_mb + "', it should be a non-negative integer.");
 
-        // TODO this is a hacky way to force initialization of the manager singleton; is there a better way to do this?
-        IndexSummaryManager.instance.getMemoryPoolCapacityInMB();
-
         memoryAllocator = FBUtilities.newOffHeapAllocator(conf.memory_allocator);
 
         if(conf.encryption_options != null)

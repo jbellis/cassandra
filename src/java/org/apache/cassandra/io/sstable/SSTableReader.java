@@ -169,7 +169,7 @@ public class SSTableReader extends SSTable implements Closeable
                                        ? new CompressedSegmentedFile.Builder()
                                        : new BufferedSegmentedFile.Builder();
         if (!loadSummary(sstable, ibuilder, dbuilder, sstable.metadata))
-            sstable.buildSummary(false, ibuilder, dbuilder, false, IndexSummary.BASE_SAMPLING_LEVEL);
+            sstable.buildSummary(false, ibuilder, dbuilder, false, Downsampling.BASE_SAMPLING_LEVEL);
         sstable.ifile = ibuilder.complete(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX));
         sstable.dfile = dbuilder.complete(sstable.descriptor.filenameFor(Component.DATA));
 
@@ -443,7 +443,7 @@ public class SSTableReader extends SSTable implements Closeable
 
         boolean summaryLoaded = loadSummary(this, ibuilder, dbuilder, metadata);
         if (recreateBloomFilter || !summaryLoaded)
-            buildSummary(recreateBloomFilter, ibuilder, dbuilder, summaryLoaded, IndexSummary.BASE_SAMPLING_LEVEL);
+            buildSummary(recreateBloomFilter, ibuilder, dbuilder, summaryLoaded, Downsampling.BASE_SAMPLING_LEVEL);
 
         ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
         dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
@@ -978,7 +978,7 @@ public class SSTableReader extends SSTable implements Closeable
         // next, see if the sampled index says it's impossible for the key to be present
         IndexSummary summary = getReferencedIndexSummary();
         long sampledPosition;
-        int sampledIndex, skippedIndexEntriesAfterIndex;
+        int sampledIndex, effectiveInterval;
         try
         {
             int binarySearchResult = summary.binarySearch(key);
@@ -1000,7 +1000,7 @@ public class SSTableReader extends SSTable implements Closeable
                     return null;
                 }
             }
-            skippedIndexEntriesAfterIndex = summary.getNumberOfSkippedEntriesAfterIndex(sampledIndex);
+            effectiveInterval = summary.getEffectiveIndexIntervalAfterIndex(sampledIndex);
         }
         finally
         {
@@ -1015,12 +1015,12 @@ public class SSTableReader extends SSTable implements Closeable
         // of the next interval).
         int i = 0;
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
-        while (segments.hasNext() && i <= skippedIndexEntriesAfterIndex)
+        while (segments.hasNext() && i <= effectiveInterval)
         {
             FileDataInput in = segments.next();
             try
             {
-                while (!in.isEOF() && i <= skippedIndexEntriesAfterIndex)
+                while (!in.isEOF() && i <= effectiveInterval)
                 {
                     i++;
 

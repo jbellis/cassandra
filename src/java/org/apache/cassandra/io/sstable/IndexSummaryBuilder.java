@@ -27,6 +27,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
+import static org.apache.cassandra.io.sstable.Downsampling.MIN_SAMPLING_LEVEL;
+
 public class IndexSummaryBuilder
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexSummaryBuilder.class);
@@ -44,7 +47,7 @@ public class IndexSummaryBuilder
     {
         this.indexInterval = indexInterval;
         this.samplingLevel = samplingLevel;
-        this.startPoints = getStartPoints(IndexSummary.BASE_SAMPLING_LEVEL, samplingLevel);
+        this.startPoints = Downsampling.getStartPoints(BASE_SAMPLING_LEVEL, samplingLevel);
 
         long expectedEntries = expectedKeys / indexInterval;
         if (expectedEntries > Integer.MAX_VALUE)
@@ -58,7 +61,7 @@ public class IndexSummaryBuilder
         }
 
         // adjust our estimates based on the sampling level
-        expectedEntries = (expectedEntries * samplingLevel) / IndexSummary.BASE_SAMPLING_LEVEL;
+        expectedEntries = (expectedEntries * samplingLevel) / BASE_SAMPLING_LEVEL;
 
         positions = new ArrayList<>((int)expectedEntries);
         keys = new ArrayList<>((int)expectedEntries);
@@ -74,7 +77,7 @@ public class IndexSummaryBuilder
             boolean shouldSkip = false;
             for (int start : startPoints)
             {
-                if ((indexIntervalMatches - start) % IndexSummary.BASE_SAMPLING_LEVEL == 0)
+                if ((indexIntervalMatches - start) % BASE_SAMPLING_LEVEL == 0)
                 {
                     shouldSkip = true;
                     break;
@@ -126,7 +129,7 @@ public class IndexSummaryBuilder
 
     public static int entriesAtSamplingLevel(IndexSummary summary, int samplingLevel)
     {
-        return (samplingLevel * summary.getMaxNumberOfEntries()) / IndexSummary.BASE_SAMPLING_LEVEL;
+        return (samplingLevel * summary.getMaxNumberOfEntries()) / BASE_SAMPLING_LEVEL;
     }
 
     public static int calculateSamplingLevel(IndexSummary existing, long targetNumEntries)
@@ -138,32 +141,7 @@ public class IndexSummaryBuilder
         // newSpaceUsed = (newSamplingLevel / currentSamplingLevel) * currentNumEntries
         // (newSpaceUsed * currentSamplingLevel) / currentNumEntries = newSamplingLevel
         int newSamplingLevel = (int) (targetNumEntries * existing.getSamplingLevel()) / existing.size();
-        return Math.min(IndexSummary.BASE_SAMPLING_LEVEL, Math.max(IndexSummary.MIN_SAMPLING_LEVEL, newSamplingLevel));
-    }
-
-    private static int[] getStartPoints(int currentSamplingLevel, int newSamplingLevel)
-    {
-        List<Integer> allStartPoints = IndexSummary.getSamplingPattern(IndexSummary.BASE_SAMPLING_LEVEL);
-
-        // calculate starting indexes for sampling rounds
-        int initialRound = IndexSummary.BASE_SAMPLING_LEVEL - currentSamplingLevel;
-        int numRounds = Math.abs(currentSamplingLevel - newSamplingLevel);
-        int[] startPoints = new int[numRounds];
-        for (int i = 0; i < numRounds; ++i)
-        {
-            int start = allStartPoints.get(initialRound + i);
-
-            // our "ideal" start points will be affected by the removal of items in earlier rounds, so go through all
-            // earlier rounds, and if we see an index that comes before our ideal start point, decrement the start point
-            int adjustment = 0;
-            for (int j = 0; j < initialRound; ++j)
-            {
-                if (allStartPoints.get(j) < start)
-                    adjustment++;
-            }
-            startPoints[i] = start - adjustment;
-        }
-        return startPoints;
+        return Math.min(BASE_SAMPLING_LEVEL, Math.max(MIN_SAMPLING_LEVEL, newSamplingLevel));
     }
 
     public static IndexSummary downsample(IndexSummary existing, int newSamplingLevel, IPartitioner partitioner)
@@ -178,7 +156,7 @@ public class IndexSummaryBuilder
             return existing;
 
         // calculate starting indexes for downsampling rounds
-        int[] startPoints = getStartPoints(currentSamplingLevel, newSamplingLevel);
+        int[] startPoints = Downsampling.getStartPoints(currentSamplingLevel, newSamplingLevel);
 
         // calculate new off-heap size
         int removedKeyCount = 0;
@@ -201,31 +179,25 @@ public class IndexSummaryBuilder
         // Copy old entries to our new Memory.
         int idxPosition = 0;
         int keyPosition = newKeyCount * 4;
+        outer:
         for (int oldSummaryIndex = 0; oldSummaryIndex < existing.size(); oldSummaryIndex++)
         {
             // to determine if we can skip this entry, go through the starting points for our downsampling rounds
             // and see if the entry's index is covered by that round
-            boolean skip = false;
             for (int start : startPoints)
             {
                 if ((oldSummaryIndex - start) % currentSamplingLevel == 0)
-                {
-                    skip = true;
-                    break;
-                }
+                    continue outer;
             }
 
-            if (!skip)
-            {
-                // write the position of the actual entry in the index summary (4 bytes)
-                memory.setInt(idxPosition, keyPosition);
-                idxPosition += TypeSizes.NATIVE.sizeof(keyPosition);
+            // write the position of the actual entry in the index summary (4 bytes)
+            memory.setInt(idxPosition, keyPosition);
+            idxPosition += TypeSizes.NATIVE.sizeof(keyPosition);
 
-                // write the entry itself
-                byte[] entry = existing.getEntry(oldSummaryIndex);
-                memory.setBytes(keyPosition, entry, 0, entry.length);
-                keyPosition += entry.length;
-            }
+            // write the entry itself
+            byte[] entry = existing.getEntry(oldSummaryIndex);
+            memory.setBytes(keyPosition, entry, 0, entry.length);
+            keyPosition += entry.length;
         }
         return new IndexSummary(partitioner, memory, newKeyCount, existing.getIndexInterval(), newSamplingLevel);
     }

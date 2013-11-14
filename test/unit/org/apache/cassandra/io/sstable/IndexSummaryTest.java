@@ -40,7 +40,6 @@ import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
-import static org.apache.cassandra.io.sstable.IndexSummary.*;
 import static org.apache.cassandra.io.sstable.IndexSummaryBuilder.downsample;
 
 import static org.apache.cassandra.io.sstable.IndexSummaryBuilder.entriesAtSamplingLevel;
@@ -97,7 +96,7 @@ public class IndexSummaryTest extends SchemaLoader
     public void testAddEmptyKey() throws Exception
     {
         IPartitioner p = new RandomPartitioner();
-        IndexSummaryBuilder builder = new IndexSummaryBuilder(1, 1, IndexSummary.BASE_SAMPLING_LEVEL);
+        IndexSummaryBuilder builder = new IndexSummaryBuilder(1, 1, Downsampling.BASE_SAMPLING_LEVEL);
         builder.maybeAddEntry(p.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER), 0);
         IndexSummary summary = builder.build(p);
         assertEquals(1, summary.size());
@@ -118,7 +117,7 @@ public class IndexSummaryTest extends SchemaLoader
     private Pair<List<DecoratedKey>, IndexSummary> generateRandomIndex(int size, int interval)
     {
         List<DecoratedKey> list = Lists.newArrayList();
-        IndexSummaryBuilder builder = new IndexSummaryBuilder(list.size(), interval, IndexSummary.BASE_SAMPLING_LEVEL);
+        IndexSummaryBuilder builder = new IndexSummaryBuilder(list.size(), interval, Downsampling.BASE_SAMPLING_LEVEL);
         for (int i = 0; i < size; i++)
         {
             UUID uuid = UUID.randomUUID();
@@ -135,20 +134,20 @@ public class IndexSummaryTest extends SchemaLoader
     @Test
     public void testDownsamplePatterns()
     {
-        assertEquals(Arrays.asList(0), getSamplingPattern(0));
-        assertEquals(Arrays.asList(0), getSamplingPattern(1));
+        assertEquals(Arrays.asList(0), Downsampling.getSamplingPattern(0));
+        assertEquals(Arrays.asList(0), Downsampling.getSamplingPattern(1));
 
-        assertEquals(Arrays.asList(0, 1), getSamplingPattern(2));
-        assertEquals(Arrays.asList(0, 2, 1, 3), getSamplingPattern(4));
-        assertEquals(Arrays.asList(0, 4, 2, 6, 1, 5, 3, 7), getSamplingPattern(8));
-        assertEquals(Arrays.asList(0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15), getSamplingPattern(16));
+        assertEquals(Arrays.asList(0, 1), Downsampling.getSamplingPattern(2));
+        assertEquals(Arrays.asList(0, 2, 1, 3), Downsampling.getSamplingPattern(4));
+        assertEquals(Arrays.asList(0, 4, 2, 6, 1, 5, 3, 7), Downsampling.getSamplingPattern(8));
+        assertEquals(Arrays.asList(0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15), Downsampling.getSamplingPattern(16));
     }
 
     private static boolean shouldSkip(int index, List<Integer> startPoints)
     {
         for (int start : startPoints)
         {
-            if ((index - start) % BASE_SAMPLING_LEVEL == 0)
+            if ((index - start) % Downsampling.BASE_SAMPLING_LEVEL == 0)
                 return true;
         }
         return false;
@@ -170,11 +169,11 @@ public class IndexSummaryTest extends SchemaLoader
         for (int i = 0; i < ORIGINAL_NUM_ENTRIES; i++)
             assertEquals(keys.get(i * INDEX_INTERVAL).key, ByteBuffer.wrap(original.getKey(i)));
 
-        List<Integer> samplePattern = getSamplingPattern(BASE_SAMPLING_LEVEL);
+        List<Integer> samplePattern = Downsampling.getSamplingPattern(Downsampling.BASE_SAMPLING_LEVEL);
 
         // downsample by one level, then two levels, then three levels...
         int downsamplingRound = 1;
-        for (int samplingLevel = BASE_SAMPLING_LEVEL - 1; samplingLevel >= MIN_SAMPLING_LEVEL; samplingLevel--)
+        for (int samplingLevel = Downsampling.BASE_SAMPLING_LEVEL - 1; samplingLevel >= Downsampling.MIN_SAMPLING_LEVEL; samplingLevel--)
         {
             IndexSummary downsampled = downsample(original, samplingLevel, DatabaseDescriptor.getPartitioner());
             assertEquals(entriesAtSamplingLevel(original, samplingLevel), downsampled.size());
@@ -195,7 +194,7 @@ public class IndexSummaryTest extends SchemaLoader
         // downsample one level each time
         IndexSummary previous = original;
         downsamplingRound = 1;
-        for (int downsampleLevel = BASE_SAMPLING_LEVEL - 1; downsampleLevel >= MIN_SAMPLING_LEVEL; downsampleLevel--)
+        for (int downsampleLevel = Downsampling.BASE_SAMPLING_LEVEL - 1; downsampleLevel >= Downsampling.MIN_SAMPLING_LEVEL; downsampleLevel--)
         {
             IndexSummary downsampled = downsample(previous, downsampleLevel, DatabaseDescriptor.getPartitioner());
             assertEquals(entriesAtSamplingLevel(original, downsampleLevel), downsampled.size());
@@ -242,14 +241,14 @@ public class IndexSummaryTest extends SchemaLoader
         assertEquals(1, sstrs.size());
         SSTableReader sstable = sstrs.get(0);
 
-        for (int samplingLevel = MIN_SAMPLING_LEVEL; samplingLevel < BASE_SAMPLING_LEVEL; samplingLevel++)
+        for (int samplingLevel = Downsampling.MIN_SAMPLING_LEVEL; samplingLevel < Downsampling.BASE_SAMPLING_LEVEL; samplingLevel++)
         {
             sstable.rebuildSummary(samplingLevel);
             IndexSummary summary = sstable.getReferencedIndexSummary();
             try
             {
                 assertEquals(samplingLevel, summary.getSamplingLevel());
-                assertEquals((numRows * samplingLevel) / (summary.getIndexInterval() * BASE_SAMPLING_LEVEL), summary.size());
+                assertEquals((numRows * samplingLevel) / (summary.getIndexInterval() * Downsampling.BASE_SAMPLING_LEVEL), summary.size());
             }
             finally
             {
@@ -273,7 +272,7 @@ public class IndexSummaryTest extends SchemaLoader
             sstr.readMeter = new RestorableMeter(100.0, 100.0);
         org.apache.cassandra.io.sstable.IndexSummaryManager.redistributeSummaries(sstables, originalOffHeapSize * sstables.size());
         for (SSTableReader sstr : sstables)
-            assertEquals(IndexSummary.BASE_SAMPLING_LEVEL, sstr.getIndexSummarySamplingLevel());
+            assertEquals(Downsampling.BASE_SAMPLING_LEVEL, sstr.getIndexSummarySamplingLevel());
     }
 
     private void validateData(ColumnFamilyStore cfs, int numRows)
@@ -327,32 +326,32 @@ public class IndexSummaryTest extends SchemaLoader
         // there should be enough space to not downsample anything
         org.apache.cassandra.io.sstable.IndexSummaryManager.redistributeSummaries(sstrs, offHeapSize * numSSTables);
         for (SSTableReader sstr : sstrs)
-            assertEquals(sstr.getIndexSummarySamplingLevel(), BASE_SAMPLING_LEVEL);
+            assertEquals(sstr.getIndexSummarySamplingLevel(), Downsampling.BASE_SAMPLING_LEVEL);
         assertEquals(offHeapSize * numSSTables, totalOffHeapSize(sstrs));
         validateData(cfs, numRows);
 
         // everything should get cut in half
         org.apache.cassandra.io.sstable.IndexSummaryManager.redistributeSummaries(sstrs, (offHeapSize * numSSTables) / 2);
         for (SSTableReader sstr : sstrs)
-            assertEquals(BASE_SAMPLING_LEVEL / 2, sstr.getIndexSummarySamplingLevel());
+            assertEquals(Downsampling.BASE_SAMPLING_LEVEL / 2, sstr.getIndexSummarySamplingLevel());
         validateData(cfs, numRows);
 
         // everything should get cut to a quarter
         org.apache.cassandra.io.sstable.IndexSummaryManager.redistributeSummaries(sstrs, (offHeapSize * numSSTables) / 4);
         for (SSTableReader sstr : sstrs)
-            assertEquals(BASE_SAMPLING_LEVEL / 4, sstr.getIndexSummarySamplingLevel());
+            assertEquals(Downsampling.BASE_SAMPLING_LEVEL / 4, sstr.getIndexSummarySamplingLevel());
         validateData(cfs, numRows);
 
         // upsample back up to half
         org.apache.cassandra.io.sstable.IndexSummaryManager.redistributeSummaries(sstrs, (offHeapSize * numSSTables) / 2);
         for (SSTableReader sstr : sstrs)
-            assertEquals(BASE_SAMPLING_LEVEL / 2, sstr.getIndexSummarySamplingLevel());
+            assertEquals(Downsampling.BASE_SAMPLING_LEVEL / 2, sstr.getIndexSummarySamplingLevel());
         validateData(cfs, numRows);
 
         // upsample back up to the original index summary
         org.apache.cassandra.io.sstable.IndexSummaryManager.redistributeSummaries(sstrs, offHeapSize * numSSTables);
         for (SSTableReader sstr : sstrs)
-            assertEquals(BASE_SAMPLING_LEVEL, sstr.getIndexSummarySamplingLevel());
+            assertEquals(Downsampling.BASE_SAMPLING_LEVEL, sstr.getIndexSummarySamplingLevel());
         validateData(cfs, numRows);
 
         // make two of the four sstables cold, only leave enough space for three full index summaries,
@@ -360,10 +359,10 @@ public class IndexSummaryTest extends SchemaLoader
         sstrs.get(0).readMeter = new RestorableMeter(50.0, 50.0);
         sstrs.get(1).readMeter = new RestorableMeter(50.0, 50.0);
         org.apache.cassandra.io.sstable.IndexSummaryManager.redistributeSummaries(sstrs, offHeapSize * (numSSTables - 1));
-        assertEquals(BASE_SAMPLING_LEVEL / 2, sstrs.get(0).getIndexSummarySamplingLevel());
-        assertEquals(BASE_SAMPLING_LEVEL / 2, sstrs.get(1).getIndexSummarySamplingLevel());
-        assertEquals(BASE_SAMPLING_LEVEL, sstrs.get(2).getIndexSummarySamplingLevel());
-        assertEquals(BASE_SAMPLING_LEVEL, sstrs.get(3).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.BASE_SAMPLING_LEVEL / 2, sstrs.get(0).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.BASE_SAMPLING_LEVEL / 2, sstrs.get(1).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.BASE_SAMPLING_LEVEL, sstrs.get(2).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.BASE_SAMPLING_LEVEL, sstrs.get(3).getIndexSummarySamplingLevel());
         validateData(cfs, numRows);
 
         // small increases or decreases in the read rate don't result in downsampling or upsampling
@@ -372,10 +371,10 @@ public class IndexSummaryTest extends SchemaLoader
         sstrs.get(0).readMeter = new RestorableMeter(lowerRate, lowerRate);
         sstrs.get(1).readMeter = new RestorableMeter(higherRate, higherRate);
         org.apache.cassandra.io.sstable.IndexSummaryManager.redistributeSummaries(sstrs, offHeapSize * (numSSTables - 1));
-        assertEquals(BASE_SAMPLING_LEVEL / 2, sstrs.get(0).getIndexSummarySamplingLevel());
-        assertEquals(BASE_SAMPLING_LEVEL / 2, sstrs.get(1).getIndexSummarySamplingLevel());
-        assertEquals(BASE_SAMPLING_LEVEL, sstrs.get(2).getIndexSummarySamplingLevel());
-        assertEquals(BASE_SAMPLING_LEVEL, sstrs.get(3).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.BASE_SAMPLING_LEVEL / 2, sstrs.get(0).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.BASE_SAMPLING_LEVEL / 2, sstrs.get(1).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.BASE_SAMPLING_LEVEL, sstrs.get(2).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.BASE_SAMPLING_LEVEL, sstrs.get(3).getIndexSummarySamplingLevel());
         validateData(cfs, numRows);
 
         // reset, and then this time, leave enough space for one of the cold sstables to not get downsampled
@@ -387,8 +386,8 @@ public class IndexSummaryTest extends SchemaLoader
         int extraEntries = 0;
         try
         {
-            extraEntries = IndexSummaryBuilder.entriesAtSamplingLevel(summary, (BASE_SAMPLING_LEVEL / 2) + 1) -
-                           IndexSummaryBuilder.entriesAtSamplingLevel(summary, BASE_SAMPLING_LEVEL / 2);
+            extraEntries = IndexSummaryBuilder.entriesAtSamplingLevel(summary, (Downsampling.BASE_SAMPLING_LEVEL / 2) + 1) -
+                           IndexSummaryBuilder.entriesAtSamplingLevel(summary, Downsampling.BASE_SAMPLING_LEVEL / 2);
         }
         finally
         {
@@ -398,15 +397,15 @@ public class IndexSummaryTest extends SchemaLoader
         int extraSpace = (int) Math.ceil(extraEntries * avgSize);
         org.apache.cassandra.io.sstable.IndexSummaryManager.redistributeSummaries(sstrs, offHeapSize * (numSSTables - 1) + extraSpace);
 
-        if (sstrs.get(0).getIndexSummarySamplingLevel() == BASE_SAMPLING_LEVEL / 2)
-            assertEquals((BASE_SAMPLING_LEVEL / 2) + 1, sstrs.get(1).getIndexSummarySamplingLevel());
-        else if (sstrs.get(1).getIndexSummarySamplingLevel() == BASE_SAMPLING_LEVEL / 2)
-            assertEquals((BASE_SAMPLING_LEVEL / 2) + 1, sstrs.get(0).getIndexSummarySamplingLevel());
+        if (sstrs.get(0).getIndexSummarySamplingLevel() == Downsampling.BASE_SAMPLING_LEVEL / 2)
+            assertEquals((Downsampling.BASE_SAMPLING_LEVEL / 2) + 1, sstrs.get(1).getIndexSummarySamplingLevel());
+        else if (sstrs.get(1).getIndexSummarySamplingLevel() == Downsampling.BASE_SAMPLING_LEVEL / 2)
+            assertEquals((Downsampling.BASE_SAMPLING_LEVEL / 2) + 1, sstrs.get(0).getIndexSummarySamplingLevel());
         else
             fail("One of the first two sstables should be downsampled to half of the original summary");
 
-        assertEquals(BASE_SAMPLING_LEVEL, sstrs.get(2).getIndexSummarySamplingLevel());
-        assertEquals(BASE_SAMPLING_LEVEL, sstrs.get(3).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.BASE_SAMPLING_LEVEL, sstrs.get(2).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.BASE_SAMPLING_LEVEL, sstrs.get(3).getIndexSummarySamplingLevel());
         validateData(cfs, numRows);
 
         // Cause a mix of upsampling and downsampling. We'll leave enough space for two full index summaries. The two
@@ -418,53 +417,53 @@ public class IndexSummaryTest extends SchemaLoader
         sstrs.get(2).readMeter = new RestorableMeter(0.0, 0.0);
         sstrs.get(3).readMeter = new RestorableMeter(0.0, 0.0);
         org.apache.cassandra.io.sstable.IndexSummaryManager.redistributeSummaries(sstrs, offHeapSize * 2);
-        assertEquals(BASE_SAMPLING_LEVEL, sstrs.get(0).getIndexSummarySamplingLevel());
-        assertEquals(BASE_SAMPLING_LEVEL / 2, sstrs.get(1).getIndexSummarySamplingLevel());
-        assertEquals(MIN_SAMPLING_LEVEL, sstrs.get(2).getIndexSummarySamplingLevel());
-        assertEquals(MIN_SAMPLING_LEVEL, sstrs.get(3).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.BASE_SAMPLING_LEVEL, sstrs.get(0).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.BASE_SAMPLING_LEVEL / 2, sstrs.get(1).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.MIN_SAMPLING_LEVEL, sstrs.get(2).getIndexSummarySamplingLevel());
+        assertEquals(Downsampling.MIN_SAMPLING_LEVEL, sstrs.get(3).getIndexSummarySamplingLevel());
         validateData(cfs, numRows);
 
         // Don't leave enough space for even the minimal index summaries
         org.apache.cassandra.io.sstable.IndexSummaryManager.redistributeSummaries(sstrs, offHeapSize - 100);
         for (SSTableReader sstr : sstrs)
-            assertEquals(MIN_SAMPLING_LEVEL, sstr.getIndexSummarySamplingLevel());
+            assertEquals(Downsampling.MIN_SAMPLING_LEVEL, sstr.getIndexSummarySamplingLevel());
         validateData(cfs, numRows);
     }
 
     @Test
     public void testOriginalIndexLookup()
     {
-        for (int i = BASE_SAMPLING_LEVEL; i >= MIN_SAMPLING_LEVEL; i--)
-            assertEquals(i, getOriginalIndexes(i).size());
+        for (int i = Downsampling.BASE_SAMPLING_LEVEL; i >= Downsampling.MIN_SAMPLING_LEVEL; i--)
+            assertEquals(i, Downsampling.getOriginalIndexes(i).size());
 
         // spot check a few values (these depend on BASE_SAMPLING_LEVEL being 16)
-        assert BASE_SAMPLING_LEVEL == 16;
-        assertEquals(Arrays.asList(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15), getOriginalIndexes(16));
-        assertEquals(Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15), getOriginalIndexes(15));
-        assertEquals(Arrays.asList(1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15), getOriginalIndexes(14));
+        assert Downsampling.BASE_SAMPLING_LEVEL == 16;
+        assertEquals(Arrays.asList(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15), Downsampling.getOriginalIndexes(16));
+        assertEquals(Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15), Downsampling.getOriginalIndexes(15));
+        assertEquals(Arrays.asList(1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15), Downsampling.getOriginalIndexes(14));
 
-        assertEquals(Arrays.asList(1, 3, 5, 7, 9, 11, 13, 15), getOriginalIndexes(8));
-        assertEquals(Arrays.asList(3, 7, 11, 15), getOriginalIndexes(4));
-        assertEquals(Arrays.asList(7, 15), getOriginalIndexes(2));
-        assertEquals(Arrays.asList(), getOriginalIndexes(0));
+        assertEquals(Arrays.asList(1, 3, 5, 7, 9, 11, 13, 15), Downsampling.getOriginalIndexes(8));
+        assertEquals(Arrays.asList(3, 7, 11, 15), Downsampling.getOriginalIndexes(4));
+        assertEquals(Arrays.asList(7, 15), Downsampling.getOriginalIndexes(2));
+        assertEquals(Arrays.asList(), Downsampling.getOriginalIndexes(0));
     }
 
     @Test
     public void testGetNumberOfSkippedEntriesAfterIndex()
     {
         int indexInterval = 128;
-        for (int i = 0; i < BASE_SAMPLING_LEVEL; i++)
-            assertEquals(indexInterval, getNumberOfSkippedEntriesAfterIndex(i, BASE_SAMPLING_LEVEL, indexInterval));
+        for (int i = 0; i < Downsampling.BASE_SAMPLING_LEVEL; i++)
+            assertEquals(indexInterval, Downsampling.getEffectiveIndexIntervalAfterIndex(i, Downsampling.BASE_SAMPLING_LEVEL, indexInterval));
 
         // with one round of downsampling, only the first summary has been removed, so only the last index will have
         // double the gap until the next sample
-        for (int i = 0; i < BASE_SAMPLING_LEVEL - 2; i++)
-            assertEquals(indexInterval, getNumberOfSkippedEntriesAfterIndex(i, BASE_SAMPLING_LEVEL - 1, indexInterval));
-        assertEquals(indexInterval * 2, getNumberOfSkippedEntriesAfterIndex(BASE_SAMPLING_LEVEL - 2, BASE_SAMPLING_LEVEL - 1, indexInterval));
+        for (int i = 0; i < Downsampling.BASE_SAMPLING_LEVEL - 2; i++)
+            assertEquals(indexInterval, Downsampling.getEffectiveIndexIntervalAfterIndex(i, Downsampling.BASE_SAMPLING_LEVEL - 1, indexInterval));
+        assertEquals(indexInterval * 2, Downsampling.getEffectiveIndexIntervalAfterIndex(Downsampling.BASE_SAMPLING_LEVEL - 2, Downsampling.BASE_SAMPLING_LEVEL - 1, indexInterval));
 
         // at samplingLevel=2, the retained summary points are [7, 15] (assumes BASE_SAMPLING_LEVEL is 16)
-        assert BASE_SAMPLING_LEVEL == 16;
-        assertEquals(8 * indexInterval, getNumberOfSkippedEntriesAfterIndex(0, 2, indexInterval));
-        assertEquals(8 * indexInterval, getNumberOfSkippedEntriesAfterIndex(1, 2, indexInterval));
+        assert Downsampling.BASE_SAMPLING_LEVEL == 16;
+        assertEquals(8 * indexInterval, Downsampling.getEffectiveIndexIntervalAfterIndex(0, 2, indexInterval));
+        assertEquals(8 * indexInterval, Downsampling.getEffectiveIndexIntervalAfterIndex(1, 2, indexInterval));
     }
 }

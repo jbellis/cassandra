@@ -430,7 +430,7 @@ public class SSTableReaderTest extends SchemaLoader
             }));
         }
 
-        sstable.rebuildSummary(IndexSummary.MIN_SAMPLING_LEVEL);
+        sstable.rebuildSummary(Downsampling.MIN_SAMPLING_LEVEL);
         for (Future future : futures)
             future.get();
 
