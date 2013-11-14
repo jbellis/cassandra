@@ -21,7 +21,7 @@ public enum Command
     ),
     MIXED(true,
             SettingsCommandMixed.helpPrinter(),
-            "Both reads and writes with configurable ratio and distribution - the cluster must first be populated by a write test",
+            "Interleaving of any basic commands, with configurable ratio and distribution - the cluster must first be populated by a write test",
             CommandCategory.MIXED
     ),
     RANGESLICE(false,
