@@ -93,6 +93,8 @@ class OptionSimple extends Option
 
     public String longDisplay()
     {
+        if (description.equals("") && defaultValue == null && pattern.pattern().equals(""))
+            return null;
         StringBuilder sb = new StringBuilder();
         sb.append(displayPrefix);
         if (displayPrefix.endsWith("="))

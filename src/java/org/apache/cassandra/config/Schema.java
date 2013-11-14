@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.tracing.Tracing;
@@ -59,6 +60,8 @@ public class Schema
 
     /* metadata map for faster ColumnFamily lookup */
     private final BiMap<Pair<String, String>, UUID> cfIdMap = HashBiMap.create();
+
+    public final UTMetaData userTypes = new UTMetaData();
 
     private volatile UUID version;
 
@@ -113,6 +116,24 @@ public class Schema
 
         setKeyspaceDefinition(keyspaceDef);
 
+        return this;
+    }
+
+    public Schema loadUserTypes()
+    {
+        userTypes.addAll(UTMetaData.fromSchema(SystemKeyspace.serializedSchema(SystemKeyspace.SCHEMA_USER_TYPES_CF)));
+        return this;
+    }
+
+    public Schema loadType(UserType newType)
+    {
+        userTypes.addType(newType);
+        return this;
+    }
+
+    public Schema dropType(UserType droppedType)
+    {
+        userTypes.removeType(droppedType);
         return this;
     }
 
@@ -213,37 +234,6 @@ public class Schema
         assert ksName != null && cfName != null;
         CFMetaData cfMetaData = getCFMetaData(ksName, cfName);
         return (cfMetaData == null) ? null : cfMetaData.cfType;
-    }
-
-    /**
-     * Get column comparator for ColumnFamily but it's keyspace/name
-     *
-     * @param ksName The keyspace name
-     * @param cfName The ColumnFamily name
-     *
-     * @return The comparator of the ColumnFamily
-     */
-    public AbstractType<?> getComparator(String ksName, String cfName)
-    {
-        assert ksName != null;
-        CFMetaData cfmd = getCFMetaData(ksName, cfName);
-        if (cfmd == null)
-            throw new IllegalArgumentException("Unknown ColumnFamily " + cfName + " in keyspace " + ksName);
-        return cfmd.comparator;
-    }
-
-    /**
-     * Get value validator for specific column
-     *
-     * @param ksName The keyspace name
-     * @param cfName The ColumnFamily name
-     * @param column The name of the column
-     *
-     * @return value validator specific to the column or default (per-cf) one
-     */
-    public AbstractType<?> getValueValidator(String ksName, String cfName, ByteBuffer column)
-    {
-        return getCFMetaData(ksName, cfName).getValueValidator(column);
     }
 
     /**
@@ -431,7 +421,8 @@ public class Schema
     {
         try
         {
-            return systemKeyspaceNames.contains(ByteBufferUtil.string(row.key.key));
+            return !row.cf.metadata().cfName.equals(SystemKeyspace.SCHEMA_USER_TYPES_CF)
+                && systemKeyspaceNames.contains(ByteBufferUtil.string(row.key.key));
         }
         catch (CharacterCodingException e)
         {

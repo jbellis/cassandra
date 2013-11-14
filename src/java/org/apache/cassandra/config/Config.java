@@ -96,6 +96,7 @@ public class Config
     public Boolean start_native_transport = false;
     public Integer native_transport_port = 9042;
     public Integer native_transport_max_threads = 128;
+    public Integer native_transport_max_frame_size_in_mb = 256;
 
     @Deprecated
     public Integer thrift_max_message_length_in_mb = 16;
@@ -109,7 +110,6 @@ public class Config
     public Integer in_memory_compaction_limit_in_mb = 64;
     public Integer concurrent_compactors = FBUtilities.getAvailableProcessors();
     public volatile Integer compaction_throughput_mb_per_sec = 16;
-    public Boolean multithreaded_compaction = false;
 
     public Integer max_streaming_retries = 3;
 

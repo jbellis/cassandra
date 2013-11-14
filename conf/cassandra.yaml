@@ -315,6 +315,10 @@ native_transport_port: 9042
 # there is no native_transport_min_threads, idle threads will always be stopped
 # after 30 seconds).
 # native_transport_max_threads: 128
+#
+# The maximum size of allowed frame. Frame (requests) larger than this will
+# be rejected as invalid. The default is 256MB.
+# native_transport_max_frame_size_in_mb: 256
 
 # Whether to start the thrift rpc server.
 start_rpc: true
@@ -442,13 +446,6 @@ in_memory_compaction_limit_in_mb: 64
 # concurrent_compactors defaults to the number of cores.
 # Uncomment to make compaction mono-threaded, the pre-0.8 default.
 #concurrent_compactors: 1
-
-# Multi-threaded compaction. When enabled, each compaction will use
-# up to one thread per core, plus one thread per sstable being merged.
-# This is usually only useful for SSD-based hardware: otherwise, 
-# your concern is usually to get compaction to do LESS i/o (see:
-# compaction_throughput_mb_per_sec), not more.
-multithreaded_compaction: false
 
 # Throttles compaction to the given total throughput across the entire
 # system. The faster you insert data, the faster you need to compact in

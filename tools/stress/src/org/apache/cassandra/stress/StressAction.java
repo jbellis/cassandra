@@ -101,7 +101,7 @@ public class StressAction implements Runnable
     private boolean runAuto()
     {
         int prevThreadCount = -1;
-        int threadCount = 4;
+        int threadCount = settings.rate.minAutoThreads;
         List<StressMetrics> results = new ArrayList<>();
         List<String> runIds = new ArrayList<>();
         do
@@ -124,6 +124,9 @@ public class StressAction implements Runnable
             else
                 threadCount *= 1.5;
 
+            if (!results.isEmpty() && threadCount > settings.rate.maxAutoThreads)
+                break;
+
             if (settings.command.type.updates)
             {
                 // pause an arbitrary period of time to let the commit log flush, etc. shouldn't make much difference
@@ -138,11 +141,18 @@ public class StressAction implements Runnable
                 }
             }
             // run until we have not improved throughput significantly for previous three runs
-        } while (results.size() < 4 || averageImprovement(results, 3) > 0);
+        } while (hasAverageImprovement(results, 3, 0) && hasAverageImprovement(results, 5, settings.command.targetUncertainty));
 
         // summarise all results
         StressMetrics.summarise(runIds, results, output);
         return true;
+    }
+
+    private boolean hasAverageImprovement(List<StressMetrics> results, int count, double minImprovement)
+    {
+        if (results.size() < count + 1)
+            return true;
+        return averageImprovement(results, count) >= minImprovement;
     }
 
     private double averageImprovement(List<StressMetrics> results, int count)
@@ -154,7 +164,7 @@ public class StressAction implements Runnable
             double cur = results.get(i).getTiming().getHistory().realOpRate();
             improvement += (cur - prev) / prev;
         }
-        return improvement / (results.size() - 1);
+        return improvement / count;
     }
 
     private StressMetrics run(Command type, int threadCount, long opCount, PrintStream output)
@@ -192,7 +202,9 @@ public class StressAction implements Runnable
         {
             try
             {
-                metrics.waitUntilConverges(settings.command.targetUncertainty, settings.command.minimumUncertaintyMeasurements);
+                metrics.waitUntilConverges(settings.command.targetUncertainty,
+                        settings.command.minimumUncertaintyMeasurements,
+                        settings.command.maximumUncertaintyMeasurements);
             } catch (InterruptedException e) { }
             workQueue.stop();
         }

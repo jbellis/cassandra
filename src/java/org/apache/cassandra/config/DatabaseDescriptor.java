@@ -56,6 +56,12 @@ public class DatabaseDescriptor
 {
     private static final Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
 
+    /**
+     * Tokens are serialized in a Gossip VersionedValue String.  VV are restricted to 64KB
+     * when we send them over the wire, which works out to about 1700 tokens.
+     */
+    private static final int MAX_NUM_TOKENS = 1536;
+
     private static IEndpointSnitch snitch;
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
     private static InetAddress broadcastAddress;
@@ -317,6 +323,9 @@ public class DatabaseDescriptor
         if (conf.thrift_framed_transport_size_in_mb <= 0)
             throw new ConfigurationException("thrift_framed_transport_size_in_mb must be positive");
 
+        if (conf.native_transport_max_frame_size_in_mb <= 0)
+            throw new ConfigurationException("native_transport_max_frame_size_in_mb must be positive");
+
         /* end point snitch */
         if (conf.endpoint_snitch == null)
         {
@@ -382,8 +391,6 @@ public class DatabaseDescriptor
             logger.debug("setting auto_bootstrap to {}", conf.auto_bootstrap);
         }
 
-        logger.info("{}using multi-threaded compaction", (conf.multithreaded_compaction ? "" : "Not "));
-
         if (conf.in_memory_compaction_limit_in_mb != null && conf.in_memory_compaction_limit_in_mb <= 0)
         {
             throw new ConfigurationException("in_memory_compaction_limit_in_mb must be a positive integer");
@@ -423,6 +430,9 @@ public class DatabaseDescriptor
             for (String token : tokensFromString(conf.initial_token))
                 partitioner.getTokenFactory().validate(token);
 
+        if (conf.num_tokens > MAX_NUM_TOKENS)
+            throw new ConfigurationException(String.format("A maximum number of %d tokens per node is supported", MAX_NUM_TOKENS));
+
         try
         {
             // if key_cache_size_in_mb option was set to "auto" then size of the cache should be "min(5% of Heap (in MB), 100MB)
@@ -458,6 +468,7 @@ public class DatabaseDescriptor
         assert systemKeyspaces.size() == Schema.systemKeyspaceNames.size();
         for (KSMetaData ksmd : systemKeyspaces)
             Schema.instance.load(ksmd);
+        Schema.instance.loadUserTypes();
 
         /* Load the seeds for node contact points */
         if (conf.seed_provider == null)
@@ -856,11 +867,6 @@ public class DatabaseDescriptor
         return conf.concurrent_compactors;
     }
 
-    public static boolean isMultithreadedCompaction()
-    {
-        return conf.multithreaded_compaction;
-    }
-
     public static int getCompactionThroughputMbPerSec()
     {
         return conf.compaction_throughput_mb_per_sec;
@@ -1017,6 +1023,11 @@ public class DatabaseDescriptor
     public static Integer getNativeTransportMaxThreads()
     {
         return conf.native_transport_max_threads;
+    }
+
+    public static int getNativeTransportMaxFrameSize()
+    {
+        return conf.native_transport_max_frame_size_in_mb * 1024 * 1024;
     }
 
     public static double getCommitLogSyncBatchWindow()

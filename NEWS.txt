@@ -15,6 +15,12 @@ using the provided 'sstableupgrade' tool.
 
 2.0.3
 =====
+
+New features
+------------
+    - It's now possible to configure the maximum allowed size of the native
+      protocol frames (native_transport_max_frame_size_in_mb in the yaml file).
+
 Upgrading
 ---------
     - The IEndpointStateChangeSubscriber has a new method, beforeChange, that
@@ -45,6 +51,10 @@ New features
     - A new CQLSSTableWriter class has been added. It is the equivalent of
       the existing SSTableSimpleWriter/SSTableSimpleUnsortedWriter but is
       CQL oriented.
+
+Upgrading
+---------
+    - Nodetool defaults to Sequential mode for repair operations
 
 
 2.0.2

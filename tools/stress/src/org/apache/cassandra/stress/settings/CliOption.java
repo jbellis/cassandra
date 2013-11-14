@@ -8,7 +8,7 @@ public enum CliOption
     KEY("Key details such as size in bytes and value distribution", SettingsKey.helpPrinter()),
     COL("Column details such as size and count distribution, data generator, names, comparator and if super columns should be used", SettingsColumn.helpPrinter()),
     RATE("Thread count, rate limit or automatic mode (default is auto)", SettingsRate.helpPrinter()),
-    MODE("Thrift or CQL with options", SettingsRate.helpPrinter()),
+    MODE("Thrift or CQL with options", SettingsMode.helpPrinter()),
     SCHEMA("Replication settings, compression, compaction, etc.", SettingsSchema.helpPrinter()),
     NODE("Nodes to connect to", SettingsNode.helpPrinter()),
     LOG("Where to log progress to, and the interval at which to do it", SettingsLog.helpPrinter()),

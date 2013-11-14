@@ -32,6 +32,7 @@ import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.cql3.ColumnNameBuilder;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Relation;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -87,7 +88,7 @@ public class CompositeType extends AbstractCompositeType
         return ct;
     }
 
-    private CompositeType(List<AbstractType<?>> types)
+    protected CompositeType(List<AbstractType<?>> types)
     {
         this.types = ImmutableList.copyOf(types);
     }
@@ -130,6 +131,23 @@ public class CompositeType extends AbstractCompositeType
             serialized[i] = buffer;
         }
         return build(serialized);
+    }
+
+    // Overriding the one of AbstractCompositeType because we can do a tad better
+    @Override
+    public ByteBuffer[] split(ByteBuffer name)
+    {
+        // Assume all components, we'll trunk the array afterwards if need be, but
+        // most names will be complete.
+        ByteBuffer[] l = new ByteBuffer[types.size()];
+        ByteBuffer bb = name.duplicate();
+        int i = 0;
+        while (bb.remaining() > 0)
+        {
+            l[i++] = getWithShortLength(bb);
+            bb.get(); // skip end-of-component
+        }
+        return i == l.length ? l : Arrays.copyOfRange(l, 0, i);
     }
 
     // Extract component idx from bb. Return null if there is not enough component.
@@ -354,9 +372,16 @@ public class CompositeType extends AbstractCompositeType
             return this;
         }
 
+        @Override
         public Builder add(ByteBuffer bb)
         {
             return add(bb, Relation.Type.EQ);
+        }
+
+        @Override
+        public Builder add(ColumnIdentifier name)
+        {
+            return add(name.bytes);
         }
 
         public int componentCount()

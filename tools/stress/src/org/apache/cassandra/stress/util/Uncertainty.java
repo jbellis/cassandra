@@ -19,13 +19,15 @@ public class Uncertainty
     private static final class WaitForTargetUncertainty
     {
         final double targetUncertainty;
-        final int measurements;
+        final int minMeasurements;
+        final int maxMeasurements;
         final CountDownLatch latch = new CountDownLatch(1);
 
-        private WaitForTargetUncertainty(double targetUncertainty, int measurements)
+        private WaitForTargetUncertainty(double targetUncertainty, int minMeasurements, int maxMeasurements)
         {
             this.targetUncertainty = targetUncertainty;
-            this.measurements = measurements;
+            this.minMeasurements = minMeasurements;
+            this.maxMeasurements = maxMeasurements;
         }
 
         void await() throws InterruptedException
@@ -46,7 +48,7 @@ public class Uncertainty
 
         for (WaitForTargetUncertainty waiter : waiting)
         {
-            if (uncertainty < waiter.targetUncertainty && measurements >= waiter.measurements)
+            if ((uncertainty < waiter.targetUncertainty && measurements >= waiter.minMeasurements) || (measurements >= waiter.maxMeasurements))
             {
                 waiter.latch.countDown();
                 // can safely remove as working over snapshot with COWArrayList
@@ -55,9 +57,9 @@ public class Uncertainty
         }
     }
 
-    public void await(double targetUncertainty, int measurements) throws InterruptedException
+    public void await(double targetUncertainty, int minMeasurements, int maxMeasurements) throws InterruptedException
     {
-        final WaitForTargetUncertainty wait = new WaitForTargetUncertainty(targetUncertainty, measurements);
+        final WaitForTargetUncertainty wait = new WaitForTargetUncertainty(targetUncertainty, minMeasurements, maxMeasurements);
         waiting.add(wait);
         wait.await();
     }
