@@ -41,8 +41,6 @@ import org.apache.thrift.TException;
 public abstract class CqlOperation<V> extends Operation
 {
 
-    private static final ConcurrentHashMap<String, byte[]> preparedStatementLookup = new ConcurrentHashMap<>();
-
     protected abstract List<ByteBuffer> getQueryParameters(byte[] key);
     protected abstract String buildQuery();
     protected abstract CqlRunOp<V> buildRunOp(ClientWrapper client, String query, byte[] queryId, List<ByteBuffer> params, String key);
@@ -65,22 +63,14 @@ public abstract class CqlOperation<V> extends Operation
             Object idobj = state.getCqlCache();
             if (idobj == null)
             {
-                final String query = buildQuery();
-                if (!preparedStatementLookup.containsKey(query))
+                try
                 {
-                    synchronized(preparedStatementLookup)
-                    {
-                        try
-                        {
-                            if (!preparedStatementLookup.containsKey(query))
-                                preparedStatementLookup.put(query, client.createPreparedStatement(buildQuery()));
-                        } catch (TException e)
-                        {
-                            throw new RuntimeException(e);
-                        }
-                    }
+                    id = client.createPreparedStatement(buildQuery());
+                } catch (TException e)
+                {
+                    throw new RuntimeException(e);
                 }
-                id = preparedStatementLookup.get(query);
+                state.storeCqlCache(id);
             }
             else
                 id = (byte[]) idobj;

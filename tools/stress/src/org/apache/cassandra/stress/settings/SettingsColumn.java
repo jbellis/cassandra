@@ -48,8 +48,6 @@ public class SettingsColumn implements Serializable
     public SettingsColumn(Options options, NameOptions name, CountOptions count)
     {
         sizeDistribution = options.size.get();
-        maxColumnsPerKey = (int) sizeDistribution.get().maxValue();
-        variableColumnCount = sizeDistribution.get().minValue() < maxColumnsPerKey;
         superColumns = Integer.parseInt(options.superColumns.value());
         dataGenFactory = options.generator.get();
         useSuperColumns = superColumns > 0;
@@ -109,6 +107,8 @@ public class SettingsColumn implements Serializable
             this.countDistribution = count.count.get();
             this.names = null;
         }
+        maxColumnsPerKey = (int) countDistribution.get().maxValue();
+        variableColumnCount = countDistribution.get().minValue() < maxColumnsPerKey;
     }
 
     public RowGen newRowGen()
