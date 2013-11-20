@@ -12,8 +12,7 @@ import static org.apache.cassandra.utils.btree.BTree.getKeyEnd;
 import static org.apache.cassandra.utils.btree.BTree.isLeaf;
 
 /**
- * A class representing a level / stack item of in progress modifications to a BTree. This is a fairly heavy-weight
- * object, so a ThreadLocal instance is created for making modifications to a set
+ * Represents a level / stack item of in progress modifications to a BTree.
  */
 final class ModifierLevel
 {

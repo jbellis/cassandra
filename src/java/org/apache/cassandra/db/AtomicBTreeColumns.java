@@ -246,10 +246,8 @@ public class AtomicBTreeColumns extends ColumnFamily
         else
             insert = cm.getSortedColumns();
 
-        // run the indexer.remove() up-front to save time in the contended spot
         DeletionInfo deletionInfo = cm.deletionInfo();
 
-        // After failing once, transform Columns into a new collection to avoid repeatedly allocating Slab space
         long wasted = 0;
         while (true)
         {
@@ -277,6 +275,7 @@ public class AtomicBTreeColumns extends ColumnFamily
 
             if (!transformed)
             {
+                // After failing once, transform Columns into a new collection to avoid repeatedly allocating Slab space
                 wasted = replacer.wasted;
                 insert = transform(metadata.comparator.columnComparator, cm, transformation, false);
                 transformed = true;

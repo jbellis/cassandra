@@ -15,6 +15,8 @@ import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
  * or a new tree from a sorted collection of items. It works largely as a Stack of in progress modifications, delegating
  * to ModifierLevel which represents a single stack item, performing operations on the current level for each modification,
  * and moving the stack pointer / level as dictated by the result of that operation.
+ *
+ *  This is a fairly heavy-weight object, so a ThreadLocal instance is created for making modifications to a tree
  */
 final class Modifier
 {
