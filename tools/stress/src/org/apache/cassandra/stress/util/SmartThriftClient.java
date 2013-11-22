@@ -78,13 +78,7 @@ public class SmartThriftClient implements ThriftClient
             this.host = host;
         }
 
-        Integer prepare(String query, boolean cql3) throws TException
-        {
-            Integer id = getId(query);
-            return execute(id, cql3);
-        }
-
-        Integer execute(Integer id, boolean cql3) throws TException
+        Integer get(Integer id, boolean cql3) throws TException
         {
             Integer serverId = queryMap.get(id);
             if (serverId != null)
@@ -129,7 +123,7 @@ public class SmartThriftClient implements ThriftClient
         Client tclient = q.poll();
         if (tclient != null)
             return tclient;
-        return new Client(settings.getRawThriftClient(host.getAddress().toString()), host);
+        return new Client(settings.getRawThriftClient(host.getAddress().getHostAddress()), host);
     }
 
     @Override
@@ -207,12 +201,12 @@ public class SmartThriftClient implements ThriftClient
     }
 
     @Override
-    public CqlResult execute_prepared_cql3_query(int itemId, ByteBuffer key, List<ByteBuffer> values, ConsistencyLevel consistency) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
+    public CqlResult execute_prepared_cql3_query(int queryId, ByteBuffer key, List<ByteBuffer> values, ConsistencyLevel consistency) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
         Client client = get(key);
         try
         {
-            return client.client.execute_prepared_cql3_query(client.execute(itemId, true), values, consistency);
+            return client.client.execute_prepared_cql3_query(client.get(queryId, true), values, consistency);
         } finally
         {
             cache.get(client.host).add(client);
@@ -226,12 +220,12 @@ public class SmartThriftClient implements ThriftClient
     }
 
     @Override
-    public CqlResult execute_prepared_cql_query(int itemId, ByteBuffer key, List<ByteBuffer> values) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
+    public CqlResult execute_prepared_cql_query(int queryId, ByteBuffer key, List<ByteBuffer> values) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
         Client client = get(key);
         try
         {
-            return client.client.execute_prepared_cql_query(client.execute(itemId, true), values);
+            return client.client.execute_prepared_cql_query(client.get(queryId, true), values);
         } finally
         {
             cache.get(client.host).add(client);

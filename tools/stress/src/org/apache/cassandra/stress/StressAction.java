@@ -270,6 +270,9 @@ public class StressAction implements Runnable
                     case THRIFT:
                         tclient = settings.getThriftClient();
                         break;
+                    case THRIFT_SMART:
+                        tclient = settings.getSmartThriftClient();
+                        break;
                     default:
                         throw new IllegalStateException();
                 }
@@ -294,11 +297,8 @@ public class StressAction implements Runnable
                                 case SIMPLE_NATIVE:
                                     op.run(sclient);
                                     break;
-                                case THRIFT:
-                                    op.run(tclient);
-                                    break;
                                 default:
-                                    throw new IllegalStateException();
+                                    op.run(tclient);
                             }
                         } catch (Exception e)
                         {

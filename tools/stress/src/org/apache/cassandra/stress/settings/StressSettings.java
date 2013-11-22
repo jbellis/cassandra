@@ -142,7 +142,7 @@ public class StressSettings implements Serializable
         }
         catch (Exception e)
         {
-            throw new RuntimeException(e.getMessage());
+            throw new RuntimeException(e);
         }
     }
 
