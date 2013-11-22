@@ -18,6 +18,7 @@
 package org.apache.cassandra.stress.operations;
 
 import org.apache.cassandra.stress.Operation;
+import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.thrift.*;
 
 import java.io.IOException;
@@ -32,7 +33,7 @@ public class ThriftCounterGetter extends Operation
             throw new IllegalStateException("Variable column counts not supported for counters");
     }
 
-    public void run(final Cassandra.Client client) throws IOException
+    public void run(final ThriftClient client) throws IOException
     {
         SliceRange sliceRange = new SliceRange();
         // start/finish

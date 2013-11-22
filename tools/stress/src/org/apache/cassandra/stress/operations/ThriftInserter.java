@@ -19,6 +19,7 @@ package org.apache.cassandra.stress.operations;
 
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.stress.Operation;
+import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -35,7 +36,7 @@ public final class ThriftInserter extends Operation
         super(state, index);
     }
 
-    public void run(final Cassandra.Client client) throws IOException
+    public void run(final ThriftClient client) throws IOException
     {
         final ByteBuffer key = getKey();
         final List<Column> columns = generateColumns();

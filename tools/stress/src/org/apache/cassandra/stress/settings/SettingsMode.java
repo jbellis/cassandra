@@ -1,5 +1,7 @@
 package org.apache.cassandra.stress.settings;
 
+import com.datastax.driver.core.ProtocolOptions;
+
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
@@ -9,8 +11,9 @@ public class SettingsMode implements Serializable
 {
 
     public final ConnectionAPI api;
+    public final ConnectionStyle style;
     public final CqlVersion cqlVersion;
-    public final boolean useNativeProtocol;
+    public final ProtocolOptions.Compression compression;
 
     public SettingsMode(GroupedOptions options)
     {
@@ -18,22 +21,33 @@ public class SettingsMode implements Serializable
         {
             cqlVersion = CqlVersion.CQL3;
             Cql3Options opts = (Cql3Options) options;
-            useNativeProtocol = opts.useNative.setByUser();
-            api = opts.usePrepared.setByUser() ? ConnectionAPI.CQL_PREPARED : ConnectionAPI.CQL;
+            api = opts.useNative.setByUser() ? ConnectionAPI.JAVA_DRIVER_NATIVE : ConnectionAPI.THRIFT;
+            style = opts.usePrepared.setByUser() ? ConnectionStyle.CQL_PREPARED : ConnectionStyle.CQL;
+            compression = ProtocolOptions.Compression.valueOf(opts.useCompression.value().toUpperCase());
+        }
+        else if (options instanceof Cql3SimpleNativeOptions)
+        {
+            cqlVersion = CqlVersion.CQL3;
+            Cql3SimpleNativeOptions opts = (Cql3SimpleNativeOptions) options;
+            api = ConnectionAPI.SIMPLE_NATIVE;
+            style = opts.usePrepared.setByUser() ? ConnectionStyle.CQL_PREPARED : ConnectionStyle.CQL;
+            compression = null;
         }
         else if (options instanceof Cql2Options)
         {
             cqlVersion = CqlVersion.CQL2;
-            useNativeProtocol = false;
+            api = ConnectionAPI.THRIFT;
             Cql2Options opts = (Cql2Options) options;
-            api = opts.usePrepared.setByUser() ? ConnectionAPI.CQL_PREPARED : ConnectionAPI.CQL;
-
+            style = opts.usePrepared.setByUser() ? ConnectionStyle.CQL_PREPARED : ConnectionStyle.CQL;
+            compression = null;
         }
         else if (options instanceof ThriftOptions)
         {
+            ThriftOptions opts = (ThriftOptions) options;
             cqlVersion = CqlVersion.NOCQL;
-            useNativeProtocol = false;
-            api = ConnectionAPI.THRIFT;
+            api = opts.smart.setByUser() ? ConnectionAPI.THRIFT_SMART : ConnectionAPI.THRIFT;
+            style = ConnectionStyle.THRIFT;
+            compression = null;
         }
         else
             throw new IllegalStateException();
@@ -46,11 +60,27 @@ public class SettingsMode implements Serializable
         final OptionSimple api = new OptionSimple("cql3", "", null, "", true);
         final OptionSimple useNative = new OptionSimple("native", "", null, "", false);
         final OptionSimple usePrepared = new OptionSimple("prepared", "", null, "", false);
+        final OptionSimple useCompression = new OptionSimple("compression=", "none|lz4|snappy", "none", "", false);
+        final OptionSimple port = new OptionSimple("port=", "[0-9]+", "9046", "", false);
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(useNative, usePrepared, api);
+            return Arrays.asList(useNative, usePrepared, api, useCompression, port);
+        }
+    }
+
+    private static final class Cql3SimpleNativeOptions extends GroupedOptions
+    {
+        final OptionSimple api = new OptionSimple("cql3", "", null, "", true);
+        final OptionSimple useSimpleNative = new OptionSimple("simplenative", "", null, "", true);
+        final OptionSimple usePrepared = new OptionSimple("prepared", "", null, "", false);
+        final OptionSimple port = new OptionSimple("port=", "[0-9]+", "9046", "", false);
+
+        @Override
+        public List<? extends Option> options()
+        {
+            return Arrays.asList(useSimpleNative, usePrepared, api, port);
         }
     }
 
@@ -69,11 +99,12 @@ public class SettingsMode implements Serializable
     private static final class ThriftOptions extends GroupedOptions
     {
         final OptionSimple api = new OptionSimple("thrift", "", null, "", true);
+        final OptionSimple smart = new OptionSimple("smart", "", null, "", false);
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(api);
+            return Arrays.asList(api, smart);
         }
     }
 

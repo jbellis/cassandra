@@ -1,5 +1,9 @@
 package org.apache.cassandra.stress.settings;
 
+import com.datastax.driver.core.Metadata;
+import org.apache.cassandra.stress.util.JavaDriverClient;
+import org.apache.cassandra.stress.util.SimpleThriftClient;
+import org.apache.cassandra.stress.util.SmartThriftClient;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.transport.SimpleClient;
@@ -26,10 +30,11 @@ public class StressSettings implements Serializable
     public final SettingsNode node;
     public final SettingsSchema schema;
     public final SettingsTransport transport;
-    private final int port;
+    public final int thriftPort;
+    public final int nativePort = 9042;
     public final String sendToDaemon;
 
-    public StressSettings(SettingsCommand command, SettingsRate rate, SettingsKey keys, SettingsColumn columns, SettingsLog log, SettingsMode mode, SettingsNode node, SettingsSchema schema, SettingsTransport transport, int port, String sendToDaemon)
+    public StressSettings(SettingsCommand command, SettingsRate rate, SettingsKey keys, SettingsColumn columns, SettingsLog log, SettingsMode mode, SettingsNode node, SettingsSchema schema, SettingsTransport transport, int thriftPort, String sendToDaemon)
     {
         this.command = command;
         this.rate = rate;
@@ -40,30 +45,39 @@ public class StressSettings implements Serializable
         this.node = node;
         this.schema = schema;
         this.transport = transport;
-        this.port = port;
+        this.thriftPort = thriftPort;
         this.sendToDaemon = sendToDaemon;
     }
 
-    /**
-     * Thrift client connection with Keyspace1 set.
-     * @return cassandra client connection
-     */
-    public Cassandra.Client getClient()
+    public SmartThriftClient getSmartThriftClient()
     {
-        return getClient(true);
+        Metadata metadata = getJavaDriverClient().getCluster().getMetadata();
+        return new SmartThriftClient(this, schema.keyspace, metadata);
     }
 
     /**
      * Thrift client connection
-     * @param setKeyspace - should we set keyspace for client or not
      * @return cassandra client connection
      */
-    public Cassandra.Client getClient(boolean setKeyspace)
+    public SimpleThriftClient getThriftClient()
     {
-        // random node selection for fake load balancing
-        String currentNode = node.randomNode();
+        return new SimpleThriftClient(getRawThriftClient(node.randomNode(), true));
+    }
 
-        TSocket socket = new TSocket(currentNode, port);
+    public Cassandra.Client getRawThriftClient(boolean setKeyspace)
+    {
+        return getRawThriftClient(node.randomNode(), setKeyspace);
+    }
+
+    public Cassandra.Client getRawThriftClient(String host)
+    {
+        return getRawThriftClient(host, true);
+    }
+
+    public Cassandra.Client getRawThriftClient(String host, boolean setKeyspace)
+    {
+
+        TSocket socket = new TSocket(host, thriftPort);
         TTransport transport = this.transport.getFactory().getTransport(socket);
         Cassandra.Client client = new Cassandra.Client(new TBinaryProtocol(transport));
 
@@ -76,9 +90,7 @@ public class StressSettings implements Serializable
                 client.set_cql_version(mode.cqlVersion.connectVersion);
 
             if (setKeyspace)
-            {
                 client.set_keyspace("Keyspace1");
-            }
         }
         catch (InvalidRequestException e)
         {
@@ -92,15 +104,41 @@ public class StressSettings implements Serializable
         return client;
     }
 
-    public SimpleClient getNativeClient()
+
+    public SimpleClient getSimpleNativeClient()
     {
         try
         {
             String currentNode = node.randomNode();
-            SimpleClient client = new SimpleClient(currentNode, 9042);
+            SimpleClient client = new SimpleClient(currentNode, nativePort);
             client.connect(false);
             client.execute("USE \"Keyspace1\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
             return client;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e.getMessage());
+        }
+    }
+
+    private static volatile JavaDriverClient client;
+
+    public JavaDriverClient getJavaDriverClient()
+    {
+        if (client != null)
+            return client;
+        try
+        {
+            synchronized (this)
+            {
+                String currentNode = node.randomNode();
+                if (client != null)
+                    return client;
+                JavaDriverClient c = new JavaDriverClient(currentNode, nativePort);
+                c.connect(mode.compression);
+                c.execute("USE \"Keyspace1\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
+                return client = c;
+            }
         }
         catch (Exception e)
         {

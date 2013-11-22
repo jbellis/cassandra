@@ -19,6 +19,7 @@ package org.apache.cassandra.stress.operations;
 
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.settings.SettingsCommandMulti;
+import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -41,7 +42,7 @@ public class ThriftIndexedRangeSlicer extends Operation
             throw new IllegalStateException("Does not support TimeUUID column names");
     }
 
-    public void run(final Cassandra.Client client) throws IOException
+    public void run(final ThriftClient client) throws IOException
     {
 
         final SlicePredicate predicate = new SlicePredicate()

@@ -29,6 +29,8 @@ import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.CqlVersion;
 import org.apache.cassandra.stress.settings.SettingsCommandMixed;
 import org.apache.cassandra.stress.settings.StressSettings;
+import org.apache.cassandra.stress.util.JavaDriverClient;
+import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.stress.util.Timer;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.ColumnParent;
@@ -128,9 +130,13 @@ public abstract class Operation
      * @param client Cassandra Thrift client connection
      * @throws IOException on any I/O error.
      */
-    public abstract void run(Cassandra.Client client) throws IOException;
+    public abstract void run(ThriftClient client) throws IOException;
 
     public void run(SimpleClient client) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    public void run(JavaDriverClient client) throws IOException {
         throw new UnsupportedOperationException();
     }
 
