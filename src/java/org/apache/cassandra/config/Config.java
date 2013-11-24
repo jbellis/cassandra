@@ -84,6 +84,7 @@ public class Config
     public Boolean start_rpc = true;
     public String rpc_address;
     public Integer rpc_port = 9160;
+    public Integer rpc_listen_backlog = 50;
     public String rpc_server_type = "sync";
     public Boolean rpc_keepalive = true;
     public Integer rpc_min_threads = 16;
@@ -181,6 +182,9 @@ public class Config
 
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
+
+    public volatile Long index_summary_capacity_in_mb;
+    public volatile int index_summary_resize_interval_in_minutes = 60;
 
     public static boolean getOutboundBindAny()
     {

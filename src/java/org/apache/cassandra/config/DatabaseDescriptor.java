@@ -39,6 +39,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.IAllocator;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -86,6 +87,7 @@ public class DatabaseDescriptor
 
     private static long keyCacheSizeInMB;
     private static IAllocator memoryAllocator;
+    private static long indexSummaryCapacityInMB;
 
     private static String localDC;
     private static Comparator<InetAddress> localComparator;
@@ -449,6 +451,15 @@ public class DatabaseDescriptor
                     + conf.key_cache_size_in_mb + "', supported values are <integer> >= 0.");
         }
 
+        // if set to empty/"auto" then use 5% of Heap size
+        indexSummaryCapacityInMB = (conf.index_summary_capacity_in_mb == null)
+            ? Math.max(1, (int) (Runtime.getRuntime().totalMemory() * 0.05 / 1024 / 1024))
+            : conf.index_summary_capacity_in_mb;
+
+        if (indexSummaryCapacityInMB < 0)
+            throw new ConfigurationException("index_summary_capacity_in_mb option was set incorrectly to '"
+                    + conf.index_summary_capacity_in_mb + "', it should be a non-negative integer.");
+
         memoryAllocator = FBUtilities.newOffHeapAllocator(conf.memory_allocator);
 
         if(conf.encryption_options != null)
@@ -468,7 +479,6 @@ public class DatabaseDescriptor
         assert systemKeyspaces.size() == Schema.systemKeyspaceNames.size();
         for (KSMetaData ksmd : systemKeyspaces)
             Schema.instance.load(ksmd);
-        Schema.instance.loadUserTypes();
 
         /* Load the seeds for node contact points */
         if (conf.seed_provider == null)
@@ -502,6 +512,8 @@ public class DatabaseDescriptor
     /** load keyspace (keyspace) definitions, but do not initialize the keyspace instances. */
     public static void loadSchemas()
     {
+        Schema.instance.loadUserTypes();
+
         ColumnFamilyStore schemaCFS = SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_KEYSPACES_CF);
 
         // if keyspace with definitions is empty try loading the old way
@@ -728,6 +740,11 @@ public class DatabaseDescriptor
     public static int getRpcPort()
     {
         return Integer.parseInt(System.getProperty("cassandra.rpc_port", conf.rpc_port.toString()));
+    }
+
+    public static int getRpcListenBacklog()
+    {
+        return conf.rpc_listen_backlog;
     }
 
     public static long getRpcTimeout()
@@ -1215,6 +1232,11 @@ public class DatabaseDescriptor
         return keyCacheSizeInMB;
     }
 
+    public static long getIndexSummaryCapacityInMB()
+    {
+        return indexSummaryCapacityInMB;
+    }
+
     public static int getKeyCacheSavePeriod()
     {
         return conf.key_cache_save_period;
@@ -1305,5 +1327,10 @@ public class DatabaseDescriptor
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static int getIndexSummaryResizeIntervalInMinutes()
+    {
+        return conf.index_summary_resize_interval_in_minutes;
     }
 }
