@@ -18,6 +18,7 @@
 package org.apache.cassandra.stress.operations;
 
 import org.apache.cassandra.stress.Operation;
+import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.thrift.*;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ public final class ThriftReader extends Operation
         super(state, index);
     }
 
-    public void run(final Cassandra.Client client) throws IOException
+    public void run(final ThriftClient client) throws IOException
     {
         final SlicePredicate predicate = new SlicePredicate();
         if (state.settings.columns.names == null)

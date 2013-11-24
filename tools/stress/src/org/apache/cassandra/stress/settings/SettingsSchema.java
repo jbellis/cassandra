@@ -61,10 +61,21 @@ public class SettingsSchema implements Serializable
         columnFamily = options.columnFamily.value();
     }
 
+    private void createKeyspacesCql3(StressSettings settings)
+    {
+//        settings.getJavaDriverClient().execute("create table Standard1")
+    }
+
+    public void createKeySpaces(StressSettings settings)
+    {
+        createKeySpacesThrift(settings);
+    }
+
+
     /**
      * Create Keyspace with Standard and Super/Counter column families
      */
-    public void createKeySpaces(StressSettings settings)
+    public void createKeySpacesThrift(StressSettings settings)
     {
         KsDef ksdef = new KsDef();
 
@@ -135,7 +146,7 @@ public class SettingsSchema implements Serializable
 
         ksdef.setCf_defs(new ArrayList<CfDef>(Arrays.asList(standardCfDef, superCfDef, counterCfDef, counterSuperCfDef)));
 
-        Cassandra.Client client = settings.getClient(false);
+        Cassandra.Client client = settings.getRawThriftClient(false);
 
         try
         {

@@ -33,6 +33,8 @@ import org.apache.cassandra.stress.settings.SettingsCommand;
 import org.apache.cassandra.stress.settings.SettingsCommandMixed;
 import org.apache.cassandra.stress.settings.SettingsCommandMulti;
 import org.apache.cassandra.stress.settings.StressSettings;
+import org.apache.cassandra.stress.util.JavaDriverClient;
+import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.transport.SimpleClient;
 
@@ -254,12 +256,26 @@ public class StressAction implements Runnable
             {
 
                 SimpleClient sclient = null;
-                Cassandra.Client cclient = null;
+                ThriftClient tclient = null;
+                JavaDriverClient jclient = null;
 
-                if (settings.mode.useNativeProtocol)
-                    sclient = settings.getNativeClient();
-                else
-                    cclient = settings.getClient();
+                switch (settings.mode.api)
+                {
+                    case JAVA_DRIVER_NATIVE:
+                        jclient = settings.getJavaDriverClient();
+                        break;
+                    case SIMPLE_NATIVE:
+                        sclient = settings.getSimpleNativeClient();
+                        break;
+                    case THRIFT:
+                        tclient = settings.getThriftClient();
+                        break;
+                    case THRIFT_SMART:
+                        tclient = settings.getSmartThriftClient();
+                        break;
+                    default:
+                        throw new IllegalStateException();
+                }
 
                 Work work;
                 while ( null != (work = workQueue.poll()) )
@@ -273,10 +289,17 @@ public class StressAction implements Runnable
                         try
                         {
                             Operation op = createOperation(state, i + work.offset);
-                            if (sclient != null)
-                                op.run(sclient);
-                            else
-                                op.run(cclient);
+                            switch (settings.mode.api)
+                            {
+                                case JAVA_DRIVER_NATIVE:
+                                    op.run(jclient);
+                                    break;
+                                case SIMPLE_NATIVE:
+                                    op.run(sclient);
+                                    break;
+                                default:
+                                    op.run(tclient);
+                            }
                         } catch (Exception e)
                         {
                             if (output == null)
@@ -426,7 +449,7 @@ public class StressAction implements Runnable
         switch (type)
         {
             case READ:
-                switch(state.settings.mode.api)
+                switch(state.settings.mode.style)
                 {
                     case THRIFT:
                         return new ThriftReader(state, index);
@@ -439,7 +462,7 @@ public class StressAction implements Runnable
 
 
             case COUNTERREAD:
-                switch(state.settings.mode.api)
+                switch(state.settings.mode.style)
                 {
                     case THRIFT:
                         return new ThriftCounterGetter(state, index);
@@ -451,7 +474,7 @@ public class StressAction implements Runnable
                 }
 
             case WRITE:
-                switch(state.settings.mode.api)
+                switch(state.settings.mode.style)
                 {
                     case THRIFT:
                         return new ThriftInserter(state, index);
@@ -463,7 +486,7 @@ public class StressAction implements Runnable
                 }
 
             case COUNTERWRITE:
-                switch(state.settings.mode.api)
+                switch(state.settings.mode.style)
                 {
                     case THRIFT:
                         return new ThriftCounterAdder(state, index);
@@ -475,7 +498,7 @@ public class StressAction implements Runnable
                 }
 
             case RANGESLICE:
-                switch(state.settings.mode.api)
+                switch(state.settings.mode.style)
                 {
                     case THRIFT:
                         return new ThriftRangeSlicer(state, index);
@@ -487,7 +510,7 @@ public class StressAction implements Runnable
                 }
 
             case IRANGESLICE:
-                switch(state.settings.mode.api)
+                switch(state.settings.mode.style)
                 {
                     case THRIFT:
                         return new ThriftIndexedRangeSlicer(state, index);
@@ -499,7 +522,7 @@ public class StressAction implements Runnable
                 }
 
             case READMULTI:
-                switch(state.settings.mode.api)
+                switch(state.settings.mode.style)
                 {
                     case THRIFT:
                         return new ThriftMultiGetter(state, index);
