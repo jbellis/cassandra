@@ -124,11 +124,11 @@ public class ResultSet
                 // The 2 following ones shouldn't be needed in CQL3
                 UTF8, UTF8);
 
-        for (ColumnSpecification name : metadata.names)
+        for (ColumnSpecification spec : metadata.names)
         {
-            ByteBuffer colName = ByteBufferUtil.bytes(name.toString());
+            ByteBuffer colName = ByteBufferUtil.bytes(spec.name.toString());
             schema.name_types.put(colName, UTF8);
-            AbstractType<?> normalizedType = name.type instanceof ReversedType ? ((ReversedType)name.type).baseType : name.type;
+            AbstractType<?> normalizedType = spec.type instanceof ReversedType ? ((ReversedType)spec.type).baseType : spec.type;
             schema.value_types.put(colName, normalizedType.toString());
 
         }
@@ -139,7 +139,7 @@ public class ResultSet
             List<Column> thriftCols = new ArrayList<Column>(metadata.names.size());
             for (int i = 0; i < metadata.names.size(); i++)
             {
-                Column col = new Column(ByteBufferUtil.bytes(metadata.names.get(i).toString()));
+                Column col = new Column(ByteBufferUtil.bytes(metadata.names.get(i).name.toString()));
                 col.setValue(row.get(i));
                 thriftCols.add(col);
             }
@@ -310,7 +310,7 @@ public class ResultSet
             {
                 for (ColumnSpecification name : names)
                 {
-                    sb.append("[").append(name.toString());
+                    sb.append("[").append(name.name.toString());
                     sb.append("(").append(name.ksName).append(", ").append(name.cfName).append(")");
                     sb.append(", ").append(name.type).append("]");
                 }
@@ -389,7 +389,7 @@ public class ResultSet
                             CBUtil.writeString(name.ksName, dest);
                             CBUtil.writeString(name.cfName, dest);
                         }
-                        CBUtil.writeString(name.toString(), dest);
+                        CBUtil.writeString(name.name.toString(), dest);
                         DataType.codec.writeOne(DataType.fromType(name.type), dest);
                     }
                 }
@@ -420,7 +420,7 @@ public class ResultSet
                             size += CBUtil.sizeOfString(name.ksName);
                             size += CBUtil.sizeOfString(name.cfName);
                         }
-                        size += CBUtil.sizeOfString(name.toString());
+                        size += CBUtil.sizeOfString(name.name.toString());
                         size += DataType.codec.oneSerializedSize(DataType.fromType(name.type));
                     }
                 }

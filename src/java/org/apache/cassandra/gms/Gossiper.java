@@ -34,6 +34,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IAsyncCallback;
@@ -44,7 +47,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 
 /**
  * This module is responsible for Gossiping information for the local endpoint. This abstraction
@@ -114,6 +116,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private boolean inShadowRound = false;
 
+    private volatile long lastProcessedMessageAt = System.currentTimeMillis();
+
     private class GossipTask implements Runnable
     {
         public void run()
@@ -163,8 +167,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     if (!gossipedToSeed || liveEndpoints.size() < seeds.size())
                         doGossipToSeed(message);
 
-                    if (logger.isTraceEnabled())
-                        logger.trace("Performing status check ...");
                     doStatusCheck();
                 }
             }
@@ -192,6 +194,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public void setLastProcessedMessageAt(long timeInMillis)
+    {
+        this.lastProcessedMessageAt = timeInMillis;
     }
 
     protected void checkSeedContact(InetAddress ep)
@@ -394,7 +401,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     /**
      * This method will begin removing an existing endpoint from the cluster by spoofing its state
-     * This should never be called unless this coordinator has had 'removetoken' invoked
+     * This should never be called unless this coordinator has had 'removenode' invoked
      *
      * @param endpoint    - the endpoint being removed
      * @param hostId      - the ID of the host being removed
@@ -587,8 +594,25 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private void doStatusCheck()
     {
+        if (logger.isTraceEnabled())
+            logger.trace("Performing status check ...");
+
         long now = System.currentTimeMillis();
         long nowNano = System.nanoTime();
+
+        long pending = ((JMXEnabledThreadPoolExecutor) StageManager.getStage(Stage.GOSSIP)).getPendingTasks();
+        if (pending > 0 && lastProcessedMessageAt < now - 1000)
+        {
+            // if some new messages just arrived, give the executor some time to work on them
+            Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+
+            // still behind?  something's broke
+            if (lastProcessedMessageAt < now - 1000)
+            {
+                logger.warn("Gossip stage has {} pending tasks; skipping status check (no nodes will be marked down)", pending);
+                return;
+            }
+        }
 
         Set<InetAddress> eps = endpointStateMap.keySet();
         for (InetAddress endpoint : eps)
@@ -764,7 +788,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 if (!localEndpointState.isAlive())
                 {
                     logger.debug("Clearing interval times for {} due to generation change", endpoint);
-                    fd.clear(endpoint);
+                    fd.remove(endpoint);
                 }
                 fd.report(endpoint);
                 return;
@@ -964,12 +988,21 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
         for (Entry<ApplicationState, VersionedValue> remoteEntry : remoteState.getApplicationStateMap().entrySet())
         {
-            doNotifications(addr, remoteEntry.getKey(), remoteEntry.getValue());
+            doOnChangeNotifications(addr, remoteEntry.getKey(), remoteEntry.getValue());
+        }
+    }
+    
+    // notify that a local application state is going to change (doesn't get triggered for remote changes)
+    private void doBeforeChangeNotifications(InetAddress addr, EndpointState epState, ApplicationState apState, VersionedValue newValue)
+    {
+        for (IEndpointStateChangeSubscriber subscriber : subscribers)
+        {
+            subscriber.beforeChange(addr, epState, apState, newValue);
         }
     }
 
     // notify that an application state has changed
-    private void doNotifications(InetAddress addr, ApplicationState state, VersionedValue value)
+    private void doOnChangeNotifications(InetAddress addr, ApplicationState state, VersionedValue value)
     {
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
         {
@@ -1186,9 +1219,17 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public void addLocalApplicationState(ApplicationState state, VersionedValue value)
     {
         EndpointState epState = endpointStateMap.get(FBUtilities.getBroadcastAddress());
+        InetAddress epAddr = FBUtilities.getBroadcastAddress();
         assert epState != null;
+        // Fire "before change" notifications:
+        doBeforeChangeNotifications(epAddr, epState, state, value);
+        // Notifications may have taken some time, so preventively raise the version
+        // of the new value, otherwise it could be ignored by the remote node
+        // if another value with a newer version was received in the meantime:
+        value = StorageService.instance.valueFactory.cloneWithHigherVersion(value);
+        // Add to local application state and fire "on change" notifications:
         epState.addApplicationState(state, value);
-        doNotifications(FBUtilities.getBroadcastAddress(), state, value);
+        doOnChangeNotifications(epAddr, state, value);
     }
 
     public void stop()

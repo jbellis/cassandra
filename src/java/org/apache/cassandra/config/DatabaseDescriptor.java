@@ -39,6 +39,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.IAllocator;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -55,6 +56,12 @@ import org.apache.cassandra.utils.FBUtilities;
 public class DatabaseDescriptor
 {
     private static final Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
+
+    /**
+     * Tokens are serialized in a Gossip VersionedValue String.  VV are restricted to 64KB
+     * when we send them over the wire, which works out to about 1700 tokens.
+     */
+    private static final int MAX_NUM_TOKENS = 1536;
 
     private static IEndpointSnitch snitch;
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
@@ -80,6 +87,7 @@ public class DatabaseDescriptor
 
     private static long keyCacheSizeInMB;
     private static IAllocator memoryAllocator;
+    private static long indexSummaryCapacityInMB;
 
     private static String localDC;
     private static Comparator<InetAddress> localComparator;
@@ -317,6 +325,9 @@ public class DatabaseDescriptor
         if (conf.thrift_framed_transport_size_in_mb <= 0)
             throw new ConfigurationException("thrift_framed_transport_size_in_mb must be positive");
 
+        if (conf.native_transport_max_frame_size_in_mb <= 0)
+            throw new ConfigurationException("native_transport_max_frame_size_in_mb must be positive");
+
         /* end point snitch */
         if (conf.endpoint_snitch == null)
         {
@@ -382,8 +393,6 @@ public class DatabaseDescriptor
             logger.debug("setting auto_bootstrap to {}", conf.auto_bootstrap);
         }
 
-        logger.info("{}using multi-threaded compaction", (conf.multithreaded_compaction ? "" : "Not "));
-
         if (conf.in_memory_compaction_limit_in_mb != null && conf.in_memory_compaction_limit_in_mb <= 0)
         {
             throw new ConfigurationException("in_memory_compaction_limit_in_mb must be a positive integer");
@@ -423,6 +432,9 @@ public class DatabaseDescriptor
             for (String token : tokensFromString(conf.initial_token))
                 partitioner.getTokenFactory().validate(token);
 
+        if (conf.num_tokens > MAX_NUM_TOKENS)
+            throw new ConfigurationException(String.format("A maximum number of %d tokens per node is supported", MAX_NUM_TOKENS));
+
         try
         {
             // if key_cache_size_in_mb option was set to "auto" then size of the cache should be "min(5% of Heap (in MB), 100MB)
@@ -438,6 +450,15 @@ public class DatabaseDescriptor
             throw new ConfigurationException("key_cache_size_in_mb option was set incorrectly to '"
                     + conf.key_cache_size_in_mb + "', supported values are <integer> >= 0.");
         }
+
+        // if set to empty/"auto" then use 5% of Heap size
+        indexSummaryCapacityInMB = (conf.index_summary_capacity_in_mb == null)
+            ? Math.max(1, (int) (Runtime.getRuntime().totalMemory() * 0.05 / 1024 / 1024))
+            : conf.index_summary_capacity_in_mb;
+
+        if (indexSummaryCapacityInMB < 0)
+            throw new ConfigurationException("index_summary_capacity_in_mb option was set incorrectly to '"
+                    + conf.index_summary_capacity_in_mb + "', it should be a non-negative integer.");
 
         memoryAllocator = FBUtilities.newOffHeapAllocator(conf.memory_allocator);
 
@@ -491,6 +512,8 @@ public class DatabaseDescriptor
     /** load keyspace (keyspace) definitions, but do not initialize the keyspace instances. */
     public static void loadSchemas()
     {
+        Schema.instance.loadUserTypes();
+
         ColumnFamilyStore schemaCFS = SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_KEYSPACES_CF);
 
         // if keyspace with definitions is empty try loading the old way
@@ -719,6 +742,11 @@ public class DatabaseDescriptor
         return Integer.parseInt(System.getProperty("cassandra.rpc_port", conf.rpc_port.toString()));
     }
 
+    public static int getRpcListenBacklog()
+    {
+        return conf.rpc_listen_backlog;
+    }
+
     public static long getRpcTimeout()
     {
         return conf.request_timeout_in_ms;
@@ -854,11 +882,6 @@ public class DatabaseDescriptor
     public static int getConcurrentCompactors()
     {
         return conf.concurrent_compactors;
-    }
-
-    public static boolean isMultithreadedCompaction()
-    {
-        return conf.multithreaded_compaction;
     }
 
     public static int getCompactionThroughputMbPerSec()
@@ -1017,6 +1040,11 @@ public class DatabaseDescriptor
     public static Integer getNativeTransportMaxThreads()
     {
         return conf.native_transport_max_threads;
+    }
+
+    public static int getNativeTransportMaxFrameSize()
+    {
+        return conf.native_transport_max_frame_size_in_mb * 1024 * 1024;
     }
 
     public static double getCommitLogSyncBatchWindow()
@@ -1204,6 +1232,11 @@ public class DatabaseDescriptor
         return keyCacheSizeInMB;
     }
 
+    public static long getIndexSummaryCapacityInMB()
+    {
+        return indexSummaryCapacityInMB;
+    }
+
     public static int getKeyCacheSavePeriod()
     {
         return conf.key_cache_save_period;
@@ -1294,5 +1327,10 @@ public class DatabaseDescriptor
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static int getIndexSummaryResizeIntervalInMinutes()
+    {
+        return conf.index_summary_resize_interval_in_minutes;
     }
 }

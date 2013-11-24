@@ -327,6 +327,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SystemKeyspace.removeTruncationRecord(metadata.cfId);
             data.unreferenceSSTables();
             indexManager.invalidate();
+
+            for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
+            {
+                if (key.cfId == metadata.cfId)
+                    invalidateCachedRow(key);
+            }
         }
         catch (Exception e)
         {
@@ -422,7 +428,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Descriptor desc = sstableFiles.getKey();
             Set<Component> components = sstableFiles.getValue();
 
-            if (components.contains(Component.COMPACTED_MARKER) || desc.temporary)
+            if (desc.temporary)
             {
                 SSTable.delete(desc, components);
                 continue;
@@ -883,11 +889,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return removeDeletedCF(cf, gcBefore);
     }
 
-    private static void removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore, SecondaryIndexManager.Updater indexer)
+    private static long removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore, SecondaryIndexManager.Updater indexer)
     {
         Iterator<Column> iter = cf.iterator();
         DeletionInfo.InOrderTester tester = cf.inOrderDeletionTester();
         boolean hasDroppedColumns = !cf.metadata.getDroppedColumns().isEmpty();
+        long removedBytes = 0;
         while (iter.hasNext())
         {
             Column c = iter.next();
@@ -899,13 +906,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 iter.remove();
                 indexer.remove(c);
+                removedBytes += c.dataSize();
             }
         }
+        return removedBytes;
     }
 
-    public static void removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore)
+    public static long removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore)
     {
-        removeDeletedColumnsOnly(cf, gcBefore, SecondaryIndexManager.nullUpdater);
+        return removeDeletedColumnsOnly(cf, gcBefore, SecondaryIndexManager.nullUpdater);
     }
 
     // returns true if
@@ -913,7 +922,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     // 2. if it has been re-added since then, this particular column was inserted before the last drop
     private static boolean isDroppedColumn(Column c, CFMetaData meta)
     {
-        Long droppedAt = meta.getDroppedColumns().get(((CompositeType) meta.comparator).extractLastComponent(c.name()));
+        ByteBuffer cql3ColumnName = ((CompositeType) meta.comparator).extractLastComponent(c.name());
+        Long droppedAt = meta.getDroppedColumns().get(meta.getColumnDefinition(cql3ColumnName).name);
         return droppedAt != null && c.timestamp() <= droppedAt;
     }
 
@@ -1006,7 +1016,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         if (operation != OperationType.CLEANUP || isIndex())
         {
-            return SSTable.getTotalBytes(sstables);
+            return SSTableReader.getTotalBytes(sstables);
         }
 
         // cleanup size estimation only counts bytes for keys local to this node
@@ -1091,6 +1101,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public long getTotalMemtableLiveSize()
     {
         return getMemtableDataSize() + indexManager.getTotalLiveSize();
+    }
+
+    /**
+     * @return the live size of all the memtables (the current active one and pending flush).
+     */
+    public long getAllMemtablesLiveSize()
+    {
+        long size = 0;
+        for (Memtable mt : getDataTracker().getAllMemtables())
+            size += mt.getLiveSize();
+        return size;
     }
 
     public int getMemtableSwitchCount()
@@ -1242,7 +1263,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         finally
         {
             if (sentinelSuccess && data == null)
-                CacheService.instance.rowCache.remove(key);
+                invalidateCachedRow(key);
         }
     }
 
@@ -1948,7 +1969,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
                 {
                     if (key.cfId == metadata.cfId)
-                        CacheService.instance.rowCache.remove(key);
+                        invalidateCachedRow(key);
                 }
             }
         };

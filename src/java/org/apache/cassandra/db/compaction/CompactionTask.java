@@ -118,14 +118,12 @@ public class CompactionTask extends AbstractCompactionTask
         long totalkeysWritten = 0;
 
         long estimatedTotalKeys = Math.max(cfs.metadata.getIndexInterval(), SSTableReader.getApproximateKeyCount(actuallyCompact, cfs.metadata));
-        long estimatedSSTables = Math.max(1, SSTable.getTotalBytes(actuallyCompact) / strategy.getMaxSSTableSize());
+        long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(actuallyCompact) / strategy.getMaxSSTableSize());
         long keysPerSSTable = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
         if (logger.isDebugEnabled())
             logger.debug("Expected bloom filter size : {}", keysPerSSTable);
 
-        AbstractCompactionIterable ci = DatabaseDescriptor.isMultithreadedCompaction()
-                                      ? new ParallelCompactionIterable(compactionType, strategy.getScanners(actuallyCompact), controller)
-                                      : new CompactionIterable(compactionType, strategy.getScanners(actuallyCompact), controller);
+        AbstractCompactionIterable ci = new CompactionIterable(compactionType, strategy.getScanners(actuallyCompact), controller);
         CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
         Map<DecoratedKey, RowIndexEntry> cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
 
@@ -246,8 +244,8 @@ public class CompactionTask extends AbstractCompactionTask
 
         // log a bunch of statistics about the result and save to system table compaction_history
         long dTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
-        long startsize = SSTable.getTotalBytes(toCompact);
-        long endsize = SSTable.getTotalBytes(sstables);
+        long startsize = SSTableReader.getTotalBytes(toCompact);
+        long endsize = SSTableReader.getTotalBytes(sstables);
         double ratio = (double) endsize / (double) startsize;
 
         StringBuilder builder = new StringBuilder();
@@ -261,15 +259,18 @@ public class CompactionTask extends AbstractCompactionTask
         Map<Integer, Long> mergedRows = new HashMap<Integer, Long>();
         for (int i = 0; i < counts.length; i++)
         {
-            int rows = i + 1;
             long count = counts[i];
+            if (count == 0)
+                continue;
+
+            int rows = i + 1;
             totalSourceRows += rows * count;
             mergeSummary.append(String.format("%d:%d, ", rows, count));
             mergedRows.put(rows, count);
         }
 
         SystemKeyspace.updateCompactionHistory(cfs.keyspace.getName(), cfs.name, start, startsize, endsize, mergedRows);
-        logger.info(String.format("Compacted %d sstables to [%s].  %,d bytes to %,d (~%d%% of original) in %,dms = %fMB/s.  %,d total rows, %,d unique.  Row merge counts were {%s}",
+        logger.info(String.format("Compacted %d sstables to [%s].  %,d bytes to %,d (~%d%% of original) in %,dms = %fMB/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
                                   toCompact.size(), builder.toString(), startsize, endsize, (int) (ratio * 100), dTime, mbps, totalSourceRows, totalkeysWritten, mergeSummary.toString()));
         logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
     }

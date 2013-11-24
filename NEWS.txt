@@ -13,7 +13,6 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
-
 2.1
 ===
 
@@ -24,6 +23,29 @@ Upgrading
      upgrading to 2.1 due to the fact that the old JSON leveled
      manifest is migrated into the sstable metadata files on startup
      in 2.0 and this code is gone from 2.1.
+   - For size-tiered compaction users, Cassandra now defaults to ignoring
+     the coldest 5% of sstables.  This can be customized with the
+     cold_reads_to_omit compaction option; 0.0 omits nothing (the old
+     behavior) and 1.0 omits everything.
+   - Multithreaded compaction has been removed.
+
+
+2.0.3
+=====
+
+New features
+------------
+    - It's now possible to configure the maximum allowed size of the native
+      protocol frames (native_transport_max_frame_size_in_mb in the yaml file).
+
+Upgrading
+---------
+    - NaN and Infinity are new valid floating point constants in CQL3 and are now reserved
+      keywords. In the unlikely case you were using one of them as an identifier (for a
+      column, a keyspace or a table), you will now have to double-quote them (see
+      http://cassandra.apache.org/doc/cql3/CQL.html#identifiers for "quoted identifiers").
+    - The IEndpointStateChangeSubscriber has a new method, beforeChange, that
+      any custom implemenations using the class will need to implement.
 
 
 2.0.2
@@ -43,6 +65,13 @@ New features
     - New replace_address to supplant the (now removed) replace_token and
       replace_node workflows to replace a dead node in place.  Works like the
       old options, but takes the IP address of the node to be replaced.
+    - A new CQLSSTableWriter class has been added. It is the equivalent of
+      the existing SSTableSimpleWriter/SSTableSimpleUnsortedWriter but is
+      CQL oriented.
+
+Upgrading
+---------
+    - Nodetool defaults to Sequential mode for repair operations
 
 
 2.0.1

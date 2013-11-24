@@ -163,9 +163,9 @@ public class Memtable
         if (!MemoryMeter.isInitialized())
         {
             // hack for openjdk.  we log a warning about this in the startup script too.
-            logger.warn("MemoryMeter uninitialized (jamm not specified as java agent); assuming liveRatio of {}.  "
-                        + " Usually this means cassandra-env.sh disabled jamm because you are using a buggy JRE; "
-                        + " upgrade to the Sun JRE instead", cfs.liveRatio);
+            logger.error("MemoryMeter uninitialized (jamm not specified as java agent); assuming liveRatio of {}.  "
+                         + " Usually this means cassandra-env.sh disabled jamm because you are using a buggy JRE; "
+                         + " upgrade to the Sun JRE instead", cfs.liveRatio);
             return;
         }
 
@@ -233,6 +233,7 @@ public class Memtable
             private Iterator<Map.Entry<RowPosition, AtomicSortedColumns>> iter = stopAt.isMinimum(cfs.partitioner)
                                                                                ? rows.tailMap(startWith).entrySet().iterator()
                                                                                : rows.subMap(startWith, true, stopAt, true).entrySet().iterator();
+            private Map.Entry<RowPosition, AtomicSortedColumns> currentEntry;
 
             public boolean hasNext()
             {
@@ -242,6 +243,8 @@ public class Memtable
             public Map.Entry<DecoratedKey, AtomicSortedColumns> next()
             {
                 Map.Entry<RowPosition, AtomicSortedColumns> entry = iter.next();
+                // Store the reference to the current entry so that remove() can update the current size.
+                currentEntry = entry;
                 // Actual stored key should be true DecoratedKey
                 assert entry.getKey() instanceof DecoratedKey;
                 // Object cast is required since otherwise we can't turn RowPosition into DecoratedKey
@@ -251,6 +254,8 @@ public class Memtable
             public void remove()
             {
                 iter.remove();
+                currentSize.addAndGet(-currentEntry.getValue().dataSize());
+                currentEntry = null;
             }
         };
     }
@@ -355,9 +360,11 @@ public class Memtable
                         // the table has secondary indexes, or else the stale entries wouldn't be cleaned up during compaction,
                         // and will only be dropped during 2i query read-repair, if at all.
                         if (!cfs.indexManager.hasIndexes())
-                            ColumnFamilyStore.removeDeletedColumnsOnly(cf, Integer.MIN_VALUE);
+                            currentSize.addAndGet(-ColumnFamilyStore.removeDeletedColumnsOnly(cf, Integer.MIN_VALUE));
                     }
-                    writer.append((DecoratedKey)entry.getKey(), cf);
+
+                    if (cf.getColumnCount() > 0 || cf.isMarkedForDelete())
+                        writer.append((DecoratedKey)entry.getKey(), cf);
                 }
 
                 if (writer.getFilePointer() > 0)
@@ -425,7 +432,7 @@ public class Memtable
 
                 if (newRatio < MIN_SANE_LIVE_RATIO)
                 {
-                    logger.warn("setting live ratio to minimum of {} instead of {}", MIN_SANE_LIVE_RATIO, newRatio);
+                    logger.debug("setting live ratio to minimum of {} instead of {}", MIN_SANE_LIVE_RATIO, newRatio);
                     newRatio = MIN_SANE_LIVE_RATIO;
                 }
                 if (newRatio > MAX_SANE_LIVE_RATIO)
@@ -441,7 +448,7 @@ public class Memtable
                 else
                     cfs.liveRatio = (cfs.liveRatio + newRatio) / 2.0;
 
-                logger.info("{} liveRatio is {} (just-counted was {}).  calculation took {}ms for {} columns",
+                logger.info("{} liveRatio is {} (just-counted was {}).  calculation took {}ms for {} cells",
                             cfs, cfs.liveRatio, newRatio, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start), objects);
             }
             finally

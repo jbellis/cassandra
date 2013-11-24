@@ -84,6 +84,7 @@ public class Config
     public Boolean start_rpc = true;
     public String rpc_address;
     public Integer rpc_port = 9160;
+    public Integer rpc_listen_backlog = 50;
     public String rpc_server_type = "sync";
     public Boolean rpc_keepalive = true;
     public Integer rpc_min_threads = 16;
@@ -96,6 +97,7 @@ public class Config
     public Boolean start_native_transport = false;
     public Integer native_transport_port = 9042;
     public Integer native_transport_max_threads = 128;
+    public Integer native_transport_max_frame_size_in_mb = 256;
 
     @Deprecated
     public Integer thrift_max_message_length_in_mb = 16;
@@ -109,7 +111,6 @@ public class Config
     public Integer in_memory_compaction_limit_in_mb = 64;
     public Integer concurrent_compactors = FBUtilities.getAvailableProcessors();
     public volatile Integer compaction_throughput_mb_per_sec = 16;
-    public Boolean multithreaded_compaction = false;
 
     public Integer max_streaming_retries = 3;
 
@@ -181,6 +182,9 @@ public class Config
 
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
+
+    public volatile Long index_summary_capacity_in_mb;
+    public volatile int index_summary_resize_interval_in_minutes = 60;
 
     public static boolean getOutboundBindAny()
     {

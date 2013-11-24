@@ -135,8 +135,14 @@ public class LeveledManifest
 
         // the level for the added sstables is the max of the removed ones,
         // plus one if the removed were all on the same level
+        int minLevel = Integer.MAX_VALUE;
+
         for (SSTableReader sstable : removed)
-            remove(sstable);
+        {
+            int thisLevel = remove(sstable);
+            minLevel = Math.min(minLevel, thisLevel);
+        }
+        lastCompactedKeys[minLevel] = SSTableReader.sstableOrdering.max(added).last;
 
         // it's valid to do a remove w/o an add (e.g. on truncate)
         if (added.isEmpty())
@@ -145,19 +151,14 @@ public class LeveledManifest
         if (logger.isDebugEnabled())
             logger.debug("Adding [{}]", toString(added));
 
-        int minLevel = Integer.MAX_VALUE;
         for (SSTableReader ssTableReader : added)
-        {
-            minLevel = Math.min(minLevel, ssTableReader.getSSTableLevel());
             add(ssTableReader);
-        }
-        lastCompactedKeys[minLevel] = SSTable.sstableOrdering.max(added).last;
     }
 
     public synchronized void repairOverlappingSSTables(int level)
     {
         SSTableReader previous = null;
-        Collections.sort(generations[level], SSTable.sstableComparator);
+        Collections.sort(generations[level], SSTableReader.sstableComparator);
         List<SSTableReader> outOfOrderSSTables = new ArrayList<SSTableReader>();
         for (SSTableReader current : generations[level])
         {
@@ -264,7 +265,7 @@ public class LeveledManifest
             // we want to calculate score excluding compacting ones
             Set<SSTableReader> sstablesInLevel = Sets.newHashSet(sstables);
             Set<SSTableReader> remaining = Sets.difference(sstablesInLevel, cfs.getDataTracker().getCompacting());
-            double score = (double)SSTableReader.getTotalBytes(remaining) / (double)maxBytesForLevel(i);
+            double score = (double) SSTableReader.getTotalBytes(remaining) / (double)maxBytesForLevel(i);
             logger.debug("Compaction score for level {} is {}", i, score);
 
             if (score > 1.001)
@@ -454,7 +455,7 @@ public class LeveledManifest
             }
 
             // leave everything in L0 if we didn't end up with a full sstable's worth of data
-            if (SSTable.getTotalBytes(candidates) > maxSSTableSizeInBytes)
+            if (SSTableReader.getTotalBytes(candidates) > maxSSTableSizeInBytes)
             {
                 // add sstables from L1 that overlap candidates
                 // if the overlapping ones are already busy in a compaction, leave it out.
@@ -468,7 +469,7 @@ public class LeveledManifest
         }
 
         // for non-L0 compactions, pick up where we left off last time
-        Collections.sort(generations[level], SSTable.sstableComparator);
+        Collections.sort(generations[level], SSTableReader.sstableComparator);
         int start = 0; // handles case where the prior compaction touched the very last range
         for (int i = 0; i < generations[level].size(); i++)
         {
@@ -499,7 +500,7 @@ public class LeveledManifest
     private List<SSTableReader> ageSortedSSTables(Collection<SSTableReader> candidates)
     {
         List<SSTableReader> ageSortedCandidates = new ArrayList<SSTableReader>(candidates);
-        Collections.sort(ageSortedCandidates, SSTable.maxTimestampComparator);
+        Collections.sort(ageSortedCandidates, SSTableReader.maxTimestampComparator);
         return ageSortedCandidates;
     }
 
@@ -557,7 +558,7 @@ public class LeveledManifest
         }
 
         int newLevel;
-        if (minimumLevel == 0 && minimumLevel == maximumLevel && SSTable.getTotalBytes(sstables) < maxSSTableSizeInBytes)
+        if (minimumLevel == 0 && minimumLevel == maximumLevel && SSTableReader.getTotalBytes(sstables) < maxSSTableSizeInBytes)
         {
             newLevel = 0;
         }

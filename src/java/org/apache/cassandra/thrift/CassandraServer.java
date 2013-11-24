@@ -723,6 +723,8 @@ public class CassandraServer implements Cassandra.Iface
             ThriftClientState cState = state();
             String keyspace = cState.getKeyspace();
             cState.hasColumnFamilyAccess(keyspace, column_family, Permission.MODIFY);
+            // CAS updates can be used to simulate a get request, so should require Permission.SELECT.
+            cState.hasColumnFamilyAccess(keyspace, column_family, Permission.SELECT);
 
             CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_family, false);
             ThriftValidation.validateKey(metadata, key);
@@ -1627,6 +1629,8 @@ public class CassandraServer implements Cassandra.Iface
             if (oldCfm == null)
                 throw new InvalidRequestException("Could not find column family definition to modify.");
 
+            if (!oldCfm.isThriftCompatible())
+                throw new InvalidRequestException("Cannot modify CQL3 table " + oldCfm.cfName + " as it may break the schema. You should use cqlsh to modify CQL3 tables instead.");
 
             CFMetaData.applyImplicitDefaults(cf_def);
             CFMetaData cfm = CFMetaData.fromThrift(cf_def);
@@ -1958,10 +1962,12 @@ public class CassandraServer implements Cassandra.Iface
         validateCQLVersion(2);
         maybeLogCQL2Warning();
 
+        String queryString = uncompress(query, compression);
+        ThriftClientState cState = state();
+
         try
         {
-            ThriftClientState cState = state();
-            String queryString = uncompress(query, compression);
+            cState.validateLogin();
             return QueryProcessor.prepare(queryString, cState);
         }
         catch (RequestValidationException e)
@@ -1978,10 +1984,12 @@ public class CassandraServer implements Cassandra.Iface
 
         validateCQLVersion(3);
 
+        String queryString = uncompress(query, compression);
+        ThriftClientState cState = state();
+
         try
         {
-            ThriftClientState cState = state();
-            String queryString = uncompress(query,compression);
+            cState.validateLogin();
             return org.apache.cassandra.cql3.QueryProcessor.prepare(queryString, cState, true).toThriftPreparedResult();
         }
         catch (RequestValidationException e)

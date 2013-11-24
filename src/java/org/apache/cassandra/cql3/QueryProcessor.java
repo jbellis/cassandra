@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import com.google.common.primitives.Ints;
 
@@ -29,6 +30,7 @@ import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.hooks.*;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.db.*;
@@ -42,40 +44,93 @@ import org.apache.cassandra.utils.SemanticVersion;
 
 public class QueryProcessor
 {
-    public static final SemanticVersion CQL_VERSION = new SemanticVersion("3.1.1");
+    public static final SemanticVersion CQL_VERSION = new SemanticVersion("3.1.2");
 
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
     private static final MemoryMeter meter = new MemoryMeter();
     private static final long MAX_CACHE_PREPARED_MEMORY = Runtime.getRuntime().maxMemory() / 256;
+    private static final int MAX_CACHE_PREPARED_COUNT = 10000;
 
     private static EntryWeigher<MD5Digest, CQLStatement> cqlMemoryUsageWeigher = new EntryWeigher<MD5Digest, CQLStatement>()
     {
         @Override
         public int weightOf(MD5Digest key, CQLStatement value)
         {
-            return Ints.checkedCast(meter.measureDeep(key) + meter.measureDeep(value));
+            return Ints.checkedCast(measure(key) + measure(value));
         }
     };
-
-    private static final ConcurrentLinkedHashMap<MD5Digest, CQLStatement> preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
-                                                                                               .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
-                                                                                               .weigher(cqlMemoryUsageWeigher)
-                                                                                               .build();
 
     private static EntryWeigher<Integer, CQLStatement> thriftMemoryUsageWeigher = new EntryWeigher<Integer, CQLStatement>()
     {
         @Override
         public int weightOf(Integer key, CQLStatement value)
         {
-            return Ints.checkedCast(meter.measureDeep(key) + meter.measureDeep(value));
+            return Ints.checkedCast(measure(key) + measure(value));
         }
     };
 
-    private static final ConcurrentLinkedHashMap<Integer, CQLStatement> thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
-                                                                                                   .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
-                                                                                                   .weigher(thriftMemoryUsageWeigher)
-                                                                                                   .build();
+    private static final ConcurrentLinkedHashMap<MD5Digest, CQLStatement> preparedStatements;
+    private static final ConcurrentLinkedHashMap<Integer, CQLStatement> thriftPreparedStatements;
 
+    static
+    {
+        if (MemoryMeter.isInitialized())
+        {
+            preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
+                                 .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
+                                 .weigher(cqlMemoryUsageWeigher)
+                                 .build();
+            thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
+                                       .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
+                                       .weigher(thriftMemoryUsageWeigher)
+                                       .build();
+        }
+        else
+        {
+            logger.error("Unable to initialize MemoryMeter (jamm not specified as javaagent).  This means "
+                         + "Cassandra will be unable to measure object sizes accurately and may consequently OOM.");
+            preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
+                                 .maximumWeightedCapacity(MAX_CACHE_PREPARED_COUNT)
+                                 .build();
+            thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
+                                       .maximumWeightedCapacity(MAX_CACHE_PREPARED_COUNT)
+                                       .build();
+        }
+    }
+
+    private static final List<PreExecutionHook> preExecutionHooks = new CopyOnWriteArrayList<>();
+    private static final List<PostExecutionHook> postExecutionHooks = new CopyOnWriteArrayList<>();
+    private static final List<PostPreparationHook> postPreparationHooks = new CopyOnWriteArrayList<>();
+
+    public static void addPreExecutionHook(PreExecutionHook hook)
+    {
+        preExecutionHooks.add(hook);
+    }
+
+    public static void removePreExecutionHook(PreExecutionHook hook)
+    {
+        preExecutionHooks.remove(hook);
+    }
+
+    public static void addPostExecutionHook(PostExecutionHook hook)
+    {
+        postExecutionHooks.add(hook);
+    }
+
+    public static void removePostExecutionHook(PostExecutionHook hook)
+    {
+        postExecutionHooks.remove(hook);
+    }
+
+    public static void addPostPreparationHook(PostPreparationHook hook)
+    {
+        postPreparationHooks.add(hook);
+    }
+
+    public static void removePostPreparationHook(PostPreparationHook hook)
+    {
+        postPreparationHooks.remove(hook);
+    }
 
     public static CQLStatement getPrepared(MD5Digest id)
     {
@@ -119,15 +174,36 @@ public class QueryProcessor
             throw new InvalidRequestException("Invalid empty value for clustering column of COMPACT TABLE");
     }
 
-    private static ResultMessage processStatement(CQLStatement statement, QueryState queryState, QueryOptions options)
+    private static ResultMessage processStatement(CQLStatement statement,
+                                                  QueryState queryState,
+                                                  QueryOptions options,
+                                                  String queryString)
     throws RequestExecutionException, RequestValidationException
     {
         logger.trace("Process {} @CL.{}", statement, options.getConsistency());
         ClientState clientState = queryState.getClientState();
         statement.checkAccess(clientState);
         statement.validate(clientState);
-        ResultMessage result = statement.execute(queryState, options);
+
+        ResultMessage result = preExecutionHooks.isEmpty() && postExecutionHooks.isEmpty()
+                             ? statement.execute(queryState, options)
+                             : executeWithHooks(statement, new ExecutionContext(queryState, queryString, options));
+
         return result == null ? new ResultMessage.Void() : result;
+    }
+
+    private static ResultMessage executeWithHooks(CQLStatement statement, ExecutionContext context)
+    throws RequestExecutionException, RequestValidationException
+    {
+        for (PreExecutionHook hook : preExecutionHooks)
+           statement = hook.processStatement(statement, context);
+
+        ResultMessage result = statement.execute(context.queryState, context.queryOptions);
+
+        for (PostExecutionHook hook : postExecutionHooks)
+            hook.processStatement(statement, context);
+
+        return result;
     }
 
     public static ResultMessage process(String queryString, ConsistencyLevel cl, QueryState queryState)
@@ -142,7 +218,8 @@ public class QueryProcessor
         CQLStatement prepared = getStatement(queryString, queryState.getClientState()).statement;
         if (prepared.getBoundsTerms() != options.getValues().size())
             throw new InvalidRequestException("Invalid amount of bind variables");
-        return processStatement(prepared, queryState, options);
+
+        return processStatement(prepared, queryState, options, queryString);
     }
 
     public static CQLStatement parseStatement(String queryStr, QueryState queryState) throws RequestValidationException
@@ -193,10 +270,15 @@ public class QueryProcessor
 
     public static UntypedResultSet resultify(String query, Row row)
     {
+        return resultify(query, Collections.singletonList(row));
+    }
+
+    public static UntypedResultSet resultify(String query, List<Row> rows)
+    {
         try
         {
             SelectStatement ss = (SelectStatement) getStatement(query, null).statement;
-            ResultSet cqlRows = ss.process(Collections.singletonList(row));
+            ResultSet cqlRows = ss.process(rows);
             return new UntypedResultSet(cqlRows);
         }
         catch (RequestValidationException e)
@@ -211,6 +293,13 @@ public class QueryProcessor
         ParsedStatement.Prepared prepared = getStatement(queryString, clientState);
         ResultMessage.Prepared msg = storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared, forThrift);
 
+        if (!postPreparationHooks.isEmpty())
+        {
+            PreparationContext context = new PreparationContext(clientState, queryString, prepared.boundNames);
+            for (PostPreparationHook hook : postPreparationHooks)
+                hook.processStatement(prepared.statement, context);
+        }
+
         assert prepared.statement.getBoundsTerms() == prepared.boundNames.size();
         return msg;
     }
@@ -221,7 +310,7 @@ public class QueryProcessor
         // Concatenate the current keyspace so we don't mix prepared statements between keyspace (#5352).
         // (if the keyspace is null, queryString has to have a fully-qualified keyspace so it's fine.
         String toHash = keyspace == null ? queryString : keyspace + queryString;
-        long statementSize = meter.measureDeep(prepared.statement);
+        long statementSize = measure(prepared.statement);
         // don't execute the statement if it's bigger than the allowed threshold
         if (statementSize > MAX_CACHE_PREPARED_MEMORY)
             throw new InvalidRequestException(String.format("Prepared statement of size %d bytes is larger than allowed maximum of %d bytes.",
@@ -267,20 +356,41 @@ public class QueryProcessor
                     logger.trace("[{}] '{}'", i+1, variables.get(i));
         }
 
-        return processStatement(statement, queryState, options);
+        return processStatement(statement, queryState, options, null);
     }
 
-    public static ResultMessage processBatch(BatchStatement batch, ConsistencyLevel cl, QueryState queryState, List<List<ByteBuffer>> variables)
+    public static ResultMessage processBatch(BatchStatement batch,
+                                             ConsistencyLevel cl,
+                                             QueryState queryState,
+                                             List<List<ByteBuffer>> variables,
+                                             List<Object> queryOrIdList)
     throws RequestExecutionException, RequestValidationException
     {
         ClientState clientState = queryState.getClientState();
         batch.checkAccess(clientState);
         batch.validate(clientState);
-        batch.executeWithPerStatementVariables(cl, queryState, variables);
+
+        if (preExecutionHooks.isEmpty() && postExecutionHooks.isEmpty())
+            batch.executeWithPerStatementVariables(cl, queryState, variables);
+        else
+            executeBatchWithHooks(batch, cl, new BatchExecutionContext(queryState, queryOrIdList, variables));
+
         return new ResultMessage.Void();
     }
 
-    private static ParsedStatement.Prepared getStatement(String queryStr, ClientState clientState)
+    private static void executeBatchWithHooks(BatchStatement batch, ConsistencyLevel cl, BatchExecutionContext context)
+    throws RequestExecutionException, RequestValidationException
+    {
+        for (PreExecutionHook hook : preExecutionHooks)
+            batch = hook.processBatch(batch, context);
+
+        batch.executeWithPerStatementVariables(cl, context.queryState, context.variables);
+
+        for (PostExecutionHook hook : postExecutionHooks)
+            hook.processBatch(batch, context);
+    }
+
+    public static ParsedStatement.Prepared getStatement(String queryStr, ClientState clientState)
     throws RequestValidationException
     {
         Tracing.trace("Parsing {}", queryStr);
@@ -325,5 +435,15 @@ public class QueryProcessor
         {
             throw new SyntaxException("Invalid or malformed CQL query string: " + e.getMessage());
         }
+    }
+
+    private static long measure(Object key)
+    {
+        if (!MemoryMeter.isInitialized())
+            return 1;
+
+        return key instanceof MeasurableForPreparedCache
+             ? ((MeasurableForPreparedCache)key).measureForPreparedCache(meter)
+             : meter.measureDeep(key);
     }
 }
