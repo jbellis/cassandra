@@ -70,6 +70,8 @@ public class StressAction implements Runnable
             output.println("END");
         else
             output.println("FAILURE");
+
+        settings.disconnect();
     }
 
     // type provided separately to support recursive call for mixed command with each command type it is performing
