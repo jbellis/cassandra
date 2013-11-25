@@ -230,4 +230,14 @@ public class StressSettings implements Serializable
         SettingsMisc.printHelp();
     }
 
+    public void disconnect()
+    {
+        JavaDriverClient c;
+        synchronized (this)
+        {
+            c = client;
+            client = null;
+        }
+        c.disconnect();
+    }
 }

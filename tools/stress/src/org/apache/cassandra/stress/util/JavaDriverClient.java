@@ -30,6 +30,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 public class JavaDriverClient {
 
@@ -130,5 +131,21 @@ public class JavaDriverClient {
                 return com.datastax.driver.core.ConsistencyLevel.EACH_QUORUM;
         }
         throw new AssertionError();
+    }
+
+    public void disconnect()
+    {
+        try
+        {
+            cluster.shutdown().get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new IllegalStateException();
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 }
