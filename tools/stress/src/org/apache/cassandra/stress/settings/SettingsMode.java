@@ -23,7 +23,7 @@ public class SettingsMode implements Serializable
             Cql3Options opts = (Cql3Options) options;
             api = opts.useNative.setByUser() ? ConnectionAPI.JAVA_DRIVER_NATIVE : ConnectionAPI.THRIFT;
             style = opts.usePrepared.setByUser() ? ConnectionStyle.CQL_PREPARED : ConnectionStyle.CQL;
-            compression = opts.useCompression.value().toUpperCase().toString();
+            compression = ProtocolOptions.Compression.valueOf(opts.useCompression.value().toUpperCase()).name();
         }
         else if (options instanceof Cql3SimpleNativeOptions)
         {
@@ -31,7 +31,7 @@ public class SettingsMode implements Serializable
             Cql3SimpleNativeOptions opts = (Cql3SimpleNativeOptions) options;
             api = ConnectionAPI.SIMPLE_NATIVE;
             style = opts.usePrepared.setByUser() ? ConnectionStyle.CQL_PREPARED : ConnectionStyle.CQL;
-            compression = ProtocolOptions.Compression.NONE.toString();
+            compression = ProtocolOptions.Compression.NONE.name();
         }
         else if (options instanceof Cql2Options)
         {
@@ -39,7 +39,7 @@ public class SettingsMode implements Serializable
             api = ConnectionAPI.THRIFT;
             Cql2Options opts = (Cql2Options) options;
             style = opts.usePrepared.setByUser() ? ConnectionStyle.CQL_PREPARED : ConnectionStyle.CQL;
-            compression = ProtocolOptions.Compression.NONE.toString();
+            compression = ProtocolOptions.Compression.NONE.name();
         }
         else if (options instanceof ThriftOptions)
         {
@@ -47,7 +47,7 @@ public class SettingsMode implements Serializable
             cqlVersion = CqlVersion.NOCQL;
             api = opts.smart.setByUser() ? ConnectionAPI.THRIFT_SMART : ConnectionAPI.THRIFT;
             style = ConnectionStyle.THRIFT;
-            compression = ProtocolOptions.Compression.NONE.toString();
+            compression = ProtocolOptions.Compression.NONE.name();
         }
         else
             throw new IllegalStateException();
