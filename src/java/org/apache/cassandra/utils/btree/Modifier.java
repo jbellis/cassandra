@@ -32,7 +32,7 @@ final class Modifier
         {
             while (true)
             {
-                if (terminateEarly.apply(null) == Boolean.TRUE)
+                if (terminateEarly != null && terminateEarly.apply(null) == Boolean.TRUE)
                 {
                     clear(stack);
                     return null;
