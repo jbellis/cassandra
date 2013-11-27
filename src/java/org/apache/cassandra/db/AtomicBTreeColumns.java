@@ -49,9 +49,7 @@ import static org.apache.cassandra.db.index.SecondaryIndexManager.Updater;
  * other thread can see the state where only parts but not all columns have
  * been added.
  *
- * WARNING: removing element through getSortedColumns().iterator() is *not*
- * isolated of other operations and could actually be fully ignored in the
- * face of a concurrent. Don't use it unless in a non-concurrent context.
+ * WARNING: removing element through getSortedColumns().iterator() is *not* supported
  */
 public class AtomicBTreeColumns extends ColumnFamily
 {
@@ -173,6 +171,7 @@ public class AtomicBTreeColumns extends ColumnFamily
         addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater);
     }
 
+    // the function we provide to the btree utilities to perform any column replacements
     private static final class ColumnReplacer implements ReplaceFunction<Column>
     {
         final Allocator allocator;
@@ -390,6 +389,7 @@ public class AtomicBTreeColumns extends ColumnFamily
         // This is a small optimization: DeletionInfo is mutable, but we know that we will always copy it in that class,
         // so we can safely alias one DeletionInfo.live() reference and avoid some allocations.
         final DeletionInfo deletionInfo;
+        // the btree of columns
         final Object[] tree;
 
         Holder(Object[] tree)
@@ -417,6 +417,8 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     }
 
+    // a function provided to the btree modifying functions that aborts the modification
+    // if we already know the final cas will fail
     private static final class TerminateEarly implements Function<Object, Boolean>
     {
 
@@ -438,6 +440,9 @@ public class AtomicBTreeColumns extends ColumnFamily
         }
     }
 
+    /**
+     * A duplicate of the NavigableMapIterator, but using a NavigableSet
+     */
     private static class NavigableSetIterator extends AbstractIterator<Column>
     {
         private final NavigableSet<Column> set;
