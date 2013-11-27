@@ -1,5 +1,6 @@
 package org.apache.cassandra.utils.btree;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 
@@ -100,9 +101,8 @@ public final class Cursor<V> extends Stack implements Iterator<V>
         int c = this.compareTo(findLast, forwards);
         if (forwards ? c > 0 : c < 0)
         {
-            endNode = stack[0] = null;
-            endIndex = index[0] = 0;
-            depth = 0;
+            endNode = stack[depth];
+            endIndex = index[depth];
         }
         else
         {
@@ -132,7 +132,8 @@ public final class Cursor<V> extends Stack implements Iterator<V>
 
     public int count()
     {
-        assert forwards;
+        if (!forwards)
+            throw new IllegalStateException("Count can only be run on forward cursors");
         int count = 0;
         int next;
         while ((next = consumeNextLeaf()) >= 0)
@@ -156,7 +157,7 @@ public final class Cursor<V> extends Stack implements Iterator<V>
         if (cur == endNode)
         {
             if (index[depth] == endIndex)
-                return -1;
+                return r > 0 ? r : -1;
             r += endIndex - index[depth];
             index[depth] = endIndex;
             return r;
@@ -170,6 +171,6 @@ public final class Cursor<V> extends Stack implements Iterator<V>
     @Override
     public void remove()
     {
-        // currently does nothing!
+        throw new UnsupportedOperationException();
     }
 }
