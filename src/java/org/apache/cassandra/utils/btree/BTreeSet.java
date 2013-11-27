@@ -21,7 +21,7 @@ public class BTreeSet<V> implements NavigableSet<V>
 
     public BTreeSet<V> update(Collection<V> updateWith, boolean isSorted)
     {
-        return new BTreeSet<V>(BTree.update(tree, comparator, updateWith, isSorted, null, null), comparator);
+        return new BTreeSet<>(BTree.update(tree, comparator, updateWith, isSorted, null, null), comparator);
     }
 
     @Override
@@ -30,7 +30,7 @@ public class BTreeSet<V> implements NavigableSet<V>
         return comparator;
     }
 
-    protected Cursor<V> slice(boolean forwards)
+    protected Cursor<V> slice(boolean forwards, boolean permitInversion)
     {
         return BTree.<V>slice(tree, forwards);
     }
@@ -38,25 +38,25 @@ public class BTreeSet<V> implements NavigableSet<V>
     @Override
     public int size()
     {
-        return slice(true).count();
+        return slice(true, false).count();
     }
 
     @Override
     public boolean isEmpty()
     {
-        return slice(true).hasNext();
+        return slice(true, false).hasNext();
     }
 
     @Override
     public Iterator<V> iterator()
     {
-        return slice(true);
+        return slice(true, true);
     }
 
     @Override
     public Iterator<V> descendingIterator()
     {
-        return slice(false);
+        return slice(false, true);
     }
 
     @Override
@@ -80,19 +80,19 @@ public class BTreeSet<V> implements NavigableSet<V>
     @Override
     public NavigableSet<V> subSet(V fromElement, boolean fromInclusive, V toElement, boolean toInclusive)
     {
-        return new BTreeRange<V>(tree, comparator, fromElement, fromInclusive, toElement, toInclusive);
+        return new BTreeRange<>(tree, comparator, fromElement, fromInclusive, toElement, toInclusive);
     }
 
     @Override
     public NavigableSet<V> headSet(V toElement, boolean inclusive)
     {
-        return new BTreeRange<V>(tree, comparator, null, true, toElement, inclusive);
+        return new BTreeRange<>(tree, comparator, null, true, toElement, inclusive);
     }
 
     @Override
     public NavigableSet<V> tailSet(V fromElement, boolean inclusive)
     {
-        return new BTreeRange<V>(tree, comparator, fromElement, inclusive, null, true);
+        return new BTreeRange<>(tree, comparator, fromElement, inclusive, null, true);
     }
 
     @Override
@@ -212,7 +212,7 @@ public class BTreeSet<V> implements NavigableSet<V>
     @Override
     public NavigableSet<V> descendingSet()
     {
-        throw new UnsupportedOperationException();
+        return new BTreeRange<>(this.tree, this.comparator).descendingSet();
     }
 
     public static class BTreeRange<V> extends BTreeSet<V> implements NavigableSet<V>
@@ -220,6 +220,16 @@ public class BTreeSet<V> implements NavigableSet<V>
 
         protected final V lowerBound, upperBound;
         protected final boolean inclusiveLowerBound, inclusiveUpperBound;
+
+        BTreeRange(Object[] tree, Comparator<V> comparator)
+        {
+            this(tree, comparator, null, true, null, true);
+        }
+
+        BTreeRange(BTreeRange<V> from)
+        {
+            this(from.tree, from.comparator, from.lowerBound, from.inclusiveLowerBound, from.upperBound, from.inclusiveUpperBound);
+        }
 
         BTreeRange(Object[] tree, Comparator<V> comparator, V lowerBound, boolean inclusiveLowerBound, V upperBound, boolean inclusiveUpperBound)
         {
@@ -276,7 +286,7 @@ public class BTreeSet<V> implements NavigableSet<V>
         }
 
         @Override
-        protected Cursor<V> slice(boolean forwards)
+        protected Cursor<V> slice(boolean forwards, boolean permitInversion)
         {
             return BTree.slice(tree, comparator, lowerBound, inclusiveLowerBound, upperBound, inclusiveUpperBound, forwards);
         }
@@ -284,21 +294,26 @@ public class BTreeSet<V> implements NavigableSet<V>
         @Override
         public NavigableSet<V> subSet(V fromElement, boolean fromInclusive, V toElement, boolean toInclusive)
         {
-            return new BTreeRange<V>(this, new BTreeRange<V>(tree, comparator, fromElement, fromInclusive, toElement, toInclusive));
+            return new BTreeRange<>(this, new BTreeRange<>(tree, comparator, fromElement, fromInclusive, toElement, toInclusive));
         }
 
         @Override
         public NavigableSet<V> headSet(V toElement, boolean inclusive)
         {
-            return new BTreeRange<V>(this, new BTreeRange<V>(tree, comparator, null, true, toElement, inclusive));
+            return new BTreeRange<>(this, new BTreeRange<>(tree, comparator, lowerBound, true, toElement, inclusive));
         }
 
         @Override
         public NavigableSet<V> tailSet(V fromElement, boolean inclusive)
         {
-            return new BTreeRange<V>(this, new BTreeRange<V>(tree, comparator, fromElement, inclusive, null, true));
+            return new BTreeRange<>(this, new BTreeRange<>(tree, comparator, fromElement, inclusive, null, true));
         }
 
+        @Override
+        public NavigableSet<V> descendingSet()
+        {
+            return new BTreeDescRange<>(this);
+        }
     }
 
     public static class BTreeDescRange<V> extends BTreeRange<V>
@@ -310,29 +325,34 @@ public class BTreeSet<V> implements NavigableSet<V>
         }
 
         @Override
-        protected Cursor<V> slice(boolean forwards)
+        protected Cursor<V> slice(boolean forwards, boolean permitInversion)
         {
-            return super.slice(!forwards);
+            return super.slice(permitInversion ? !forwards : forwards, false);
         }
 
         @Override
         public NavigableSet<V> subSet(V fromElement, boolean fromInclusive, V toElement, boolean toInclusive)
         {
-            return super.subSet(toElement, toInclusive, fromElement, fromInclusive);
+            return super.subSet(toElement, toInclusive, fromElement, fromInclusive).descendingSet();
         }
 
         @Override
         public NavigableSet<V> headSet(V toElement, boolean inclusive)
         {
-            return super.tailSet(toElement, inclusive);
+            return super.tailSet(toElement, inclusive).descendingSet();
         }
 
         @Override
         public NavigableSet<V> tailSet(V fromElement, boolean inclusive)
         {
-            return super.headSet(fromElement, inclusive);
+            return super.headSet(fromElement, inclusive).descendingSet();
         }
 
+        @Override
+        public NavigableSet<V> descendingSet()
+        {
+            return new BTreeRange<>(this);
+        }
     }
 
 }
