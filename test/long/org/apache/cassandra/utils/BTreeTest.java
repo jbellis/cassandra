@@ -35,12 +35,13 @@ public class BTreeTest
 
     public static void main(String[] args) throws ExecutionException, InterruptedException
     {
+        // TODO : should probably lower fan-factor to make tests more intensive
         testSlicing();
-        testInsertions(10000000, 10, 1, 1, true);
-        testInsertions(10000000, 10, 1, 5, true);
-        testInsertions(10000000, 500, 10, 1, true);
-        testInsertions(10000000, 500, 10, 10, true);
-        testInsertions(10000000, 5000, 10, 1000, true);
+        testInsertions(100000000, 10, 1, 1, true);
+        testInsertions(100000000, 10, 1, 5, true);
+        testInsertions(100000000, 500, 10, 1, true);
+        testInsertions(100000000, 500, 10, 10, true);
+        testInsertions(100000000, 5000, 3, 100, true);
         testInsertions(100000, 50, 10, 10, false);
     }
 
@@ -50,8 +51,8 @@ public class BTreeTest
         int maximumRunLength = 100;
         int testKeyRange = perTestCount * testKeyRatio;
         int tests = totalCount / perTestCount;
-        System.out.println(String.format("Performing %d modifications to %d Sets, with %.2f max size/range ratio in batches of %d ops",
-                totalCount, tests, 1 / (float) testKeyRatio, modificationBatchSize));
+        System.out.println(String.format("Performing %d tests of %d operations, with %.2f max size/range ratio in batches of %d ops",
+                tests, perTestCount, 1 / (float) testKeyRatio, modificationBatchSize));
 
         final List<ListenableFutureTask<List<ListenableFuture<?>>>> outer = new ArrayList<>();
         for (int i = 0 ; i < tests ; i++)
@@ -124,6 +125,9 @@ public class BTreeTest
                         testEqual("", BTree.<Integer>slice(btree, true), canon.keySet().iterator());
                     else
                         r.addAll(testAllSlices("RND", btree, canon.keySet()));
+
+                    if (!BTree.isWellFormed(btree))
+                        System.out.println("ERROR: Not well formed");
                 }
                 return r;
             }

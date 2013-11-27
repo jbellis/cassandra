@@ -352,4 +352,28 @@ public class BTree
         return cmp.compare((V) a, (V) b);
     }
 
+    public static boolean isWellFormed(Object[] btree)
+    {
+        return isWellFormed(btree, true);
+    }
+
+    private static boolean isWellFormed(Object[] node, boolean isRoot)
+    {
+        if (isLeaf(node))
+        {
+            if (isRoot)
+                return node.length <= FAN_FACTOR;
+            return node.length >= FAN_FACTOR / 2 && node.length <= FAN_FACTOR;
+        }
+        int type = 0;
+        for (int i = getBranchKeyEnd(node) ; i < node.length ; i++)
+        {
+            Object[] child = (Object[]) node[i];
+            if (!isWellFormed(child, false))
+                return false;
+            type |= isLeaf(child) ? 1 : 2;
+        }
+        return type < 3;
+    }
+
 }
