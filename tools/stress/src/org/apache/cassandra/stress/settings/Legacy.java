@@ -114,7 +114,7 @@ public class Legacy implements Serializable
                 r.setCommand("insert");
 
             if (cmd.hasOption("K"))
-                r.add("command", "retry=" + cmd.getOptionValue("K"));
+                r.add("command", "tries=" + cmd.getOptionValue("K"));
 
             if (cmd.hasOption("k"))
             {
@@ -162,7 +162,7 @@ public class Legacy implements Serializable
 
             String colCount;
             if (cmd.hasOption("c"))
-                r.add("-col", "count=FIXED(" + (colCount = cmd.getOptionValue("c")) + ")");
+                colCount = cmd.getOptionValue("c");
             else
                 colCount = "5";
 

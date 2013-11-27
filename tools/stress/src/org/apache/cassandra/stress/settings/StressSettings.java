@@ -135,7 +135,7 @@ public class StressSettings implements Serializable
                 if (client != null)
                     return client;
                 JavaDriverClient c = new JavaDriverClient(currentNode, nativePort);
-                c.connect(mode.compression);
+                c.connect(mode.compression());
                 c.execute("USE \"Keyspace1\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
                 return client = c;
             }
