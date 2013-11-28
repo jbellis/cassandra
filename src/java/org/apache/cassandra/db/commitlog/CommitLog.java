@@ -205,11 +205,11 @@ public class CommitLog implements CommitLogMBean
             return;
         }
 
-        Allocation alloc = allocator.allocate(rowMutation, (int) totalSize, new Allocation());
+        Allocation alloc = allocator.allocate(rowMutation, (int) totalSize);
         try
         {
             PureJavaCrc32 checksum = new PureJavaCrc32();
-            final ByteBuffer buffer = alloc.getBuffer();
+            final ByteBuffer buffer = alloc.buffer;
             DataOutputStream dos = new DataOutputStream(new ChecksummedOutputStream(new ByteBufferOutputStream(buffer), checksum));
 
             // checksummed length
@@ -222,7 +222,7 @@ public class CommitLog implements CommitLogMBean
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, alloc.getSegment().getPath());
+            throw new FSWriteError(e, alloc.segment.getPath());
         }
         finally
         {

@@ -162,11 +162,10 @@ public class CommitLogSegment
     }
 
     /**
-     * allocate space in this buffer for the provided row mutation, and populate the provided
-     * Allocation object, returning true on success. False indicates there is not enough room in
-     * this segment, and a new segment is needed
+     * Reserve space in this buffer for the provided row mutation, and return it in an Allocation.
+     * Null indicates there is not enough room in this segment, and a new segment is needed
      */
-    boolean allocate(RowMutation rowMutation, int size, Allocation alloc)
+    Allocation allocate(RowMutation rowMutation, int size)
     {
         final AppendLock appendLock = lockForAppend();
         try
@@ -175,14 +174,13 @@ public class CommitLogSegment
             if (position < 0)
             {
                 appendLock.unlock();
-                return false;
+                return null;
             }
-            alloc.buffer = (ByteBuffer) buffer.duplicate().position(position).limit(position + size);
-            alloc.position = position;
-            alloc.segment = this;
-            alloc.appendLock = appendLock;
             markDirty(rowMutation, position);
-            return true;
+            return new Allocation((ByteBuffer) buffer.duplicate().position(position).limit(position + size),
+                                  position,
+                                  this,
+                                  appendLock);
         }
         catch (Throwable t)
         {
@@ -592,23 +590,21 @@ public class CommitLogSegment
     }
 
     /**
-     * A simple class for tracking information about the portion of a segment that has been allocated to a log write.
+     * A simple class for tracking information about the portion of a segment that has been reserved for a log write.
      */
     static final class Allocation
     {
-        private CommitLogSegment segment;
-        private AppendLock appendLock;
-        private int position;
-        private ByteBuffer buffer;
+        public final CommitLogSegment segment;
+        public final int position;
+        public final ByteBuffer buffer;
+        private final AppendLock appendLock;
 
-        CommitLogSegment getSegment()
+        public Allocation(ByteBuffer buffer, int position, CommitLogSegment segment, AppendLock appendLock)
         {
-            return segment;
-        }
-
-        ByteBuffer getBuffer()
-        {
-            return buffer;
+            this.buffer = buffer;
+            this.position = position;
+            this.segment = segment;
+            this.appendLock = appendLock;
         }
 
         // markWritten() MUST be called once we are done with the segment or the CL will never flush
