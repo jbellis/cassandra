@@ -21,7 +21,6 @@ import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 import javax.management.MBeanServer;
@@ -250,7 +249,7 @@ public class CommitLog implements CommitLogMBean
             CommitLogSegment segment = iter.next();
             segment.markClean(cfId, context);
 
-            if (segment.isUnused())
+            if (segment != allocator.allocatingFrom() && segment.isClean())
             {
                 logger.debug("Commit log segment {} is unused", segment);
                 allocator.recycleSegment(segment);

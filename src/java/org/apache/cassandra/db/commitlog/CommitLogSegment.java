@@ -75,8 +75,8 @@ public class CommitLogSegment
 
     private final AtomicInteger allocatePosition = new AtomicInteger();
 
-    // also the last synced position
-    private volatile int nextSyncMarkerPosition;
+    // The position we last synced at and wrote a sync marker
+    private volatile int lastSyncMarkerPosition;
     // the amount of the tail of the file we have allocated but not used - this is used when we discard a log segment
     // to ensure nobody writes to it after we've decided we're done with it
     private int discardedTailFrom;
@@ -240,7 +240,7 @@ public class CommitLogSegment
         try
         {
             // check we have more work to do
-            if (allocatePosition.get() <= nextSyncMarkerPosition + SYNC_MARKER_SIZE)
+            if (allocatePosition.get() <= lastSyncMarkerPosition + SYNC_MARKER_SIZE)
                 return;
 
             // allocate a new sync marker; this is both necessary in itself, but also serves to demarcate
@@ -269,7 +269,7 @@ public class CommitLogSegment
 
             // write previous sync marker to point to next sync marker
             // we don't chain the crcs here to ensure this method is idempotent if it fails
-            int offset = nextSyncMarkerPosition;
+            int offset = lastSyncMarkerPosition;
             final PureJavaCrc32 crc = new PureJavaCrc32();
             crc.update((int) (id & 0xFFFFFFFFL));
             crc.update((int) (id >>> 32));
@@ -296,17 +296,12 @@ public class CommitLogSegment
                 nextMarker = buffer.capacity();
             }
 
-            nextSyncMarkerPosition = nextMarker;
+            lastSyncMarkerPosition = nextMarker;
         }
         catch (Exception e) // MappedByteBuffer.force() does not declare IOException but can actually throw it
         {
             throw new FSWriteError(e, getPath());
         }
-    }
-
-    public boolean isFullySynced()
-    {
-        return nextSyncMarkerPosition == buffer.capacity();
     }
 
     /**
@@ -440,8 +435,6 @@ public class CommitLogSegment
 
     private void removeCleanFromDirty()
     {
-        if (!isFullySynced())
-            return;
         Iterator<Map.Entry<UUID, AtomicInteger>> iter = cfClean.entrySet().iterator();
         while (iter.hasNext())
         {
@@ -479,12 +472,10 @@ public class CommitLogSegment
     }
 
     /**
-     * @return true if this segment is unused and safe to recycle or delete
+     * @return true if this segment is safe to recycle or delete
      */
-    public boolean isUnused()
+    public boolean isClean()
     {
-        if (!isFullySynced())
-            return false;
         removeCleanFromDirty();
         return cfDirty.isEmpty();
     }
@@ -615,10 +606,10 @@ public class CommitLogSegment
 
         void awaitDiskSync()
         {
-            while (segment.nextSyncMarkerPosition < position)
+            while (segment.lastSyncMarkerPosition < position)
             {
                 WaitQueue.Signal signal = segment.syncComplete.register();
-                if (segment.nextSyncMarkerPosition < position)
+                if (segment.lastSyncMarkerPosition < position)
                     signal.awaitUninterruptibly();
             }
         }

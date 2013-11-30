@@ -29,7 +29,6 @@ import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -298,7 +297,7 @@ public class CommitLogSegmentManager
             // if the previous active segment was the only one to recycle (since an active segment isn't
             // necessarily dirty, and we only call dCS after a flush).
             for (CommitLogSegment segment : activeSegments)
-                if (segment.isUnused())
+                if (segment.isClean())
                     recycleSegment(segment);
 
             CommitLogSegment first;
