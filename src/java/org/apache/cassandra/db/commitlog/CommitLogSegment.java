@@ -526,13 +526,12 @@ public class CommitLogSegment
      * once they complete writing the record they release the read lock. A call to sync()
      * will first check the position we have allocated space up until, then allocate a new AppendLock object,
      * take the writeLock of the previous AppendLock, and invalidate it for further log writes. All appends are
-     * redirected to the new Sync so they do not block, only the sync() blocks waiting to obtain the writeLock.
+     * redirected to the new AppendLock so they do not block; only the sync() blocks waiting to obtain the writeLock.
      * Once it obtains the lock it is guaranteed that all writes up to the allocation position it checked at
      * the start have been completely written to.
      */
     private static final class AppendLock
     {
-
         final ReadWriteLock syncLock = new ReentrantReadWriteLock();
         final Lock logLock = syncLock.readLock();
         // a map of Cfs with log records that have not been synced to disk, so cannot be marked clean yet
@@ -568,7 +567,6 @@ public class CommitLogSegment
             // release lock immediately, though effectively a NOOP since we use tryLock() for log record appends
             syncLock.writeLock().unlock();
         }
-
     }
 
     /**
