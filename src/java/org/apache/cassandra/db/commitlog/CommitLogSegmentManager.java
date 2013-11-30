@@ -385,7 +385,9 @@ public class CommitLogSegmentManager
         {
             public CommitLogSegment call()
             {
-                segment.discard(deleteFile);
+                segment.close();
+                if (deleteFile)
+                    segment.delete();
                 return null;
             }
         });

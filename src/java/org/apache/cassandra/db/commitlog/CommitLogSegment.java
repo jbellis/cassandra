@@ -305,11 +305,9 @@ public class CommitLogSegment
     /**
      * Completely discards a segment file by deleting it. (Potentially blocking operation)
      */
-    void discard(boolean deleteFile)
+    void delete()
     {
-        close();
-        if (deleteFile)
-            FileUtils.deleteWithConfirm(logFile);
+       FileUtils.deleteWithConfirm(logFile);
     }
 
     /**
