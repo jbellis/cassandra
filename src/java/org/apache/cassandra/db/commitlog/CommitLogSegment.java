@@ -75,8 +75,11 @@ public class CommitLogSegment
 
     private final AtomicInteger allocatePosition = new AtomicInteger();
 
-    // also the last synced position
-    private volatile int lastSyncMarkerPosition;
+    // Everything before this offset has been synced and written.  The SYNC_MARKER_SIZE bytes after
+    // each sync are reserved, and point forwards to the next such offset.  The final
+    // sync marker in a segment will be zeroed out, or point to EOF.
+    private volatile int lastSyncedOffset;
+
     // the amount of the tail of the file we have allocated but not used - this is used when we discard a log segment
     // to ensure nobody writes to it after we've decided we're done with it
     private int discardedTailFrom;
@@ -242,7 +245,7 @@ public class CommitLogSegment
         try
         {
             // check we have more work to do
-            if (allocatePosition.get() <= lastSyncMarkerPosition + SYNC_MARKER_SIZE)
+            if (allocatePosition.get() <= lastSyncedOffset + SYNC_MARKER_SIZE)
                 return;
 
             // allocate a new sync marker; this is both necessary in itself, but also serves to demarcate
@@ -275,7 +278,7 @@ public class CommitLogSegment
 
             // write previous sync marker to point to next sync marker
             // we don't chain the crcs here to ensure this method is idempotent if it fails
-            int offset = lastSyncMarkerPosition;
+            int offset = lastSyncedOffset;
             final PureJavaCrc32 crc = new PureJavaCrc32();
             crc.update((int) (id & 0xFFFFFFFFL));
             crc.update((int) (id >>> 32));
@@ -300,7 +303,7 @@ public class CommitLogSegment
                 nextMarker = buffer.capacity();
             }
 
-            lastSyncMarkerPosition = nextMarker;
+            lastSyncedOffset = nextMarker;
         }
         catch (Exception e) // MappedByteBuffer.force() does not declare IOException but can actually throw it
         {
@@ -310,7 +313,7 @@ public class CommitLogSegment
 
     public boolean isFullySynced()
     {
-        return lastSyncMarkerPosition == buffer.capacity();
+        return lastSyncedOffset == buffer.capacity();
     }
 
     /**
@@ -618,10 +621,10 @@ public class CommitLogSegment
 
         void awaitDiskSync()
         {
-            while (segment.lastSyncMarkerPosition < position)
+            while (segment.lastSyncedOffset < position)
             {
                 WaitQueue.Signal signal = segment.syncComplete.register();
-                if (segment.lastSyncMarkerPosition < position)
+                if (segment.lastSyncedOffset < position)
                     signal.awaitUninterruptibly();
             }
         }
