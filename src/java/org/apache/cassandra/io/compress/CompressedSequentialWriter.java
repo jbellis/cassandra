@@ -54,7 +54,7 @@ public class CompressedSequentialWriter extends SequentialWriter
     private final MetadataCollector sstableMetadataCollector;
 
     public CompressedSequentialWriter(File file,
-                                      String indexFilePath,
+                                      String offsetsPath,
                                       boolean skipIOCache,
                                       CompressionParameters parameters,
                                       MetadataCollector sstableMetadataCollector)
@@ -66,7 +66,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         compressed = new ICompressor.WrappedArray(new byte[compressor.initialCompressedBufferLength(buffer.length)]);
 
         /* Index File (-CompressionInfo.db component) and it's header */
-        metadataWriter = CompressionMetadata.Writer.open(indexFilePath);
+        metadataWriter = CompressionMetadata.Writer.open(offsetsPath);
         metadataWriter.writeHeader(parameters);
 
         this.sstableMetadataCollector = sstableMetadataCollector;

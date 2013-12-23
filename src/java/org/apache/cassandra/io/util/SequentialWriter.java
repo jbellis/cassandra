@@ -115,12 +115,12 @@ public class SequentialWriter extends OutputStream
     }
 
     public static CompressedSequentialWriter open(String dataFilePath,
-                                                  String indexFilePath,
+                                                  String offsetsPath,
                                                   boolean skipIOCache,
                                                   CompressionParameters parameters,
                                                   MetadataCollector sstableMetadataCollector)
     {
-        return new CompressedSequentialWriter(new File(dataFilePath), indexFilePath, skipIOCache, parameters, sstableMetadataCollector);
+        return new CompressedSequentialWriter(new File(dataFilePath), offsetsPath, skipIOCache, parameters, sstableMetadataCollector);
     }
 
     public void write(int value) throws ClosedChannelException

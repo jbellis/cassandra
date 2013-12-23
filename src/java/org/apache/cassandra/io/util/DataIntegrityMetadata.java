@@ -60,9 +60,7 @@ public class DataIntegrityMetadata
         public void seek(long offset)
         {
             long start = chunkStart(offset);
-            reader.seek(((start / chunkSize) * 4L) + 4); // 8 byte checksum per
-                                                         // chunk + 4 byte
-                                                         // header/chunkLength
+            reader.seek(((start / chunkSize) * 4L) + 4); // 8 byte checksum per chunk + 4 byte header/chunkLength
         }
 
         public long chunkStart(long offset)
@@ -138,12 +136,12 @@ public class DataIntegrityMetadata
         {
             byte[] bytes = digest.digest();
             SequentialWriter out = SequentialWriter.open(new File(descriptor.filenameFor(Component.DIGEST)), true);
-            // Writting output compatible with sha1sum
             Descriptor newdesc = descriptor.asTemporary(false);
             String[] tmp = newdesc.filenameFor(Component.DATA).split(Pattern.quote(File.separator));
             String dataFileName = tmp[tmp.length - 1];
             try
             {
+                // Writing output compatible with sha1sum
                 out.write(String.format("%s  %s", Hex.bytesToHex(bytes), dataFileName).getBytes());
             }
             catch (ClosedChannelException e)
