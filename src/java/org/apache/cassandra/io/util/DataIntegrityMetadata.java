@@ -95,12 +95,10 @@ public class DataIntegrityMetadata
         private final MessageDigest digest;
         private final SequentialWriter writer;
         private final Descriptor descriptor;
-        private final boolean isCompressed;
 
         public ChecksumWriter(Descriptor desc, boolean isCompressed)
         {
             this.descriptor = desc;
-            this.isCompressed = isCompressed;
             writer = isCompressed ? null : SequentialWriter.open(new File(desc.filenameFor(Component.CRC)), true);
             try
             {
@@ -117,7 +115,7 @@ public class DataIntegrityMetadata
         {
             try
             {
-                if ( writer != null )
+                if (writer != null)
                     writer.stream.writeInt(length);
             }
             catch (IOException e)
@@ -130,7 +128,7 @@ public class DataIntegrityMetadata
         {
             try
             {
-                if ( !isCompressed )
+                if (writer != null)
                 {
                     checksum.update(buffer, start, end);
                     writer.stream.writeInt((int) checksum.getValue());
@@ -148,8 +146,6 @@ public class DataIntegrityMetadata
         {
             FileUtils.closeQuietly(writer);
             byte[] bytes = digest.digest();
-            if (bytes == null)
-                return;
             SequentialWriter out = SequentialWriter.open(new File(descriptor.filenameFor(Component.DIGEST)), true);
             // Writting output compatible with sha1sum
             Descriptor newdesc = descriptor.asTemporary(false);
