@@ -84,9 +84,9 @@ public class DataIntegrityMetadata
         }
     }
 
-    public static ChecksumWriter checksumWriter(Descriptor desc)
+    public static ChecksumWriter checksumWriter(Descriptor desc, boolean isCompressed)
     {
-        return new ChecksumWriter(desc);
+        return new ChecksumWriter(desc, isCompressed);
     }
 
     public static class ChecksumWriter implements Closeable
@@ -95,11 +95,13 @@ public class DataIntegrityMetadata
         private final MessageDigest digest;
         private final SequentialWriter writer;
         private final Descriptor descriptor;
+        private final boolean isCompressed;
 
-        public ChecksumWriter(Descriptor desc)
+        public ChecksumWriter(Descriptor desc, boolean isCompressed)
         {
             this.descriptor = desc;
-            writer = SequentialWriter.open(new File(desc.filenameFor(Component.CRC)), true);
+            this.isCompressed = isCompressed;
+            writer = isCompressed ? null : SequentialWriter.open(new File(desc.filenameFor(Component.CRC)), true);
             try
             {
                 digest = MessageDigest.getInstance("SHA-1");
@@ -115,7 +117,8 @@ public class DataIntegrityMetadata
         {
             try
             {
-                writer.stream.writeInt(length);
+                if ( writer != null )
+                    writer.stream.writeInt(length);
             }
             catch (IOException e)
             {
@@ -127,10 +130,12 @@ public class DataIntegrityMetadata
         {
             try
             {
-                checksum.update(buffer, start, end);
-                writer.stream.writeInt((int) checksum.getValue());
-                checksum.reset();
-
+                if ( !isCompressed )
+                {
+                    checksum.update(buffer, start, end);
+                    writer.stream.writeInt((int) checksum.getValue());
+                    checksum.reset();
+                }
                 digest.update(buffer, start, end);
             }
             catch (IOException e)

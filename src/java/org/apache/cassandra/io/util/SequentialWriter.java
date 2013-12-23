@@ -58,7 +58,7 @@ public class SequentialWriter extends OutputStream
     private int bytesSinceTrickleFsync = 0;
 
     public final DataOutputStream stream;
-    private DataIntegrityMetadata.ChecksumWriter metadata;
+    protected DataIntegrityMetadata.ChecksumWriter metadata;
 
     public SequentialWriter(File file, int bufferSize, boolean skipIOCache)
     {

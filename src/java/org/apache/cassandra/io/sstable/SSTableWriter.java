@@ -118,8 +118,8 @@ public class SSTableWriter extends SSTable
         {
             dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
             dataFile = SequentialWriter.open(new File(getFilename()), !metadata.populateIoCacheOnFlush());
-            dataFile.setDataIntegrityWriter(DataIntegrityMetadata.checksumWriter(descriptor));
         }
+        dataFile.setDataIntegrityWriter(DataIntegrityMetadata.checksumWriter(descriptor,compression));
 
         this.sstableMetadataCollector = sstableMetadataCollector;
     }

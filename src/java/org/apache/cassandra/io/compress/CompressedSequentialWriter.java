@@ -149,6 +149,10 @@ public class CompressedSequentialWriter extends SequentialWriter
         // reset checksum object to the blank state for re-use
         checksum.reset();
 
+        // update the digest
+        if ( metadata != null )
+            metadata.append(compressed.buffer, 0, compressedLength);
+
         // next chunk should be written right after current + length of the checksum (int)
         chunkOffset += compressedLength + 4;
     }
