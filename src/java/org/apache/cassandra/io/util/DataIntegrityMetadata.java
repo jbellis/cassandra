@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.util;
 
 import java.io.Closeable;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
@@ -25,6 +26,7 @@ import java.nio.channels.ClosedChannelException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.regex.Pattern;
+import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
 import org.apache.cassandra.io.sstable.Component;
@@ -42,15 +44,16 @@ public class DataIntegrityMetadata
 
     public static class ChecksumValidator implements Closeable
     {
-        private final Checksum checksum = new PureJavaCrc32();
+        private final Checksum checksum;
         private final RandomAccessReader reader;
         private final Descriptor descriptor;
         public final int chunkSize;
 
-        public ChecksumValidator(Descriptor desc) throws IOException
+        public ChecksumValidator(Descriptor descriptor) throws IOException
         {
-            this.descriptor = desc;
-            reader = RandomAccessReader.open(new File(desc.filenameFor(Component.CRC)));
+            this.descriptor = descriptor;
+            checksum = descriptor.version.hasAllAdlerChecksums ? new Adler32() : new PureJavaCrc32();
+            reader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.CRC)));
             chunkSize = reader.readInt();
         }
 
@@ -84,22 +87,15 @@ public class DataIntegrityMetadata
         }
     }
 
-    public static ChecksumWriter checksumWriter(Descriptor desc, boolean isCompressed)
+    public static class ChecksumWriter
     {
-        return new ChecksumWriter(desc, isCompressed);
-    }
-
-    public static class ChecksumWriter implements Closeable
-    {
-        private final Checksum checksum = new PureJavaCrc32();
+        private final Checksum checksum = new Adler32();
         private final MessageDigest digest;
-        private final SequentialWriter writer;
-        private final Descriptor descriptor;
+        private final DataOutputStream incrementalOut;
 
-        public ChecksumWriter(Descriptor desc, boolean isCompressed)
+        public ChecksumWriter(DataOutputStream incrementalOut)
         {
-            this.descriptor = desc;
-            writer = isCompressed ? null : SequentialWriter.open(new File(desc.filenameFor(Component.CRC)), true);
+            this.incrementalOut = incrementalOut;
             try
             {
                 digest = MessageDigest.getInstance("SHA-1");
@@ -115,8 +111,7 @@ public class DataIntegrityMetadata
         {
             try
             {
-                if (writer != null)
-                    writer.stream.writeInt(length);
+                incrementalOut.writeInt(length);
             }
             catch (IOException e)
             {
@@ -128,12 +123,9 @@ public class DataIntegrityMetadata
         {
             try
             {
-                if (writer != null)
-                {
-                    checksum.update(buffer, start, end);
-                    writer.stream.writeInt((int) checksum.getValue());
-                    checksum.reset();
-                }
+                checksum.update(buffer, start, end);
+                incrementalOut.writeInt((int) checksum.getValue());
+                checksum.reset();
                 digest.update(buffer, start, end);
             }
             catch (IOException e)
@@ -142,9 +134,8 @@ public class DataIntegrityMetadata
             }
         }
 
-        public void close()
+        public void writeFullChecksum(Descriptor descriptor)
         {
-            FileUtils.closeQuietly(writer);
             byte[] bytes = digest.digest();
             SequentialWriter out = SequentialWriter.open(new File(descriptor.filenameFor(Component.DIGEST)), true);
             // Writting output compatible with sha1sum
