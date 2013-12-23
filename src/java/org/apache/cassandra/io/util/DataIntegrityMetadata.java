@@ -17,21 +17,25 @@
  */
 package org.apache.cassandra.io.util;
 
+import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
+import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.regex.Pattern;
 import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
+import com.google.common.base.Charsets;
+
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.PureJavaCrc32;
 
@@ -87,22 +91,13 @@ public class DataIntegrityMetadata
 
     public static class ChecksumWriter
     {
-        private final Checksum checksum = new Adler32();
-        private final MessageDigest digest;
+        private final Checksum incrementalChecksum = new Adler32();
         private final DataOutputStream incrementalOut;
+        private final Checksum fullChecksum = new Adler32();
 
         public ChecksumWriter(DataOutputStream incrementalOut)
         {
             this.incrementalOut = incrementalOut;
-            try
-            {
-                digest = MessageDigest.getInstance("SHA-1");
-            }
-            catch (NoSuchAlgorithmException e)
-            {
-                // SHA-1 is standard in java 6
-                throw new RuntimeException(e);
-            }
         }
 
         public void writeChunkSize(int length)
@@ -121,10 +116,11 @@ public class DataIntegrityMetadata
         {
             try
             {
-                checksum.update(buffer, start, end);
-                incrementalOut.writeInt((int) checksum.getValue());
-                checksum.reset();
-                digest.update(buffer, start, end);
+                incrementalChecksum.update(buffer, start, end);
+                incrementalOut.writeInt((int) incrementalChecksum.getValue());
+                incrementalChecksum.reset();
+
+                fullChecksum.update(buffer, start, end);
             }
             catch (IOException e)
             {
@@ -134,19 +130,16 @@ public class DataIntegrityMetadata
 
         public void writeFullChecksum(Descriptor descriptor)
         {
-            byte[] bytes = digest.digest();
-            SequentialWriter out = SequentialWriter.open(new File(descriptor.filenameFor(Component.DIGEST)), true);
-            Descriptor newdesc = descriptor.asTemporary(false);
-            String[] tmp = newdesc.filenameFor(Component.DATA).split(Pattern.quote(File.separator));
-            String dataFileName = tmp[tmp.length - 1];
+            File outFile = new File(descriptor.filenameFor(Component.DIGEST));
+            BufferedWriter out = null;
             try
             {
-                // Writing output compatible with sha1sum
-                out.write(String.format("%s  %s", Hex.bytesToHex(bytes), dataFileName).getBytes());
+                out = Files.newBufferedWriter(outFile.toPath(), Charsets.UTF_8);
+                out.write(String.valueOf(fullChecksum.getValue()));
             }
-            catch (ClosedChannelException e)
+            catch (IOException e)
             {
-                throw new AssertionError(); // can't happen.
+                throw new FSWriteError(e, outFile);
             }
             finally
             {
