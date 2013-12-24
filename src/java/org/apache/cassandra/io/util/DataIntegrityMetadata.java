@@ -19,6 +19,7 @@ package org.apache.cassandra.io.util;
 
 import java.io.BufferedWriter;
 import java.io.Closeable;
+import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOError;
@@ -92,10 +93,10 @@ public class DataIntegrityMetadata
     public static class ChecksumWriter
     {
         private final Checksum incrementalChecksum = new Adler32();
-        private final DataOutputStream incrementalOut;
+        private final DataOutput incrementalOut;
         private final Checksum fullChecksum = new Adler32();
 
-        public ChecksumWriter(DataOutputStream incrementalOut)
+        public ChecksumWriter(DataOutput incrementalOut)
         {
             this.incrementalOut = incrementalOut;
         }

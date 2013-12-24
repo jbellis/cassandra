@@ -70,7 +70,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         metadataWriter.writeHeader(parameters);
 
         this.sstableMetadataCollector = sstableMetadataCollector;
-        crcMetadata = new DataIntegrityMetadata.ChecksumWriter(stream);
+        crcMetadata = new DataIntegrityMetadata.ChecksumWriter(out);
     }
 
     @Override
