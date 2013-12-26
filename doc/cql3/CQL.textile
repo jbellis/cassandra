@@ -1,6 +1,6 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.1.2
+h1. Cassandra Query Language (CQL) v3.1.3
 
 
  <span id="tableOfContents">
@@ -804,15 +804,19 @@ They can also be input as string literals in any of the following ISO 8601 forma
 
 * @2011-02-03 04:05+0000@
 * @2011-02-03 04:05:00+0000@
+* @2011-02-03 04:05:00.000+0000@
 * @2011-02-03T04:05+0000@
 * @2011-02-03T04:05:00+0000@
+* @2011-02-03T04:05:00.000+0000@
 
 The @+0000@ above is an RFC 822 4-digit time zone specification; @+0000@ refers to GMT. US Pacific Standard Time is @-0800@. The time zone may be omitted if desired-- the date will be interpreted as being in the time zone under which the coordinating Cassandra node is configured.
 
 * @2011-02-03 04:05@
 * @2011-02-03 04:05:00@
+* @2011-02-03 04:05:00.000@
 * @2011-02-03T04:05@
 * @2011-02-03T04:05:00@
+* @2011-02-03T04:05:00.000@
 
 There are clear difficulties inherent in relying on the time zone configuration being as expected, though, so it is recommended that the time zone always be specified for timestamps when feasible.
 
@@ -833,6 +837,16 @@ The use of the counter type is limited in the following way:
 * A table that contains a counter can only contain counters. In other words, either all the columns of a table outside the @PRIMARY KEY@ have the counter type, or none of them have it.
 
 h3(#collections). Working with collections
+
+h4. Noteworthy characteristics
+
+Collections are meant for storing/denormalizing relatively small amount of data. They work well for things like "the phone numbers of a given user", "labels applied to an email", etc. But when items are expected to grow unbounded ("all the messages sent by a given user", "events registered by a sensor", ...), then collections are not appropriate anymore and a specific table (with clustering columns) should be used. Concretely, collections have the following limitations:
+* Collections are always read in their entirety (and reading one is not paged internally).
+* Collections cannot have more than 65535 elements. More precisely, while it may be possible to insert more than 65535 elements, it is not possible to read more than the 65535 first elements (see "CASSANDRA-5428":https://issues.apache.org/jira/browse/CASSANDRA-5428 for details).
+* While insertion operations on sets and maps never incur a read-before-write internally, some operations on lists do (see the section on lists below for details). It is thus advised to prefer sets over lists when possible.
+
+Please note that while some of those limitations may or may not be loosen in the future, the general rule that collections are for denormalizing small amount of data is meant to stay.
+
 
 h4(#map). Maps
 
@@ -871,7 +885,7 @@ will only apply the TTL to the @{ 'color' : 'green' }@ record, the rest of the m
 Deleting a map record is done with:
 
 bc(sample). 
-DELETE favs['author'] FROM plays WHERE id = 'jsmith'
+DELETE favs['author'] FROM users WHERE id = 'jsmith'
 
 h4(#set). Sets
 
@@ -1087,6 +1101,10 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 h2(#changes). Changes
 
 The following describes the addition/changes brought for each version of CQL.
+
+h3. 3.1.3
+
+* Millisecond precision formats have been added to the timestamp parser (see "working with dates":#usingdates).
 
 h3. 3.1.2
 

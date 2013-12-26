@@ -1,37 +1,17 @@
 package org.apache.cassandra.stress.util;
 
-import com.datastax.driver.core.Host;
-import com.datastax.driver.core.Metadata;
-import org.apache.cassandra.stress.settings.StressSettings;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.thrift.ColumnOrSuperColumn;
-import org.apache.cassandra.thrift.ColumnParent;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.thrift.IndexClause;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.KeyRange;
-import org.apache.cassandra.thrift.KeySlice;
-import org.apache.cassandra.thrift.Mutation;
-import org.apache.cassandra.thrift.SchemaDisagreementException;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.thrift.TException;
-
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import com.datastax.driver.core.Host;
+import com.datastax.driver.core.Metadata;
+import org.apache.cassandra.stress.settings.StressSettings;
+import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.thrift.TException;
 
 public class SmartThriftClient implements ThriftClient
 {
@@ -117,8 +97,10 @@ public class SmartThriftClient implements ThriftClient
         ConcurrentLinkedQueue<Client> q = cache.get(host);
         if (q == null)
         {
-            cache.putIfAbsent(host, new ConcurrentLinkedQueue<Client>());
-            q = cache.get(host);
+            ConcurrentLinkedQueue<Client> newQ = new ConcurrentLinkedQueue<Client>();
+            q = cache.putIfAbsent(host, newQ);
+            if (q == null)
+                q = newQ;
         }
         Client tclient = q.poll();
         if (tclient != null)

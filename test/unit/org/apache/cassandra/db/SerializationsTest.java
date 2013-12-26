@@ -20,9 +20,10 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -49,19 +50,19 @@ public class SerializationsTest extends AbstractSerializationsTester
     Statics statics = new Statics();
 
     @BeforeClass
-    public static void loadSchema() throws IOException, ConfigurationException
+    public static void loadSchema() throws ConfigurationException
     {
         loadSchema(true);
     }
 
     private ByteBuffer startCol = ByteBufferUtil.bytes("Start");
     private ByteBuffer stopCol = ByteBufferUtil.bytes("Stop");
-    private ByteBuffer emptyCol = ByteBufferUtil.bytes("");
+    private Composite emptyCol = Composites.EMPTY;
     public NamesQueryFilter namesPred = new NamesQueryFilter(statics.NamedCols);
     public NamesQueryFilter namesSCPred = new NamesQueryFilter(statics.NamedSCCols);
     public SliceQueryFilter emptyRangePred = new SliceQueryFilter(emptyCol, emptyCol, false, 100);
-    public SliceQueryFilter nonEmptyRangePred = new SliceQueryFilter(startCol, stopCol, true, 100);
-    public SliceQueryFilter nonEmptyRangeSCPred = new SliceQueryFilter(CompositeType.build(statics.SC, startCol), CompositeType.build(statics.SC, stopCol), true, 100);
+    public SliceQueryFilter nonEmptyRangePred = new SliceQueryFilter(CellNames.simpleDense(startCol), CellNames.simpleDense(stopCol), true, 100);
+    public SliceQueryFilter nonEmptyRangeSCPred = new SliceQueryFilter(CellNames.compositeDense(statics.SC, startCol), CellNames.compositeDense(statics.SC, stopCol), true, 100);
 
     private void testRangeSliceCommandWrite() throws IOException
     {
@@ -209,23 +210,23 @@ public class SerializationsTest extends AbstractSerializationsTester
         in.close();
     }
 
-    private void testRowMutationWrite() throws IOException
+    private void testMutationWrite() throws IOException
     {
-        RowMutation standardRowRm = new RowMutation(statics.KS, statics.StandardRow);
-        RowMutation superRowRm = new RowMutation(statics.KS, statics.SuperRow);
-        RowMutation standardRm = new RowMutation(statics.KS, statics.Key, statics.StandardCf);
-        RowMutation superRm = new RowMutation(statics.KS, statics.Key, statics.SuperCf);
+        Mutation standardRowRm = new Mutation(statics.KS, statics.StandardRow);
+        Mutation superRowRm = new Mutation(statics.KS, statics.SuperRow);
+        Mutation standardRm = new Mutation(statics.KS, statics.Key, statics.StandardCf);
+        Mutation superRm = new Mutation(statics.KS, statics.Key, statics.SuperCf);
         Map<UUID, ColumnFamily> mods = new HashMap<UUID, ColumnFamily>();
         mods.put(statics.StandardCf.metadata().cfId, statics.StandardCf);
         mods.put(statics.SuperCf.metadata().cfId, statics.SuperCf);
-        RowMutation mixedRm = new RowMutation(statics.KS, statics.Key, mods);
+        Mutation mixedRm = new Mutation(statics.KS, statics.Key, mods);
 
         DataOutputStream out = getOutput("db.RowMutation.bin");
-        RowMutation.serializer.serialize(standardRowRm, out, getVersion());
-        RowMutation.serializer.serialize(superRowRm, out, getVersion());
-        RowMutation.serializer.serialize(standardRm, out, getVersion());
-        RowMutation.serializer.serialize(superRm, out, getVersion());
-        RowMutation.serializer.serialize(mixedRm, out, getVersion());
+        Mutation.serializer.serialize(standardRowRm, out, getVersion());
+        Mutation.serializer.serialize(superRowRm, out, getVersion());
+        Mutation.serializer.serialize(standardRm, out, getVersion());
+        Mutation.serializer.serialize(superRm, out, getVersion());
+        Mutation.serializer.serialize(mixedRm, out, getVersion());
 
         standardRowRm.createMessage().serialize(out, getVersion());
         superRowRm.createMessage().serialize(out, getVersion());
@@ -236,27 +237,27 @@ public class SerializationsTest extends AbstractSerializationsTester
         out.close();
 
         // test serializedSize
-        testSerializedSize(standardRowRm, RowMutation.serializer);
-        testSerializedSize(superRowRm, RowMutation.serializer);
-        testSerializedSize(standardRm, RowMutation.serializer);
-        testSerializedSize(superRm, RowMutation.serializer);
-        testSerializedSize(mixedRm, RowMutation.serializer);
+        testSerializedSize(standardRowRm, Mutation.serializer);
+        testSerializedSize(superRowRm, Mutation.serializer);
+        testSerializedSize(standardRm, Mutation.serializer);
+        testSerializedSize(superRm, Mutation.serializer);
+        testSerializedSize(mixedRm, Mutation.serializer);
     }
 
     @Test
-    public void testRowMutationRead() throws IOException
+    public void testMutationRead() throws IOException
     {
-        // row mutation deserialization requires being able to look up the keyspace in the schema,
+        // mutation deserialization requires being able to look up the keyspace in the schema,
         // so we need to rewrite this each time.  We can go back to testing on-disk data
         // once we pull RM.keyspace field out.
-        testRowMutationWrite();
+        testMutationWrite();
 
         DataInputStream in = getInput("db.RowMutation.bin");
-        assert RowMutation.serializer.deserialize(in, getVersion()) != null;
-        assert RowMutation.serializer.deserialize(in, getVersion()) != null;
-        assert RowMutation.serializer.deserialize(in, getVersion()) != null;
-        assert RowMutation.serializer.deserialize(in, getVersion()) != null;
-        assert RowMutation.serializer.deserialize(in, getVersion()) != null;
+        assert Mutation.serializer.deserialize(in, getVersion()) != null;
+        assert Mutation.serializer.deserialize(in, getVersion()) != null;
+        assert Mutation.serializer.deserialize(in, getVersion()) != null;
+        assert Mutation.serializer.deserialize(in, getVersion()) != null;
+        assert Mutation.serializer.deserialize(in, getVersion()) != null;
         assert MessageIn.read(in, getVersion(), -1) != null;
         assert MessageIn.read(in, getVersion(), -1) != null;
         assert MessageIn.read(in, getVersion(), -1) != null;
@@ -334,26 +335,32 @@ public class SerializationsTest extends AbstractSerializationsTester
         in.close();
     }
 
-    private static ByteBuffer bb(String s) {
+    private static ByteBuffer bb(String s)
+    {
         return ByteBufferUtil.bytes(s);
+    }
+
+    private static CellName cn(String s)
+    {
+        return CellNames.simpleDense(ByteBufferUtil.bytes(s));
     }
 
     private static class Statics
     {
         private final String KS = "Keyspace1";
         private final ByteBuffer Key = ByteBufferUtil.bytes("Key01");
-        private final SortedSet<ByteBuffer> NamedCols = new TreeSet<ByteBuffer>(BytesType.instance)
+        private final SortedSet<CellName> NamedCols = new TreeSet<CellName>(new SimpleDenseCellNameType(BytesType.instance))
         {{
-            add(ByteBufferUtil.bytes("AAA"));
-            add(ByteBufferUtil.bytes("BBB"));
-            add(ByteBufferUtil.bytes("CCC"));
+            add(CellNames.simpleDense(ByteBufferUtil.bytes("AAA")));
+            add(CellNames.simpleDense(ByteBufferUtil.bytes("BBB")));
+            add(CellNames.simpleDense(ByteBufferUtil.bytes("CCC")));
         }};
         private final ByteBuffer SC = ByteBufferUtil.bytes("SCName");
-        private final SortedSet<ByteBuffer> NamedSCCols = new TreeSet<ByteBuffer>(BytesType.instance)
+        private final SortedSet<CellName> NamedSCCols = new TreeSet<CellName>(new CompoundDenseCellNameType(Arrays.<AbstractType<?>>asList(BytesType.instance, BytesType.instance)))
         {{
-            add(CompositeType.build(SC, ByteBufferUtil.bytes("AAA")));
-            add(CompositeType.build(SC, ByteBufferUtil.bytes("BBB")));
-            add(CompositeType.build(SC, ByteBufferUtil.bytes("CCC")));
+            add(CellNames.compositeDense(SC, ByteBufferUtil.bytes("AAA")));
+            add(CellNames.compositeDense(SC, ByteBufferUtil.bytes("BBB")));
+            add(CellNames.compositeDense(SC, ByteBufferUtil.bytes("CCC")));
         }};
         private final String StandardCF = "Standard1";
         private final String SuperCF = "Super1";
@@ -369,21 +376,21 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         private Statics()
         {
-            StandardCf.addColumn(new Column(bb("aaaa")));
-            StandardCf.addColumn(new Column(bb("bbbb"), bb("bbbbb-value")));
-            StandardCf.addColumn(new Column(bb("cccc"), bb("ccccc-value"), 1000L));
-            StandardCf.addColumn(new DeletedColumn(bb("dddd"), 500, 1000));
-            StandardCf.addColumn(new DeletedColumn(bb("eeee"), bb("eeee-value"), 1001));
-            StandardCf.addColumn(new ExpiringColumn(bb("ffff"), bb("ffff-value"), 2000, 1000));
-            StandardCf.addColumn(new ExpiringColumn(bb("gggg"), bb("gggg-value"), 2001, 1000, 2002));
+            StandardCf.addColumn(new Cell(cn("aaaa")));
+            StandardCf.addColumn(new Cell(cn("bbbb"), bb("bbbbb-value")));
+            StandardCf.addColumn(new Cell(cn("cccc"), bb("ccccc-value"), 1000L));
+            StandardCf.addColumn(new DeletedCell(cn("dddd"), 500, 1000));
+            StandardCf.addColumn(new DeletedCell(cn("eeee"), bb("eeee-value"), 1001));
+            StandardCf.addColumn(new ExpiringCell(cn("ffff"), bb("ffff-value"), 2000, 1000));
+            StandardCf.addColumn(new ExpiringCell(cn("gggg"), bb("gggg-value"), 2001, 1000, 2002));
 
-            SuperCf.addColumn(new Column(CompositeType.build(SC, bb("aaaa"))));
-            SuperCf.addColumn(new Column(CompositeType.build(SC, bb("bbbb")), bb("bbbbb-value")));
-            SuperCf.addColumn(new Column(CompositeType.build(SC, bb("cccc")), bb("ccccc-value"), 1000L));
-            SuperCf.addColumn(new DeletedColumn(CompositeType.build(SC, bb("dddd")), 500, 1000));
-            SuperCf.addColumn(new DeletedColumn(CompositeType.build(SC, bb("eeee")), bb("eeee-value"), 1001));
-            SuperCf.addColumn(new ExpiringColumn(CompositeType.build(SC, bb("ffff")), bb("ffff-value"), 2000, 1000));
-            SuperCf.addColumn(new ExpiringColumn(CompositeType.build(SC, bb("gggg")), bb("gggg-value"), 2001, 1000, 2002));
+            SuperCf.addColumn(new Cell(CellNames.compositeDense(SC, bb("aaaa"))));
+            SuperCf.addColumn(new Cell(CellNames.compositeDense(SC, bb("bbbb")), bb("bbbbb-value")));
+            SuperCf.addColumn(new Cell(CellNames.compositeDense(SC, bb("cccc")), bb("ccccc-value"), 1000L));
+            SuperCf.addColumn(new DeletedCell(CellNames.compositeDense(SC, bb("dddd")), 500, 1000));
+            SuperCf.addColumn(new DeletedCell(CellNames.compositeDense(SC, bb("eeee")), bb("eeee-value"), 1001));
+            SuperCf.addColumn(new ExpiringCell(CellNames.compositeDense(SC, bb("ffff")), bb("ffff-value"), 2000, 1000));
+            SuperCf.addColumn(new ExpiringCell(CellNames.compositeDense(SC, bb("gggg")), bb("gggg-value"), 2001, 1000, 2002));
         }
     }
 }

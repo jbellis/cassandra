@@ -25,8 +25,8 @@ import com.yammer.metrics.util.RatioGauge;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
 /**
@@ -36,6 +36,8 @@ public class ColumnFamilyMetrics
 {
     /** Total amount of data stored in the memtable, including column related overhead. */
     public final Gauge<Long> memtableDataSize;
+    /** Total amount of data stored in the memtables (2i and pending flush memtables included). */
+    public final Gauge<Long> allMemtablesDataSize;
     /** Total number of columns present in the memtable. */
     public final Gauge<Long> memtableColumnsCount;
     /** Number of times flush has resulted in the memtable being switched out. */
@@ -82,6 +84,8 @@ public class ColumnFamilyMetrics
     public final Histogram tombstoneScannedHistogram;
     /** Live cells scanned in queries on this CF */
     public final Histogram liveScannedHistogram;
+    /** Disk space used by snapshot files which */
+    public final Gauge<Long> trueSnapshotsSize;
 
     public final Timer coordinatorReadLatency;
     public final Timer coordinatorScanLatency;
@@ -115,6 +119,13 @@ public class ColumnFamilyMetrics
             public Long value()
             {
                 return cfs.getDataTracker().getMemtable().getLiveSize();
+            }
+        });
+        allMemtablesDataSize = Metrics.newGauge(factory.createMetricName("AllMemtablesDataSize"), new Gauge<Long>()
+        {
+            public Long value()
+            {
+                return cfs.getTotalAllMemtablesLiveSize();
             }
         });
         memtableSwitchCount = Metrics.newCounter(factory.createMetricName("MemtableSwitchCount"));
@@ -155,13 +166,13 @@ public class ColumnFamilyMetrics
                 int total = 0;
                 for (SSTableReader sstable : cfs.getSSTables())
                 {
-                    if (sstable.getCompressionRatio() != SSTableMetadata.NO_COMPRESSION_RATIO)
+                    if (sstable.getCompressionRatio() != MetadataCollector.NO_COMPRESSION_RATIO)
                     {
                         sum += sstable.getCompressionRatio();
                         total++;
                     }
                 }
-                return total != 0 ? (double) sum / total : 0;
+                return total != 0 ? sum / total : 0;
             }
         });
         readLatency = new LatencyMetrics(factory, "Read");
@@ -238,7 +249,7 @@ public class ColumnFamilyMetrics
             public Long value()
             {
                 long count = 0L;
-                for (SSTableReader sstable: cfs.getSSTables())
+                for (SSTableReader sstable : cfs.getSSTables())
                     count += sstable.getRecentBloomFilterFalsePositiveCount();
                 return count;
             }
@@ -249,7 +260,7 @@ public class ColumnFamilyMetrics
             {
                 long falseCount = 0L;
                 long trueCount = 0L;
-                for (SSTableReader sstable: cfs.getSSTables())
+                for (SSTableReader sstable : cfs.getSSTables())
                 {
                     falseCount += sstable.getBloomFilterFalsePositiveCount();
                     trueCount += sstable.getBloomFilterTruePositiveCount();
@@ -308,6 +319,14 @@ public class ColumnFamilyMetrics
         liveScannedHistogram = Metrics.newHistogram(factory.createMetricName("LiveScannedHistogram"), true);
         coordinatorReadLatency = Metrics.newTimer(factory.createMetricName("CoordinatorReadLatency"), TimeUnit.MICROSECONDS, TimeUnit.SECONDS);
         coordinatorScanLatency = Metrics.newTimer(factory.createMetricName("CoordinatorScanLatency"), TimeUnit.MICROSECONDS, TimeUnit.SECONDS);
+        
+        trueSnapshotsSize = Metrics.newGauge(factory.createMetricName("SnapshotsSize"), new Gauge<Long>()
+        {
+            public Long value()
+            {
+                return cfs.trueSnapshotsSize();
+            }
+        });
     }
 
     public void updateSSTableIterated(int count)
@@ -349,6 +368,7 @@ public class ColumnFamilyMetrics
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("LiveScannedHistogram"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("CoordinatorReadLatency"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("CoordinatorScanLatency"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("SnapshotsSize"));
     }
 
     class ColumnFamilyMetricNameFactory implements MetricNameFactory

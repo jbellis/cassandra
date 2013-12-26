@@ -25,16 +25,33 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ObjectSizes;
 
+/**
+ * A top-level (row) tombstone.
+ */
 public class DeletionTime implements Comparable<DeletionTime>
 {
+    /**
+     * A special DeletionTime that signifies that there is no top-level (row) tombstone.
+     */
     public static final DeletionTime LIVE = new DeletionTime(Long.MIN_VALUE, Integer.MAX_VALUE);
 
+    /**
+     * A timestamp (typically in microseconds since the unix epoch, although this is not enforced) after which
+     * data should be considered deleted. If set to Long.MIN_VALUE, this implies that the data has not been marked
+     * for deletion at all.
+     */
     public final long markedForDeleteAt;
+
+    /**
+     * The local server timestamp, in seconds since the unix epoch, at which this tombstone was created. This is
+     * only used for purposes of purging the tombstone after gc_grace_seconds have elapsed.
+     */
     public final int localDeletionTime;
 
-    public static final ISerializer<DeletionTime> serializer = new Serializer();
+    public static final Serializer serializer = new Serializer();
 
     @VisibleForTesting
     public DeletionTime(long markedForDeleteAt, int localDeletionTime)
@@ -83,9 +100,9 @@ public class DeletionTime implements Comparable<DeletionTime>
         return localDeletionTime < gcBefore;
     }
 
-    public boolean isDeleted(Column column)
+    public boolean isDeleted(OnDiskAtom atom)
     {
-        return column.timestamp() <= markedForDeleteAt;
+        return atom.maxTimestamp() <= markedForDeleteAt;
     }
 
     public long memorySize()
@@ -94,7 +111,7 @@ public class DeletionTime implements Comparable<DeletionTime>
         return ObjectSizes.getFieldSize(fields);
     }
 
-    private static class Serializer implements ISerializer<DeletionTime>
+    public static class Serializer implements ISerializer<DeletionTime>
     {
         public void serialize(DeletionTime delTime, DataOutput out) throws IOException
         {
@@ -110,6 +127,11 @@ public class DeletionTime implements Comparable<DeletionTime>
                 return LIVE;
             else
                 return new DeletionTime(mfda, ldt);
+        }
+
+        public void skip(DataInput in) throws IOException
+        {
+            FileUtils.skipBytesFully(in, 4 + 8);
         }
 
         public long serializedSize(DeletionTime delTime, TypeSizes typeSizes)

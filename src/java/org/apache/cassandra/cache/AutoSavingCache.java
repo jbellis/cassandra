@@ -18,7 +18,6 @@
 package org.apache.cassandra.cache;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
@@ -30,7 +29,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -43,7 +41,6 @@ import org.apache.cassandra.io.util.LengthAvailableInputStream;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K, V>
@@ -171,7 +168,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             else
                 type = OperationType.UNKNOWN;
 
-            info = new CompactionInfo(new CFMetaData(Keyspace.SYSTEM_KS, cacheType.toString(), ColumnFamilyType.Standard, BytesType.instance, null),
+            info = new CompactionInfo(CFMetaData.denseCFMetaData(Keyspace.SYSTEM_KS, cacheType.toString(), BytesType.instance),
                                       type,
                                       0,
                                       keys.size(),
@@ -260,22 +257,18 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         private void deleteOldCacheFiles()
         {
             File savedCachesDir = new File(DatabaseDescriptor.getSavedCachesLocation());
+            assert savedCachesDir.exists() && savedCachesDir.isDirectory();
 
-            if (savedCachesDir.exists() && savedCachesDir.isDirectory())
+            for (File file : savedCachesDir.listFiles())
             {
-                for (File file : savedCachesDir.listFiles())
-                {
-                    if (file.isFile() && file.getName().endsWith(cacheType.toString()))
-                    {
-                        if (!file.delete())
-                            logger.warn("Failed to delete {}", file.getAbsolutePath());
-                    }
+                if (!file.isFile())
+                    continue; // someone's been messing with our directory.  naughty!
 
-                    if (file.isFile() && file.getName().endsWith(CURRENT_VERSION + ".db"))
-                    {
-                        if (!file.delete())
-                            logger.warn("Failed to delete {}", file.getAbsolutePath());
-                    }
+                if (file.getName().endsWith(cacheType.toString())
+                    || file.getName().endsWith(String.format("%s-%s.db", cacheType.toString(), CURRENT_VERSION)))
+                {
+                    if (!file.delete())
+                        logger.warn("Failed to delete {}", file.getAbsolutePath());
                 }
             }
         }

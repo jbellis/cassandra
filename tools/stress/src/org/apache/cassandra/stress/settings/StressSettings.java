@@ -1,22 +1,19 @@
 package org.apache.cassandra.stress.settings;
 
+import java.io.Serializable;
+import java.util.*;
+
 import com.datastax.driver.core.Metadata;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.SimpleThriftClient;
 import org.apache.cassandra.stress.util.SmartThriftClient;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.TFramedTransportFactory;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
-
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 
 public class StressSettings implements Serializable
 {
@@ -30,11 +27,10 @@ public class StressSettings implements Serializable
     public final SettingsNode node;
     public final SettingsSchema schema;
     public final SettingsTransport transport;
-    public final int thriftPort;
-    public final int nativePort = 9042;
+    public final SettingsPort port;
     public final String sendToDaemon;
 
-    public StressSettings(SettingsCommand command, SettingsRate rate, SettingsKey keys, SettingsColumn columns, SettingsLog log, SettingsMode mode, SettingsNode node, SettingsSchema schema, SettingsTransport transport, int thriftPort, String sendToDaemon)
+    public StressSettings(SettingsCommand command, SettingsRate rate, SettingsKey keys, SettingsColumn columns, SettingsLog log, SettingsMode mode, SettingsNode node, SettingsSchema schema, SettingsTransport transport, SettingsPort port, String sendToDaemon)
     {
         this.command = command;
         this.rate = rate;
@@ -45,7 +41,7 @@ public class StressSettings implements Serializable
         this.node = node;
         this.schema = schema;
         this.transport = transport;
-        this.thriftPort = thriftPort;
+        this.port = port;
         this.sendToDaemon = sendToDaemon;
     }
 
@@ -76,15 +72,15 @@ public class StressSettings implements Serializable
 
     public Cassandra.Client getRawThriftClient(String host, boolean setKeyspace)
     {
-
-        TSocket socket = new TSocket(host, thriftPort);
-        TTransport transport = this.transport.getFactory().getTransport(socket);
-        Cassandra.Client client = new Cassandra.Client(new TBinaryProtocol(transport));
+        TSocket socket = new TSocket(host, port.thriftPort);
+        Cassandra.Client client;
 
         try
         {
-            if(!transport.isOpen())
-                transport.open();
+            TTransport transport = this.transport.getFactory().getTransport(socket);
+            transport.open();
+
+            client = new Cassandra.Client(new TBinaryProtocol(transport));
 
             if (mode.cqlVersion.isCql())
                 client.set_cql_version(mode.cqlVersion.connectVersion);
@@ -110,7 +106,7 @@ public class StressSettings implements Serializable
         try
         {
             String currentNode = node.randomNode();
-            SimpleClient client = new SimpleClient(currentNode, nativePort);
+            SimpleClient client = new SimpleClient(currentNode, port.nativePort);
             client.connect(false);
             client.execute("USE \"Keyspace1\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
             return client;
@@ -127,6 +123,7 @@ public class StressSettings implements Serializable
     {
         if (client != null)
             return client;
+
         try
         {
             synchronized (this)
@@ -134,7 +131,8 @@ public class StressSettings implements Serializable
                 String currentNode = node.randomNode();
                 if (client != null)
                     return client;
-                JavaDriverClient c = new JavaDriverClient(currentNode, nativePort);
+
+                JavaDriverClient c = new JavaDriverClient(currentNode, port.nativePort);
                 c.connect(mode.compression());
                 c.execute("USE \"Keyspace1\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
                 return client = c;
@@ -168,8 +166,8 @@ public class StressSettings implements Serializable
         SettingsCommand command = SettingsCommand.get(clArgs);
         if (command == null)
             throw new IllegalArgumentException("No command specified");
-        int port = SettingsMisc.getPort(clArgs);
         String sendToDaemon = SettingsMisc.getSendToDaemon(clArgs);
+        SettingsPort port = SettingsPort.get(clArgs);
         SettingsRate rate = SettingsRate.get(clArgs, command);
         SettingsKey keys = SettingsKey.get(clArgs, command);
         SettingsColumn columns = SettingsColumn.get(clArgs);
@@ -197,7 +195,7 @@ public class StressSettings implements Serializable
         return new StressSettings(command, rate, keys, columns, log, mode, node, schema, transport, port, sendToDaemon);
     }
 
-    private static final Map<String, String[]> parseMap(String[] args)
+    private static Map<String, String[]> parseMap(String[] args)
     {
         // first is the main command/operation, so specified without a -
         if (args.length == 0)
@@ -230,14 +228,12 @@ public class StressSettings implements Serializable
         SettingsMisc.printHelp();
     }
 
-    public void disconnect()
+    public synchronized void disconnect()
     {
-        JavaDriverClient c;
-        synchronized (this)
-        {
-            c = client;
-            client = null;
-        }
-        c.disconnect();
+        if (client == null)
+            return;
+
+        client.disconnect();
+        client = null;
     }
 }

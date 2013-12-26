@@ -1,19 +1,11 @@
 package org.apache.cassandra.stress.settings;
 
-import org.apache.cassandra.stress.generatedata.DataGen;
-import org.apache.cassandra.stress.generatedata.DataGenBytesRandom;
-import org.apache.cassandra.stress.generatedata.DataGenFactory;
-import org.apache.cassandra.stress.generatedata.DataGenStringDictionary;
-import org.apache.cassandra.stress.generatedata.DataGenStringRepeats;
-
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.apache.cassandra.stress.generatedata.*;
 
 /**
  * For selecting a data generator

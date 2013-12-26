@@ -23,13 +23,15 @@ import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
@@ -129,7 +131,7 @@ public abstract class ExtendedFilter
      * @return true if the provided data satisfies all the expressions from
      * the clause of this filter.
      */
-    public abstract boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder);
+    public abstract boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, Composite prefix, ByteBuffer collectionElement);
 
     public static boolean satisfies(int comparison, IndexExpression.Operator op)
     {
@@ -180,7 +182,7 @@ public abstract class ExtendedFilter
              * We also don't want to do for paging ranges as the actual filter depends on the row key (it would
              * probably be possible to make it work but we won't really use it so we don't bother).
              */
-            if (cfs.metadata.hasCompositeComparator() || dataRange instanceof DataRange.Paging)
+            if (cfs.getComparator().isCompound() || dataRange instanceof DataRange.Paging)
                 return null;
 
             IDiskAtomFilter filter = dataRange.columnFilter(null); // ok since not a paging range
@@ -200,9 +202,9 @@ public abstract class ExtendedFilter
                 assert filter instanceof NamesQueryFilter;
                 if (!clause.isEmpty())
                 {
-                    SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfs.getComparator());
+                    SortedSet<CellName> columns = new TreeSet<CellName>(cfs.getComparator());
                     for (IndexExpression expr : clause)
-                        columns.add(expr.column);
+                        columns.add(cfs.getComparator().cellFromByteBuffer(expr.column));
                     columns.addAll(((NamesQueryFilter) filter).columns);
                     return ((NamesQueryFilter) filter).withUpdatedColumns(columns);
                 }
@@ -233,7 +235,7 @@ public abstract class ExtendedFilter
 
             for (IndexExpression expr : clause)
             {
-                if (data.getColumn(expr.column) == null)
+                if (data.getColumn(data.getComparator().cellFromByteBuffer(expr.column)) == null)
                 {
                     logger.debug("adding extraFilter to cover additional expressions");
                     return true;
@@ -251,18 +253,18 @@ public abstract class ExtendedFilter
              * 2) We don't yet allow non-indexed range slice with filters in CQL3 (i.e. this will never be
              * called by CFS.filter() for composites).
              */
-            assert !cfs.metadata.hasCompositeComparator();
-
             if (!needsExtraQuery(rowKey.key, data))
                 return null;
 
             // Note: for counters we must be careful to not add a column that was already there (to avoid overcount). That is
             // why we do the dance of avoiding to query any column we already have (it's also more efficient anyway)
-            SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfs.getComparator());
+            SortedSet<CellName> columns = new TreeSet<CellName>(cfs.getComparator());
             for (IndexExpression expr : clause)
-                if (data.getColumn(expr.column) == null)
-                    columns.add(expr.column);
-
+            {
+                CellName name = data.getComparator().cellFromByteBuffer(expr.column);
+                if (data.getColumn(name) == null)
+                    columns.add(name);
+            }
             assert !columns.isEmpty();
             return new NamesQueryFilter(columns);
         }
@@ -279,10 +281,8 @@ public abstract class ExtendedFilter
             return pruned;
         }
 
-        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder)
+        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, Composite prefix, ByteBuffer collectionElement)
         {
-            // We enforces even the primary clause because reads are not synchronized with writes and it is thus possible to have a race
-            // where the index returned a row which doesn't have the primary column when we actually read it
             for (IndexExpression expression : clause)
             {
                 ColumnDefinition def = data.metadata().getColumnDefinition(expression.column);
@@ -291,17 +291,24 @@ public abstract class ExtendedFilter
                 if (def == null)
                 {
                     // This can't happen with CQL3 as this should be rejected upfront. For thrift however,
-                    // column name are not predefined. But that means the column name correspond to an internal one.
-                    Column column = data.getColumn(expression.column);
-                    if (column != null)
+                    // cell name are not predefined. But that means the cell name correspond to an internal one.
+                    Cell cell = data.getColumn(data.getComparator().cellFromByteBuffer(expression.column));
+                    if (cell != null)
                     {
-                        dataValue = column.value();
+                        dataValue = cell.value();
                         validator = data.metadata().getDefaultValidator();
                     }
                 }
                 else
                 {
-                    dataValue = extractDataValue(def, rowKey.key, data, builder);
+                    if (def.type.isCollection())
+                    {
+                        if (!collectionSatisfies(def, data, prefix, expression, collectionElement))
+                            return false;
+                        continue;
+                    }
+
+                    dataValue = extractDataValue(def, rowKey.key, data, prefix);
                     validator = def.type;
                 }
 
@@ -315,7 +322,33 @@ public abstract class ExtendedFilter
             return true;
         }
 
-        private ByteBuffer extractDataValue(ColumnDefinition def, ByteBuffer rowKey, ColumnFamily data, ColumnNameBuilder builder)
+        private static boolean collectionSatisfies(ColumnDefinition def, ColumnFamily data, Composite prefix, IndexExpression expr, ByteBuffer collectionElement)
+        {
+            assert def.type.isCollection();
+
+            CollectionType type = (CollectionType)def.type;
+            switch (type.kind)
+            {
+                case LIST:
+                    assert collectionElement != null;
+                    return type.valueComparator().compare(data.getColumn(data.getComparator().create(prefix, def.name, collectionElement)).value(), expr.value) == 0;
+                case SET:
+                    return data.getColumn(data.getComparator().create(prefix, def.name, expr.value)) != null;
+                case MAP:
+                    if (expr.operator == IndexExpression.Operator.CONTAINS_KEY)
+                    {
+                        return data.getColumn(data.getComparator().create(prefix, def.name, expr.value)) != null;
+                    }
+                    else
+                    {
+                        assert collectionElement != null;
+                        return type.valueComparator().compare(data.getColumn(data.getComparator().create(prefix, def.name, collectionElement)).value(), expr.value) == 0;
+                    }
+            }
+            throw new AssertionError();
+        }
+
+        private ByteBuffer extractDataValue(ColumnDefinition def, ByteBuffer rowKey, ColumnFamily data, Composite prefix)
         {
             switch (def.kind)
             {
@@ -324,11 +357,14 @@ public abstract class ExtendedFilter
                          ? rowKey
                          : ((CompositeType)data.metadata().getKeyValidator()).split(rowKey)[def.position()];
                 case CLUSTERING_COLUMN:
-                    return builder.get(def.position());
+                    return prefix.get(def.position());
                 case REGULAR:
-                    ByteBuffer colName = builder == null ? def.name.bytes : builder.copy().add(def.name).build();
-                    Column column = data.getColumn(colName);
-                    return column == null ? null : column.value();
+                    CellName cname = prefix == null
+                                   ? data.getComparator().cellFromByteBuffer(def.name.bytes)
+                                   : data.getComparator().create(prefix, def.name);
+
+                    Cell cell = data.getColumn(cname);
+                    return cell == null ? null : cell.value();
                 case COMPACT_VALUE:
                     assert data.getColumnCount() == 1;
                     return data.getSortedColumns().iterator().next().value();
@@ -359,7 +395,7 @@ public abstract class ExtendedFilter
             return data;
         }
 
-        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder)
+        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, Composite prefix, ByteBuffer collectionElement)
         {
             return true;
         }

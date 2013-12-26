@@ -1,15 +1,15 @@
 package org.apache.cassandra.stress;
 
-import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.stress.util.Timing;
-import org.apache.cassandra.stress.util.TimingInterval;
-import org.apache.cassandra.stress.util.Uncertainty;
-import org.apache.commons.lang3.time.*;
-
 import java.io.PrintStream;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
+
+import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.stress.util.Timing;
+import org.apache.cassandra.stress.util.TimingInterval;
+import org.apache.cassandra.stress.util.Uncertainty;
+import org.apache.commons.lang3.time.DurationFormatUtils;
 
 public class StressMetrics
 {

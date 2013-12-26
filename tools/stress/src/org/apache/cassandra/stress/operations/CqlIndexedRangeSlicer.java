@@ -28,7 +28,6 @@ import java.util.List;
 
 import org.apache.cassandra.stress.settings.SettingsCommandMulti;
 import org.apache.cassandra.utils.FBUtilities;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
 {
@@ -43,7 +42,7 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
     @Override
     protected List<ByteBuffer> getQueryParameters(byte[] key)
     {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -62,7 +61,7 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
             query.append(" USING CONSISTENCY ").append(state.settings.command.consistencyLevel);
 
         final String columnName = getColumnName(1);
-        query.append(" WHERE " + columnName + "=?")
+        query.append(" WHERE ").append(columnName).append("=?")
                 .append(" AND KEY > ? LIMIT ").append(((SettingsCommandMulti)state.settings.command).keysAtOnce);
         return query.toString();
     }

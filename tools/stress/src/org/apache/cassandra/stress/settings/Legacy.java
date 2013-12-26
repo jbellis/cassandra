@@ -17,11 +17,10 @@
  */
 package org.apache.cassandra.stress.settings;
 
-import java.io.*;
+import java.io.Serializable;
 import java.util.*;
 
 import org.apache.commons.cli.*;
-
 import org.apache.commons.cli.Option;
 
 public class Legacy implements Serializable

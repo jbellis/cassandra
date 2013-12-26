@@ -1,6 +1,7 @@
 package org.apache.cassandra.stress.generatedata;
 
-import org.apache.commons.math3.distribution.*;
+import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
 
 public class DataGenHexFromDistribution extends DataGenHex
 {

@@ -22,6 +22,7 @@ import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.Random;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
@@ -40,9 +41,10 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.index.SecondaryIndex;
@@ -120,8 +122,8 @@ public class StorageProxy implements StorageProxyMBean
                               ConsistencyLevel consistency_level)
             throws OverloadedException
             {
-                assert mutation instanceof RowMutation;
-                sendToHintedEndpoints((RowMutation) mutation, targets, responseHandler, localDataCenter);
+                assert mutation instanceof Mutation;
+                sendToHintedEndpoints((Mutation) mutation, targets, responseHandler, localDataCenter);
             }
         };
 
@@ -207,7 +209,7 @@ public class StorageProxy implements StorageProxyMBean
     public static ColumnFamily cas(String keyspaceName,
                                    String cfName,
                                    ByteBuffer key,
-                                   ColumnNameBuilder prefix,
+                                   Composite prefix,
                                    ColumnFamily expected,
                                    ColumnFamily updates,
                                    ConsistencyLevel consistencyForPaxos,
@@ -237,8 +239,8 @@ public class StorageProxy implements StorageProxyMBean
             if (expected == null || expected.isEmpty())
             {
                 SliceQueryFilter filter = prefix == null
-                                        ? new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1)
-                                        : new SliceQueryFilter(prefix.build(), prefix.buildAsEndOfRange(), false, 1, prefix.componentCount());
+                                        ? new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, 1)
+                                        : new SliceQueryFilter(prefix.slice(), false, 1, prefix.size());
                 readCommand = new SliceFromReadCommand(keyspaceName, key, cfName, timestamp, filter);
             }
             else
@@ -295,9 +297,9 @@ public class StorageProxy implements StorageProxyMBean
         // that excepted don't have. So we just check that for each columns in expected:
         //   - if it is a tombstone, whether current has no column or a tombstone;
         //   - otherwise, that current has a live column with the same value.
-        for (Column e : expected)
+        for (Cell e : expected)
         {
-            Column c = current.getColumn(e.name());
+            Cell c = current.getColumn(e.name());
             if (e.isLive(now))
             {
                 if (!(c != null && c.isLive(now) && c.value().equals(e.value())))
@@ -535,7 +537,7 @@ public class StorageProxy implements StorageProxyMBean
                     List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(mutation.getKeyspaceName(), tk);
                     Collection<InetAddress> pendingEndpoints = StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, mutation.getKeyspaceName());
                     for (InetAddress target : Iterables.concat(naturalEndpoints, pendingEndpoints))
-                        submitHint((RowMutation) mutation, target, null);
+                        submitHint((Mutation) mutation, target, null);
                 }
                 Tracing.trace("Wrote hint to satisfy CL.ANY after no replicas acknowledged the write");
             }
@@ -569,10 +571,10 @@ public class StorageProxy implements StorageProxyMBean
     public static void mutateWithTriggers(Collection<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, boolean mutateAtomically) throws WriteTimeoutException, UnavailableException,
             OverloadedException, InvalidRequestException
     {
-        Collection<RowMutation> tmutations = TriggerExecutor.instance.execute(mutations);
+        Collection<Mutation> tmutations = TriggerExecutor.instance.execute(mutations);
         if (mutateAtomically || tmutations != null)
         {
-            Collection<RowMutation> allMutations = (Collection<RowMutation>) mutations;
+            Collection<Mutation> allMutations = (Collection<Mutation>) mutations;
             if (tmutations != null)
                 allMutations.addAll(tmutations);
             StorageProxy.mutateAtomically(allMutations, consistencyLevel);
@@ -589,10 +591,10 @@ public class StorageProxy implements StorageProxyMBean
      *      write the entire batch to a batchlog elsewhere in the cluster.
      * After: remove the batchlog entry (after writing hints for the batch rows, if necessary).
      *
-     * @param mutations the RowMutations to be applied across the replicas
+     * @param mutations the Mutations to be applied across the replicas
      * @param consistency_level the consistency level for the operation
      */
-    public static void mutateAtomically(Collection<RowMutation> mutations, ConsistencyLevel consistency_level)
+    public static void mutateAtomically(Collection<Mutation> mutations, ConsistencyLevel consistency_level)
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
         Tracing.trace("Determining replicas for atomic batch");
@@ -604,7 +606,7 @@ public class StorageProxy implements StorageProxyMBean
         try
         {
             // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
-            for (RowMutation mutation : mutations)
+            for (Mutation mutation : mutations)
             {
                 WriteResponseHandlerWrapper wrapper = wrapResponseHandler(mutation, consistency_level, WriteType.BATCH);
                 // exit early if we can't fulfill the CL at this time.
@@ -643,17 +645,16 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static void syncWriteToBatchlog(Collection<RowMutation> mutations, Collection<InetAddress> endpoints, UUID uuid)
+    private static void syncWriteToBatchlog(Collection<Mutation> mutations, Collection<InetAddress> endpoints, UUID uuid)
     throws WriteTimeoutException
     {
-        RowMutation rm = BatchlogManager.getBatchlogMutationFor(mutations, uuid);
         AbstractWriteResponseHandler handler = new WriteResponseHandler(endpoints,
                                                                         Collections.<InetAddress>emptyList(),
                                                                         ConsistencyLevel.ONE,
                                                                         Keyspace.open(Keyspace.SYSTEM_KS),
                                                                         null,
                                                                         WriteType.BATCH_LOG);
-        updateBatchlog(rm, endpoints, handler);
+        updateBatchlog(BatchlogManager.getBatchlogMutationFor(mutations, uuid), endpoints, handler);
         handler.get();
     }
 
@@ -667,20 +668,19 @@ public class StorageProxy implements StorageProxyMBean
                                                                         Keyspace.open(Keyspace.SYSTEM_KS),
                                                                         null,
                                                                         WriteType.SIMPLE);
-        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, UUIDType.instance.decompose(uuid), cf);
-        updateBatchlog(rm, endpoints, handler);
+        updateBatchlog(new Mutation(Keyspace.SYSTEM_KS, UUIDType.instance.decompose(uuid), cf), endpoints, handler);
     }
 
-    private static void updateBatchlog(RowMutation rm, Collection<InetAddress> endpoints, AbstractWriteResponseHandler handler)
+    private static void updateBatchlog(Mutation mutation, Collection<InetAddress> endpoints, AbstractWriteResponseHandler handler)
     {
         if (endpoints.contains(FBUtilities.getBroadcastAddress()))
         {
             assert endpoints.size() == 1;
-            insertLocal(rm, handler);
+            insertLocal(mutation, handler);
         }
         else
         {
-            MessageOut<RowMutation> message = rm.createMessage();
+            MessageOut<Mutation> message = mutation.createMessage();
             for (InetAddress target : endpoints)
                 MessagingService.instance().sendRR(message, target, handler);
         }
@@ -742,7 +742,7 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     // same as above except does not initiate writes (but does perform availability checks).
-    private static WriteResponseHandlerWrapper wrapResponseHandler(RowMutation mutation, ConsistencyLevel consistency_level, WriteType writeType)
+    private static WriteResponseHandlerWrapper wrapResponseHandler(Mutation mutation, ConsistencyLevel consistency_level, WriteType writeType)
     {
         AbstractReplicationStrategy rs = Keyspace.open(mutation.getKeyspaceName()).getReplicationStrategy();
         String keyspaceName = mutation.getKeyspaceName();
@@ -757,9 +757,9 @@ public class StorageProxy implements StorageProxyMBean
     private static class WriteResponseHandlerWrapper
     {
         final AbstractWriteResponseHandler handler;
-        final RowMutation mutation;
+        final Mutation mutation;
 
-        WriteResponseHandlerWrapper(AbstractWriteResponseHandler handler, RowMutation mutation)
+        WriteResponseHandlerWrapper(AbstractWriteResponseHandler handler, Mutation mutation)
         {
             this.handler = handler;
             this.mutation = mutation;
@@ -771,30 +771,32 @@ public class StorageProxy implements StorageProxyMBean
      * - replicas should be alive according to the failure detector
      * - replicas should be in the local datacenter
      * - choose min(2, number of qualifying candiates above)
-     * - allow the local node to be the only replica only if it's a single-node cluster
+     * - allow the local node to be the only replica only if it's a single-node DC
      */
-    private static Collection<InetAddress> getBatchlogEndpoints(String localDataCenter, ConsistencyLevel consistencyLevel) throws UnavailableException
+    private static Collection<InetAddress> getBatchlogEndpoints(String localDataCenter, ConsistencyLevel consistencyLevel)
+    throws UnavailableException
     {
-        // will include every known node in the DC, including localhost.
-        TokenMetadata.Topology topology = StorageService.instance.getTokenMetadata().cloneOnlyTokenMap().getTopology();
-        Collection<InetAddress> localMembers = topology.getDatacenterEndpoints().get(localDataCenter);
+        TokenMetadata.Topology topology = StorageService.instance.getTokenMetadata().cachedOnlyTokenMap().getTopology();
+        List<InetAddress> localEndpoints = new ArrayList<>(topology.getDatacenterEndpoints().get(localDataCenter));
 
         // special case for single-node datacenters
-        if (localMembers.size() == 1)
-            return localMembers;
+        if (localEndpoints.size() == 1)
+            return localEndpoints;
 
-        // not a single-node cluster - don't count the local node.
-        localMembers.remove(FBUtilities.getBroadcastAddress());
+        List<InetAddress> chosenEndpoints = new ArrayList<>(2);
+        int startOffset = new Random().nextInt(localEndpoints.size());
 
-        // include only alive nodes
-        List<InetAddress> candidates = new ArrayList<InetAddress>(localMembers.size());
-        for (InetAddress member : localMembers)
+        // starts at some random point in the list, advances forward until the end, then loops
+        // around to the beginning, advancing again until it is back at the starting point again.
+        for (int i = 0; i < localEndpoints.size() && chosenEndpoints.size() < 2; i++)
         {
-            if (FailureDetector.instance.isAlive(member))
-                candidates.add(member);
+            InetAddress endpoint = localEndpoints.get((i + startOffset) % localEndpoints.size());
+            // skip localhost and non-alive nodes
+            if (!endpoint.equals(FBUtilities.getBroadcastAddress()) && FailureDetector.instance.isAlive(endpoint))
+                chosenEndpoints.add(endpoint);
         }
 
-        if (candidates.isEmpty())
+        if (chosenEndpoints.isEmpty())
         {
             if (consistencyLevel == ConsistencyLevel.ANY)
                 return Collections.singleton(FBUtilities.getBroadcastAddress());
@@ -802,14 +804,7 @@ public class StorageProxy implements StorageProxyMBean
             throw new UnavailableException(ConsistencyLevel.ONE, 1, 0);
         }
 
-        if (candidates.size() > 2)
-        {
-            IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-            snitch.sortByProximity(FBUtilities.getBroadcastAddress(), candidates);
-            candidates = candidates.subList(0, 2);
-        }
-
-        return candidates;
+        return chosenEndpoints;
     }
 
     /**
@@ -826,7 +821,7 @@ public class StorageProxy implements StorageProxyMBean
      *
      * @throws OverloadedException if the hints cannot be written/enqueued
      */
-    public static void sendToHintedEndpoints(final RowMutation rm,
+    public static void sendToHintedEndpoints(final Mutation mutation,
                                              Iterable<InetAddress> targets,
                                              AbstractWriteResponseHandler responseHandler,
                                              String localDataCenter)
@@ -835,7 +830,7 @@ public class StorageProxy implements StorageProxyMBean
         // extra-datacenter replicas, grouped by dc
         Map<String, Collection<InetAddress>> dcGroups = null;
         // only need to create a Message for non-local writes
-        MessageOut<RowMutation> message = null;
+        MessageOut<Mutation> message = null;
 
         for (InetAddress destination : targets)
         {
@@ -854,13 +849,13 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (destination.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
                 {
-                    insertLocal(rm, responseHandler);
+                    insertLocal(mutation, responseHandler);
                 }
                 else
                 {
                     // belongs on a different server
                     if (message == null)
-                        message = rm.createMessage();
+                        message = mutation.createMessage();
                     String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
                     // direct writes to local DC or old Cassandra versions
                     // (1.1 knows how to forward old-style String message IDs; updated to int in 2.0)
@@ -888,7 +883,7 @@ public class StorageProxy implements StorageProxyMBean
                     continue;
 
                 // Schedule a local hint
-                submitHint(rm, destination, responseHandler);
+                submitHint(mutation, destination, responseHandler);
             }
         }
 
@@ -896,7 +891,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             // for each datacenter, send the message to one node to relay the write to other replicas
             if (message == null)
-                message = rm.createMessage();
+                message = mutation.createMessage();
 
             for (Collection<InetAddress> dcTargets : dcGroups.values())
                 sendMessagesToNonlocalDC(message, dcTargets, responseHandler);
@@ -915,7 +910,7 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    public static Future<Void> submitHint(final RowMutation mutation,
+    public static Future<Void> submitHint(final Mutation mutation,
                                           final InetAddress target,
                                           final AbstractWriteResponseHandler responseHandler)
     {
@@ -952,7 +947,7 @@ public class StorageProxy implements StorageProxyMBean
         return (Future<Void>) StageManager.getStage(Stage.MUTATION).submit(runnable);
     }
 
-    public static void writeHintForMutation(RowMutation mutation, int ttl, InetAddress target)
+    public static void writeHintForMutation(Mutation mutation, int ttl, InetAddress target)
     {
         assert ttl > 0;
         UUID hostId = StorageService.instance.getTokenMetadata().getHostId(target);
@@ -979,7 +974,7 @@ public class StorageProxy implements StorageProxyMBean
                 out.writeInt(id);
                 logger.trace("Adding FWD message to {}@{}", id, destination);
             }
-            message = message.withParameter(RowMutation.FORWARD_TO, out.getData());
+            message = message.withParameter(Mutation.FORWARD_TO, out.getData());
             // send the combined message + forward headers
             int id = MessagingService.instance().sendRR(message, target, handler);
             logger.trace("Sending message to {}@{}", id, target);
@@ -991,21 +986,20 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static void insertLocal(final RowMutation rm, final AbstractWriteResponseHandler responseHandler)
+    private static void insertLocal(final Mutation mutation, final AbstractWriteResponseHandler responseHandler)
     {
-        Runnable runnable = new DroppableRunnable(MessagingService.Verb.MUTATION)
+        StageManager.getStage(Stage.MUTATION).execute(new LocalMutationRunnable()
         {
             public void runMayThrow()
             {
-                IMutation processed = SinkManager.processWriteRequest(rm);
+                IMutation processed = SinkManager.processWriteRequest(mutation);
                 if (processed != null)
                 {
                     processed.apply();
                     responseHandler.response(null);
                 }
             }
-        };
-        StageManager.getStage(Stage.MUTATION).execute(runnable);
+        });
     }
 
     /**
@@ -1109,7 +1103,7 @@ public class StorageProxy implements StorageProxyMBean
                                              final String localDataCenter,
                                              final ConsistencyLevel consistency_level)
     {
-        return new LocalMutationRunnable()
+        return new DroppableRunnable(MessagingService.Verb.COUNTER_MUTATION)
         {
             public void runMayThrow()
             {
@@ -1360,7 +1354,7 @@ public class StorageProxy implements StorageProxyMBean
                     {
                         Tracing.trace("Timed out on digest mismatch retries");
                         int blockFor = consistencyLevel.blockFor(Keyspace.open(command.getKeyspace()));
-                        throw new ReadTimeoutException(consistencyLevel, blockFor, blockFor, true);
+                        throw new ReadTimeoutException(consistencyLevel, blockFor-1, blockFor, true);
                     }
 
                     // retry any potential short reads
@@ -1478,7 +1472,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         else
         {
-            if (cfs.metadata.isDense())
+            if (cfs.metadata.comparator.isDense())
             {
                 // one storage row per result row, so use key estimate directly
                 resultRowsPerRange = cfs.estimateKeys();
@@ -1667,7 +1661,7 @@ public class StorageProxy implements StorageProxyMBean
                         Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
                     else
                         logger.debug("Range slice timeout while read-repairing after receiving all {} data and digest responses", blockFor);
-                    throw new ReadTimeoutException(consistency_level, blockFor, blockFor, true);
+                    throw new ReadTimeoutException(consistency_level, blockFor-1, blockFor, true);
                 }
 
                 if (haveSufficientRows)
@@ -2052,11 +2046,11 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static abstract class LocalMutationRunnable implements Runnable
     {
-        private final long constructionTime = System.nanoTime();
+        private final long constructionTime = System.currentTimeMillis();
 
         public final void run()
         {
-            if (TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTime) > DatabaseDescriptor.getTimeout(MessagingService.Verb.MUTATION))
+            if (System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getTimeout(MessagingService.Verb.MUTATION))
             {
                 MessagingService.instance().incrementDroppedMessages(MessagingService.Verb.MUTATION);
                 HintRunnable runnable = new HintRunnable(FBUtilities.getBroadcastAddress())

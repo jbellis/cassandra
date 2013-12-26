@@ -1,7 +1,6 @@
 package org.apache.cassandra.stress.settings;
 
 import java.io.PrintStream;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -36,7 +35,7 @@ public abstract class GroupedOptions
 
     // hands the parameters to each of the option groups, and returns the first provided
     // option group that is happy() after this is done, that also accepted all the parameters
-    public static GroupedOptions select(String[] params, GroupedOptions... groupings)
+    public static <G extends GroupedOptions> G select(String[] params, G... groupings)
     {
         for (String param : params)
         {
@@ -46,7 +45,7 @@ public abstract class GroupedOptions
             if (!accepted)
                 throw new IllegalArgumentException("Invalid parameter " + param);
         }
-        for (GroupedOptions grouping : groupings)
+        for (G grouping : groupings)
             if (grouping.happy() && grouping.accepted == params.length)
                 return grouping;
         return null;

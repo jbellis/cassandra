@@ -1,11 +1,11 @@
 package org.apache.cassandra.stress.settings;
 
-import com.datastax.driver.core.ProtocolOptions;
-
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+import com.datastax.driver.core.ProtocolOptions;
 
 public class SettingsMode implements Serializable
 {

@@ -30,13 +30,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
@@ -53,16 +48,16 @@ public class SSTableMetadataTest extends SchemaLoader
         for(int i = 0; i < 10; i++)
         {
             DecoratedKey key = Util.dk(Integer.toString(i));
-            RowMutation rm = new RowMutation("Keyspace1", key.key);
+            Mutation rm = new Mutation("Keyspace1", key.key);
             for (int j = 0; j < 10; j++)
-                rm.add("Standard1", ByteBufferUtil.bytes(Integer.toString(j)),
+                rm.add("Standard1", Util.cellname(Integer.toString(j)),
                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                        timestamp,
                        10 + j);
             rm.apply();
         }
-        RowMutation rm = new RowMutation("Keyspace1", Util.dk("longttl").key);
-        rm.add("Standard1", ByteBufferUtil.bytes("col"),
+        Mutation rm = new Mutation("Keyspace1", Util.dk("longttl").key);
+        rm.add("Standard1", Util.cellname("col"),
                ByteBufferUtil.EMPTY_BYTE_BUFFER,
                timestamp,
                10000);
@@ -77,8 +72,8 @@ public class SSTableMetadataTest extends SchemaLoader
             assertEquals(ttltimestamp + 10000, firstDelTime, 10);
 
         }
-        rm = new RowMutation("Keyspace1", Util.dk("longttl2").key);
-        rm.add("Standard1", ByteBufferUtil.bytes("col"),
+        rm = new Mutation("Keyspace1", Util.dk("longttl2").key);
+        rm.add("Standard1", Util.cellname("col"),
                ByteBufferUtil.EMPTY_BYTE_BUFFER,
                timestamp,
                20000);
@@ -124,13 +119,13 @@ public class SSTableMetadataTest extends SchemaLoader
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
         long timestamp = System.currentTimeMillis();
         DecoratedKey key = Util.dk("deletetest");
-        RowMutation rm = new RowMutation("Keyspace1", key.key);
+        Mutation rm = new Mutation("Keyspace1", key.key);
         for (int i = 0; i<5; i++)
-            rm.add("Standard2", ByteBufferUtil.bytes("deletecolumn"+i),
+            rm.add("Standard2", Util.cellname("deletecolumn"+i),
                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                        timestamp,
                        100);
-        rm.add("Standard2", ByteBufferUtil.bytes("todelete"),
+        rm.add("Standard2", Util.cellname("todelete"),
                    ByteBufferUtil.EMPTY_BYTE_BUFFER,
                    timestamp,
                    1000);
@@ -144,8 +139,8 @@ public class SSTableMetadataTest extends SchemaLoader
             firstMaxDelTime = sstable.getSSTableMetadata().maxLocalDeletionTime;
             assertEquals(ttltimestamp + 1000, firstMaxDelTime, 10);
         }
-        rm = new RowMutation("Keyspace1", key.key);
-        rm.delete("Standard2", ByteBufferUtil.bytes("todelete"), timestamp + 1);
+        rm = new Mutation("Keyspace1", key.key);
+        rm.delete("Standard2", Util.cellname("todelete"), timestamp + 1);
         rm.apply();
         store.forceBlockingFlush();
         assertEquals(2,store.getSSTables().size());
@@ -176,12 +171,10 @@ public class SSTableMetadataTest extends SchemaLoader
         for (int j = 0; j < 8; j++)
         {
             DecoratedKey key = Util.dk("row"+j);
-            RowMutation rm = new RowMutation("Keyspace1", key.key);
+            Mutation rm = new Mutation("Keyspace1", key.key);
             for (int i = 100; i<150; i++)
             {
-                rm.add("Standard3", ByteBufferUtil.bytes(j+"col"+i),
-                   ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                   System.currentTimeMillis());
+                rm.add("Standard3", Util.cellname(j+"col"+i), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis());
             }
             rm.apply();
         }
@@ -193,12 +186,10 @@ public class SSTableMetadataTest extends SchemaLoader
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxColumnNames.get(0)), "7col149");
         }
         DecoratedKey key = Util.dk("row2");
-        RowMutation rm = new RowMutation("Keyspace1", key.key);
+        Mutation rm = new Mutation("Keyspace1", key.key);
         for (int i = 101; i<299; i++)
         {
-            rm.add("Standard3", ByteBufferUtil.bytes(9+"col"+i),
-               ByteBufferUtil.EMPTY_BYTE_BUFFER,
-               System.currentTimeMillis());
+            rm.add("Standard3", Util.cellname(9+"col"+i), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis());
         }
         rm.apply();
 
@@ -229,13 +220,13 @@ public class SSTableMetadataTest extends SchemaLoader
 
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("StandardComposite2");
 
-        CompositeType ct = CompositeType.getInstance(BytesType.instance, IntegerType.instance);
+        CellNameType type = cfs.getComparator();
 
         ByteBuffer key = ByteBufferUtil.bytes("k");
         for (int i = 0; i < 10; i++)
         {
-            RowMutation rm = new RowMutation("Keyspace1", key);
-            ByteBuffer colName = ct.builder().add(ByteBufferUtil.bytes("a"+(9-i))).add(ByteBufferUtil.bytes(i)).build();
+            Mutation rm = new Mutation("Keyspace1", key);
+            CellName colName = type.makeCellName(ByteBufferUtil.bytes("a"+(9-i)), ByteBufferUtil.bytes(i));
             rm.add("StandardComposite2", colName, ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
             rm.apply();
         }
@@ -244,8 +235,8 @@ public class SSTableMetadataTest extends SchemaLoader
         key = ByteBufferUtil.bytes("k2");
         for (int i = 0; i < 10; i++)
         {
-            RowMutation rm = new RowMutation("Keyspace1", key);
-            ByteBuffer colName = ct.builder().add(ByteBufferUtil.bytes("b"+(9-i))).add(ByteBufferUtil.bytes(i)).build();
+            Mutation rm = new Mutation("Keyspace1", key);
+            CellName colName = type.makeCellName(ByteBufferUtil.bytes("b"+(9-i)), ByteBufferUtil.bytes(i));
             rm.add("StandardComposite2", colName, ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
             rm.apply();
         }

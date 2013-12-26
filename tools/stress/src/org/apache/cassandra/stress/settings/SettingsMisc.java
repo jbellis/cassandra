@@ -1,12 +1,12 @@
 package org.apache.cassandra.stress.settings;
 
-import org.apache.cassandra.stress.generatedata.Distribution;
-
 import java.io.PrintStream;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.cassandra.stress.generatedata.Distribution;
 
 public class SettingsMisc implements Serializable
 {
@@ -166,20 +166,6 @@ public class SettingsMisc implements Serializable
         };
     }
 
-    public static Runnable portHelpPrinter()
-    {
-        return new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                System.out.println("Usage: -port <port>");
-                System.out.println();
-                System.out.println("Specify the port of the cassandra server to connect to (default is 9160)");
-            }
-        };
-    }
-
     public static Runnable sendToDaemonHelpPrinter()
     {
         return new Runnable()
@@ -192,21 +178,6 @@ public class SettingsMisc implements Serializable
                 System.out.println("Specify a host running the stress server to send this stress command to");
             }
         };
-    }
-
-    public static int getPort(Map<String, String[]> clArgs)
-    {
-        String[] params = clArgs.remove("-port");
-        if (params == null)
-            return 9160;
-        if (params.length != 1)
-        {
-            portHelpPrinter().run();
-            System.out.println("Invalid -port specifier: " + Arrays.toString(params));
-            System.exit(1);
-        }
-        return Integer.parseInt(params[0]);
-
     }
 
     public static String getSendToDaemon(Map<String, String[]> clArgs)

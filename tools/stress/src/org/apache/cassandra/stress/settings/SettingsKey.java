@@ -1,14 +1,14 @@
 package org.apache.cassandra.stress.settings;
 
-import org.apache.cassandra.stress.generatedata.DataGenHexFromDistribution;
-import org.apache.cassandra.stress.generatedata.DataGenHexFromOpIndex;
-import org.apache.cassandra.stress.generatedata.DistributionFactory;
-import org.apache.cassandra.stress.generatedata.KeyGen;
-
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.cassandra.stress.generatedata.DataGenHexFromDistribution;
+import org.apache.cassandra.stress.generatedata.DataGenHexFromOpIndex;
+import org.apache.cassandra.stress.generatedata.DistributionFactory;
+import org.apache.cassandra.stress.generatedata.KeyGen;
 
 // Settings for key generation
 public class SettingsKey implements Serializable

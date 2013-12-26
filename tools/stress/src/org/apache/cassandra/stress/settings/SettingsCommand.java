@@ -1,11 +1,11 @@
 package org.apache.cassandra.stress.settings;
 
-import org.apache.cassandra.thrift.ConsistencyLevel;
-
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.cassandra.thrift.ConsistencyLevel;
 
 // Generic command settings - common to read/write/etc
 public class SettingsCommand implements Serializable

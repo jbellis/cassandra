@@ -1,8 +1,6 @@
 package org.apache.cassandra.stress.settings;
 
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public enum Command

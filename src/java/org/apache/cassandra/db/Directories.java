@@ -17,16 +17,25 @@
  */
 package org.apache.cassandra.db;
 
+import static com.google.common.collect.Sets.newHashSet;
+
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOError;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSet.Builder;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -35,7 +44,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
@@ -78,6 +86,80 @@ public class Directories
         dataFileLocations = new DataDirectory[locations.length];
         for (int i = 0; i < locations.length; ++i)
             dataFileLocations[i] = new DataDirectory(new File(locations[i]));
+    }
+
+
+    /**
+     * Checks whether Cassandra has RWX permissions to the specified directory.  Logs an error with
+     * the details if it does not.
+     *
+     * @param dir File object of the directory.
+     * @param dataDir String representation of the directory's location
+     * @return status representing Cassandra's RWX permissions to the supplied folder location.
+     */
+    public static boolean verifyFullPermissions(File dir, String dataDir)
+    {
+        if (!dir.isDirectory())
+        {
+            logger.error("Not a directory {}", dataDir);
+            return false;
+        }
+        else if (!FileAction.hasPrivilege(dir, FileAction.X))
+        {
+            logger.error("Doesn't have execute permissions for {} directory", dataDir);
+            return false;
+        }
+        else if (!FileAction.hasPrivilege(dir, FileAction.R))
+        {
+            logger.error("Doesn't have read permissions for {} directory", dataDir);
+            return false;
+        }
+        else if (dir.exists() && !FileAction.hasPrivilege(dir, FileAction.W))
+        {
+            logger.error("Doesn't have write permissions for {} directory", dataDir);
+            return false;
+        }
+
+        return true;
+    }
+
+    public enum FileAction
+    {
+        X, W, XW, R, XR, RW, XRW;
+
+        private FileAction()
+        {
+        }
+
+        public static boolean hasPrivilege(File file, FileAction action)
+        {
+            boolean privilege = false;
+
+            switch (action) {
+                case X:
+                    privilege = file.canExecute();
+                    break;
+                case W:
+                    privilege = file.canWrite();
+                    break;
+                case XW:
+                    privilege = file.canExecute() && file.canWrite();
+                    break;
+                case R:
+                    privilege = file.canRead();
+                    break;
+                case XR:
+                    privilege = file.canExecute() && file.canRead();
+                    break;
+                case RW:
+                    privilege = file.canRead() && file.canWrite();
+                    break;
+                case XRW:
+                    privilege = file.canExecute() && file.canRead() && file.canWrite();
+                    break;
+            }
+            return privilege;
+        }
     }
 
     private final String keyspacename;
@@ -332,7 +414,7 @@ public class Directories
         private FileFilter getFilter()
         {
             // Note: the prefix needs to include cfname + separator to distinguish between a cfs and it's secondary indexes
-            final String sstablePrefix = keyspacename + Component.separator + cfname + Component.separator;
+            final String sstablePrefix = getSSTablePrefix();
             return new FileFilter()
             {
                 // This function always return false since accepts adds to the components map
@@ -374,11 +456,11 @@ public class Directories
         return false;
     }
 
-    public void clearSnapshot(String snapshotName)
+    public static void clearSnapshot(String snapshotName, List<File> snapshotDirectories)
     {
         // If snapshotName is empty or null, we will delete the entire snapshot directory
         String tag = snapshotName == null ? "" : snapshotName;
-        for (File dir : sstableDirectories)
+        for (File dir : snapshotDirectories)
         {
             File snapshotDir = new File(dir, join(SNAPSHOT_SUBDIR, tag));
             if (snapshotDir.exists())
@@ -401,6 +483,67 @@ public class Directories
         }
         throw new RuntimeException("Snapshot " + snapshotName + " doesn't exist");
     }
+    
+    public long trueSnapshotsSize()
+    {
+        long result = 0L;
+        for (File dir : sstableDirectories)
+            result += getTrueAllocatedSizeIn(new File(dir, join(SNAPSHOT_SUBDIR)));
+        return result;
+    }
+
+    private String getSSTablePrefix()
+    {
+        return keyspacename + Component.separator + cfname + Component.separator;
+    }
+
+    public long getTrueAllocatedSizeIn(File input)
+    {
+        if (!input.isDirectory())
+            return 0;
+        
+        TrueFilesSizeVisitor visitor = new TrueFilesSizeVisitor();
+        try
+        {
+            Files.walkFileTree(input.toPath(), visitor);
+        }
+        catch (IOException e)
+        {
+            logger.error("Could not calculate the size of {}. {}", input, e);
+        }
+    
+        return visitor.getAllocatedSize();
+    }
+
+    // Recursively finds all the sub directories in the KS directory.
+    public static List<File> getKSChildDirectories(String ksName)
+    {
+        List<File> result = new ArrayList<File>();
+        for (DataDirectory dataDirectory : dataFileLocations)
+        {
+            File ksDir = new File(dataDirectory.location, ksName);
+            File[] cfDirs = ksDir.listFiles();
+            if (cfDirs == null)
+                continue;
+            for (File cfDir : cfDirs)
+            {
+                if (cfDir.isDirectory())
+                    result.add(cfDir);
+            }
+        }
+        return result;
+    }
+
+    public List<File> getCFDirectories()
+    {
+        List<File> result = new ArrayList<File>();
+        for (File dataDirectory : sstableDirectories)
+        {
+            if (dataDirectory.isDirectory())
+                result.add(dataDirectory);
+        }
+        return result;
+    }
 
     private static File getOrCreate(File base, String... subdirs)
     {
@@ -410,7 +553,7 @@ public class Directories
             if (!dir.isDirectory())
                 throw new AssertionError(String.format("Invalid directory path %s: path exists but is not a directory", dir));
         }
-        else if (!dir.mkdirs())
+        else if (!dir.mkdirs() && !(dir.exists() && dir.isDirectory()))
         {
             throw new FSWriteError(new IOException("Unable to create directory " + dir), dir);
         }
@@ -435,5 +578,52 @@ public class Directories
         String[] locations = DatabaseDescriptor.getAllDataFileLocations();
         for (int i = 0; i < locations.length; ++i)
             dataFileLocations[i] = new DataDirectory(new File(locations[i]));
+    }
+    
+    private class TrueFilesSizeVisitor extends SimpleFileVisitor<Path>
+    {
+        private final AtomicLong size = new AtomicLong(0);
+        private final Set<String> visited = newHashSet(); //count each file only once
+        private final Set<String> alive;
+        private final String prefix = getSSTablePrefix();
+
+        public TrueFilesSizeVisitor()
+        {
+            super();
+            Builder<String> builder = ImmutableSet.builder();
+            for (File file: sstableLister().listFiles())
+                builder.add(file.getName());
+            alive = builder.build();
+        }
+
+        private boolean isAcceptable(Path file)
+        {
+            String fileName = file.toFile().getName(); 
+            return fileName.startsWith(prefix)
+                    && !visited.contains(fileName)
+                    && !alive.contains(fileName);
+        }
+
+        @Override
+        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
+        {
+            if (isAcceptable(file))
+            {
+                size.addAndGet(attrs.size());
+                visited.add(file.toFile().getName());
+            }
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException 
+        {
+            return FileVisitResult.CONTINUE;
+        }
+        
+        public long getAllocatedSize()
+        {
+            return size.get();
+        }
     }
 }

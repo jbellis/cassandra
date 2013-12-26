@@ -17,15 +17,17 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import org.apache.cassandra.stress.Operation;
-import org.apache.cassandra.stress.settings.SettingsCommandMulti;
-import org.apache.cassandra.stress.util.ThriftClient;
-import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+
+import org.apache.cassandra.stress.Operation;
+import org.apache.cassandra.stress.settings.SettingsCommandMulti;
+import org.apache.cassandra.stress.util.ThriftClient;
+import org.apache.cassandra.thrift.ColumnParent;
+import org.apache.cassandra.thrift.SlicePredicate;
+import org.apache.cassandra.thrift.SliceRange;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 
 public final class ThriftMultiGetter extends Operation

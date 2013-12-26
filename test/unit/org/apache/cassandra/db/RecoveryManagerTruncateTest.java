@@ -28,7 +28,6 @@ import java.util.concurrent.ExecutionException;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.filter.QueryFilter;
 import org.junit.Test;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -43,13 +42,13 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 		Keyspace keyspace = Keyspace.open("Keyspace1");
 		ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
 
-		RowMutation rm;
+		Mutation rm;
 		ColumnFamily cf;
 
 		// add a single cell
         cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
 		cf.addColumn(column("col1", "val1", 1L));
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("keymulti"), cf);
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("keymulti"), cf);
 		rm.apply();
 
 		// Make sure data was written
@@ -64,7 +63,7 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 		assertNull(getFromTable(keyspace, "Standard1", "keymulti", "col1"));
 	}
 
-	private Column getFromTable(Keyspace keyspace, String cfName, String keyName, String columnName)
+	private Cell getFromTable(Keyspace keyspace, String cfName, String keyName, String columnName)
 	{
 		ColumnFamily cf;
 		ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore(cfName);
@@ -72,14 +71,11 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 		{
 			return null;
 		}
-		cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk(keyName),
-                                                                cfName,
-                                                                ByteBufferUtil.bytes(columnName),
-                                                                System.currentTimeMillis()));
+		cf = cfStore.getColumnFamily(Util.namesQueryFilter(cfStore, Util.dk(keyName), columnName));
 		if (cf == null)
 		{
 			return null;
 		}
-		return cf.getColumn(ByteBufferUtil.bytes(columnName));
+		return cf.getColumn(Util.cellname(columnName));
 	}
 }

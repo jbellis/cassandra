@@ -120,12 +120,18 @@ options {
 
             if (!(entry.left instanceof Constants.Literal))
             {
-                addRecognitionError("Invalid property name: " + entry.left);
+                String msg = "Invalid property name: " + entry.left;
+                if (entry.left instanceof AbstractMarker.Raw)
+                    msg += " (bind variables are not supported in DDL queries)";
+                addRecognitionError(msg);
                 break;
             }
             if (!(entry.right instanceof Constants.Literal))
             {
-                addRecognitionError("Invalid property value: " + entry.right);
+                String msg = "Invalid property value: " + entry.right + " for property: " + entry.left;
+                if (entry.right instanceof AbstractMarker.Raw)
+                    msg += " (bind variables are not supported in DDL queries)";
+                addRecognitionError(msg);
                 break;
             }
 
@@ -947,6 +953,8 @@ relation[List<Relation> clauses]
         { $clauses.add(new Relation(name, Relation.Type.IN, marker)); }
     | name=cident K_IN { Relation rel = Relation.createInRelation($name.id); }
        '(' ( f1=term { rel.addInValue(f1); } (',' fN=term { rel.addInValue(fN); } )* )? ')' { $clauses.add(rel); }
+    | name=cident K_CONTAINS { Relation.Type rt = Relation.Type.CONTAINS; } /* (K_KEY { rt = Relation.Type.CONTAINS_KEY })? */
+        t=term { $clauses.add(new Relation(name, rt, t)); }
     | '(' relation[$clauses] ')'
     ;
 
@@ -1045,6 +1053,7 @@ basic_unreserved_keyword returns [String str]
         | K_CUSTOM
         | K_TRIGGER
         | K_DISTINCT
+        | K_CONTAINS
         ) { $str = $k.text; }
     ;
 
@@ -1101,6 +1110,7 @@ K_DESC:        D E S C;
 K_ALLOW:       A L L O W;
 K_FILTERING:   F I L T E R I N G;
 K_IF:          I F;
+K_CONTAINS:    C O N T A I N S;
 
 K_GRANT:       G R A N T;
 K_ALL:         A L L;

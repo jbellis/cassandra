@@ -1,4 +1,5 @@
 2.1
+ * Multithreaded commitlog (CASSANDRA-3578)
  * allocate fixed index summary memory pool and resample cold index summaries 
    to use less memory (CASSANDRA-5519)
  * Removed multithreaded compaction (CASSANDRA-6142)
@@ -11,15 +12,58 @@
  * Remove CFDefinition (CASSANDRA-6253)
  * Use AtomicIntegerFieldUpdater in RefCountedMemory (CASSANDRA-6278)
  * User-defined types for CQL3 (CASSANDRA-5590)
- * Use of o.a.c.metrics in nodetool (CASSANDRA-5871)
+ * Use of o.a.c.metrics in nodetool (CASSANDRA-5871, 6406)
  * Batch read from OTC's queue and cleanup (CASSANDRA-1632)
+ * Secondary index support for collections (CASSANDRA-4511)
+ * SSTable metadata(Stats.db) format change (CASSANDRA-6356)
+ * Push composites support in the storage engine (CASSANDRA-5417)
+ * Add snapshot space used to cfstats (CASSANDRA-6231)
+ * Add cardinality estimator for key count estimation (CASSANDRA-5906)
 
 
 2.0.4
+ * Allow removing snapshots of no-longer-existing CFs (CASSANDRA-6418)
+ * add StorageService.stopDaemon() (CASSANDRA-4268)
+ * add IRE for invalid CF supplied to get_count (CASSANDRA-5701)
+ * add client encryption support to sstableloader (CASSANDRA-6378)
+ * Fix accept() loop for SSL sockets post-shutdown (CASSANDRA-6468)
+ * Fix size-tiered compaction in LCS L0 (CASSANDRA-6496)
+ * Fix assertion failure in filterColdSSTables (CASSANDRA-6483)
+ * Fix row tombstones in larger-than-memory compactions (CASSANDRA-6008)
+ * Fix cleanup ClassCastException (CASSANDRA-6462)
+ * Reduce gossip memory use by interning VersionedValue strings (CASSANDRA-6410)
+ * Allow specifying datacenters to participate in a repair (CASSANDRA-6218)
+ * Fix divide-by-zero in PCI (CASSANDRA-6403)
  * Fix setting last compacted key in the wrong level for LCS (CASSANDRA-6284)
- * Add sub-ms precision formats to the timestamp parser (CASSANDRA-6395)
+ * Add millisecond precision formats to the timestamp parser (CASSANDRA-6395)
+ * Expose a total memtable size metric for a CF (CASSANDRA-6391)
+ * cqlsh: handle symlinks properly (CASSANDRA-6425)
+ * Fix potential infinite loop when paging query with IN (CASSANDRA-6464)
+ * Fix assertion error in AbstractQueryPager.discardFirst (CASSANDRA-6447)
+ * Fix streaming older SSTable yields unnecessary tombstones (CASSANDRA-6527)
 Merged from 1.2:
+ * Improved error message on bad properties in DDL queries (CASSANDRA-6453)
+ * Randomize batchlog candidates selection (CASSANDRA-6481)
+ * Fix thundering herd on endpoint cache invalidation (CASSANDRA-6345, 6485)
+ * Improve batchlog write performance with vnodes (CASSANDRA-6488)
  * cqlsh: quote single quotes in strings inside collections (CASSANDRA-6172)
+ * Improve gossip performance for typical messages (CASSANDRA-6409)
+ * Throw IRE if a prepared statement has more markers than supported 
+   (CASSANDRA-5598)
+ * Expose Thread metrics for the native protocol server (CASSANDRA-6234)
+ * Change snapshot response message verb to INTERNAL to avoid dropping it 
+   (CASSANDRA-6415)
+ * Warn when collection read has > 65K elements (CASSANDRA-5428)
+ * Fix cache persistence when both row and key cache are enabled 
+   (CASSANDRA-6413)
+ * (Hadoop) add describe_local_ring (CASSANDRA-6268)
+ * Fix handling of concurrent directory creation failure (CASSANDRA-6459)
+ * Allow executing CREATE statements multiple times (CASSANDRA-6471)
+ * Don't send confusing info with timeouts (CASSANDRA-6491)
+ * Don't resubmit counter mutation runnables internally (CASSANDRA-6427)
+ * Don't drop local mutations without a trace (CASSANDRA-6510)
+ * Don't allow null max_hint_window_in_ms (CASSANDRA-6419)
+ * Validate SliceRange start and finish lengths (CASSANDRA-6521)
 
 
 2.0.3
@@ -57,7 +101,8 @@ Merged from 1.2:
 Merged from 1.2:
  * Optimize FD phi calculation (CASSANDRA-6386)
  * Improve initial FD phi estimate when starting up (CASSANDRA-6385)
- * Don't list CQL3 table in CLI describe even if named explicitely (CASSANDRA-5750)
+ * Don't list CQL3 table in CLI describe even if named explicitely 
+   (CASSANDRA-5750)
  * Invalidate row cache when dropping CF (CASSANDRA-6351)
  * add non-jamm path for cached statements (CASSANDRA-6293)
  * (Hadoop) Require CFRR batchSize to be at least 2 (CASSANDRA-6114)
@@ -345,6 +390,7 @@ Merged from 1.2:
 
 
 2.0.0-beta1
+ * Add support for indexing clustered columns (CASSANDRA-5125)
  * Removed on-heap row cache (CASSANDRA-5348)
  * use nanotime consistently for node-local timeouts (CASSANDRA-5581)
  * Avoid unnecessary second pass on name-based queries (CASSANDRA-5577)

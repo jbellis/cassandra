@@ -17,16 +17,16 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import org.apache.cassandra.stress.Operation;
-import org.apache.cassandra.stress.util.ThriftClient;
-import org.apache.cassandra.thrift.*;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.cassandra.stress.Operation;
+import org.apache.cassandra.stress.util.ThriftClient;
+import org.apache.cassandra.thrift.*;
 
 public class ThriftCounterAdder extends Operation
 {

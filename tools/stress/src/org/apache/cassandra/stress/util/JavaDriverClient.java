@@ -17,24 +17,22 @@
  */
 package org.apache.cassandra.stress.util;
 
+import java.nio.ByteBuffer;
+import java.util.List;
+import javax.net.ssl.SSLContext;
+
 import com.datastax.driver.core.*;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.utils.FBUtilities;
 import org.jboss.netty.logging.InternalLoggerFactory;
 import org.jboss.netty.logging.Slf4JLoggerFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import javax.net.ssl.SSLContext;
-import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
+public class JavaDriverClient
+{
 
-public class JavaDriverClient {
-
-    static {
+    static
+    {
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
     }
 
@@ -44,28 +42,30 @@ public class JavaDriverClient {
     private Cluster cluster;
     private Session session;
 
-    public JavaDriverClient(String host, int port) {
+    public JavaDriverClient(String host, int port)
+    {
         this(host, port, new EncryptionOptions.ClientEncryptionOptions());
     }
 
-    public JavaDriverClient(String host, int port, EncryptionOptions.ClientEncryptionOptions encryptionOptions) {
+    public JavaDriverClient(String host, int port, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
+    {
         this.host = host;
         this.port = port;
         this.encryptionOptions = encryptionOptions;
     }
 
-    public PreparedStatement prepare(String query) {
-        PreparedStatement statement = getSession().prepare(
-                query);
-
-        return statement;
+    public PreparedStatement prepare(String query)
+    {
+        return getSession().prepare(query);
     }
 
-    public void connect(ProtocolOptions.Compression compression) throws Exception {
+    public void connect(ProtocolOptions.Compression compression) throws Exception
+    {
         Cluster.Builder clusterBuilder = Cluster.builder()
                 .addContactPoint(host).withPort(port);
         clusterBuilder.withCompression(compression);
-        if (encryptionOptions.enabled) {
+        if (encryptionOptions.enabled)
+        {
             SSLContext sslContext;
             sslContext = SSLFactory.createSSLContext(encryptionOptions, true);
             SSLOptions sslOptions = new SSLOptions(sslContext, encryptionOptions.cipher_suites);
@@ -75,7 +75,8 @@ public class JavaDriverClient {
         Metadata metadata = cluster.getMetadata();
         System.out.printf("Connected to cluster: %s\n",
                 metadata.getClusterName());
-        for (Host host : metadata.getAllHosts()) {
+        for (Host host : metadata.getAllHosts())
+        {
             System.out.printf("Datatacenter: %s; Host: %s; Rack: %s\n",
                     host.getDatacenter(), host.getAddress(), host.getRack());
         }
@@ -83,21 +84,25 @@ public class JavaDriverClient {
         session = cluster.connect();
     }
 
-    public Cluster getCluster() {
+    public Cluster getCluster()
+    {
         return cluster;
     }
 
-    public Session getSession() {
+    public Session getSession()
+    {
         return session;
     }
 
-    public ResultSet execute(String query, org.apache.cassandra.db.ConsistencyLevel consistency) {
+    public ResultSet execute(String query, org.apache.cassandra.db.ConsistencyLevel consistency)
+    {
         SimpleStatement stmt = new SimpleStatement(query);
         stmt.setConsistencyLevel(from(consistency));
         return getSession().execute(stmt);
     }
 
-    public ResultSet executePrepared(PreparedStatement stmt, List<ByteBuffer> queryParams, org.apache.cassandra.db.ConsistencyLevel consistency) {
+    public ResultSet executePrepared(PreparedStatement stmt, List<ByteBuffer> queryParams, org.apache.cassandra.db.ConsistencyLevel consistency)
+    {
 
         stmt.setConsistencyLevel(from(consistency));
         BoundStatement bstmt = stmt.bind(queryParams.toArray(new ByteBuffer[queryParams.size()]));
@@ -111,8 +116,10 @@ public class JavaDriverClient {
      * @param cl
      * @return
      */
-    ConsistencyLevel from(org.apache.cassandra.db.ConsistencyLevel cl) {
-        switch (cl) {
+    ConsistencyLevel from(org.apache.cassandra.db.ConsistencyLevel cl)
+    {
+        switch (cl)
+        {
             case ANY:
                 return com.datastax.driver.core.ConsistencyLevel.ANY;
             case ONE:
@@ -135,17 +142,7 @@ public class JavaDriverClient {
 
     public void disconnect()
     {
-        try
-        {
-            cluster.shutdown().get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new IllegalStateException();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        FBUtilities.waitOnFuture(cluster.shutdown());
     }
+
 }

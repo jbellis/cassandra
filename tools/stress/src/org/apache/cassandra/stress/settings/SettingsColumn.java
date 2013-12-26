@@ -1,23 +1,14 @@
 package org.apache.cassandra.stress.settings;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.TypeParser;
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.stress.generatedata.DataGenFactory;
-import org.apache.cassandra.stress.generatedata.Distribution;
-import org.apache.cassandra.stress.generatedata.DistributionFactory;
-import org.apache.cassandra.stress.generatedata.DistributionFixed;
-import org.apache.cassandra.stress.generatedata.RowGen;
-import org.apache.cassandra.stress.generatedata.RowGenDistributedSize;
-
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.stress.generatedata.*;
 
 /**
  * For parsing column options

@@ -1,13 +1,11 @@
 package org.apache.cassandra.stress.generatedata;
 
-import org.apache.cassandra.utils.FBUtilities;
-
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.base.Charsets.UTF_8;
 
@@ -37,7 +35,7 @@ public class DataGenStringRepeats extends DataGen
     {
         for (int i = 0 ; i < fills.size() ; i++)
         {
-            fill(fills.get(0), index, i);
+            fill(fills.get(i), index, i);
         }
     }
 

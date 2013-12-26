@@ -21,12 +21,10 @@ package org.apache.cassandra.db;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 
 public class LongKeyspaceTest extends SchemaLoader
@@ -39,7 +37,7 @@ public class LongKeyspaceTest extends SchemaLoader
 
         for (int i = 1; i < 5000; i += 100)
         {
-            RowMutation rm = new RowMutation("Keyspace1", Util.dk("key" + i).key);
+            Mutation rm = new Mutation("Keyspace1", Util.dk("key" + i).key);
             ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
             for (int j = 0; j < i; j++)
                 cf.addColumn(column("c" + j, "v" + j, 1L));
@@ -56,10 +54,7 @@ public class LongKeyspaceTest extends SchemaLoader
                 {
                     for (int j = 0; j < i; j++)
                     {
-                        cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("key" + i),
-                                                                                "Standard1",
-                                                                                ByteBufferUtil.bytes("c" + j),
-                                                                                System.currentTimeMillis()));
+                        cf = cfStore.getColumnFamily(Util.namesQueryFilter(cfStore, Util.dk("key" + i), "c" + j));
                         KeyspaceTest.assertColumns(cf, "c" + j);
                     }
                 }

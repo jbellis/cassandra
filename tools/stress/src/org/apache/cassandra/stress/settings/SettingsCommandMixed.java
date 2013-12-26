@@ -1,12 +1,12 @@
 package org.apache.cassandra.stress.settings;
 
-import org.apache.cassandra.stress.generatedata.Distribution;
-import org.apache.cassandra.stress.generatedata.DistributionFactory;
-import org.apache.commons.math3.distribution.*;
-import org.apache.commons.math3.util.*;
-
 import java.util.ArrayList;
 import java.util.List;
+
+import org.apache.cassandra.stress.generatedata.Distribution;
+import org.apache.cassandra.stress.generatedata.DistributionFactory;
+import org.apache.commons.math3.distribution.EnumeratedDistribution;
+import org.apache.commons.math3.util.Pair;
 
 // Settings unique to the mixed command type
 public class SettingsCommandMixed extends SettingsCommandMulti

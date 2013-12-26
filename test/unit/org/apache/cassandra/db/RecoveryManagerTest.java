@@ -30,10 +30,10 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogArchiver;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.db.KeyspaceTest.assertColumns;
+import static org.apache.cassandra.Util.cellname;
 
 public class RecoveryManagerTest extends SchemaLoader
 {
@@ -48,18 +48,18 @@ public class RecoveryManagerTest extends SchemaLoader
         Keyspace keyspace1 = Keyspace.open("Keyspace1");
         Keyspace keyspace2 = Keyspace.open("Keyspace2");
 
-        RowMutation rm;
+        Mutation rm;
         DecoratedKey dk = Util.dk("keymulti");
         ColumnFamily cf;
 
         cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
-        rm = new RowMutation("Keyspace1", dk.key, cf);
+        rm = new Mutation("Keyspace1", dk.key, cf);
         rm.apply();
 
         cf = TreeMapBackedSortedColumns.factory.create("Keyspace2", "Standard3");
         cf.addColumn(column("col2", "val2", 1L));
-        rm = new RowMutation("Keyspace2", dk.key, cf);
+        rm = new Mutation("Keyspace2", dk.key, cf);
         rm.apply();
 
         keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
@@ -77,15 +77,15 @@ public class RecoveryManagerTest extends SchemaLoader
     {
         Keyspace keyspace1 = Keyspace.open("Keyspace1");
 
-        RowMutation rm;
+        Mutation rm;
         DecoratedKey dk = Util.dk("key");
         ColumnFamily cf;
 
         for (int i = 0; i < 10; ++i)
         {
             cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Counter1");
-            cf.addColumn(new CounterColumn(ByteBufferUtil.bytes("col"), 1L, 1L));
-            rm = new RowMutation("Keyspace1", dk.key, cf);
+            cf.addColumn(new CounterCell(cellname("col"), 1L, 1L));
+            rm = new Mutation("Keyspace1", dk.key, cf);
             rm.apply();
         }
 
@@ -97,10 +97,10 @@ public class RecoveryManagerTest extends SchemaLoader
         cf = Util.getColumnFamily(keyspace1, dk, "Counter1");
 
         assert cf.getColumnCount() == 1;
-        Column c = cf.getColumn(ByteBufferUtil.bytes("col"));
+        Cell c = cf.getColumn(cellname("col"));
 
         assert c != null;
-        assert ((CounterColumn)c).total() == 10L;
+        assert ((CounterCell)c).total() == 10L;
     }
 
     @Test
@@ -116,7 +116,7 @@ public class RecoveryManagerTest extends SchemaLoader
             long ts = TimeUnit.MILLISECONDS.toMicros(timeMS + (i * 1000));
             ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
             cf.addColumn(column("name-" + i, "value", ts));
-            RowMutation rm = new RowMutation("Keyspace1", dk.key, cf);
+            Mutation rm = new Mutation("Keyspace1", dk.key, cf);
             rm.apply();
         }
         keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();

@@ -1,19 +1,14 @@
 package org.apache.cassandra.stress.settings;
 
-import org.apache.cassandra.stress.generatedata.Distribution;
-import org.apache.cassandra.stress.generatedata.DistributionBoundApache;
-import org.apache.cassandra.stress.generatedata.DistributionFactory;
-import org.apache.cassandra.stress.generatedata.DistributionFixed;
-import org.apache.cassandra.stress.generatedata.DistributionOffsetApache;
-import org.apache.commons.math3.distribution.*;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.apache.cassandra.stress.generatedata.*;
+import org.apache.commons.math3.distribution.ExponentialDistribution;
+import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.distribution.WeibullDistribution;
 
 /**
  * For selecting a mathematical distribution

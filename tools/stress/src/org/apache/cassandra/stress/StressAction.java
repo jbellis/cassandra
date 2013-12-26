@@ -24,18 +24,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.RateLimiter;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.stress.operations.*;
-import org.apache.cassandra.stress.settings.Command;
-import org.apache.cassandra.stress.settings.SettingsCommand;
-import org.apache.cassandra.stress.settings.SettingsCommandMixed;
-import org.apache.cassandra.stress.settings.SettingsCommandMulti;
-import org.apache.cassandra.stress.settings.StressSettings;
+import org.apache.cassandra.stress.settings.*;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ThriftClient;
-import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.transport.SimpleClient;
 
 public class StressAction implements Runnable
@@ -58,7 +55,7 @@ public class StressAction implements Runnable
         warmup(settings.command.type, settings.command);
 
         output.println("Sleeping 2s...");
-        try { Thread.sleep(2000); } catch (InterruptedException e) { }
+        Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
 
         boolean success;
         if (settings.rate.auto)

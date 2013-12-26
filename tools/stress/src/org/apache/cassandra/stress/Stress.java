@@ -17,12 +17,11 @@
  */
 package org.apache.cassandra.stress;
 
-import org.apache.cassandra.stress.settings.StressSettings;
-import org.apache.commons.cli.Option;
-
 import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
+
+import org.apache.cassandra.stress.settings.StressSettings;
 
 public final class Stress
 {

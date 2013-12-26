@@ -34,6 +34,8 @@ import org.apache.cassandra.cql3.hooks.*;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -44,7 +46,7 @@ import org.apache.cassandra.utils.SemanticVersion;
 
 public class QueryProcessor
 {
-    public static final SemanticVersion CQL_VERSION = new SemanticVersion("3.1.2");
+    public static final SemanticVersion CQL_VERSION = new SemanticVersion("3.1.3");
 
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
     private static final MemoryMeter meter = new MemoryMeter();
@@ -157,21 +159,25 @@ public class QueryProcessor
         }
     }
 
-    public static void validateCellNames(Iterable<ByteBuffer> cellNames) throws InvalidRequestException
+    public static void validateCellNames(Iterable<CellName> cellNames) throws InvalidRequestException
     {
-        for (ByteBuffer name : cellNames)
+        for (CellName name : cellNames)
             validateCellName(name);
     }
 
-    public static void validateCellName(ByteBuffer name) throws InvalidRequestException
+    public static void validateCellName(CellName name) throws InvalidRequestException
     {
-        if (name.remaining() > Column.MAX_NAME_LENGTH)
-            throw new InvalidRequestException(String.format("The sum of all clustering columns is too long (%s > %s)",
-                                                            name.remaining(),
-                                                            Column.MAX_NAME_LENGTH));
-
-        if (name.remaining() == 0)
+        validateComposite(name);
+        if (name.isEmpty())
             throw new InvalidRequestException("Invalid empty value for clustering column of COMPACT TABLE");
+    }
+
+    public static void validateComposite(Composite name) throws InvalidRequestException
+    {
+        if (name.dataSize() > Cell.MAX_NAME_LENGTH)
+            throw new InvalidRequestException(String.format("The sum of all clustering columns is too long (%s > %s)",
+                                                            name.dataSize(),
+                                                            Cell.MAX_NAME_LENGTH));
     }
 
     private static ResultMessage processStatement(CQLStatement statement,
@@ -216,7 +222,7 @@ public class QueryProcessor
     throws RequestExecutionException, RequestValidationException
     {
         CQLStatement prepared = getStatement(queryString, queryState.getClientState()).statement;
-        if (prepared.getBoundsTerms() != options.getValues().size())
+        if (prepared.getBoundTerms() != options.getValues().size())
             throw new InvalidRequestException("Invalid amount of bind variables");
 
         return processStatement(prepared, queryState, options, queryString);
@@ -233,7 +239,7 @@ public class QueryProcessor
         {
             ResultMessage result = process(query, QueryState.forInternalCalls(), new QueryOptions(cl, Collections.<ByteBuffer>emptyList()));
             if (result instanceof ResultMessage.Rows)
-                return new UntypedResultSet(((ResultMessage.Rows)result).result);
+                return UntypedResultSet.create(((ResultMessage.Rows)result).result);
             else
                 return null;
         }
@@ -254,7 +260,7 @@ public class QueryProcessor
             statement.validate(state);
             ResultMessage result = statement.executeInternal(qState);
             if (result instanceof ResultMessage.Rows)
-                return new UntypedResultSet(((ResultMessage.Rows)result).result);
+                return UntypedResultSet.create(((ResultMessage.Rows)result).result);
             else
                 return null;
         }
@@ -279,7 +285,7 @@ public class QueryProcessor
         {
             SelectStatement ss = (SelectStatement) getStatement(query, null).statement;
             ResultSet cqlRows = ss.process(rows);
-            return new UntypedResultSet(cqlRows);
+            return UntypedResultSet.create(cqlRows);
         }
         catch (RequestValidationException e)
         {
@@ -291,6 +297,11 @@ public class QueryProcessor
     throws RequestValidationException
     {
         ParsedStatement.Prepared prepared = getStatement(queryString, clientState);
+        int boundTerms = prepared.statement.getBoundTerms();
+        if (boundTerms > FBUtilities.MAX_UNSIGNED_SHORT)
+            throw new InvalidRequestException(String.format("Too many markers(?). %d markers exceed the allowed maximum of %d", boundTerms, FBUtilities.MAX_UNSIGNED_SHORT));
+        assert boundTerms == prepared.boundNames.size();
+
         ResultMessage.Prepared msg = storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared, forThrift);
 
         if (!postPreparationHooks.isEmpty())
@@ -300,7 +311,6 @@ public class QueryProcessor
                 hook.processStatement(prepared.statement, context);
         }
 
-        assert prepared.statement.getBoundsTerms() == prepared.boundNames.size();
         return msg;
     }
 
@@ -323,7 +333,7 @@ public class QueryProcessor
             thriftPreparedStatements.put(statementId, prepared.statement);
             logger.trace(String.format("Stored prepared statement #%d with %d bind markers",
                                        statementId,
-                                       prepared.statement.getBoundsTerms()));
+                                       prepared.statement.getBoundTerms()));
             return ResultMessage.Prepared.forThrift(statementId, prepared.boundNames);
         }
         else
@@ -332,7 +342,7 @@ public class QueryProcessor
             preparedStatements.put(statementId, prepared.statement);
             logger.trace(String.format("Stored prepared statement %s with %d bind markers",
                                        statementId,
-                                       prepared.statement.getBoundsTerms()));
+                                       prepared.statement.getBoundTerms()));
             return new ResultMessage.Prepared(statementId, prepared);
         }
     }
@@ -342,11 +352,11 @@ public class QueryProcessor
     {
         List<ByteBuffer> variables = options.getValues();
         // Check to see if there are any bound variables to verify
-        if (!(variables.isEmpty() && (statement.getBoundsTerms() == 0)))
+        if (!(variables.isEmpty() && (statement.getBoundTerms() == 0)))
         {
-            if (variables.size() != statement.getBoundsTerms())
+            if (variables.size() != statement.getBoundTerms())
                 throw new InvalidRequestException(String.format("there were %d markers(?) in CQL but %d bound variables",
-                                                                statement.getBoundsTerms(),
+                                                                statement.getBoundTerms(),
                                                                 variables.size()));
 
             // at this point there is a match in count between markers and variables that is non-zero

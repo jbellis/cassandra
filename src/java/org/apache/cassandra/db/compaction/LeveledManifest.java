@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.io.DataOutputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.*;
 
@@ -38,8 +36,6 @@ import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 public class LeveledManifest
@@ -185,10 +181,9 @@ public class LeveledManifest
     private synchronized void sendBackToL0(SSTableReader sstable)
     {
         remove(sstable);
-        String metaDataFile = sstable.descriptor.filenameFor(Component.STATS);
         try
         {
-            mutateLevel(Pair.create(sstable.getSSTableMetadata(), sstable.getAncestors()), sstable.descriptor, metaDataFile, 0);
+            sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 0);
             sstable.reloadSSTableMetadata();
             add(sstable);
         }
@@ -228,7 +223,7 @@ public class LeveledManifest
      * @return highest-priority sstables to compact, and level to compact them to
      * If no compactions are necessary, will return null
      */
-    public synchronized Pair<? extends Collection<SSTableReader>, Integer> getCompactionCandidates()
+    public synchronized CompactionCandidate getCompactionCandidates()
     {
         // LevelDB gives each level a score of how much data it contains vs its ideal amount, and
         // compacts the level with the highest score. But this falls apart spectacularly once you
@@ -281,7 +276,10 @@ public class LeveledManifest
                                                                                                 options.minSSTableSize);
                     List<SSTableReader> mostInteresting = SizeTieredCompactionStrategy.mostInterestingBucket(buckets, 4, 32);
                     if (!mostInteresting.isEmpty())
-                        return Pair.create(mostInteresting, 0);
+                    {
+                        logger.debug("L0 is too far behind, performing size-tiering there first");
+                        return new CompactionCandidate(mostInteresting, 0, Long.MAX_VALUE);
+                    }
                 }
 
                 // L0 is fine, proceed with this level
@@ -289,7 +287,7 @@ public class LeveledManifest
                 if (logger.isDebugEnabled())
                     logger.debug("Compaction candidates for L{} are {}", i, toString(candidates));
                 if (!candidates.isEmpty())
-                    return Pair.create(candidates, getNextLevel(candidates));
+                    return new CompactionCandidate(candidates, getNextLevel(candidates), cfs.getCompactionStrategy().getMaxSSTableBytes());
             }
         }
 
@@ -299,7 +297,7 @@ public class LeveledManifest
         Collection<SSTableReader> candidates = getCandidatesFor(0);
         if (candidates.isEmpty())
             return null;
-        return Pair.create(candidates, getNextLevel(candidates));
+        return new CompactionCandidate(candidates, getNextLevel(candidates), cfs.getCompactionStrategy().getMaxSSTableBytes());
     }
 
     public synchronized int getLevelSize(int i)
@@ -572,32 +570,17 @@ public class LeveledManifest
 
     }
 
-    /**
-     * Scary method mutating existing sstable component
-     *
-     * Tries to do it safely by moving the new file on top of the old one
-     *
-     * Caller needs to reload the sstable metadata (sstableReader.reloadSSTableMetadata())
-     *
-     * @see org.apache.cassandra.io.sstable.SSTableReader#reloadSSTableMetadata()
-     *
-     * @param oldMetadata
-     * @param descriptor
-     * @param filename
-     * @param level
-     * @throws IOException
-     */
-    public static synchronized void mutateLevel(Pair<SSTableMetadata, Set<Integer>> oldMetadata, Descriptor descriptor, String filename, int level) throws IOException
+    public static class CompactionCandidate
     {
-        logger.debug("Mutating {} to level {}", descriptor.filenameFor(Component.STATS), level);
-        SSTableMetadata metadata = SSTableMetadata.copyWithNewSSTableLevel(oldMetadata.left, level);
-        DataOutputStream out = new DataOutputStream(new FileOutputStream(filename + "-tmp"));
-        SSTableMetadata.serializer.legacySerialize(metadata, oldMetadata.right, descriptor, out);
-        out.flush();
-        out.close();
-        // we cant move a file on top of another file in windows:
-        if (!FBUtilities.isUnix())
-            FileUtils.delete(filename);
-        FileUtils.renameWithConfirm(filename + "-tmp", filename);
+        public final Collection<SSTableReader> sstables;
+        public final int level;
+        public final long maxSSTableBytes;
+
+        public CompactionCandidate(Collection<SSTableReader> sstables, int level, long maxSSTableBytes)
+        {
+            this.sstables = sstables;
+            this.level = level;
+            this.maxSSTableBytes = maxSSTableBytes;
+        }
     }
 }

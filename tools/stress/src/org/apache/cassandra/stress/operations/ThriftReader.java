@@ -17,12 +17,14 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import org.apache.cassandra.stress.Operation;
-import org.apache.cassandra.stress.util.ThriftClient;
-import org.apache.cassandra.thrift.*;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
+
+import org.apache.cassandra.stress.Operation;
+import org.apache.cassandra.stress.util.ThriftClient;
+import org.apache.cassandra.thrift.ColumnParent;
+import org.apache.cassandra.thrift.SlicePredicate;
+import org.apache.cassandra.thrift.SliceRange;
 
 public final class ThriftReader extends Operation
 {

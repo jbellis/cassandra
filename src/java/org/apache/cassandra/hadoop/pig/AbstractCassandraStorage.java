@@ -26,13 +26,12 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 
+import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.AbstractCompositeType.CompositeComponent;
 import org.apache.cassandra.hadoop.*;
@@ -83,7 +82,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
 
     public final static String PARTITION_FILTER_SIGNATURE = "cassandra.partition.filter";
 
-    protected static final Logger logger = LoggerFactory.getLogger(AbstractCassandraStorage.class);
+    private static final Logger logger = LoggerFactory.getLogger(AbstractCassandraStorage.class);
 
     protected String username;
     protected String password;
@@ -118,27 +117,26 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     }
 
     /** convert a column to a tuple */
-    protected Tuple columnToTuple(Column col, CfInfo cfInfo, AbstractType comparator) throws IOException
+    protected Tuple columnToTuple(Cell col, CfInfo cfInfo, AbstractType comparator) throws IOException
     {
         CfDef cfDef = cfInfo.cfDef;
         Tuple pair = TupleFactory.getInstance().newTuple(2);
 
+        ByteBuffer colName = col.name().toByteBuffer();
+
         // name
         if(comparator instanceof AbstractCompositeType)
-            setTupleValue(pair, 0, composeComposite((AbstractCompositeType)comparator,col.name()));
+            setTupleValue(pair, 0, composeComposite((AbstractCompositeType)comparator,colName));
         else
-            setTupleValue(pair, 0, cassandraToObj(comparator, col.name()));
+            setTupleValue(pair, 0, cassandraToObj(comparator, col.name().toByteBuffer()));
 
         // value
         Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
-        ByteBuffer colName;
         if (cfInfo.cql3Table && !cfInfo.compactCqlTable)
         {
-            ByteBuffer[] names = ((AbstractCompositeType) parseType(cfDef.comparator_type)).split(col.name());
+            ByteBuffer[] names = ((AbstractCompositeType) parseType(cfDef.comparator_type)).split(colName);
             colName = names[names.length-1];
         }
-        else
-            colName = col.name();
         if (validators.get(colName) == null)
         {
             Map<MarshallerType, AbstractType> marshallers = getDefaultMarshallers(cfDef);
@@ -618,20 +616,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
             cfDef.default_validation_class = ByteBufferUtil.string(cqlRow.columns.get(3).value);
             cfDef.key_validation_class = ByteBufferUtil.string(cqlRow.columns.get(4).value);
             String keyAliases = ByteBufferUtil.string(cqlRow.columns.get(5).value);
-            List<String> keys = FBUtilities.fromJsonList(keyAliases);
-            // classis thrift tables
-            if (keys.size() == 0)
-            {
-                CFMetaData cfm = getCFMetaData(keyspace, column_family, client);
-                for (ColumnDefinition def : cfm.partitionKeyColumns())
-                {
-                    String key = def.name.toString();
-                    String type = def.type.toString();
-                    logger.debug("name: {}, type: {} ", key, type);
-                    keys.add(key);
-                }
-            }
-            else
+            if (FBUtilities.fromJsonList(keyAliases).size() > 0)
                 cql3Table = true;
         }
         cfDef.column_metadata = getColumnMetadata(client);
@@ -670,7 +655,8 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     {
         String query = "SELECT column_name, " +
                        "       validator, " +
-                       "       index_type " +
+                       "       index_type, " +
+                       "       type " +
                        "FROM system.schema_columns " +
                        "WHERE keyspace_name = '%s' " +
                        "  AND columnfamily_name = '%s'";
@@ -721,6 +707,9 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         {
             CqlRow row = iterator.next();
             ColumnDef cDef = new ColumnDef();
+            String type = ByteBufferUtil.string(row.getColumns().get(3).value);
+            if (!type.equals("regular"))
+                continue;
             cDef.setName(ByteBufferUtil.clone(row.getColumns().get(0).value));
             cDef.validation_class = ByteBufferUtil.string(row.getColumns().get(1).value);
             ByteBuffer indexType = row.getColumns().get(2).value;

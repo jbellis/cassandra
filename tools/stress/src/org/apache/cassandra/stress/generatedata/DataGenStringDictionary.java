@@ -1,20 +1,17 @@
 package org.apache.cassandra.stress.generatedata;
 
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.commons.math3.distribution.*;
-import org.apache.commons.math3.util.*;
-
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.google.common.base.Charsets.*;
+import org.apache.commons.math3.distribution.EnumeratedDistribution;
+import org.apache.commons.math3.util.Pair;
+
+import static com.google.common.base.Charsets.UTF_8;
 
 public class DataGenStringDictionary extends DataGen
 {

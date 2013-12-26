@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service.pager;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -26,6 +25,7 @@ import java.util.Iterator;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ColumnCounter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -40,9 +40,9 @@ abstract class AbstractQueryPager implements QueryPager
     protected final IDiskAtomFilter columnFilter;
     private final long timestamp;
 
-    private volatile int remaining;
-    private volatile boolean exhausted;
-    private volatile boolean lastWasRecorded;
+    private int remaining;
+    private boolean exhausted;
+    private boolean lastWasRecorded;
 
     protected AbstractQueryPager(ConsistencyLevel consistencyLevel,
                                  int toFetch,
@@ -175,18 +175,37 @@ abstract class AbstractQueryPager implements QueryPager
 
     private List<Row> discardFirst(List<Row> rows)
     {
-        Row first = rows.get(0);
-        ColumnFamily newCf = first.cf.cloneMeShallow();
-        int discarded = isReversed()
-                      ? discardLast(first.cf, 1, newCf)
-                      : discardFirst(first.cf, 1, newCf);
-        assert discarded == 1;
+        return discardFirst(rows, 1);
+    }
 
-        int count = newCf.getColumnCount();
-        List<Row> newRows = new ArrayList<Row>(count == 0 ? rows.size() - 1 : rows.size());
+    private List<Row> discardFirst(List<Row> rows, int toDiscard)
+    {
+        if (toDiscard == 0)
+            return rows;
+
+        int i = 0;
+        DecoratedKey firstKey = null;
+        ColumnFamily firstCf = null;
+        while (toDiscard > 0 && i < rows.size())
+        {
+            Row first = rows.get(i++);
+            firstKey = first.key;
+            firstCf = first.cf.cloneMeShallow();
+            toDiscard -= isReversed()
+                       ? discardLast(first.cf, toDiscard, firstCf)
+                       : discardFirst(first.cf, toDiscard, firstCf);
+        }
+
+        // If there is less live data than to discard, all is discarded
+        if (toDiscard > 0 && i >= rows.size())
+            return Collections.<Row>emptyList();
+
+        int count = firstCf.getColumnCount();
+        int newSize = rows.size() - i;
+        List<Row> newRows = new ArrayList<Row>(count == 0 ? newSize-1 : newSize);
         if (count != 0)
-            newRows.add(new Row(first.key, newCf));
-        newRows.addAll(rows.subList(1, rows.size()));
+            newRows.add(new Row(firstKey, firstCf));
+        newRows.addAll(rows.subList(i, rows.size()));
 
         return newRows;
     }
@@ -201,12 +220,12 @@ abstract class AbstractQueryPager implements QueryPager
         if (toDiscard == 0)
             return rows;
 
-        int size = rows.size();
+        int i = rows.size()-1;
         DecoratedKey lastKey = null;
         ColumnFamily lastCf = null;
-        while (toDiscard > 0)
+        while (toDiscard > 0 && i >= 0)
         {
-            Row last = rows.get(--size);
+            Row last = rows.get(i--);
             lastKey = last.key;
             lastCf = last.cf.cloneMeShallow();
             toDiscard -= isReversed()
@@ -214,9 +233,14 @@ abstract class AbstractQueryPager implements QueryPager
                        : discardLast(last.cf, toDiscard, lastCf);
         }
 
+        // If there is less live data than to discard, all is discarded
+        if (toDiscard > 0 && i < 0)
+            return Collections.<Row>emptyList();
+
         int count = lastCf.getColumnCount();
-        List<Row> newRows = new ArrayList<Row>(count == 0 ? size : size+1);
-        newRows.addAll(rows.subList(0, size));
+        int newSize = i+1;
+        List<Row> newRows = new ArrayList<Row>(count == 0 ? newSize-1 : newSize);
+        newRows.addAll(rows.subList(0, i));
         if (count != 0)
             newRows.add(new Row(lastKey, lastCf));
 
@@ -249,14 +273,14 @@ abstract class AbstractQueryPager implements QueryPager
              : discardTail(cf, toDiscard, newCf, cf.iterator(), tester);
     }
 
-    private int discardHead(ColumnFamily cf, int toDiscard, ColumnFamily copy, Iterator<Column> iter, DeletionInfo.InOrderTester tester)
+    private int discardHead(ColumnFamily cf, int toDiscard, ColumnFamily copy, Iterator<Cell> iter, DeletionInfo.InOrderTester tester)
     {
         ColumnCounter counter = columnCounter();
 
         // Discard the first 'toDiscard' live
         while (iter.hasNext())
         {
-            Column c = iter.next();
+            Cell c = iter.next();
             counter.count(c, tester);
             if (counter.live() > toDiscard)
             {
@@ -268,7 +292,7 @@ abstract class AbstractQueryPager implements QueryPager
         return Math.min(counter.live(), toDiscard);
     }
 
-    private int discardTail(ColumnFamily cf, int toDiscard, ColumnFamily copy, Iterator<Column> iter, DeletionInfo.InOrderTester tester)
+    private int discardTail(ColumnFamily cf, int toDiscard, ColumnFamily copy, Iterator<Cell> iter, DeletionInfo.InOrderTester tester)
     {
         // Redoing the counting like that is not extremely efficient.
         // This is called only for reversed slices or in the case of a race between
@@ -279,7 +303,7 @@ abstract class AbstractQueryPager implements QueryPager
         // Discard the last 'toDiscard' live (so stop adding as sound as we're past 'liveCount - toDiscard')
         while (iter.hasNext())
         {
-            Column c = iter.next();
+            Cell c = iter.next();
             counter.count(c, tester);
             if (counter.live() > liveCount - toDiscard)
                 break;
@@ -289,12 +313,12 @@ abstract class AbstractQueryPager implements QueryPager
         return Math.min(liveCount, toDiscard);
     }
 
-    protected static ByteBuffer firstName(ColumnFamily cf)
+    protected static CellName firstName(ColumnFamily cf)
     {
         return cf.iterator().next().name();
     }
 
-    protected static ByteBuffer lastName(ColumnFamily cf)
+    protected static CellName lastName(ColumnFamily cf)
     {
         return cf.getReverseSortedColumns().iterator().next().name();
     }

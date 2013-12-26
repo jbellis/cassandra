@@ -1,12 +1,11 @@
 package org.apache.cassandra.stress.settings;
 
-import org.apache.thrift.transport.TTransportFactory;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
-
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.thrift.transport.TTransportFactory;
 
 public class SettingsTransport implements Serializable
 {
@@ -18,7 +17,7 @@ public class SettingsTransport implements Serializable
     {
         if (options instanceof SSLOptions)
         {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
         else
         {

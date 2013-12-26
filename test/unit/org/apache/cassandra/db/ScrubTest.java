@@ -85,7 +85,7 @@ public class ScrubTest extends SchemaLoader
 
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(KEYSPACE, CF3);
         cf.delete(new DeletionInfo(0, 1)); // expired tombstone
-        RowMutation rm = new RowMutation(KEYSPACE, ByteBufferUtil.bytes(1), cf);
+        Mutation rm = new Mutation(KEYSPACE, ByteBufferUtil.bytes(1), cf);
         rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
@@ -129,7 +129,7 @@ public class ScrubTest extends SchemaLoader
          * The test also assumes an ordered partitioner.
          *
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfs.metadata);
-        cf.addColumn(new Column(ByteBufferUtil.bytes("someName"), ByteBufferUtil.bytes("someValue"), 0L));
+        cf.addColumn(new Cell(ByteBufferUtil.bytes("someName"), ByteBufferUtil.bytes("someValue"), 0L));
 
         SSTableWriter writer = new SSTableWriter(cfs.getTempSSTablePath(new File(System.getProperty("corrupt-sstable-root"))),
                                                  cfs.metadata.getIndexInterval(),
@@ -201,7 +201,7 @@ public class ScrubTest extends SchemaLoader
             ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(KEYSPACE, CF);
             cf.addColumn(column("c1", "1", 1L));
             cf.addColumn(column("c2", "2", 1L));
-            RowMutation rm = new RowMutation(KEYSPACE, ByteBufferUtil.bytes(key), cf);
+            Mutation rm = new Mutation(KEYSPACE, ByteBufferUtil.bytes(key), cf);
             rm.applyUnsafe();
         }
 

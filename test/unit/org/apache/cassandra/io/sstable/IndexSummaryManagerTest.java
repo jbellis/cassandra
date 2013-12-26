@@ -32,7 +32,6 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.metrics.RestorableMeter;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 import static org.apache.cassandra.io.sstable.Downsampling.MIN_SAMPLING_LEVEL;
@@ -78,9 +77,9 @@ public class IndexSummaryManagerTest extends SchemaLoader
             QueryFilter filter = QueryFilter.getIdentityFilter(key, cfs.getColumnFamilyName(), System.currentTimeMillis());
             ColumnFamily row = cfs.getColumnFamily(filter);
             assertNotNull(row);
-            Column column = row.getColumn(ByteBufferUtil.bytes("column"));
-            assertNotNull(column);
-            assertEquals(100, column.value().array().length);
+            Cell cell = row.getColumn(Util.cellname("cell"));
+            assertNotNull(cell);
+            assertEquals(100, cell.value().array().length);
         }
     }
 
@@ -111,8 +110,8 @@ public class IndexSummaryManagerTest extends SchemaLoader
             for (int row = 0; row < numRows; row++)
             {
                 DecoratedKey key = Util.dk(String.valueOf(row));
-                RowMutation rm = new RowMutation(ksname, key.key);
-                rm.add(cfname, ByteBufferUtil.bytes("column"), value, 0);
+                Mutation rm = new Mutation(ksname, key.key);
+                rm.add(cfname, Util.cellname("column"), value, 0);
                 rm.apply();
             }
             cfs.forceBlockingFlush();
@@ -245,16 +244,17 @@ public class IndexSummaryManagerTest extends SchemaLoader
         for (int row = 0; row < numRows; row++)
         {
             DecoratedKey key = Util.dk(String.valueOf(row));
-            RowMutation rm = new RowMutation(ksname, key.key);
-            rm.add(cfname, ByteBufferUtil.bytes("column"), value, 0);
+            Mutation rm = new Mutation(ksname, key.key);
+            rm.add(cfname, Util.cellname("column"), value, 0);
             rm.apply();
         }
         cfs.forceBlockingFlush();
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getSSTables());
         assertEquals(1, sstables.size());
-        SSTableReader sstable = sstables.get(0);
+        SSTableReader original = sstables.get(0);
 
+        SSTableReader sstable = original;
         for (int samplingLevel = MIN_SAMPLING_LEVEL; samplingLevel < BASE_SAMPLING_LEVEL; samplingLevel++)
         {
             sstable = sstable.cloneWithNewSummarySamplingLevel(samplingLevel);
@@ -262,6 +262,9 @@ public class IndexSummaryManagerTest extends SchemaLoader
             int expectedSize = (numRows * samplingLevel) / (sstable.metadata.getIndexInterval() * BASE_SAMPLING_LEVEL);
             assertEquals(expectedSize, sstable.getIndexSummarySize(), 1);
         }
+
+        // don't leave replaced SSTRs around to break other tests
+        cfs.getDataTracker().replaceReaders(Collections.singleton(original), Collections.singleton(sstable));
     }
 
     @Test
@@ -270,7 +273,6 @@ public class IndexSummaryManagerTest extends SchemaLoader
         IndexSummaryManager manager = IndexSummaryManager.instance;
 
         // resize interval
-        assertNotNull(manager.getResizeIntervalInMinutes());
         manager.setResizeIntervalInMinutes(-1);
         assertNull(manager.getTimeToNextResize(TimeUnit.MINUTES));
 
@@ -302,8 +304,8 @@ public class IndexSummaryManagerTest extends SchemaLoader
             for (int row = 0; row < numRows; row++)
             {
                 DecoratedKey key = Util.dk(String.valueOf(row));
-                RowMutation rm = new RowMutation(ksname, key.key);
-                rm.add(cfname, ByteBufferUtil.bytes("column"), value, 0);
+                Mutation rm = new Mutation(ksname, key.key);
+                rm.add(cfname, Util.cellname("column"), value, 0);
                 rm.apply();
             }
             cfs.forceBlockingFlush();

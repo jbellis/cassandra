@@ -17,14 +17,17 @@
  */
 package org.apache.cassandra.stress.operations;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.settings.SettingsCommandMulti;
 import org.apache.cassandra.stress.util.ThriftClient;
-import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.thrift.ColumnParent;
+import org.apache.cassandra.thrift.KeyRange;
+import org.apache.cassandra.thrift.SlicePredicate;
+import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
 
 public final class ThriftRangeSlicer extends Operation
 {

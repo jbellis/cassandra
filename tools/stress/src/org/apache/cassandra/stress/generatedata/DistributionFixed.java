@@ -1,7 +1,5 @@
 package org.apache.cassandra.stress.generatedata;
 
-import org.apache.commons.math3.distribution.*;
-
 public class DistributionFixed extends Distribution
 {
 
