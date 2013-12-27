@@ -1,9 +1,9 @@
 package org.apache.cassandra.utils.btree;
 
-import com.google.common.base.*;
-
 import java.util.Collection;
 import java.util.Comparator;
+
+import com.google.common.base.Function;
 
 import static org.apache.cassandra.utils.btree.BTree.EMPTY_BRANCH;
 import static org.apache.cassandra.utils.btree.BTree.EMPTY_LEAF;
@@ -15,20 +15,22 @@ import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
  * or a new tree from a sorted collection of items. It works largely as a Stack of in progress modifications, delegating
  * to ModifierLevel which represents a single stack item, performing operations on the current level for each modification,
  * and moving the stack pointer / level as dictated by the result of that operation.
- *
- *  This is a fairly heavy-weight object, so a ThreadLocal instance is created for making modifications to a tree
+ * <p/>
+ * This is a fairly heavy-weight object, so a ThreadLocal instance is created for making modifications to a tree
  */
 final class Modifier
 {
-
     final ModifierLevel stack = new ModifierLevel();
 
-    public <V> Object[] update(Object[] btree, Comparator<V> comparator, Collection<V> apply, ReplaceFunction<V> replaceF, Function<?, Boolean> terminateEarly)
+    /**
+     * Assumes @param source has been sorted, e.g. by BTree.update
+     */
+    public <V> Object[] update(Object[] btree, Comparator<V> comparator, Collection<V> source, ReplaceFunction<V> replaceF, Function<?, Boolean> terminateEarly)
     {
-        ModifierLevel cur = stack;
-        cur.reset(btree, POSITIVE_INFINITY);
+        ModifierLevel current = stack;
+        current.reset(btree, POSITIVE_INFINITY);
 
-        for (V key : apply)
+        for (V key : source)
         {
             while (true)
             {
@@ -37,24 +39,24 @@ final class Modifier
                     clear(stack);
                     return null;
                 }
-                ModifierLevel next = cur.update(key, comparator, replaceF);
+                ModifierLevel next = current.update(key, comparator, replaceF);
                 if (next == null)
                     break;
-                cur = next;
+                current = next;
             }
         }
 
         // finish copying any remaining keys
         while (true)
         {
-            ModifierLevel next = cur.update(POSITIVE_INFINITY, comparator, replaceF);
+            ModifierLevel next = current.update(POSITIVE_INFINITY, comparator, replaceF);
             if (next == null)
                 break;
-            cur = next;
+            current = next;
         }
 
-        Object[] r = cur.toNode();
-        clear(cur);
+        Object[] r = current.toNode();
+        clear(current);
         return r;
     }
 
@@ -80,7 +82,11 @@ final class Modifier
 
     void clear(ModifierLevel base)
     {
-        for (ModifierLevel iter = base ; iter != null && iter.clear() ; iter = iter.child);
+        ModifierLevel iter = base;
+        while (iter != null)
+        {
+            iter.clear();
+            iter = iter.child;
+        }
     }
-
 }

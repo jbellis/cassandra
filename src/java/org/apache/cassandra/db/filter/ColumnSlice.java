@@ -208,8 +208,8 @@ public class ColumnSlice
                     return endOfData();
 
                 ColumnSlice slice = slices[idx++];
-                // Note: we specialize the case of start == "" and finish = "" because it is slightly more efficient, but also they have a specific
-                // meaning (namely, they always extend to the beginning/end of the range).
+                // We specialize the case of start == "" and finish = "" because it is slightly more efficient,
+                // but also they have a specific meaning (namely, they always extend to the beginning/end of the range).
                 if (slice.start.isEmpty())
                 {
                     if (slice.finish.isEmpty())

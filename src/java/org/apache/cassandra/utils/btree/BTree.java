@@ -1,22 +1,16 @@
 package org.apache.cassandra.utils.btree;
 
-import com.google.common.base.*;
-import com.google.common.collect.*;
-import org.apache.pig.builtin.FLOOR;
-
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
+
+import com.google.common.base.Function;
 
 public class BTree
 {
-
     /**
      * Leaf Nodes: Object[key:A, key:B, ...,]   ALWAYS EVEN NUMBER OF ELEMENTS, last one possibly null as padding to ensure even
      * Branch Nodes: Object[key:A, key:B..., child[&lt;A], child[&lt;B], ..., child[&lt; Inf]]   ALWAYS ODD NUMBER OF ELEMENTS
-     *
-     *
      */
 
     // The maximum fan factor used for B-Trees
@@ -47,6 +41,7 @@ public class BTree
 
     /**
      * Returns an empty BTree
+     *
      * @return
      */
     public static Object[] empty()
@@ -55,10 +50,11 @@ public class BTree
     }
 
     /**
-     * returns a BTree containing all of the provided collection
-     * @param src the items to build the tree with
+     * Creates a BTree containing all of the objects in the provided collection
+     *
+     * @param src        the items to build the tree with
      * @param comparator the comparator that defines the ordering over the items in the tree
-     * @param sorted if false, the collection will be copied and sorted to facilitate construction
+     * @param sorted     if false, the collection will be copied and sorted to facilitate construction
      * @param <V>
      * @return
      */
@@ -68,9 +64,9 @@ public class BTree
 
         if (size < FAN_FACTOR)
         {
-            V[] vs = src.toArray((V[]) new Object[size + (size & 1)]);
-            Arrays.sort(vs, 0, size, comparator);
-            return vs;
+            V[] values = src.toArray((V[]) new Object[size + (size & 1)]);
+            Arrays.sort(values, 0, size, comparator);
+            return values;
         }
 
         if (!sorted)
@@ -81,42 +77,37 @@ public class BTree
 
     /**
      * Returns a new BTree with the provided set inserting/replacing as necessary any equal items
-     * @param btree the tree to update
-     * @param comparator the comparator that defines the ordering over the items in the tree
-     * @param updateWith the items to either insert / update
+     *
+     * @param btree              the tree to update
+     * @param comparator         the comparator that defines the ordering over the items in the tree
+     * @param updateWith         the items to either insert / update
      * @param updateWithIsSorted if false, updateWith will be copied and sorted to facilitate construction
      * @param <V>
      * @return
      */
-    public static <V> Object[] update(
-            Object[] btree,
-            Comparator<V> comparator,
-            Collection<V> updateWith,
-            boolean updateWithIsSorted
-    )
+    public static <V> Object[] update(Object[] btree, Comparator<V> comparator, Collection<V> updateWith, boolean updateWithIsSorted)
     {
         return update(btree, comparator, updateWith, updateWithIsSorted, null, null);
     }
 
     /**
      * Returns a new BTree with the provided set inserting/replacing as necessary any equal items
-     * @param btree the tree to update
-     * @param comparator the comparator that defines the ordering over the items in the tree
-     * @param updateWith the items to either insert / update
+     *
+     * @param btree              the tree to update
+     * @param comparator         the comparator that defines the ordering over the items in the tree
+     * @param updateWith         the items to either insert / update
      * @param updateWithIsSorted if false, updateWith will be copied and sorted to facilitate construction
-     * @param replaceF a function to apply to a pair we are swapping
-     * @param terminateEarly a function to call with any argument that returns Boolean.TRUE if we should terminate before finishing our work
+     * @param replaceF           a function to apply to a pair we are swapping
+     * @param terminateEarly     a function to call with any argument that returns Boolean.TRUE if we should terminate before finishing our work
      * @param <V>
      * @return
      */
-    public static <V> Object[] update(
-            Object[] btree,
-            Comparator<V> comparator,
-            Collection<V> updateWith,
-            boolean updateWithIsSorted,
-            ReplaceFunction<V> replaceF,
-            Function<?, Boolean> terminateEarly
-    )
+    public static <V> Object[] update(Object[] btree,
+                                      Comparator<V> comparator,
+                                      Collection<V> updateWith,
+                                      boolean updateWithIsSorted,
+                                      ReplaceFunction<V> replaceF,
+                                      Function<?, Boolean> terminateEarly)
     {
         if (btree.length == 0)
             return build(updateWith, comparator, updateWithIsSorted);
@@ -149,8 +140,11 @@ public class BTree
                     btreeOffset++;
                     if (replaceF != null)
                         v = replaceF.apply((V) btree[p], v);
-                } else if (replaceF != null)
+                }
+                else if (replaceF != null)
+                {
                     v = replaceF.apply(null, v);
+                }
 
                 merged[mergedCount++] = v;
             }
@@ -163,7 +157,7 @@ public class BTree
             if (mergedCount > FAN_FACTOR)
             {
                 int mid = (mergedCount >> 1) & ~1;
-                return new Object[] {
+                return new Object[]{
                         merged[mid],
                         Arrays.copyOfRange(merged, 0, mid),
                         Arrays.copyOfRange(merged, 1 + mid, mergedCount + ((mergedCount + 1) & 1)),
@@ -178,7 +172,7 @@ public class BTree
     /**
      * Returns an Iterator over the entire tree
      *
-     * @param btree the tree to iterate over
+     * @param btree    the tree to iterate over
      * @param forwards if false, the iterator will start at the end and move backwards
      * @param <V>
      * @return
@@ -193,11 +187,11 @@ public class BTree
     /**
      * Returns an Iterator over a sub-range of the tree
      *
-     * @param btree the tree to iterate over
-     * @param comparator  the comparator that defines the ordering over the items in the tree
-     * @param start the first item to include
-     * @param end the last item to include
-     * @param forwards if false, the iterator will start at end and move backwards
+     * @param btree      the tree to iterate over
+     * @param comparator the comparator that defines the ordering over the items in the tree
+     * @param start      the first item to include
+     * @param end        the last item to include
+     * @param forwards   if false, the iterator will start at end and move backwards
      * @param <V>
      * @return
      */
@@ -211,11 +205,11 @@ public class BTree
     /**
      * Returns an Iterator over a sub-range of the tree
      *
-     * @param btree the tree to iterate over
-     * @param comparator  the comparator that defines the ordering over the items in the tree
-     * @param start the first item to include
-     * @param end the last item to include
-     * @param forwards if false, the iterator will start at end and move backwards
+     * @param btree      the tree to iterate over
+     * @param comparator the comparator that defines the ordering over the items in the tree
+     * @param start      the first item to include
+     * @param end        the last item to include
+     * @param forwards   if false, the iterator will start at end and move backwards
      * @param <V>
      * @return
      */
@@ -252,7 +246,8 @@ public class BTree
     // UTILITY METHODS
 
     // same basic semantics as Arrays.binarySearch
-    static <V> int find(Comparator<V> comparator, Object key, Object[] a, final int fromIndex, final int toIndex) {
+    static <V> int find(Comparator<V> comparator, Object key, Object[] a, final int fromIndex, final int toIndex)
+    {
         // attempt to terminate quickly by checking the first element,
         // as many uses of this class will (probably) be updating identical sets
         if (fromIndex >= toIndex)
@@ -270,7 +265,8 @@ public class BTree
         int low = fromIndex + 1;
         int high = toIndex - 1;
 
-        while (low <= high) {
+        while (low <= high)
+        {
             int mid = (low + high) >>> 1;
             int cmp = compare(comparator, key, a[mid]);
 
@@ -321,7 +317,6 @@ public class BTree
     private static interface Special extends Comparable<Object> { }
     static final Special POSITIVE_INFINITY = new Special()
     {
-        @Override
         public int compareTo(Object o)
         {
             return o == this ? 0 : 1;
@@ -329,7 +324,6 @@ public class BTree
     };
     static final Special NEGATIVE_INFINITY = new Special()
     {
-        @Override
         public int compareTo(Object o)
         {
             return o == this ? 0 : -1;
@@ -374,7 +368,7 @@ public class BTree
         return isWellFormed(cmp, btree, true, NEGATIVE_INFINITY, POSITIVE_INFINITY);
     }
 
-    private static boolean isWellFormed(Comparator<? extends Object> cmp, Object[] node, boolean isRoot, Object min, Object max)
+    private static boolean isWellFormed(Comparator<?> cmp, Object[] node, boolean isRoot, Object min, Object max)
     {
         if (cmp != null && !isNodeWellFormed(cmp, node, min, max))
             return false;
@@ -388,7 +382,7 @@ public class BTree
 
         int type = 0;
         int childOffset = getBranchKeyEnd(node);
-        for (int i = childOffset ; i < node.length ; i++)
+        for (int i = childOffset; i < node.length; i++)
         {
             Object[] child = (Object[]) node[i];
             Object localmax = i < node.length - 1 ? node[i - childOffset] : max;
@@ -400,17 +394,16 @@ public class BTree
         return type < 3;
     }
 
-    private static boolean isNodeWellFormed(Comparator<? extends Object> cmp, Object[] node, Object min, Object max)
+    private static boolean isNodeWellFormed(Comparator<?> cmp, Object[] node, Object min, Object max)
     {
-        Object prev = min;
+        Object previous = min;
         int end = getKeyEnd(node);
-        for (int i = 0 ; i < end ; i++)
+        for (int i = 0; i < end; i++)
         {
-            Object cur = node[i];
-            if (compare(cmp, prev, cur) >= 0)
+            Object current = node[i];
+            if (compare(cmp, previous, current) >= 0)
                 return false;
         }
-        return compare(cmp, prev, max) < 0;
+        return compare(cmp, previous, max) < 0;
     }
-
 }

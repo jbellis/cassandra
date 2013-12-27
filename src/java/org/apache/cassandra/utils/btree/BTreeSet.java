@@ -9,7 +9,6 @@ import java.util.SortedSet;
 
 public class BTreeSet<V> implements NavigableSet<V>
 {
-
     protected final Comparator<V> comparator;
     protected final Object[] tree;
 
@@ -246,10 +245,15 @@ public class BTreeSet<V> implements NavigableSet<V>
             super(a.tree, a.comparator);
             assert a.tree == b.tree;
             final BTreeRange<V> lb, ub;
+
             if (a.lowerBound == null)
+            {
                 lb = b;
+            }
             else if (b.lowerBound == null)
+            {
                 lb = a;
+            }
             else
             {
                 int c = comparator.compare(a.lowerBound, b.lowerBound);
@@ -262,10 +266,15 @@ public class BTreeSet<V> implements NavigableSet<V>
                 else
                     lb = b;
             }
+
             if (a.upperBound == null)
+            {
                 ub = b;
+            }
             else if (b.upperBound == null)
+            {
                 ub = a;
+            }
             else
             {
                 int c = comparator.compare(b.upperBound, a.upperBound);
@@ -318,7 +327,6 @@ public class BTreeSet<V> implements NavigableSet<V>
 
     public static class BTreeDescRange<V> extends BTreeRange<V>
     {
-
         BTreeDescRange(BTreeRange<V> from)
         {
             super(from.tree, from.comparator, from.lowerBound, from.inclusiveLowerBound, from.upperBound, from.inclusiveUpperBound);
@@ -354,5 +362,4 @@ public class BTreeSet<V> implements NavigableSet<V>
             return new BTreeRange<>(this);
         }
     }
-
 }

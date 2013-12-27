@@ -13,7 +13,6 @@ import static org.apache.cassandra.utils.btree.BTree.isLeaf;
  */
 class Stack
 {
-
     static enum Find
     {
         CEIL, FLOOR, HIGHER, LOWER
@@ -26,7 +25,6 @@ class Stack
         byte[] index = new byte[MAX_DEPTH];
         return new Stack(stack, index);
     }
-
 
     final Object[][] stack;
     final byte[] index;
@@ -41,11 +39,11 @@ class Stack
     /**
      * Find the provided key in the tree rooted at node, and store the root to it in the stack
      *
-     * @param node the tree to search in
+     * @param node       the tree to search in
      * @param comparator the comparator defining the order on the tree
-     * @param find the key to search for
-     * @param mode the type of search to perform
-     * @param forwards if the stack should be setup for forward or backward iteration
+     * @param find       the key to search for
+     * @param mode       the type of search to perform
+     * @param forwards   if the stack should be setup for forward or backward iteration
      * @param <V>
      */
     <V> void find(Object[] node, Comparator<V> comparator, Object find, Find mode, boolean forwards)
@@ -215,7 +213,7 @@ class Stack
     int compareTo(Stack that, boolean forwards)
     {
         int d = Math.min(this.depth, that.depth);
-        for (int i = 0 ; i <= d ; i++)
+        for (int i = 0; i <= d; i++)
         {
             int c = this.index[i] - that.index[i];
             if (c != 0)

@@ -28,10 +28,10 @@ final class ModifierLevel
     int maxBuildChildPosition;
 
     // copying from
-    Object[] copyf;
-    int copyfKeyPosition;
-    int copyfChildPosition;
-    int copyfKeyEnd;
+    Object[] copyFrom;
+    int copyFromKeyPosition;
+    int copyFromChildPosition;
+    int copyFromKeyEnd;
 
     // upper bound of range owned by this level
     Object upperBound;
@@ -49,18 +49,18 @@ final class ModifierLevel
     }
 
     // reset counters/setup to copy from provided node
-    void reset(Object[] cpf, Object upperBound)
+    void reset(Object[] copyFrom, Object upperBound)
     {
-        this.copyf = cpf;
+        this.copyFrom = copyFrom;
         this.upperBound = upperBound;
         maxBuildKeyPosition = Math.max(maxBuildKeyPosition, buildKeyPosition);
         maxBuildChildPosition = Math.max(maxBuildChildPosition, buildChildPosition);
         buildKeyPosition = 0;
         buildChildPosition = 0;
-        copyfKeyPosition = 0;
-        copyfChildPosition = 0;
-        if (cpf != null)
-            copyfKeyEnd = getKeyEnd(cpf);
+        copyFromKeyPosition = 0;
+        copyFromChildPosition = 0;
+        if (copyFrom != null)
+            copyFromKeyEnd = getKeyEnd(copyFrom);
     }
 
     /**
@@ -75,23 +75,23 @@ final class ModifierLevel
         boolean found = false;
         // true iff this node (or a child) should contain the key
         boolean owns = true;
-        // find insert pos
-        int pos = find(comparator, (V) key, copyf, copyfKeyPosition, copyfKeyEnd);
-        if (pos < 0)
+        // find insert position
+        int i = find(comparator, (V) key, copyFrom, copyFromKeyPosition, copyFromKeyEnd);
+        if (i < 0)
         {
-            pos = -pos - 1;
-            if (pos == copyfKeyEnd && compare(comparator, upperBound, key) <= 0)
+            i = -i - 1;
+            if (i == copyFromKeyEnd && compare(comparator, upperBound, key) <= 0)
                 owns = false;
         }
         else
             found = true;
 
-        boolean isLeaf = isLeaf(copyf);
+        boolean isLeaf = isLeaf(copyFrom);
 
         if (isLeaf)
         {
             // copy any keys up to prior to the found index
-            copyKeys(pos);
+            copyKeys(i);
 
             if (owns)
             {
@@ -107,43 +107,40 @@ final class ModifierLevel
             // if we don't own it, all we need to do is ensure we've copied everything in this node
             // and the next part will deal with ascending; since not owning means pos >= keyEnd
             // we have already dealt with that
-
         }
         else
         {
-
             if (found)
             {
-                copyKeys(pos);
+                copyKeys(i);
                 replaceNextKey(key, replaceF);
-                copyChildren(pos + 1);
+                copyChildren(i + 1);
                 return null;
             }
             else if (owns)
             {
 
-                copyKeys(pos);
-                copyChildren(pos);
+                copyKeys(i);
+                copyChildren(i);
 
                 // belongs to the range owned by this node, but not equal to any key in the node
                 // so descend into the owning child
                 Object newUpperBound;
-                if (pos < copyfKeyEnd)
-                    newUpperBound = copyf[pos];
+                if (i < copyFromKeyEnd)
+                    newUpperBound = copyFrom[i];
                 else
                     newUpperBound = upperBound;
-                Object[] descendInto = (Object[]) copyf[copyfKeyEnd + pos];
+                Object[] descendInto = (Object[]) copyFrom[copyFromKeyEnd + i];
                 ensureChild().reset(descendInto, newUpperBound);
                 return child;
 
-            } else {
-
-                // ensure we've copied all keys and children
-                copyKeys(copyfKeyEnd);
-                copyChildren(copyfKeyEnd + 1);
-
             }
-
+            else
+            {
+                // ensure we've copied all keys and children
+                copyKeys(copyFromKeyEnd);
+                copyChildren(copyFromKeyEnd + 1);
+            }
         }
 
         if (key == POSITIVE_INFINITY && buildChildPosition >= 1 && buildChildPosition <= 2)
@@ -160,7 +157,7 @@ final class ModifierLevel
     // child node, which may construct many spill-over parents as it goes
     ModifierLevel ascendToRoot()
     {
-        boolean isLeaf = isLeaf(copyf);
+        boolean isLeaf = isLeaf(copyFrom);
         // <= 2 check is enough if we have FAN_FACTOR >= 8, but if FAN_FACTOR is 4 this could terminate on
         // branches that are not the root, so must check the parent is not initialised. VM should optimise this
         // check away when FAN_FACTOR >= 8.
@@ -177,19 +174,12 @@ final class ModifierLevel
         if (buildKeyPosition > FAN_FACTOR)
         {
             int mid = buildKeyPosition >> 1;
-            parent.addExtraChild(
-                    buildFromRange(0, mid, isLeaf),
-                    buildKeys[mid]
-            );
-            parent.finishChild(
-                    buildFromRange(mid + 1, buildKeyPosition - (mid + 1), isLeaf)
-            );
+            parent.addExtraChild(buildFromRange(0, mid, isLeaf), buildKeys[mid]);
+            parent.finishChild(buildFromRange(mid + 1, buildKeyPosition - (mid + 1), isLeaf));
         }
         else
         {
-            parent.finishChild(
-                    buildFromRange(0, buildKeyPosition, isLeaf)
-            );
+            parent.finishChild(buildFromRange(0, buildKeyPosition, isLeaf));
         }
         return parent;
     }
@@ -197,15 +187,15 @@ final class ModifierLevel
     // copy keys from copyf to the builder, up to the provided index in copyf (exclusive)
     void copyKeys(int upToKeyPosition)
     {
-        int cpfPos = copyfKeyPosition;
+        int cpfPos = copyFromKeyPosition;
         if (cpfPos >= upToKeyPosition)
             return;
-        copyfKeyPosition = upToKeyPosition;
+        copyFromKeyPosition = upToKeyPosition;
         int len = upToKeyPosition - cpfPos;
         if (len > FAN_FACTOR)
             throw new IllegalStateException(upToKeyPosition + "," + cpfPos);
         ensureRoom(buildKeyPosition + len);
-        System.arraycopy(copyf, cpfPos, buildKeys, buildKeyPosition, len);
+        System.arraycopy(copyFrom, cpfPos, buildKeys, buildKeyPosition, len);
         buildKeyPosition += len;
     }
 
@@ -214,9 +204,9 @@ final class ModifierLevel
     {
         ensureRoom(buildKeyPosition + 1);
         if (replaceF != null)
-            with = replaceF.apply((V) copyf[copyfKeyPosition], (V) with);
+            with = replaceF.apply((V) copyFrom[copyFromKeyPosition], (V) with);
         buildKeys[buildKeyPosition++] = with;
-        copyfKeyPosition++;
+        copyFromKeyPosition++;
     }
 
     // puts the provided key in the builder, with no impact on treatment of data from copyf
@@ -232,12 +222,12 @@ final class ModifierLevel
     void copyChildren(int upToChildPosition)
     {
         // note ensureRoom isn't called here, as we should always be at/behind key additions
-        int cpfPos = copyfChildPosition;
+        int cpfPos = copyFromChildPosition;
         if (cpfPos >= upToChildPosition)
             return;
-        copyfChildPosition = upToChildPosition;
+        copyFromChildPosition = upToChildPosition;
         int len = upToChildPosition - cpfPos;
-        System.arraycopy(copyf, copyfKeyEnd + cpfPos, buildChildren, buildChildPosition, len);
+        System.arraycopy(copyFrom, copyFromKeyEnd + cpfPos, buildChildren, buildChildPosition, len);
         buildChildPosition += len;
     }
 
@@ -253,7 +243,7 @@ final class ModifierLevel
     void finishChild(Object[] child)
     {
         buildChildren[buildChildPosition++] = child;
-        copyfChildPosition++;
+        copyFromChildPosition++;
     }
 
     // checks if we can add the requested keys+children to the builder, and if not we spill-over into our parent
@@ -262,7 +252,7 @@ final class ModifierLevel
         if (nextBuildKeyPosition > FAN_FACTOR << 1)
         {
             // flush even number of items so we don't waste leaf space repeatedly
-            Object[] flushUp = buildFromRange(0, FAN_FACTOR, isLeaf(copyf));
+            Object[] flushUp = buildFromRange(0, FAN_FACTOR, isLeaf(copyFrom));
             ensureParent().addExtraChild(flushUp, buildKeys[FAN_FACTOR]);
             int size = FAN_FACTOR + 1;
             if (size > buildKeyPosition)
@@ -337,6 +327,5 @@ final class ModifierLevel
         }
         return child;
     }
-
 }
 

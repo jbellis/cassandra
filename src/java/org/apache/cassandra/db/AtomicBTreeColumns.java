@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import com.google.common.base.*;
 import com.google.common.collect.*;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
@@ -45,16 +46,14 @@ import static org.apache.cassandra.db.index.SecondaryIndexManager.Updater;
  * isolated (in the sense of ACID). Typically a addAll is guaranteed that no
  * other thread can see the state where only parts but not all columns have
  * been added.
- *
+ * <p/>
  * WARNING: removing element through getSortedColumns().iterator() is *not* supported
  */
 public class AtomicBTreeColumns extends ColumnFamily
 {
-
     private static final Function<Cell, CellName> NAME = new Function<Cell, CellName>()
     {
         @Nullable
-        @Override
         public CellName apply(@Nullable Cell column)
         {
             return column.name;
@@ -75,6 +74,8 @@ public class AtomicBTreeColumns extends ColumnFamily
     private static final Holder EMPTY = new Holder(BTree.empty(), LIVE);
 
     private volatile Holder ref;
+
+    private static final AtomicReferenceFieldUpdater<AtomicBTreeColumns, Holder> refUpdater = AtomicReferenceFieldUpdater.newUpdater(AtomicBTreeColumns.class, Holder.class, "ref");
 
     private AtomicBTreeColumns(CFMetaData metadata)
     {
@@ -183,7 +184,6 @@ public class AtomicBTreeColumns extends ColumnFamily
             this.indexer = indexer;
         }
 
-        @Override
         public Cell apply(Cell replaced, Cell update)
         {
             if (replaced == null)
@@ -201,8 +201,7 @@ public class AtomicBTreeColumns extends ColumnFamily
                 delta += reconciled.dataSize() - replaced.dataSize();
             }
 
-            Cell r = transform.apply(update);
-            return r;
+            return transform.apply(update);
         }
     }
 
@@ -221,9 +220,9 @@ public class AtomicBTreeColumns extends ColumnFamily
     }
 
     /**
-     *  This is only called by Memtable.resolve, so only AtomicSortedColumns needs to implement it.
+     * This is only called by Memtable.resolve, so only AtomicSortedColumns needs to implement it.
      *
-     *  @return the difference in size seen after merging the given columns
+     * @return the difference in size seen after merging the given columns
      */
     public long addAllWithSizeDelta(final ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation, Updater indexer)
     {
@@ -281,10 +280,11 @@ public class AtomicBTreeColumns extends ColumnFamily
 
         while (true)
         {
-            Holder cur = ref, mod = cur.update(this, cur.deletionInfo, metadata.comparator.columnComparator(), Arrays.asList(newColumn), null);
-            if (mod == cur)
+            Holder current = ref;
+            Holder modified = current.update(this, current.deletionInfo, metadata.comparator.columnComparator(), Arrays.asList(newColumn), null);
+            if (modified == current)
                 return false;
-            if (refUpdater.compareAndSet(this, cur, mod))
+            if (refUpdater.compareAndSet(this, current, modified))
                 return true;
         }
     }
@@ -305,8 +305,6 @@ public class AtomicBTreeColumns extends ColumnFamily
         final Comparator<? super CellName> cmp = metadata.comparator;
         return new Comparator<Object>()
         {
-
-            @Override
             public int compare(Object o1, Object o2)
             {
                 return cmp.compare((CellName) o1, ((Cell) o2).name);
@@ -334,13 +332,11 @@ public class AtomicBTreeColumns extends ColumnFamily
         final Holder ref = this.ref;
         return new AbstractCollection<V>()
         {
-            @Override
             public Iterator<V> iterator()
             {
                 return Iterators.transform(BTree.<Cell>slice(ref.tree, forwards), f);
             }
 
-            @Override
             public int size()
             {
                 return BTree.slice(ref.tree, true).count();
@@ -355,18 +351,12 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     public Iterator<Cell> iterator(ColumnSlice[] slices)
     {
-        return new ColumnSlice.NavigableSetIterator(
-                new BTreeSet<>(ref.tree, getComparator().columnComparator()),
-                slices
-        );
+        return new ColumnSlice.NavigableSetIterator(new BTreeSet<>(ref.tree, getComparator().columnComparator()), slices);
     }
 
     public Iterator<Cell> reverseIterator(ColumnSlice[] slices)
     {
-        return new ColumnSlice.NavigableSetIterator(
-                new BTreeSet<>(ref.tree, getComparator().columnComparator()).descendingSet(),
-                slices
-        );
+        return new ColumnSlice.NavigableSetIterator(new BTreeSet<>(ref.tree, getComparator().columnComparator()).descendingSet(), slices);
     }
 
     public boolean isInsertReversed()
@@ -376,7 +366,6 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     private static class Holder
     {
-
         // This is a small optimization: DeletionInfo is mutable, but we know that we will always copy it in that class,
         // so we can safely alias one DeletionInfo.live() reference and avoid some allocations.
         final DeletionInfo deletionInfo;
@@ -402,16 +391,15 @@ public class AtomicBTreeColumns extends ColumnFamily
                 return null;
             return new Holder(r, deletionInfo);
         }
-
     }
 
     // a function provided to the btree functions that aborts the modification
     // if we already know the final cas will fail
     private static final class TerminateEarly implements Function<Object, Boolean>
     {
-
         final AtomicBTreeColumns columns;
         final Holder ref;
+
         private TerminateEarly(AtomicBTreeColumns columns, Holder ref)
         {
             this.columns = columns;
@@ -419,7 +407,6 @@ public class AtomicBTreeColumns extends ColumnFamily
         }
 
         @Nullable
-        @Override
         public Boolean apply(@Nullable Object o)
         {
             if (ref != columns.ref)
@@ -427,7 +414,4 @@ public class AtomicBTreeColumns extends ColumnFamily
             return Boolean.FALSE;
         }
     }
-
-    private static final AtomicReferenceFieldUpdater<AtomicBTreeColumns, Holder> refUpdater = AtomicReferenceFieldUpdater.newUpdater(AtomicBTreeColumns.class, Holder.class, "ref");
-
 }

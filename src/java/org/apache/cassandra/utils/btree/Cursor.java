@@ -1,6 +1,5 @@
 package org.apache.cassandra.utils.btree;
 
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 
@@ -17,9 +16,9 @@ import static org.apache.cassandra.utils.btree.BTree.isLeaf;
  */
 public final class Cursor<V> extends Stack implements Iterator<V>
 {
-
     /**
      * Returns a cursor that can be reused to iterate over trees
+     *
      * @param <V>
      * @return
      */
@@ -42,7 +41,8 @@ public final class Cursor<V> extends Stack implements Iterator<V>
 
     /**
      * Reset this cursor for the provided tree, to iterate over its entire range
-     * @param btree the tree to iterate over
+     *
+     * @param btree    the tree to iterate over
      * @param forwards if false, the cursor will start at the end and move backwards
      */
     public void reset(Object[] btree, boolean forwards)
@@ -52,11 +52,12 @@ public final class Cursor<V> extends Stack implements Iterator<V>
 
     /**
      * Reset this cursor for the provided tree, to iterate between the provided start and end
-     * @param btree the tree to iterate over
-     * @param comparator  the comparator that defines the ordering over the items in the tree
+     *
+     * @param btree      the tree to iterate over
+     * @param comparator the comparator that defines the ordering over the items in the tree
      * @param lowerBound the first item to include, inclusive
      * @param upperBound the last item to include, exclusive
-     * @param forwards if false, the cursor will start at the end and move backwards
+     * @param forwards   if false, the cursor will start at the end and move backwards
      */
     public void reset(Object[] btree, Comparator<V> comparator, V lowerBound, V upperBound, boolean forwards)
     {
@@ -65,13 +66,14 @@ public final class Cursor<V> extends Stack implements Iterator<V>
 
     /**
      * Reset this cursor for the provided tree, to iterate between the provided start and end
-     * @param btree the tree to iterate over
-     * @param comparator  the comparator that defines the ordering over the items in the tree
-     * @param lowerBound the first item to include
+     *
+     * @param btree               the tree to iterate over
+     * @param comparator          the comparator that defines the ordering over the items in the tree
+     * @param lowerBound          the first item to include
      * @param inclusiveLowerBound should include start in the iterator, if present in the tree
-     * @param upperBound the last item to include
+     * @param upperBound          the last item to include
      * @param inclusiveUpperBound should include end in the iterator, if present in the tree
-     * @param forwards if false, the cursor will start at the end and move backwards
+     * @param forwards            if false, the cursor will start at the end and move backwards
      */
     public void reset(Object[] btree, Comparator<V> comparator, V lowerBound, boolean inclusiveLowerBound, V upperBound, boolean inclusiveUpperBound, boolean forwards)
     {
@@ -111,13 +113,11 @@ public final class Cursor<V> extends Stack implements Iterator<V>
         }
     }
 
-    @Override
     public boolean hasNext()
     {
         return stack[depth] != endNode || index[depth] != endIndex;
     }
 
-    @Override
     public V next()
     {
         Object[] cur = stack[depth];
@@ -168,7 +168,6 @@ public final class Cursor<V> extends Stack implements Iterator<V>
         return r;
     }
 
-    @Override
     public void remove()
     {
         throw new UnsupportedOperationException();
