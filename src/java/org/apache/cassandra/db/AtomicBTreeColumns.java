@@ -24,22 +24,17 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.ReplaceFunction;
 
 import javax.annotation.Nullable;
-import java.nio.ByteBuffer;
 import java.util.AbstractCollection;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.NavigableMap;
-import java.util.NavigableSet;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import static org.apache.cassandra.db.index.SecondaryIndexManager.Updater;
@@ -162,7 +157,7 @@ public class AtomicBTreeColumns extends ColumnFamily
         while (true)
         {
             Holder current = ref;
-            Holder update = ref.update(this, metadata.comparator.columnComparator(), Arrays.asList(column), null);
+            Holder update = ref.update(this, current.deletionInfo, metadata.comparator.columnComparator(), Arrays.asList(column), null);
             if (refUpdater.compareAndSet(this, current, update))
                 return;
         }
@@ -174,18 +169,14 @@ public class AtomicBTreeColumns extends ColumnFamily
     }
 
     // the function we provide to the btree utilities to perform any column replacements
-    private static final class ColumnReplacer implements ReplaceFunction<Cell>
+    private static final class ColumnUpdater implements ReplaceFunction<Cell>
     {
         final Allocator allocator;
         final Function<Cell, Cell> transform;
         final Updater indexer;
         long delta;
-        // this only works on the assumption that transform allocates a new column; for now this is true
-        // wherever the return value is used, but care should be taken if that changes, or the method
-        // should be modified to prevent alternative uses of transformation
-        long wasted;
 
-        private ColumnReplacer(Allocator allocator, Function<Cell, Cell> transform, Updater indexer)
+        private ColumnUpdater(Allocator allocator, Function<Cell, Cell> transform, Updater indexer)
         {
             this.allocator = allocator;
             this.transform = transform;
@@ -211,7 +202,6 @@ public class AtomicBTreeColumns extends ColumnFamily
             }
 
             Cell r = transform.apply(update);
-            wasted += r.value.remaining();
             return r;
         }
     }
@@ -247,12 +237,11 @@ public class AtomicBTreeColumns extends ColumnFamily
         else
             insert = cm.getSortedColumns();
 
-        DeletionInfo deletionInfo = cm.deletionInfo();
-
-        long wasted = 0;
         while (true)
         {
             Holder current = ref;
+
+            DeletionInfo deletionInfo = cm.deletionInfo();
             if (deletionInfo.hasRanges())
             {
                 for (Iterator<Cell> iter : new Iterator[] { insert.iterator(), BTree.<Cell>slice(current.tree, true) })
@@ -265,19 +254,19 @@ public class AtomicBTreeColumns extends ColumnFamily
                     }
                 }
             }
+            deletionInfo = current.deletionInfo.copy().add(deletionInfo);
 
-            ColumnReplacer replacer = new ColumnReplacer(allocator, transformation, indexer);
-            Holder h = current.update(this, metadata.comparator.columnComparator(), insert, replacer);
+            ColumnUpdater updater = new ColumnUpdater(allocator, transformation, indexer);
+            Holder h = current.update(this, deletionInfo, metadata.comparator.columnComparator(), insert, updater);
             if (h != null && refUpdater.compareAndSet(this, current, h))
             {
                 indexer.updateRowLevelIndexes();
-                return wasted + replacer.delta;
+                return updater.delta;
             }
 
             if (!transformed)
             {
                 // After failing once, transform Columns into a new collection to avoid repeatedly allocating Slab space
-                wasted = replacer.wasted;
                 insert = transform(metadata.comparator.columnComparator(), cm, transformation, false);
                 transformed = true;
             }
@@ -292,7 +281,7 @@ public class AtomicBTreeColumns extends ColumnFamily
 
         while (true)
         {
-            Holder cur = ref, mod = cur.update(this, metadata.comparator.columnComparator(), Arrays.asList(newColumn), null);
+            Holder cur = ref, mod = cur.update(this, cur.deletionInfo, metadata.comparator.columnComparator(), Arrays.asList(newColumn), null);
             if (mod == cur)
                 return false;
             if (refUpdater.compareAndSet(this, cur, mod))
@@ -394,10 +383,6 @@ public class AtomicBTreeColumns extends ColumnFamily
         // the btree of columns
         final Object[] tree;
 
-        Holder(Object[] tree)
-        {
-            this(tree, LIVE);
-        }
         Holder(Object[] tree, DeletionInfo deletionInfo)
         {
             this.tree = tree;
@@ -409,11 +394,9 @@ public class AtomicBTreeColumns extends ColumnFamily
             return new Holder(this.tree, info);
         }
 
-        Holder update(AtomicBTreeColumns container, Comparator<Cell> cmp, Collection<Cell> update, ReplaceFunction<Cell> replaceF)
+        Holder update(AtomicBTreeColumns container, DeletionInfo deletionInfo, Comparator<Cell> cmp, Collection<Cell> update, ReplaceFunction<Cell> replaceF)
         {
             Object[] r = BTree.update(tree, cmp, update, true, replaceF, new TerminateEarly(container, this));
-            if (r == null)
-                return null;
             return new Holder(r, deletionInfo);
         }
 
