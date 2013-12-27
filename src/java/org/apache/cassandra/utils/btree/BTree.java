@@ -64,8 +64,10 @@ public class BTree
 
         if (size < FAN_FACTOR)
         {
+            // pad to even length to match contract that all leaf nodes are even
             V[] values = src.toArray((V[]) new Object[size + (size & 1)]);
-            Arrays.sort(values, 0, size, comparator);
+            if (!sorted)
+                Arrays.sort(values, 0, size, comparator);
             return values;
         }
 
