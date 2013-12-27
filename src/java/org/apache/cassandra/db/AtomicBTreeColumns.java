@@ -30,7 +30,6 @@ import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.ReplaceFunction;
 
-import javax.annotation.Nullable;
 import java.util.AbstractCollection;
 import java.util.Arrays;
 import java.util.Collection;
@@ -53,8 +52,7 @@ public class AtomicBTreeColumns extends ColumnFamily
 {
     private static final Function<Cell, CellName> NAME = new Function<Cell, CellName>()
     {
-        @Nullable
-        public CellName apply(@Nullable Cell column)
+        public CellName apply(Cell column)
         {
             return column.name;
         }
@@ -406,8 +404,7 @@ public class AtomicBTreeColumns extends ColumnFamily
             this.ref = ref;
         }
 
-        @Nullable
-        public Boolean apply(@Nullable Object o)
+        public Boolean apply(Object o)
         {
             if (ref != columns.ref)
                 return Boolean.TRUE;
