@@ -9,8 +9,15 @@ import com.google.common.base.Function;
 public class BTree
 {
     /**
-     * Leaf Nodes: Object[key:A, key:B, ...,]   ALWAYS EVEN NUMBER OF ELEMENTS, last one possibly null as padding to ensure even
-     * Branch Nodes: Object[key:A, key:B..., child[&lt;A], child[&lt;B], ..., child[&lt; Inf]]   ALWAYS ODD NUMBER OF ELEMENTS
+     * Leaf Nodes are a raw array of values: Object[V1, V1, ...,].
+     *
+     * Branch Nodes: Object[V1, V2, ..., child[&lt;V1.key], child[&lt;V2.key], ..., child[&lt; Inf]], where
+     * each child is another node, i.e., an Object[].  Thus, the value elements in a branch node are the
+     * first half of the array, rounding down.  In our implementation, each value must include its own key;
+     * we access these via Comparator, rather than directly. 
+     *
+     * So we can quickly distinguish between leaves and branches, we require that leaf nodes are always even number
+     * of elements (padded with a null, if necessary), and branches are always an odd number of elements.
      */
 
     // The maximum fan factor used for B-Trees
@@ -36,7 +43,7 @@ public class BTree
     // An empty BTree Leaf - which is the same as an empty BTree
     static final Object[] EMPTY_LEAF = new Object[0];
 
-    // An empty BTree branch - used only for internal purposes in BTreeModifier
+    // An empty BTree branch - used only for internal purposes in Modifier
     static final Object[] EMPTY_BRANCH = new Object[1];
 
     /**
@@ -66,6 +73,7 @@ public class BTree
         {
             // pad to even length to match contract that all leaf nodes are even
             V[] values = src.toArray((V[]) new Object[size + (size & 1)]);
+            // inline sorting since we're already calling toArray
             if (!sorted)
                 Arrays.sort(values, 0, size, comparator);
             return values;
@@ -100,7 +108,8 @@ public class BTree
      * @param updateWith         the items to either insert / update
      * @param updateWithIsSorted if false, updateWith will be copied and sorted to facilitate construction
      * @param replaceF           a function to apply to a pair we are swapping
-     * @param terminateEarly     a function to call with any argument that returns Boolean.TRUE if we should terminate before finishing our work
+     * @param terminateEarly     a function that returns Boolean.TRUE if we should terminate before finishing our work.
+     *                           the argument to terminateEarly is ignored.
      * @param <V>
      * @return
      */
@@ -117,54 +126,64 @@ public class BTree
         if (!updateWithIsSorted)
             updateWith = sorted(updateWith, comparator, updateWith.size());
 
+        // try a quick in-place merge
         if (isLeaf(btree) && btree.length + updateWith.size() < QUICK_MERGE_LIMIT)
         {
-            // try a quick in-place merge
+            // since updateWith is sorted, we can skip elements from earlier iterations tracked by this offset
             int btreeOffset = 0;
             int keyEnd = getLeafKeyEnd(btree);
             Object[] merged = new Object[QUICK_MERGE_LIMIT];
             int mergedCount = 0;
             for (V v : updateWith)
             {
-                int p = find(comparator, v, btree, btreeOffset, keyEnd);
-                boolean found = p >= 0;
+                // find the index i where v would belong in the original btree
+                int i = find(comparator, v, btree, btreeOffset, keyEnd);
+                boolean found = i >= 0;
                 if (!found)
-                    p = -p - 1;
-                int count = p - btreeOffset;
+                    i = -i - 1;
+
+                // copy original elements up to i into the merged array
+                int count = i - btreeOffset;
                 if (count > 0)
                 {
                     System.arraycopy(btree, btreeOffset, merged, mergedCount, count);
                     mergedCount += count;
-                    btreeOffset = p;
+                    btreeOffset = i;
                 }
+
                 if (found)
                 {
+                    // apply replaceF if it matches an existing element
                     btreeOffset++;
                     if (replaceF != null)
-                        v = replaceF.apply((V) btree[p], v);
+                        v = replaceF.apply((V) btree[i], v);
                 }
                 else if (replaceF != null)
                 {
+                    // new element but still need to apply replaceF to handle indexing and size-tracking
                     v = replaceF.apply(null, v);
                 }
 
                 merged[mergedCount++] = v;
             }
+
+            // copy any remaining original elements
             if (btreeOffset < keyEnd)
             {
                 int count = keyEnd - btreeOffset;
                 System.arraycopy(btree, btreeOffset, merged, mergedCount, count);
                 mergedCount += count;
             }
+
             if (mergedCount > FAN_FACTOR)
             {
-                int mid = (mergedCount >> 1) & ~1;
-                return new Object[]{
-                        merged[mid],
-                        Arrays.copyOfRange(merged, 0, mid),
-                        Arrays.copyOfRange(merged, 1 + mid, mergedCount + ((mergedCount + 1) & 1)),
-                };
+                // TODO this code will never execute since QUICK_MERGE_LIMIT == FAN_FACTOR
+                int mid = (mergedCount >> 1) & ~1; // divide by two, rounding down to an even number
+                return new Object[] { merged[mid],
+                                      Arrays.copyOfRange(merged, 0, mid),
+                                      Arrays.copyOfRange(merged, 1 + mid, mergedCount + ((mergedCount + 1) & 1)), };
             }
+
             return Arrays.copyOfRange(merged, 0, mergedCount + (mergedCount & 1));
         }
 
@@ -247,7 +266,8 @@ public class BTree
 
     // UTILITY METHODS
 
-    // same basic semantics as Arrays.binarySearch
+    // same basic semantics as Arrays.binarySearch, but delegates to compare() method to avoid
+    // wrapping generic Comparator with support for Special +/- infinity sentinels
     static <V> int find(Comparator<V> comparator, Object key, Object[] a, final int fromIndex, final int toIndex)
     {
         // attempt to terminate quickly by checking the first element,
@@ -349,8 +369,8 @@ public class BTree
         return Arrays.asList(vs);
     }
 
+    /** simple static wrapper to calls to cmp.compare() which checks if either a or b are Special (i.e. represent an infinity) */
     // TODO : cheaper to check for POSITIVE/NEGATIVE infinity in callers, rather than here
-    // simple static wrapper to calls to cmp.compare() which checks if either a or b are Special (i.e. represent an infinity)
     static <V> int compare(Comparator<V> cmp, Object a, Object b)
     {
         if (a instanceof Special)
@@ -384,6 +404,7 @@ public class BTree
 
         int type = 0;
         int childOffset = getBranchKeyEnd(node);
+        // compare each child node with the branch element at the head of this node it corresponds with
         for (int i = childOffset; i < node.length; i++)
         {
             Object[] child = (Object[]) node[i];
@@ -393,7 +414,7 @@ public class BTree
             type |= isLeaf(child) ? 1 : 2;
             min = localmax;
         }
-        return type < 3;
+        return type < 3; // either all leaves or all branches but not a mix
     }
 
     private static boolean isNodeWellFormed(Comparator<?> cmp, Object[] node, Object min, Object max)
