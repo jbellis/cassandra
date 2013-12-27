@@ -397,6 +397,8 @@ public class AtomicBTreeColumns extends ColumnFamily
         Holder update(AtomicBTreeColumns container, DeletionInfo deletionInfo, Comparator<Cell> cmp, Collection<Cell> update, ReplaceFunction<Cell> replaceF)
         {
             Object[] r = BTree.update(tree, cmp, update, true, replaceF, new TerminateEarly(container, this));
+            if (r == null)
+                return null;
             return new Holder(r, deletionInfo);
         }
 
