@@ -291,8 +291,8 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     public void clear()
     {
-        // no need to CAS, as we're just getting rid of everything
-        ref = EMPTY;
+        // no particular reason not to implement this, we just haven't needed it yet
+        throw new UnsupportedOperationException();
     }
 
     public Cell getColumn(CellName name)
