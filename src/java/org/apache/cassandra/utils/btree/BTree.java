@@ -59,20 +59,20 @@ public class BTree
     /**
      * Creates a BTree containing all of the objects in the provided collection
      *
-     * @param src        the items to build the tree with
+     * @param source     the items to build the tree with
      * @param comparator the comparator that defines the ordering over the items in the tree
      * @param sorted     if false, the collection will be copied and sorted to facilitate construction
      * @param <V>
      * @return
      */
-    public static <V> Object[] build(Collection<V> src, Comparator<V> comparator, boolean sorted)
+    public static <V> Object[] build(Collection<V> source, Comparator<V> comparator, boolean sorted)
     {
-        int size = src.size();
+        int size = source.size();
 
         if (size < FAN_FACTOR)
         {
             // pad to even length to match contract that all leaf nodes are even
-            V[] values = src.toArray((V[]) new Object[size + (size & 1)]);
+            V[] values = source.toArray((V[]) new Object[size + (size & 1)]);
             // inline sorting since we're already calling toArray
             if (!sorted)
                 Arrays.sort(values, 0, size, comparator);
@@ -80,9 +80,9 @@ public class BTree
         }
 
         if (!sorted)
-            src = sorted(src, comparator, size);
+            source = sorted(source, comparator, size);
 
-        return MODIFIER.get().build(src, size);
+        return MODIFIER.get().build(source, size);
     }
 
     /**

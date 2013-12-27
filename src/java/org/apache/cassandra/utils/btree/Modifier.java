@@ -60,23 +60,23 @@ final class Modifier
         return r;
     }
 
-    public <V> Object[] build(Collection<V> apply, int size)
+    public <V> Object[] build(Collection<V> source, int size)
     {
-        ModifierLevel cur = stack;
+        ModifierLevel current = stack;
         do
         {
-            cur.reset(EMPTY_BRANCH, POSITIVE_INFINITY);
-            cur = cur.ensureChild();
+            current.reset(EMPTY_BRANCH, POSITIVE_INFINITY);
+            current = current.ensureChild();
         } while ((size >>= FAN_SHIFT) > 0);
 
-        cur.reset(EMPTY_LEAF, POSITIVE_INFINITY);
-        for (V key : apply)
-            cur.addNewKey(key, null);
+        current.reset(EMPTY_LEAF, POSITIVE_INFINITY);
+        for (V key : source)
+            current.addNewKey(key, null);
 
-        cur = cur.ascendToRoot();
+        current = current.ascendToRoot();
 
-        Object[] r = cur.toNode();
-        clear(cur);
+        Object[] r = current.toNode();
+        clear(current);
         return r;
     }
 
