@@ -403,6 +403,7 @@ public class BTree
             Object current = node[i];
             if (compare(cmp, previous, current) >= 0)
                 return false;
+            previous = current;
         }
         return compare(cmp, previous, max) < 0;
     }
