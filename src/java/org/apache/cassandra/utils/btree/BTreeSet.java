@@ -282,7 +282,7 @@ public class BTreeSet<V> implements NavigableSet<V>
                     ub = b;
                 else if (c > 0)
                     ub = a;
-                else if (!a.inclusiveLowerBound)
+                else if (!a.inclusiveUpperBound)
                     ub = a;
                 else
                     ub = b;
