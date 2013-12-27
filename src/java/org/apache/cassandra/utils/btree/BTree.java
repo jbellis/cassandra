@@ -1,10 +1,12 @@
 package org.apache.cassandra.utils.btree;
 
 import com.google.common.base.*;
+import com.google.common.collect.*;
 import org.apache.pig.builtin.FLOOR;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 
 public class BTree
@@ -354,26 +356,51 @@ public class BTree
 
     public static boolean isWellFormed(Object[] btree)
     {
-        return isWellFormed(btree, true);
+        return isWellFormed(null, btree, true, NEGATIVE_INFINITY, POSITIVE_INFINITY);
     }
 
-    private static boolean isWellFormed(Object[] node, boolean isRoot)
+    public static boolean isWellFormed(Object[] btree, Comparator<? extends Object> cmp)
     {
+        return isWellFormed(cmp, btree, true, NEGATIVE_INFINITY, POSITIVE_INFINITY);
+    }
+
+    private static boolean isWellFormed(Comparator<? extends Object> cmp, Object[] node, boolean isRoot, Object min, Object max)
+    {
+        if (cmp != null && !isNodeWellFormed(cmp, node, min, max))
+            return false;
+
         if (isLeaf(node))
         {
             if (isRoot)
                 return node.length <= FAN_FACTOR;
             return node.length >= FAN_FACTOR / 2 && node.length <= FAN_FACTOR;
         }
+
         int type = 0;
-        for (int i = getBranchKeyEnd(node) ; i < node.length ; i++)
+        int childOffset = getBranchKeyEnd(node);
+        for (int i = childOffset ; i < node.length ; i++)
         {
             Object[] child = (Object[]) node[i];
-            if (!isWellFormed(child, false))
+            Object localmax = i < node.length - 1 ? node[i - childOffset] : max;
+            if (!isWellFormed(cmp, child, false, min, localmax))
                 return false;
             type |= isLeaf(child) ? 1 : 2;
+            min = localmax;
         }
         return type < 3;
+    }
+
+    private static boolean isNodeWellFormed(Comparator<? extends Object> cmp, Object[] node, Object min, Object max)
+    {
+        Object prev = min;
+        int end = getKeyEnd(node);
+        for (int i = 0 ; i < end ; i++)
+        {
+            Object cur = node[i];
+            if (compare(cmp, prev, cur) >= 0)
+                return false;
+        }
+        return compare(cmp, prev, max) < 0;
     }
 
 }

@@ -9,6 +9,7 @@ import edu.stanford.ppl.concurrent.SnapTreeMap;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
+import org.junit.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,7 +36,8 @@ public class BTreeTest
 
     public static void main(String[] args) throws ExecutionException, InterruptedException
     {
-        // TODO : should probably lower fan-factor to make tests more intensive
+        // TODO : should probably lower fan-factor for tests to make them more intensive
+        testOversizedMiddleInsert();
         testSlicing();
         testInsertions(100000000, 10, 1, 1, true);
         testInsertions(100000000, 10, 1, 5, true);
@@ -43,6 +45,20 @@ public class BTreeTest
         testInsertions(100000000, 500, 10, 10, true);
         testInsertions(100000000, 5000, 3, 100, true);
         testInsertions(100000, 50, 10, 10, false);
+    }
+
+    private static void testOversizedMiddleInsert()
+    {
+        TreeSet<Integer> canon = new TreeSet<>();
+        for (int i = 0 ; i < 10000000 ; i++)
+            canon.add(i);
+        Object[] btree = BTree.build(Arrays.asList(Integer.MIN_VALUE, Integer.MAX_VALUE), ICMP, true);
+        btree = BTree.update(btree, ICMP, canon, true);
+        canon.add(Integer.MIN_VALUE);
+        canon.add(Integer.MAX_VALUE);
+        Assert.assertTrue(BTree.isWellFormed(btree, ICMP));
+        testEqual("Oversize", BTree.<Integer>slice(btree, true), canon.iterator());
+//        testAllSlices("Oversize", btree, canon);
     }
 
     private static void testInsertions(int totalCount, int perTestCount, int testKeyRatio, int modificationBatchSize, boolean quickEquality) throws ExecutionException, InterruptedException

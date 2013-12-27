@@ -20,6 +20,8 @@ package org.apache.cassandra.db;
 import com.google.common.base.*;
 import com.google.common.collect.*;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -54,11 +56,11 @@ import static org.apache.cassandra.db.index.SecondaryIndexManager.Updater;
 public class AtomicBTreeColumns extends ColumnFamily
 {
 
-    private static final Function<Column, ByteBuffer> NAME = new Function<Column, ByteBuffer>()
+    private static final Function<Cell, CellName> NAME = new Function<Cell, CellName>()
     {
         @Nullable
         @Override
-        public ByteBuffer apply(@Nullable Column column)
+        public CellName apply(@Nullable Cell column)
         {
             return column.name;
         }
@@ -90,7 +92,7 @@ public class AtomicBTreeColumns extends ColumnFamily
         this.ref = holder;
     }
 
-    public AbstractType<?> getComparator()
+    public CellNameType getComparator()
     {
         return metadata.comparator;
     }
@@ -140,12 +142,12 @@ public class AtomicBTreeColumns extends ColumnFamily
         ref = ref.with(newInfo);
     }
 
-    public void maybeResetDeletionTimes(int gcBefore)
+    public void purgeTombstones(int gcBefore)
     {
         while (true)
         {
             Holder current = ref;
-            if (!current.deletionInfo.hasIrrelevantData(gcBefore))
+            if (!current.deletionInfo.hasPurgeableTombstones(gcBefore))
                 break;
 
             DeletionInfo purgedInfo = current.deletionInfo.copy();
@@ -155,27 +157,27 @@ public class AtomicBTreeColumns extends ColumnFamily
         }
     }
 
-    public void addColumn(Column column, Allocator allocator)
+    public void addColumn(Cell column, Allocator allocator)
     {
         while (true)
         {
             Holder current = ref;
-            Holder update = ref.update(this, metadata.comparator.columnComparator, Arrays.asList(column), null);
+            Holder update = ref.update(this, metadata.comparator.columnComparator(), Arrays.asList(column), null);
             if (refUpdater.compareAndSet(this, current, update))
                 return;
         }
     }
 
-    public void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation)
+    public void addAll(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation)
     {
         addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater);
     }
 
     // the function we provide to the btree utilities to perform any column replacements
-    private static final class ColumnReplacer implements ReplaceFunction<Column>
+    private static final class ColumnReplacer implements ReplaceFunction<Cell>
     {
         final Allocator allocator;
-        final Function<Column, Column> transform;
+        final Function<Cell, Cell> transform;
         final Updater indexer;
         long delta;
         // this only works on the assumption that transform allocates a new column; for now this is true
@@ -183,7 +185,7 @@ public class AtomicBTreeColumns extends ColumnFamily
         // should be modified to prevent alternative uses of transformation
         long wasted;
 
-        private ColumnReplacer(Allocator allocator, Function<Column, Column> transform, Updater indexer)
+        private ColumnReplacer(Allocator allocator, Function<Cell, Cell> transform, Updater indexer)
         {
             this.allocator = allocator;
             this.transform = transform;
@@ -191,7 +193,7 @@ public class AtomicBTreeColumns extends ColumnFamily
         }
 
         @Override
-        public Column apply(Column replaced, Column update)
+        public Cell apply(Cell replaced, Cell update)
         {
             if (replaced == null)
             {
@@ -200,7 +202,7 @@ public class AtomicBTreeColumns extends ColumnFamily
             }
             else
             {
-                Column reconciled = update.reconcile(replaced, allocator);
+                Cell reconciled = update.reconcile(replaced, allocator);
                 if (reconciled == update)
                     indexer.update(replaced, reconciled);
                 else
@@ -208,18 +210,18 @@ public class AtomicBTreeColumns extends ColumnFamily
                 delta += reconciled.dataSize() - replaced.dataSize();
             }
 
-            Column r = transform.apply(update);
+            Cell r = transform.apply(update);
             wasted += r.value.remaining();
             return r;
         }
     }
 
-    private static Collection<Column> transform(Comparator<Column> cmp, ColumnFamily cf, Function<Column, Column> transformation, boolean sort)
+    private static Collection<Cell> transform(Comparator<Cell> cmp, ColumnFamily cf, Function<Cell, Cell> transformation, boolean sort)
     {
-        Column[] tmp = new Column[cf.getColumnCount()];
+        Cell[] tmp = new Cell[cf.getColumnCount()];
 
         int i = 0;
-        for (Column c : cf)
+        for (Cell c : cf)
             tmp[i++] = transformation.apply(c);
 
         if (sort)
@@ -233,13 +235,13 @@ public class AtomicBTreeColumns extends ColumnFamily
      *
      *  @return the difference in size seen after merging the given columns
      */
-    public long addAllWithSizeDelta(final ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation, Updater indexer)
+    public long addAllWithSizeDelta(final ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation, Updater indexer)
     {
         boolean transformed = false;
-        Collection<Column> insert;
+        Collection<Cell> insert;
         if (cm instanceof UnsortedColumns)
         {
-            insert = transform(metadata.comparator.columnComparator, cm, transformation, true);
+            insert = transform(metadata.comparator.columnComparator(), cm, transformation, true);
             transformed = true;
         }
         else
@@ -253,11 +255,11 @@ public class AtomicBTreeColumns extends ColumnFamily
             Holder current = ref;
             if (deletionInfo.hasRanges())
             {
-                for (Iterator<Column> iter : new Iterator[] { insert.iterator(), BTree.<Column>slice(current.tree, true) })
+                for (Iterator<Cell> iter : new Iterator[] { insert.iterator(), BTree.<Cell>slice(current.tree, true) })
                 {
                     while (iter.hasNext())
                     {
-                        Column col = iter.next();
+                        Cell col = iter.next();
                         if (deletionInfo.isDeleted(col))
                             indexer.remove(col);
                     }
@@ -265,7 +267,7 @@ public class AtomicBTreeColumns extends ColumnFamily
             }
 
             ColumnReplacer replacer = new ColumnReplacer(allocator, transformation, indexer);
-            Holder h = current.update(this, metadata.comparator.columnComparator, insert, replacer);
+            Holder h = current.update(this, metadata.comparator.columnComparator(), insert, replacer);
             if (h != null && refUpdater.compareAndSet(this, current, h))
             {
                 indexer.updateRowLevelIndexes();
@@ -276,21 +278,21 @@ public class AtomicBTreeColumns extends ColumnFamily
             {
                 // After failing once, transform Columns into a new collection to avoid repeatedly allocating Slab space
                 wasted = replacer.wasted;
-                insert = transform(metadata.comparator.columnComparator, cm, transformation, false);
+                insert = transform(metadata.comparator.columnComparator(), cm, transformation, false);
                 transformed = true;
             }
         }
 
     }
 
-    public boolean replace(Column oldColumn, Column newColumn)
+    public boolean replace(Cell oldColumn, Cell newColumn)
     {
         if (!oldColumn.name().equals(newColumn.name()))
             throw new IllegalArgumentException();
 
         while (true)
         {
-            Holder cur = ref, mod = cur.update(this, metadata.comparator.columnComparator, Arrays.asList(newColumn), null);
+            Holder cur = ref, mod = cur.update(this, metadata.comparator.columnComparator(), Arrays.asList(newColumn), null);
             if (mod == cur)
                 return false;
             if (refUpdater.compareAndSet(this, cur, mod))
@@ -304,41 +306,41 @@ public class AtomicBTreeColumns extends ColumnFamily
         ref = EMPTY;
     }
 
+    public Cell getColumn(CellName name)
+    {
+        return (Cell) BTree.find(ref.tree, asymmetricComparator(), name);
+    }
+
     private Comparator<Object> asymmetricComparator()
     {
-        final Comparator<ByteBuffer> cmp = metadata.comparator;
+        final Comparator<? super CellName> cmp = metadata.comparator;
         return new Comparator<Object>()
         {
 
             @Override
             public int compare(Object o1, Object o2)
             {
-                return cmp.compare((ByteBuffer) o1, ((Column) o2).name);
+                return cmp.compare((CellName) o1, ((Cell) o2).name);
             }
         };
     }
 
-    public Column getColumn(ByteBuffer name)
-    {
-        return (Column) BTree.find(ref.tree, asymmetricComparator(), name);
-    }
-
-    public Iterable<ByteBuffer> getColumnNames()
+    public Iterable<CellName> getColumnNames()
     {
         return collection(false, NAME);
     }
 
-    public Collection<Column> getSortedColumns()
+    public Collection<Cell> getSortedColumns()
     {
-        return collection(true, Functions.<Column>identity());
+        return collection(true, Functions.<Cell>identity());
     }
 
-    public Collection<Column> getReverseSortedColumns()
+    public Collection<Cell> getReverseSortedColumns()
     {
-        return collection(false, Functions.<Column>identity());
+        return collection(false, Functions.<Cell>identity());
     }
 
-    private <V> Collection<V> collection(final boolean forwards, final Function<Column, V> f)
+    private <V> Collection<V> collection(final boolean forwards, final Function<Cell, V> f)
     {
         final Holder ref = this.ref;
         return new AbstractCollection<V>()
@@ -346,7 +348,7 @@ public class AtomicBTreeColumns extends ColumnFamily
             @Override
             public Iterator<V> iterator()
             {
-                return Iterators.transform(BTree.<Column>slice(ref.tree, forwards), f);
+                return Iterators.transform(BTree.<Cell>slice(ref.tree, forwards), f);
             }
 
             @Override
@@ -362,18 +364,18 @@ public class AtomicBTreeColumns extends ColumnFamily
         return BTree.slice(ref.tree, true).count();
     }
 
-    public Iterator<Column> iterator(ColumnSlice[] slices)
+    public Iterator<Cell> iterator(ColumnSlice[] slices)
     {
-        return new NavigableSetIterator(
-                new BTreeSet<>(ref.tree, getComparator().columnComparator),
+        return new ColumnSlice.NavigableSetIterator(
+                new BTreeSet<>(ref.tree, getComparator().columnComparator()),
                 slices
         );
     }
 
-    public Iterator<Column> reverseIterator(ColumnSlice[] slices)
+    public Iterator<Cell> reverseIterator(ColumnSlice[] slices)
     {
-        return new NavigableSetIterator(
-                new BTreeSet<>(ref.tree, getComparator().columnComparator).descendingSet(),
+        return new ColumnSlice.NavigableSetIterator(
+                new BTreeSet<>(ref.tree, getComparator().columnComparator()).descendingSet(),
                 slices
         );
     }
@@ -407,7 +409,7 @@ public class AtomicBTreeColumns extends ColumnFamily
             return new Holder(this.tree, info);
         }
 
-        Holder update(AtomicBTreeColumns container, Comparator<Column> cmp, Collection<Column> update, ReplaceFunction<Column> replaceF)
+        Holder update(AtomicBTreeColumns container, Comparator<Cell> cmp, Collection<Cell> update, ReplaceFunction<Cell> replaceF)
         {
             Object[] r = BTree.update(tree, cmp, update, true, replaceF, new TerminateEarly(container, this));
             if (r == null)
@@ -417,7 +419,7 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     }
 
-    // a function provided to the btree modifying functions that aborts the modification
+    // a function provided to the btree functions that aborts the modification
     // if we already know the final cas will fail
     private static final class TerminateEarly implements Function<Object, Boolean>
     {
@@ -439,59 +441,6 @@ public class AtomicBTreeColumns extends ColumnFamily
             return Boolean.FALSE;
         }
     }
-
-    /**
-     * A duplicate of the NavigableMapIterator, but using a NavigableSet
-     */
-    private static class NavigableSetIterator extends AbstractIterator<Column>
-    {
-        private final NavigableSet<Column> set;
-        private final ColumnSlice[] slices;
-
-        private int idx = 0;
-        private Iterator<Column> currentSlice;
-
-        public NavigableSetIterator(NavigableSet<Column> set, ColumnSlice[] slices)
-        {
-            this.set = set;
-            this.slices = slices;
-        }
-
-        protected Column computeNext()
-        {
-            if (currentSlice == null)
-            {
-                if (idx >= slices.length)
-                    return endOfData();
-
-                ColumnSlice slice = slices[idx++];
-                // Note: we specialize the case of start == "" and finish = "" because it is slightly more efficient, but also they have a specific
-                // meaning (namely, they always extend to the beginning/end of the range).
-                if (slice.start.remaining() == 0)
-                {
-                    if (slice.finish.remaining() == 0)
-                        currentSlice = set.iterator();
-                    else
-                        currentSlice = set.headSet(new Column(slice.finish), true).iterator();
-                }
-                else if (slice.finish.remaining() == 0)
-                {
-                    currentSlice = set.tailSet(new Column(slice.start), true).iterator();
-                }
-                else
-                {
-                    currentSlice = set.subSet(new Column(slice.start), true, new Column(slice.finish), true).iterator();
-                }
-            }
-
-            if (currentSlice.hasNext())
-                return currentSlice.next();
-
-            currentSlice = null;
-            return computeNext();
-        }
-    }
-
 
     private static final AtomicReferenceFieldUpdater<AtomicBTreeColumns, Holder> refUpdater = AtomicReferenceFieldUpdater.newUpdater(AtomicBTreeColumns.class, Holder.class, "ref");
 
