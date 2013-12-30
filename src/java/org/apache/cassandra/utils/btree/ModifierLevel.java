@@ -17,24 +17,24 @@ import static org.apache.cassandra.utils.btree.BTree.isLeaf;
 final class ModifierLevel
 {
     // parent stack
-    ModifierLevel parent, child;
+    private ModifierLevel parent, child;
 
     // buffer for building new nodes
-    Object[] buildKeys = new Object[1 + (FAN_FACTOR << 1)];  // buffers keys for branches and leaves
-    Object[] buildChildren = new Object[2 + (FAN_FACTOR << 1)]; // buffers children for branches only
-    int buildKeyPosition;
-    int buildChildPosition;
-    int maxBuildKeyPosition;
-    int maxBuildChildPosition;
+    private Object[] buildKeys = new Object[1 + (FAN_FACTOR << 1)];  // buffers keys for branches and leaves
+    private Object[] buildChildren = new Object[2 + (FAN_FACTOR << 1)]; // buffers children for branches only
+    private int buildKeyPosition;
+    private int buildChildPosition;
+    private int maxBuildKeyPosition;
+    private int maxBuildChildPosition;
 
     // copying from
-    Object[] copyFrom;
-    int copyFromKeyPosition;
-    int copyFromChildPosition;
-    int copyFromKeyEnd;
+    private Object[] copyFrom;
+    private int copyFromKeyPosition;
+    private int copyFromChildPosition;
+    private int copyFromKeyEnd;
 
     // upper bound of range owned by this level
-    Object upperBound;
+    private Object upperBound;
 
     // ensure we aren't referencing any garbage
     boolean clear()
@@ -67,7 +67,7 @@ final class ModifierLevel
      * Inserts or replaces the provided key, copying all not-yet-visited keys prior to it into the builder
      *
      * @param key key we are inserting/replacing
-     * @return
+     * @return the ML to retry the update against, or null if finished
      */
     <V> ModifierLevel update(Object key, Comparator<V> comparator, ReplaceFunction<V> replaceF)
     {
@@ -84,7 +84,9 @@ final class ModifierLevel
                 owns = false;
         }
         else
+        {
             found = true;
+        }
 
         boolean isLeaf = isLeaf(copyFrom);
 
@@ -166,8 +168,23 @@ final class ModifierLevel
         return ascend(isLeaf).ascendToRoot();
     }
 
+    // builds a new root BTree node - must be called on root of operation
+    Object[] toNode()
+    {
+        switch (buildChildPosition)
+        {
+            case 1:
+                return (Object[]) buildChildren[0];
+            case 2:
+                return new Object[] { buildKeys[0], buildChildren[0], buildChildren[1] };
+            default:
+                throw new IllegalStateException();
+        }
+
+    }
+
     // finish up this level and pass any constructed children up to our parent, ensuring a parent exists
-    ModifierLevel ascend(boolean isLeaf)
+    private ModifierLevel ascend(boolean isLeaf)
     {
         ensureParent();
         // we don't own it, so we're ascending, so update and return our parent
@@ -185,7 +202,7 @@ final class ModifierLevel
     }
 
     // copy keys from copyf to the builder, up to the provided index in copyf (exclusive)
-    void copyKeys(int upToKeyPosition)
+    private void copyKeys(int upToKeyPosition)
     {
         int cpfPos = copyFromKeyPosition;
         if (cpfPos >= upToKeyPosition)
@@ -200,7 +217,7 @@ final class ModifierLevel
     }
 
     // skips the next key in copyf, and puts the provided key in the builder instead
-    <V> void replaceNextKey(Object with, ReplaceFunction<V> replaceF)
+    private <V> void replaceNextKey(Object with, ReplaceFunction<V> replaceF)
     {
         ensureRoom(buildKeyPosition + 1);
         if (replaceF != null)
@@ -219,7 +236,7 @@ final class ModifierLevel
     }
 
     // copies children from copyf to the builder, up to the provided index in copyf (exclusive)
-    void copyChildren(int upToChildPosition)
+    private void copyChildren(int upToChildPosition)
     {
         // note ensureRoom isn't called here, as we should always be at/behind key additions
         int cpfPos = copyFromChildPosition;
@@ -232,7 +249,7 @@ final class ModifierLevel
     }
 
     // adds a new and unexpected child to the builder - called by children that overflow
-    void addExtraChild(Object[] child, Object upperBound)
+    private void addExtraChild(Object[] child, Object upperBound)
     {
         ensureRoom(buildKeyPosition + 1);
         buildKeys[buildKeyPosition++] = upperBound;
@@ -240,14 +257,14 @@ final class ModifierLevel
     }
 
     // adds a replacement expected child to the builder - called by children prior to ascending
-    void finishChild(Object[] child)
+    private void finishChild(Object[] child)
     {
         buildChildren[buildChildPosition++] = child;
         copyFromChildPosition++;
     }
 
     // checks if we can add the requested keys+children to the builder, and if not we spill-over into our parent
-    void ensureRoom(int nextBuildKeyPosition)
+    private void ensureRoom(int nextBuildKeyPosition)
     {
         if (nextBuildKeyPosition > FAN_FACTOR << 1)
         {
@@ -270,7 +287,7 @@ final class ModifierLevel
     }
 
     // builds a node from the requested builder range
-    Object[] buildFromRange(int offset, int keyLength, boolean isLeaf)
+    private Object[] buildFromRange(int offset, int keyLength, boolean isLeaf)
     {
         Object[] a;
         if (isLeaf)
@@ -287,25 +304,10 @@ final class ModifierLevel
         return a;
     }
 
-    // builds a new root BTree node - must be called on root of operation
-    Object[] toNode()
-    {
-        switch (buildChildPosition)
-        {
-            case 1:
-                return (Object[]) buildChildren[0];
-            case 2:
-                return new Object[] { buildKeys[0], buildChildren[0], buildChildren[1] };
-            default:
-                throw new IllegalStateException();
-        }
-
-    }
-
     // checks if there is an initialised parent, and if not creates/initialises one and returns it.
     // different to ensureChild, as we initialise here instead of caller, as parents in general should
     // already be initialised, and only aren't in the case where we are overflowing the original root node
-    ModifierLevel ensureParent()
+    private ModifierLevel ensureParent()
     {
         if (parent == null)
         {

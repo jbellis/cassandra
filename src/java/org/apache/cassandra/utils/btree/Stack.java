@@ -109,34 +109,34 @@ class Stack
     }
 
     // move to the next key in the tree
-    void successor(Object[] cur, int curi)
+    void successor(Object[] node, int i)
     {
         byte d = depth;
-        if (!isLeaf(cur))
+        if (!isLeaf(node))
         {
             // if we're on a key in a leaf, we MUST have a descendant either side of us
             // so we always go down
             while (true)
             {
                 d++;
-                cur = (stack[d] = (Object[]) cur[getBranchKeyEnd(cur) + curi + 1]);
-                if (isLeaf(cur))
+                node = (stack[d] = (Object[]) node[getBranchKeyEnd(node) + i + 1]);
+                if (isLeaf(node))
                 {
                     index[d] = 0;
                     depth = d;
                     return;
                 }
-                curi = index[d] = -1;
+                i = index[d] = -1;
             }
         }
         else
         {
             // go up until we reach something we're not at the end of
-            curi += 1;
-            int curKeyEnd = getLeafKeyEnd(cur);
-            if (curi < curKeyEnd)
+            i += 1;
+            int curKeyEnd = getLeafKeyEnd(node);
+            if (i < curKeyEnd)
             {
-                index[d] = (byte) curi;
+                index[d] = (byte) i;
                 return;
             }
             do
@@ -148,11 +148,11 @@ class Stack
                     return;
                 }
                 d--;
-                curi = index[d] + 1;
+                i = index[d] + 1;
                 curKeyEnd = getKeyEnd(stack[d]);
-                if (curi < curKeyEnd)
+                if (i < curKeyEnd)
                 {
-                    index[d] = (byte) curi;
+                    index[d] = (byte) i;
                     depth = d;
                     return;
                 }

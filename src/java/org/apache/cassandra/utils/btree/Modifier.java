@@ -20,7 +20,7 @@ import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
  */
 final class Modifier
 {
-    final ModifierLevel stack = new ModifierLevel(); // TODO rename this since we have a Stack that is unrelated?
+    private final ModifierLevel stack = new ModifierLevel(); // TODO rename this since we have a Stack that is unrelated?
 
     /**
      * Assumes @param source has been sorted, e.g. by BTree.update
@@ -80,13 +80,13 @@ final class Modifier
         return r;
     }
 
-    void clear(ModifierLevel base)
+    private static void clear(ModifierLevel base)
     {
-        ModifierLevel iter = base;
-        while (iter != null)
+        ModifierLevel current = base;
+        while (current != null)
         {
-            iter.clear();
-            iter = iter.child;
+            current.clear();
+            current = current.child;
         }
     }
 }

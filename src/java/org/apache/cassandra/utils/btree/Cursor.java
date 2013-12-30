@@ -30,9 +30,12 @@ public final class Cursor<V> extends Stack implements Iterator<V>
         return new Cursor(stack, index);
     }
 
-    byte endIndex;
-    Object[] endNode;
-    boolean forwards;
+    // the last node covered by the requested range
+    private Object[] endNode;
+    // the last index within the last node covered by the requested range
+    private byte endIndex;
+
+    private boolean forwards;
 
     private Cursor(Object[][] stack, byte[] index)
     {
@@ -120,13 +123,13 @@ public final class Cursor<V> extends Stack implements Iterator<V>
 
     public V next()
     {
-        Object[] cur = stack[depth];
-        int curi = index[depth];
-        Object r = cur[curi];
+        Object[] node = stack[depth];
+        int i = index[depth];
+        Object r = node[i];
         if (forwards)
-            successor(cur, curi);
+            successor(node, i);
         else
-            predecessor(cur, curi);
+            predecessor(node, i);
         return (V) r;
     }
 
@@ -141,20 +144,23 @@ public final class Cursor<V> extends Stack implements Iterator<V>
         return count;
     }
 
+    /**
+     * @return
+     */
     private int consumeNextLeaf()
     {
-        Object[] cur = stack[depth];
+        Object[] node = stack[depth];
         int r = 0;
-        if (!isLeaf(cur))
+        if (!isLeaf(node))
         {
-            int curi = index[depth];
-            if (cur == endNode && curi == endIndex)
+            int i = index[depth];
+            if (node == endNode && i == endIndex)
                 return -1;
             r = 1;
-            successor(cur, curi);
-            cur = stack[depth];
+            successor(node, i);
+            node = stack[depth];
         }
-        if (cur == endNode)
+        if (node == endNode)
         {
             if (index[depth] == endIndex)
                 return r > 0 ? r : -1;
@@ -162,9 +168,9 @@ public final class Cursor<V> extends Stack implements Iterator<V>
             index[depth] = endIndex;
             return r;
         }
-        int keyEnd = getLeafKeyEnd(cur);
+        int keyEnd = getLeafKeyEnd(node);
         r += keyEnd - index[depth];
-        successor(cur, keyEnd);
+        successor(node, keyEnd);
         return r;
     }
 
