@@ -14,7 +14,7 @@ import static org.apache.cassandra.utils.btree.BTree.isLeaf;
  *
  * @param <V>
  */
-public final class Cursor<V> extends Stack implements Iterator<V>
+public final class Cursor<V> extends Path implements Iterator<V>
 {
     /**
      * Returns a cursor that can be reused to iterate over trees
@@ -92,7 +92,7 @@ public final class Cursor<V> extends Stack implements Iterator<V>
 
         this.forwards = forwards;
 
-        Stack findLast = Stack.newStack();
+        Path findLast = Path.newPath();
         if (forwards)
         {
             findLast.find(btree, comparator, upperBound, inclusiveUpperBound ? Find.HIGHER : Find.CEIL, true);
@@ -106,25 +106,25 @@ public final class Cursor<V> extends Stack implements Iterator<V>
         int c = this.compareTo(findLast, forwards);
         if (forwards ? c > 0 : c < 0)
         {
-            endNode = stack[depth];
-            endIndex = index[depth];
+            endNode = path[depth];
+            endIndex = indexes[depth];
         }
         else
         {
-            endNode = findLast.stack[findLast.depth];
-            endIndex = findLast.index[findLast.depth];
+            endNode = findLast.path[findLast.depth];
+            endIndex = findLast.indexes[findLast.depth];
         }
     }
 
     public boolean hasNext()
     {
-        return stack[depth] != endNode || index[depth] != endIndex;
+        return path[depth] != endNode || indexes[depth] != endIndex;
     }
 
     public V next()
     {
-        Object[] node = stack[depth];
-        int i = index[depth];
+        Object[] node = path[depth];
+        int i = indexes[depth];
         Object r = node[i];
         if (forwards)
             successor(node, i);
@@ -149,27 +149,27 @@ public final class Cursor<V> extends Stack implements Iterator<V>
      */
     private int consumeNextLeaf()
     {
-        Object[] node = stack[depth];
+        Object[] node = path[depth];
         int r = 0;
         if (!isLeaf(node))
         {
-            int i = index[depth];
+            int i = indexes[depth];
             if (node == endNode && i == endIndex)
                 return -1;
             r = 1;
             successor(node, i);
-            node = stack[depth];
+            node = path[depth];
         }
         if (node == endNode)
         {
-            if (index[depth] == endIndex)
+            if (indexes[depth] == endIndex)
                 return r > 0 ? r : -1;
-            r += endIndex - index[depth];
-            index[depth] = endIndex;
+            r += endIndex - indexes[depth];
+            indexes[depth] = endIndex;
             return r;
         }
         int keyEnd = getLeafKeyEnd(node);
-        r += keyEnd - index[depth];
+        r += keyEnd - indexes[depth];
         successor(node, keyEnd);
         return r;
     }

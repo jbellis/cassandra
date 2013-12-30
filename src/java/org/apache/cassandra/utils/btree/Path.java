@@ -11,57 +11,60 @@ import static org.apache.cassandra.utils.btree.BTree.isLeaf;
 /**
  * An internal class for searching and iterating through a tree
  */
-class Stack
+class Path
 {
     static enum Find
     {
         CEIL, FLOOR, HIGHER, LOWER
     }
 
-    static Stack newStack()
+    static Path newPath()
     {
         // try to encourage stack allocation - probably misguided/unnecessary. but no harm
-        Object[][] stack = new Object[MAX_DEPTH][];
+        Object[][] path = new Object[MAX_DEPTH][];
         byte[] index = new byte[MAX_DEPTH];
-        return new Stack(stack, index);
+        return new Path(path, index);
     }
 
-    final Object[][] stack;
-    final byte[] index;
+    // the path to the searched-for key
+    final Object[][] path;
+    // the index within the node of our path at a given depth
+    final byte[] indexes;
+    // current depth
     byte depth;
 
-    Stack(Object[][] stack, byte[] index)
+    Path(Object[][] path, byte[] indexes)
     {
-        this.stack = stack;
-        this.index = index;
+        this.path = path;
+        this.indexes = indexes;
     }
 
     /**
-     * Find the provided key in the tree rooted at node, and store the root to it in the stack
+     * Find the provided key in the tree rooted at node, and store the root to it in the path
      *
      * @param node       the tree to search in
      * @param comparator the comparator defining the order on the tree
      * @param find       the key to search for
      * @param mode       the type of search to perform
-     * @param forwards   if the stack should be setup for forward or backward iteration
+     * @param forwards   if the path should be setup for forward or backward iteration
      * @param <V>
      */
     <V> void find(Object[] node, Comparator<V> comparator, Object find, Find mode, boolean forwards)
     {
         // TODO : should not require parameter 'forwards' - consider modifying index to represent both
         // child and key position, as opposed to just key position (which necessitates a different value depending
-        // on which direction you're moving in. Prerequisite for making Stack public and using to implement general
+        // on which direction you're moving in. Prerequisite for making Path public and using to implement general
         // search
 
         depth = 0;
         while (true)
         {
-            stack[depth] = node;
+            path[depth] = node;
             int keyEnd = getKeyEnd(node);
             int i = BTree.find(comparator, find, node, 0, keyEnd);
             if (i >= 0)
             {
-                index[depth] = (byte) i;
+                indexes[depth] = (byte) i;
                 switch (mode)
                 {
                     case HIGHER:
@@ -76,7 +79,7 @@ class Stack
             {
                 i = -i - 1;
                 node = (Object[]) node[keyEnd + i];
-                index[depth] = (byte) (forwards ? i - 1 : i);
+                indexes[depth] = (byte) (forwards ? i - 1 : i);
                 ++depth;
             }
             else
@@ -91,17 +94,17 @@ class Stack
                 }
                 if (i < 0)
                 {
-                    index[depth] = 0;
+                    indexes[depth] = 0;
                     predecessor(node, 0);
                 }
                 else if (i >= keyEnd)
                 {
-                    index[depth] = (byte) (keyEnd - 1);
+                    indexes[depth] = (byte) (keyEnd - 1);
                     successor(node, keyEnd - 1);
                 }
                 else
                 {
-                    index[depth] = (byte) i;
+                    indexes[depth] = (byte) i;
                 }
                 return;
             }
@@ -119,14 +122,14 @@ class Stack
             while (true)
             {
                 d++;
-                node = (stack[d] = (Object[]) node[getBranchKeyEnd(node) + i + 1]);
+                node = (path[d] = (Object[]) node[getBranchKeyEnd(node) + i + 1]);
                 if (isLeaf(node))
                 {
-                    index[d] = 0;
+                    indexes[d] = 0;
                     depth = d;
                     return;
                 }
-                i = index[d] = -1;
+                i = indexes[d] = -1;
             }
         }
         else
@@ -136,23 +139,23 @@ class Stack
             int curKeyEnd = getLeafKeyEnd(node);
             if (i < curKeyEnd)
             {
-                index[d] = (byte) i;
+                indexes[d] = (byte) i;
                 return;
             }
             do
             {
                 if (d == 0)
                 {
-                    index[d] = (byte) curKeyEnd;
+                    indexes[d] = (byte) curKeyEnd;
                     depth = d;
                     return;
                 }
                 d--;
-                i = index[d] + 1;
-                curKeyEnd = getKeyEnd(stack[d]);
+                i = indexes[d] + 1;
+                curKeyEnd = getKeyEnd(path[d]);
                 if (i < curKeyEnd)
                 {
-                    index[d] = (byte) i;
+                    indexes[d] = (byte) i;
                     depth = d;
                     return;
                 }
@@ -170,15 +173,15 @@ class Stack
             while (true)
             {
                 d++;
-                cur = (stack[d] = (Object[]) cur[curKeyEnd + curi]);
+                cur = (path[d] = (Object[]) cur[curKeyEnd + curi]);
                 if (isLeaf(cur))
                 {
-                    index[d] = (byte) (getLeafKeyEnd(cur) - 1);
+                    indexes[d] = (byte) (getLeafKeyEnd(cur) - 1);
                     depth = d;
                     return;
                 }
                 curKeyEnd = getBranchKeyEnd(cur);
-                curi = index[d] = (byte) curKeyEnd;
+                curi = indexes[d] = (byte) curKeyEnd;
             }
         }
         else
@@ -187,22 +190,22 @@ class Stack
             curi -= 1;
             if (curi >= 0)
             {
-                index[d] = (byte) curi;
+                indexes[d] = (byte) curi;
                 return;
             }
             do
             {
                 if (d == 0)
                 {
-                    index[d] = -1;
+                    indexes[d] = -1;
                     depth = d;
                     return;
                 }
                 d--;
-                curi = index[d] - 1;
+                curi = indexes[d] - 1;
                 if (curi >= 0)
                 {
-                    index[d] = (byte) curi;
+                    indexes[d] = (byte) curi;
                     depth = d;
                     return;
                 }
@@ -210,12 +213,12 @@ class Stack
         }
     }
 
-    int compareTo(Stack that, boolean forwards)
+    int compareTo(Path that, boolean forwards)
     {
         int d = Math.min(this.depth, that.depth);
         for (int i = 0; i <= d; i++)
         {
-            int c = this.index[i] - that.index[i];
+            int c = this.indexes[i] - that.indexes[i];
             if (c != 0)
                 return c;
         }
