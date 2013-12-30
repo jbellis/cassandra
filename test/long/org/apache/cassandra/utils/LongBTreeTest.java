@@ -26,7 +26,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public class BTreeTest
+// TODO : should probably lower fan-factor for tests to make them more intensive
+public class LongBTreeTest
 {
 
     private static final Timer BTREE_TIMER = Metrics.newTimer(BTree.class, "BTREE", TimeUnit.NANOSECONDS, TimeUnit.NANOSECONDS);
@@ -34,20 +35,13 @@ public class BTreeTest
     private static final ExecutorService MODIFY = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new NamedThreadFactory("MODIFY"));
     private static final ExecutorService COMPARE = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new NamedThreadFactory("COMPARE"));
 
-    public static void main(String[] args) throws ExecutionException, InterruptedException
+    static
     {
-        // TODO : should probably lower fan-factor for tests to make them more intensive
-        testOversizedMiddleInsert();
-        testSlicing();
-        testInsertions(100000000, 10, 1, 1, true);
-        testInsertions(100000000, 10, 1, 5, true);
-        testInsertions(100000000, 500, 10, 1, true);
-        testInsertions(100000000, 500, 10, 10, true);
-        testInsertions(100000000, 5000, 3, 100, true);
-        testInsertions(100000, 50, 10, 10, false);
+        System.setProperty("cassandra.btree.fanfactor", "4");
     }
 
-    private static void testOversizedMiddleInsert()
+    @Test
+    public void testOversizedMiddleInsert()
     {
         TreeSet<Integer> canon = new TreeSet<>();
         for (int i = 0 ; i < 10000000 ; i++)
@@ -58,7 +52,42 @@ public class BTreeTest
         canon.add(Integer.MAX_VALUE);
         Assert.assertTrue(BTree.isWellFormed(btree, ICMP));
         testEqual("Oversize", BTree.<Integer>slice(btree, true), canon.iterator());
-//        testAllSlices("Oversize", btree, canon);
+    }
+
+    @Test
+    public void testIndividualInsertsSmallOverlappingRange() throws ExecutionException, InterruptedException
+    {
+        testInsertions(100000000, 50, 1, 1, true);
+    }
+
+    @Test
+    public void testBatchesSmallOverlappingRange() throws ExecutionException, InterruptedException
+    {
+        testInsertions(100000000, 50, 1, 5, true);
+    }
+
+    @Test
+    public void testIndividualInsertsMediumSparseRange() throws ExecutionException, InterruptedException
+    {
+        testInsertions(100000000, 500, 10, 1, true);
+    }
+
+    @Test
+    public void testBatchesMediumSparseRange() throws ExecutionException, InterruptedException
+    {
+        testInsertions(100000000, 500, 10, 10, true);
+    }
+
+    @Test
+    public void testLargeBatchesLargeRange() throws ExecutionException, InterruptedException
+    {
+        testInsertions(100000000, 5000, 3, 100, true);
+    }
+
+    @Test
+    public void testSlicingSmallRandomTrees() throws ExecutionException, InterruptedException
+    {
+        testInsertions(100000, 50, 10, 10, false);
     }
 
     private static void testInsertions(int totalCount, int perTestCount, int testKeyRatio, int modificationBatchSize, boolean quickEquality) throws ExecutionException, InterruptedException
@@ -67,35 +96,39 @@ public class BTreeTest
         int maximumRunLength = 100;
         int testKeyRange = perTestCount * testKeyRatio;
         int tests = totalCount / perTestCount;
-        System.out.println(String.format("Performing %d tests of %d operations, with %.2f max size/range ratio in batches of %d ops",
+        System.out.println(String.format("Performing %d tests of %d operations, with %.2f max size/key-range ratio in batches of ~%d ops",
                 tests, perTestCount, 1 / (float) testKeyRatio, modificationBatchSize));
 
-        final List<ListenableFutureTask<List<ListenableFuture<?>>>> outer = new ArrayList<>();
-        for (int i = 0 ; i < tests ; i++)
+        // if we're not doing quick-equality, we can spam with garbage for all the checks we perform, so we'll split the work into smaller chunks
+        int chunkSize = quickEquality ? tests : (int) (200000 / Math.pow(perTestCount, 2));
+        for (int chunk = 0 ; chunk < tests ; chunk += chunkSize)
         {
-            outer.add(doOneTestInsertions(testKeyRange, maximumRunLength, modificationBatchSize, batchesPerTest, quickEquality));
-        }
-
-        final List<ListenableFuture<?>> inner = new ArrayList<>();
-        int complete = 0;
-        int reportInterval = totalCount / 100;
-        int lastReportAt = 0;
-        for (ListenableFutureTask<List<ListenableFuture<?>>> f : outer)
-        {
-            inner.addAll(f.get());
-            complete += perTestCount;
-            if (complete - lastReportAt >= reportInterval)
+            final List<ListenableFutureTask<List<ListenableFuture<?>>>> outer = new ArrayList<>();
+            for (int i = 0 ; i < chunkSize ; i++)
             {
-                System.out.println(String.format("Completed %d operations", complete));
-                lastReportAt = complete;
+                outer.add(doOneTestInsertions(testKeyRange, maximumRunLength, modificationBatchSize, batchesPerTest, quickEquality));
             }
+
+            final List<ListenableFuture<?>> inner = new ArrayList<>();
+            int complete = 0;
+            int reportInterval = totalCount / 100;
+            int lastReportAt = 0;
+            for (ListenableFutureTask<List<ListenableFuture<?>>> f : outer)
+            {
+                inner.addAll(f.get());
+                complete += perTestCount;
+                if (complete - lastReportAt >= reportInterval)
+                {
+                    System.out.println(String.format("Completed %d of %d operations", (chunk * perTestCount) + complete, totalCount));
+                    lastReportAt = complete;
+                }
+            }
+            Futures.allAsList(inner).get();
         }
         Snapshot snap = BTREE_TIMER.getSnapshot();
-        System.out.println(String.format("btree   : %.2fns, %.2fsns, %.2fsns", snap.getMedian(), snap.get95thPercentile(), snap.get999thPercentile()));
+        System.out.println(String.format("btree   : %.2fns, %.2fns, %.2fns", snap.getMedian(), snap.get95thPercentile(), snap.get999thPercentile()));
         snap = TREE_TIMER.getSnapshot();
-        System.out.println(String.format("snaptree: %.2fns, %.2fsns, %.2fsns", snap.getMedian(), snap.get95thPercentile(), snap.get999thPercentile()));
-        System.out.println("Waiting for compare results");
-        Futures.allAsList(inner).get();
+        System.out.println(String.format("snaptree: %.2fns, %.2fns, %.2fns", snap.getMedian(), snap.get95thPercentile(), snap.get999thPercentile()));
         System.out.println("Done");
     }
 
@@ -152,7 +185,8 @@ public class BTreeTest
         return f;
     }
 
-    private static void testSlicing() throws ExecutionException, InterruptedException
+    @Test
+    public void testSlicingAllSmallTrees() throws ExecutionException, InterruptedException
     {
         Object[] cur = BTree.empty();
         TreeSet<Integer> canon = new TreeSet<>();

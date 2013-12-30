@@ -20,7 +20,17 @@ public class BTree
      */
 
     // The maximum fan factor used for B-Trees
-    static final int FAN_SHIFT = 5;
+    static final int FAN_SHIFT;
+    static
+    {
+        int fanfactor = 32;
+        if (System.getProperty("cassandra.btree.fanfactor") != null)
+            fanfactor = Integer.parseInt(System.getProperty("cassandra.btree.fanfactor"));
+        int shift = 1;
+        while (1 << shift < fanfactor)
+            shift += 1;
+        FAN_SHIFT = shift;
+    }
     static final int FAN_FACTOR = 1 << FAN_SHIFT;
     static final int QUICK_MERGE_LIMIT = Math.min(FAN_FACTOR, 16) * 2;
 
