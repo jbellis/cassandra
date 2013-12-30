@@ -23,10 +23,11 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Future;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,15 +55,7 @@ public class Keyspace
 
     private static final Logger logger = LoggerFactory.getLogger(Keyspace.class);
 
-    /**
-     * accesses to CFS.memtable should acquire this for thread safety.
-     * CFS.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
-     * <p/>
-     * (Enabling fairness in the RRWL is observed to decrease throughput, so we leave it off.)
-     */
-    public static final ReentrantReadWriteLock switchLock = new ReentrantReadWriteLock();
-
-    // It is possible to call Keyspace.open without a running daemon, so it makes sense to ensure
+    // It is possible to call Table.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
     static
     {
@@ -71,6 +64,7 @@ public class Keyspace
     }
 
     public final KSMetaData metadata;
+    public final OpOrdering writeOrdering = new OpOrdering();
 
     /* ColumnFamilyStore per column family */
     private final ConcurrentMap<UUID, ColumnFamilyStore> columnFamilyStores = new ConcurrentHashMap<UUID, ColumnFamilyStore>();
@@ -343,16 +337,18 @@ public class Keyspace
      */
     public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        // write the mutation to the commitlog and memtables
-        Tracing.trace("Acquiring switchLock read lock");
-        switchLock.readLock().lock();
+
+        final OpOrdering.Ordered op = writeOrdering.start();
         try
         {
+
+            // write the mutation to the commitlog and memtables
             if (writeCommitLog)
-            {
                 Tracing.trace("Appending to commitlog");
-                CommitLog.instance.add(mutation);
-            }
+
+            // we always call add() even if we don't want to append, to ensure we stack allocate the RP
+            // this seems less ugly than allocating a state object here we pass around, or wasting heap allocations
+            final ReplayPosition replayPosition = CommitLog.instance.add(writeCommitLog ? mutation : null);
 
             DecoratedKey key = StorageService.getPartitioner().decorateKey(mutation.key());
             for (ColumnFamily cf : mutation.getColumnFamilies())
@@ -365,12 +361,16 @@ public class Keyspace
                 }
 
                 Tracing.trace("Adding to {} memtable", cf.metadata().cfName);
-                cfs.apply(key, cf, updateIndexes ? cfs.indexManager.updaterFor(key, cf) : SecondaryIndexManager.nullUpdater);
+                SecondaryIndexManager.Updater updater = updateIndexes
+                        ? cfs.indexManager.updaterFor(key, op)
+                        : SecondaryIndexManager.nullUpdater;
+                cfs.apply(key, cf, updater, op, replayPosition);
             }
+
         }
         finally
         {
-            switchLock.readLock().unlock();
+            op.finishOne();
         }
     }
 
@@ -389,11 +389,11 @@ public class Keyspace
         if (logger.isDebugEnabled())
             logger.debug("Indexing row {} ", cfs.metadata.getKeyValidator().getString(key.key));
 
-        Collection<SecondaryIndex> indexes = cfs.indexManager.getIndexesByNames(idxNames);
-
-        switchLock.readLock().lock();
+        final OpOrdering.Ordered op = cfs.keyspace.writeOrdering.start();
         try
         {
+            Collection<SecondaryIndex> indexes = cfs.indexManager.getIndexesByNames(idxNames);
+
             Iterator<ColumnFamily> pager = QueryPagers.pageRowLocally(cfs, key.key, DEFAULT_PAGE_SIZE);
             while (pager.hasNext())
             {
@@ -404,12 +404,12 @@ public class Keyspace
                     if (cfs.indexManager.indexes(cell.name(), indexes))
                         cf2.addColumn(cell);
                 }
-                cfs.indexManager.indexRow(key.key, cf2);
+                cfs.indexManager.indexRow(key.key, cf2, op);
             }
         }
         finally
         {
-            switchLock.readLock().unlock();
+            op.finishOne();
         }
     }
 

@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +50,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.WaitQueue;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
@@ -239,26 +240,29 @@ public class CommitLogSegmentManager
             }
 
             // no more segments, so register to receive a signal when not empty
-            WaitQueue.Signal signal = hasAvailableSegments.register();
+            WaitQueue.Signal signal = hasAvailableSegments.register(CommitLog.instance.metrics.waitingOnSegmentAllocation.time());
 
             // trigger the management thread; this must occur after registering
             // the signal to ensure we are woken by any new segment creation
             wakeManager();
 
             // check if the queue has already been added to before waiting on the signal, to catch modifications
-            // that happened prior to registering the signal
-            if (availableSegments.isEmpty())
+            // that happened prior to registering the signal; *then* check to see if we've been beaten to making the change
+            if (!availableSegments.isEmpty() || allocatingFrom != old)
             {
-                // check to see if we've been beaten to it
+                signal.cancel();
+                // if we've been beaten, just stop immediately
                 if (allocatingFrom != old)
                     return;
-
-                // can only reach here if the queue hasn't been inserted into
-                // before we registered the signal, as we only remove items from the queue
-                // after updating allocatingFrom. Can safely block until we are signalled
-                // by the allocator that new segments have been published
-                signal.awaitUninterruptibly();
+                // otherwise try again, as there should be an available segment
+                continue;
             }
+
+            // can only reach here if the queue hasn't been inserted into
+            // before we registered the signal, as we only remove items from the queue
+            // after updating allocatingFrom. Can safely block until we are signalled
+            // by the allocator that new segments have been published
+            signal.awaitUninterruptibly();
         }
     }
 
@@ -443,8 +447,12 @@ public class CommitLogSegmentManager
      *
      * @return a Future that will finish when all the flushes are complete.
      */
-    private Future<?> flushDataFrom(Collection<CommitLogSegment> segments)
+    private Future<?> flushDataFrom(List<CommitLogSegment> segments)
     {
+        if (segments.isEmpty())
+            return Futures.immediateFuture(null);
+        final ReplayPosition maxReplayPosition = segments.get(segments.size() - 1).getContext();
+
         // a map of CfId -> forceFlush() to ensure we only queue one flush per cf
         final Map<UUID, Future<?>> flushes = new LinkedHashMap<>();
 
@@ -462,6 +470,7 @@ public class CommitLogSegmentManager
                 }
                 else if (!flushes.containsKey(dirtyCFId))
                 {
+                    // TODO: only flush the CFS if the Memtable containing the dirty data isn't already flushing
                     String keyspace = pair.left;
                     final ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(dirtyCFId);
                     // Push the flush out to another thread to avoid potential deadlock: Table.add
@@ -471,7 +480,7 @@ public class CommitLogSegmentManager
                     {
                         public void run()
                         {
-                            cfs.forceFlush();
+                            cfs.forceFlush(maxReplayPosition);
                         }
                     };
                     flushes.put(dirtyCFId, StorageService.optionalTasks.submit(runnable));

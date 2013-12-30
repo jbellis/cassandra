@@ -20,7 +20,7 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 
 /**
  * A CellName is a Composite, but for which, for the sake of CQL3, we

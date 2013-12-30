@@ -24,13 +24,22 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import javax.management.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
+import com.google.common.util.concurrent.*;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
+import org.apache.cassandra.utils.memory.Allocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
@@ -49,6 +58,9 @@ import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.*;
+import org.apache.cassandra.db.filter.ExtendedFilter;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
@@ -76,7 +88,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
-    public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor("MemtablePostFlusher");
+    public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor(1, StageManager.KEEPALIVE, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory("MemtablePostFlush"), "internal");
+    private static final ExecutorService flushExecutor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(), StageManager.KEEPALIVE, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory("MemtableFlushWriter"), "internal");
 
     public final Keyspace keyspace;
     public final String name;
@@ -99,11 +114,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private volatile AbstractCompactionStrategy compactionStrategy;
 
     public final Directories directories;
-
-    /** ratio of in-memory memtable size, to serialized size */
-    volatile double liveRatio = 10.0; // reasonable default until we compute what it is based on actual data
-    /** ops count last time we computed liveRatio */
-    private final AtomicLong liveRatioComputedAt = new AtomicLong(32);
 
     public final ColumnFamilyMetrics metric;
     public volatile long sampleLatencyNanos;
@@ -128,8 +138,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // If the CF comparator has changed, we need to change the memtable,
         // because the old one still aliases the previous comparator.
-        if (getMemtableThreadSafe().initialComparator != metadata.comparator)
-            switchMemtable(true, true);
+        if (data.getView().getCurrentMemtable().initialComparator != metadata.comparator)
+            switchMemtable();
     }
 
     private void maybeReloadCompactionStrategy()
@@ -157,14 +167,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 protected void runMayThrow() throws Exception
                 {
-                    if (getMemtableThreadSafe().isExpired())
+                    synchronized (data)
                     {
-                        // if memtable is already expired but didn't flush because it's empty,
-                        // then schedule another flush.
-                        if (isClean())
-                            scheduleFlush();
-                        else
-                            forceFlush(); // scheduleFlush() will be called by the constructor of the new memtable.
+                        Memtable current = data.getView().getCurrentMemtable();
+                        if (current.isExpired())
+                        {
+                            if (current.isClean())
+                                scheduleFlush();
+                            else
+                                forceFlush();
+                        }
                     }
                 }
             };
@@ -689,128 +701,236 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
-     * Switch and flush the current memtable, if it was dirty. The forceSwitch
-     * flag allow to force switching the memtable even if it is clean (though
-     * in that case we don't flush, as there is no point).
+     * Switches the memtable iff the live memtable is the one provided
+     *
+     * @param isCurrent
      */
-    public Future<?> switchMemtable(final boolean writeCommitLog, boolean forceSwitch)
+    public Future<?> switchMemtableIf(Memtable isCurrent)
     {
-        /*
-         * If we can get the writelock, that means no new updates can come in and
-         * all ongoing updates to memtables have completed. We can get the tail
-         * of the log and use it as the starting position for log replay on recovery.
-         *
-         * This is why we Keyspace.switchLock needs to be global instead of per-Keyspace:
-         * we need to schedule discardCompletedSegments calls in the same order as their
-         * contexts (commitlog position) were read, even though the flush executor
-         * is multithreaded.
-         */
-        Keyspace.switchLock.writeLock().lock();
-        try
+        synchronized (data)
         {
-            final Future<ReplayPosition> ctx = writeCommitLog ? CommitLog.instance.getContext() : Futures.immediateFuture(ReplayPosition.NONE);
+            if (data.getView().getCurrentMemtable() == isCurrent)
+                return switchMemtable();
+        }
+        return Futures.immediateFuture(null);
+    }
 
-            // submit the memtable for any indexed sub-cfses, and our own.
-            final List<ColumnFamilyStore> icc = new ArrayList<ColumnFamilyStore>();
-            // don't assume that this.memtable is dirty; forceFlush can bring us here during index build even if it is not
+    /*
+     * switchMemtable puts Memtable.getSortedContents on the writer executor.  When the write is complete,
+     * we turn the writer into an SSTableReader and add it to ssTables where it is available for reads.
+     * This method does not block except for other calls to switchMemtable, but the Future it returns will
+     * not complete until the Memtable (and all prior Memtables) have been successfully flushed, and the CL
+     * marked clean up to the position owned by the Memtable.
+     */
+    public Future<?> switchMemtable()
+    {
+        assert !isIndex();
+        synchronized (data)
+        {
+            logger.info("Enqueuing flush of {}", name);
+            final Flush flush = new Flush();
+            flushExecutor.execute(flush);
+            return postFlushExecutor.submit(flush.postFlush);
+        }
+    }
+
+    private final class PostFlush implements Runnable
+    {
+
+        final OpOrdering.Barrier writeBarrier;
+        final CountDownLatch latch = new CountDownLatch(1);
+        volatile ReplayPosition lastReplayPosition;
+
+        private PostFlush(OpOrdering.Barrier writeBarrier)
+        {
+            this.writeBarrier = writeBarrier;
+        }
+
+        @Override
+        public void run()
+        {
+
+            writeBarrier.await();
+
+            /**
+             * we can flush 2is as soon as the barrier completes, as they will be consistent with (or ahead of) the
+             * flushed memtables and CL position, which is as good as we can guarantee.
+             * TODO: SecondaryIndex should support setBarrier(), so custom implementations can co-ordinate exactly
+             * with CL as we do with memtables/CFS-backed SecondaryIndexes.
+             */
+
+            for (SecondaryIndex index : indexManager.getIndexesNotBackedByCfs())
+            {
+                // flush any non-cfs backed indexes
+                logger.info("Flushing SecondaryIndex {}", index);
+                index.forceBlockingFlush();
+            }
+
+            try
+            {
+                latch.await();
+            } catch (InterruptedException e)
+            {
+                throw new IllegalStateException();
+            }
+
+            if (lastReplayPosition != null)
+            {
+                CommitLog.instance.discardCompletedSegments(metadata.cfId, lastReplayPosition);
+            }
+        }
+
+    }
+
+    private final class Flush implements Runnable
+    {
+
+        final OpOrdering.Barrier writeBarrier;
+        final List<Memtable> memtables;
+        final PostFlush postFlush;
+
+        private Flush()
+        {
+            /**
+             * To ensure correctness of switch with non-blocking writes, we wait for all write operations started
+             * prior to the switch to complete before we proceed. We do this by creating a Barrier on the writeOrdering
+             * that all write operations register themselves with, and assigning this barrier to the memtables,
+             * after which we issue the barrier. This barrier is used to direct write operations started prior
+             * to the barrier into the memtable we have switched, and any started after to its replacement. In
+             * doing so it also directs the write operations to update the lastReplayPosition of the memtable, so
+             * that we know the CL position we are dirty to, which can be marked clean when we complete.
+             */
+
+            writeBarrier = keyspace.writeOrdering.newBarrier();
+            memtables = new ArrayList<>();
+
+            // submit flushes for the memtable for any indexed sub-cfses, and our own
+            final ReplayPosition minReplayPosition = CommitLog.instance.getContext();
             for (ColumnFamilyStore cfs : concatWithIndexes())
             {
-                if (forceSwitch || !cfs.getMemtableThreadSafe().isClean())
-                    icc.add(cfs);
+                // switch all memtables, regardless of their dirty status, setting the barrier
+                // so that we can reach a coordinated decision about cleanliness once they
+                // are no longer possible to be modified
+                Memtable mt = cfs.data.switchMemtable();
+                mt.discarding(writeBarrier, minReplayPosition);
+                memtables.add(mt);
             }
 
-            final CountDownLatch latch = new CountDownLatch(icc.size());
-            for (ColumnFamilyStore cfs : icc)
+            writeBarrier.issue();
+            postFlush = new PostFlush(writeBarrier);
+        }
+
+        @Override
+        public void run()
+        {
+
+            // mark writes older than the barrier as blocking progress, permitting them to exceed our memory limit
+            // if they are stuck waiting on it, then wait for them all to complete
+            writeBarrier.markBlocking();
+            writeBarrier.await();
+
+            // mark all memtables as flushing, removing them from the live memtable list, and
+            // remove any memtables that are already clean from the set we need to flush
+            Iterator<Memtable> iter = memtables.iterator();
+            while (iter.hasNext())
             {
-                Memtable memtable = cfs.data.switchMemtable();
-                // With forceSwitch it's possible to get a clean memtable here.
-                // In that case, since we've switched it already, just remove
-                // it from the memtable pending flush right away.
+                Memtable memtable = iter.next();
+                memtable.cfs.data.markFlushing(memtable);
                 if (memtable.isClean())
                 {
-                    cfs.replaceFlushed(memtable, null);
-                    latch.countDown();
-                }
-                else
-                {
-                    logger.info("Enqueuing flush of {}", memtable);
-                    memtable.flushAndSignal(latch, ctx);
+                    memtable.cfs.replaceFlushed(memtable, null);
+                    memtable.discarded();
+                    iter.remove();
                 }
             }
 
-            if (metric.memtableSwitchCount.count() == Long.MAX_VALUE)
-                metric.memtableSwitchCount.clear();
+            if (memtables.isEmpty())
+            {
+                postFlush.latch.countDown();
+                return;
+            }
+
             metric.memtableSwitchCount.inc();
 
-            // when all the memtables have been written, including for indexes, mark the flush in the commitlog header.
-            // a second executor makes sure the onMemtableFlushes get called in the right order,
-            // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
-            return postFlushExecutor.submit(new WrappedRunnable()
+            for (final Memtable memtable : memtables)
             {
-                public void runMayThrow() throws InterruptedException, ExecutionException
-                {
-                    latch.await();
+                // flush the memtable
+                MoreExecutors.sameThreadExecutor().execute(memtable.flushRunnable());
+                memtable.discarded();
+            }
 
-                    if (!icc.isEmpty())
-                    {
-                        //only valid when memtables exist
+            ReplayPosition lastReplayPosition = memtables.get(0).getLastReplayPosition();
+            if (indexManager.getIndexesNotBackedByCfs().isEmpty())
+                CommitLog.instance.discardCompletedSegments(metadata.cfId, lastReplayPosition);
+            else
+                postFlush.lastReplayPosition = lastReplayPosition;
 
-                        for (SecondaryIndex index : indexManager.getIndexesNotBackedByCfs())
-                        {
-                            // flush any non-cfs backed indexes
-                            logger.info("Flushing SecondaryIndex {}", index);
-                            index.forceBlockingFlush();
-                        }
-                    }
-
-                    if (writeCommitLog)
-                    {
-                        // if we're not writing to the commit log, we are replaying the log, so marking
-                        // the log header with "you can discard anything written before the context" is not valid
-                        CommitLog.instance.discardCompletedSegments(metadata.cfId, ctx.get());
-                    }
-                }
-            });
-        }
-        finally
-        {
-            Keyspace.switchLock.writeLock().unlock();
+            postFlush.latch.countDown();
         }
     }
 
-    private boolean isClean()
+    public static class FlushLargestMemtable implements Runnable
     {
-        // during index build, 2ary index memtables can be dirty even if parent is not.  if so,
-        // we want flushLargestMemtables to flush the 2ary index ones too.
-        for (ColumnFamilyStore cfs : concatWithIndexes())
-            if (!cfs.getMemtableThreadSafe().isClean())
-                return false;
 
-        return true;
+        public void run()
+        {
+            float largestRatio = 0f;
+            Memtable largest = null;
+            for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+            {
+                final Memtable current = cfs.getDataTracker().getView().getCurrentMemtable();
+                float ratio = Math.max(current.getOnHeap().ownershipRatio(), current.getOffHeap().ownershipRatio());
+                if (ratio > largestRatio)
+                {
+                    largest = current;
+                    largestRatio = ratio;
+                }
+            }
+
+            if (largest != null)
+            {
+                largest.cfs.switchMemtableIf(largest);
+                // reclaiming includes that which we are GC-ing;
+                logger.info("Reclaiming {} of {} retained memtable bytes", Memtable.POOL.onHeap.reclaiming(), Memtable.POOL.onHeap.used());
+            }
+        }
+
     }
 
-    /**
-     * @return a future, with a guarantee that any data inserted prior to the forceFlush() call is fully flushed
-     *         by the time future.get() returns. Never returns null.
-     */
     public Future<?> forceFlush()
     {
-        if (isClean())
-        {
-            // We could have a memtable for this column family that is being
-            // flushed. Make sure the future returned wait for that so callers can
-            // assume that any data inserted prior to the call are fully flushed
-            // when the future returns (see #5241).
-            return postFlushExecutor.submit(new Runnable()
-            {
-                public void run()
-                {
-                    logger.debug("forceFlush requested but everything is clean in {}", name);
-                }
-            });
-        }
+        return forceFlush(null);
+    }
 
-        return switchMemtable(true, false);
+    public Future<?> forceFlush(ReplayPosition flushIfBefore)
+    {
+        // we synchronize on the data tracker to ensure we don't race against other calls to switchMemtable(),
+        // unnecessarily queueing memtables that are about to be made clean
+        synchronized (data)
+        {
+            // during index build, 2ary index memtables can be dirty even if parent is not.  if so,
+            // we want flushLargestMemtables to flush the 2ary index ones too.
+            boolean clean = true;
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                clean &= cfs.data.getView().getCurrentMemtable().isClean(flushIfBefore);
+
+            if (clean)
+            {
+                // We could have a memtable for this column family that is being
+                // flushed. Make sure the future returned wait for that so callers can
+                // assume that any data inserted prior to the call are fully flushed
+                // when the future returns (see #5241).
+                return postFlushExecutor.submit(new Runnable()
+                {
+                    public void run()
+                    {
+                        logger.debug("forceFlush requested but everything is clean in {}", name);
+                    }
+                });
+            }
+
+            return switchMemtable();
+        }
     }
 
     public void forceBlockingFlush()
@@ -834,28 +954,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ key - key for update/insert
      * param @ columnFamily - columnFamily changes
      */
-    public void apply(DecoratedKey key, ColumnFamily columnFamily, SecondaryIndexManager.Updater indexer)
+    public void apply(DecoratedKey key, ColumnFamily columnFamily, SecondaryIndexManager.Updater indexer, OpOrdering.Ordered writeOp, ReplayPosition replayPosition)
     {
         long start = System.nanoTime();
 
-        Memtable mt = getMemtableThreadSafe();
-        mt.put(key, columnFamily, indexer);
+        Memtable mt = data.getMemtableFor(writeOp);
+        mt.put(key, columnFamily, indexer, writeOp, replayPosition);
         maybeUpdateRowCache(key);
         metric.writeLatency.addNano(System.nanoTime() - start);
-
-        // recompute liveRatio, if we have doubled the number of ops since last calculated
-        while (true)
-        {
-            long last = liveRatioComputedAt.get();
-            long operations = metric.writeLatency.latency.count();
-            if (operations < 2 * last)
-                break;
-            if (liveRatioComputedAt.compareAndSet(last, operations))
-            {
-                logger.debug("computing liveRatio of {} at {} ops", this, operations);
-                mt.updateLiveRatio();
-            }
-        }
     }
 
     /**
@@ -1101,45 +1207,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public long getMemtableDataSize()
     {
-        return metric.memtableDataSize.value();
-    }
-
-    public long getTotalMemtableLiveSize()
-    {
-        return getMemtableDataSize() + indexManager.getTotalLiveSize();
-    }
-
-    /**
-     * @return the live size of all the memtables (the current active one and pending flush).
-     */
-    public long getAllMemtablesLiveSize()
-    {
-        long size = 0;
-        for (Memtable mt : getDataTracker().getAllMemtables())
-            size += mt.getLiveSize();
-        return size;
-    }
-
-    /**
-     * @return the size of all the memtables, including the pending flush ones and 2i memtables, if any.
-     */
-    public long getTotalAllMemtablesLiveSize()
-    {
-        long size = getAllMemtablesLiveSize();
-        if (indexManager.hasIndexes())
-            for (ColumnFamilyStore index : indexManager.getIndexesBackedByCfs())
-                size += index.getAllMemtablesLiveSize();
-        return size;
+        return metric.memtableHeapSize.value();
     }
 
     public int getMemtableSwitchCount()
     {
         return (int) metric.memtableSwitchCount.count();
-    }
-
-    Memtable getMemtableThreadSafe()
-    {
-        return data.getMemtable();
     }
 
     /**
@@ -1424,7 +1497,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // retry w/ new view
         }
 
-        return new ViewFragment(sstables, Iterables.concat(Collections.singleton(view.memtable), view.memtablesPendingFlush));
+        return new ViewFragment(sstables, view.getAllMemtables());
     }
 
     /**
@@ -1501,8 +1574,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore)
     {
         Tracing.trace("Executing single-partition query on {}", name);
-        CollationController controller = new CollationController(this, filter, gcBefore);
-        ColumnFamily columns = controller.getTopLevelColumns();
+        final CollationController controller = new CollationController(this, filter, gcBefore);
+        final ColumnFamily columns = controller.getTopLevelColumns();
         metric.updateSSTableIterated(controller.getSstablesIterated());
         return columns;
     }
@@ -1954,23 +2027,29 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             // sleep a little to make sure that our truncatedAt comes after any sstable
             // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
-            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
-        }
-
-        // nuke the memtable data w/o writing to disk first
-        Keyspace.switchLock.writeLock().lock();
-        try
-        {
-            for (ColumnFamilyStore cfs : concatWithIndexes())
+            try
             {
-                Memtable mt = cfs.getMemtableThreadSafe();
-                if (!mt.isClean())
-                    mt.cfs.data.renewMemtable();
+                long starttime = System.currentTimeMillis();
+                while ((System.currentTimeMillis() - starttime) < 1)
+                {
+                    Thread.sleep(1);
+                }
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
             }
         }
-        finally
+        else
         {
-            Keyspace.switchLock.writeLock().unlock();
+            // just nuke the memtable data w/o writing to disk first
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+            {
+                synchronized (cfs.data)
+                {
+                    cfs.data.nukeCurrentMemtable();
+                }
+            }
         }
 
         Runnable truncateRunnable = new Runnable()
@@ -2249,12 +2328,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Iterable<ColumnFamilyStore> concatWithIndexes()
     {
-        return Iterables.concat(indexManager.getIndexesBackedByCfs(), Collections.singleton(this));
-    }
-
-    public Set<Memtable> getMemtablesPendingFlush()
-    {
-        return data.getMemtablesPendingFlush();
+        // we return the main CFS first, which we rely on for simplicity in switchMemtable(), for getting the
+        // latest replay position
+        return Iterables.concat(Collections.singleton(this), indexManager.getIndexesBackedByCfs());
     }
 
     public List<String> getBuiltIndexes()
@@ -2293,17 +2369,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public long oldestUnflushedMemtable()
     {
-        DataTracker.View view = data.getView();
-        long oldest = view.memtable.creationTime();
-        for (Memtable memtable : view.memtablesPendingFlush)
-            oldest = Math.min(oldest, memtable.creationTime());
-        return oldest;
+        return data.getView().getOldestMemtable().creationTime();
     }
 
     public boolean isEmpty()
     {
         DataTracker.View view = data.getView();
-        return view.sstables.isEmpty() && view.memtable.getOperations() == 0 && view.memtablesPendingFlush.isEmpty();
+        return view.sstables.isEmpty() && view.getCurrentMemtable().getOperations() == 0 && view.getCurrentMemtable() == view.getOldestMemtable();
     }
 
     private boolean isRowCacheEnabled()

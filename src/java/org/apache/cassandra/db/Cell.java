@@ -26,24 +26,32 @@ import java.util.Iterator;
 
 import com.google.common.collect.AbstractIterator;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.CellNames;
+import org.apache.cassandra.db.composites.SimpleSparseCellName;
+import org.apache.cassandra.db.composites.SimpleSparseCellNameType;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.HeapAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 
 /**
  * Cell is immutable, which prevents all kinds of confusion in a multithreaded environment.
  */
-public class Cell implements OnDiskAtom
+public class Cell implements OnDiskAtom, IMeasurableMemory
 {
     public static final int MAX_NAME_LENGTH = FBUtilities.MAX_UNSIGNED_SHORT;
+
+    private static final long HEAP_SIZE = ObjectSizes.measure(new Cell(CellNames.simpleDense(ByteBuffer.allocate(1))));
 
     /**
      * For 2.0-formatted sstables (where column count is not stored), @param count should be Integer.MAX_VALUE,
@@ -158,7 +166,12 @@ public class Cell implements OnDiskAtom
 
     public int dataSize()
     {
-        return name().dataSize() + value.remaining() + TypeSizes.NATIVE.sizeof(timestamp);
+        return name.dataSize() + value.remaining() + TypeSizes.NATIVE.sizeof(timestamp);
+    }
+
+    public long excessHeapSize()
+    {
+        return HEAP_SIZE + name.excessHeapSize() + ObjectSizes.sizeOnHeapOf(value);
     }
 
     public int serializedSize(CellNameType type, TypeSizes typeSizes)

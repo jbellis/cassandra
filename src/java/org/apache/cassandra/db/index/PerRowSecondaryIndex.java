@@ -20,6 +20,7 @@ package org.apache.cassandra.db.index;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 
+import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
@@ -44,6 +45,11 @@ public abstract class PerRowSecondaryIndex extends SecondaryIndex
      * @param key
      */
     public abstract void delete(DecoratedKey key);
+
+    public void delete(DecoratedKey key, OpOrdering.Ordered op)
+    {
+        delete(key);
+    }
 
     @Override
     public String getNameForSystemKeyspace(ByteBuffer columnName)

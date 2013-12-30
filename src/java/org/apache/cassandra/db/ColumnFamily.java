@@ -31,6 +31,8 @@ import java.util.UUID;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.utils.memory.Allocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 import org.apache.cassandra.cache.IRowCacheEntry;

@@ -29,6 +29,8 @@ public class KeyCacheKey implements CacheKey
 {
     public final Descriptor desc;
 
+    private static final long HEAP_SIZE = ObjectSizes.measure(new KeyCacheKey(null, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+
     // keeping an array instead of a ByteBuffer lowers the overhead of the key cache working set,
     // without extra copies on lookup since client-provided key ByteBuffers will be array-backed already
     public final byte[] key;
@@ -50,13 +52,9 @@ public class KeyCacheKey implements CacheKey
         return String.format("KeyCacheKey(%s, %s)", desc, ByteBufferUtil.bytesToHex(ByteBuffer.wrap(key)));
     }
 
-    public long memorySize()
+    public long excessHeapSize()
     {
-        return ObjectSizes.getFieldSize(// desc
-                                        ObjectSizes.getReferenceSize() +
-                                        // key
-                                        ObjectSizes.getReferenceSize())
-               + ObjectSizes.getArraySize(key);
+        return HEAP_SIZE + ObjectSizes.sizeOfArray(key);
     }
 
     @Override

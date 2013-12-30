@@ -15,27 +15,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.utils;
+package org.apache.cassandra.utils.memory;
+
+import org.apache.cassandra.utils.concurrent.OpOrdering;
 
 import java.nio.ByteBuffer;
 
-public abstract class Allocator
+public final class HeapPoolAllocator extends PoolAllocator
 {
-    /**
-     * Allocate a slice of the given length.
-     */
-    public ByteBuffer clone(ByteBuffer buffer)
-    {
-        assert buffer != null;
-        ByteBuffer cloned = allocate(buffer.remaining());
 
-        cloned.mark();
-        cloned.put(buffer.duplicate());
-        cloned.reset();
-        return cloned;
+    HeapPoolAllocator(HeapPool pool)
+    {
+        super(pool);
     }
 
-    public abstract ByteBuffer allocate(int size);
+    public ByteBuffer allocate(int size)
+    {
+        return allocate(size, null);
+    }
 
-    public abstract long getMinimumSize();
+    public ByteBuffer allocate(int size, OpOrdering.Ordered writeOp)
+    {
+        onHeap.allocate(size, writeOp);
+        // must loop trying to acquire
+        return ByteBuffer.allocate(size);
+    }
+
+    @Override
+    public void free(ByteBuffer name)
+    {
+        onHeap.release(name.remaining());
+    }
+
 }

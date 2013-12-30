@@ -28,7 +28,7 @@ import java.util.Iterator;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterators;

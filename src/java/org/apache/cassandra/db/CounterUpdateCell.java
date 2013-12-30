@@ -21,9 +21,9 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.HeapAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 
 /**
  * A counter update while it hasn't been applied yet by the leader replica.

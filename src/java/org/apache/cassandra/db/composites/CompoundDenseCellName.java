@@ -20,11 +20,14 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 import org.apache.cassandra.utils.ObjectSizes;
 
 public class CompoundDenseCellName extends CompoundComposite implements CellName
 {
+
+    private static final long HEAP_SIZE = ObjectSizes.measure(new CompoundDenseCellName(new ByteBuffer[0]));
+
     // Not meant to be used directly, you should use the CellNameType method instead
     CompoundDenseCellName(ByteBuffer[] elements)
     {
@@ -58,13 +61,14 @@ public class CompoundDenseCellName extends CompoundComposite implements CellName
     }
 
     @Override
-    public long memorySize()
+    public long excessHeapSize()
     {
-        return ObjectSizes.getSuperClassFieldSize(super.memorySize());
+        return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(elements);
     }
 
     public CellName copy(Allocator allocator)
     {
         return new CompoundDenseCellName(elementsCopy(allocator));
     }
+
 }

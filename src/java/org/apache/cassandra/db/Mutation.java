@@ -48,7 +48,9 @@ public class Mutation implements IMutation
     private final String keyspaceName;
 
     private final ByteBuffer key;
+
     // map of column family id to mutations for that column family.
+    // TODO: when converting to builder, store the PreAllocatingColumnFamily
     private final Map<UUID, ColumnFamily> modifications;
 
     public Mutation(String keyspaceName, ByteBuffer key)
@@ -58,7 +60,7 @@ public class Mutation implements IMutation
 
     public Mutation(String keyspaceName, ByteBuffer key, ColumnFamily cf)
     {
-        this(keyspaceName, key, Collections.singletonMap(cf.id(), cf));
+        this(keyspaceName, key, Collections.singletonMap(cf.id(), (ColumnFamily) cf));
     }
 
     public Mutation(String keyspaceName, Row row)

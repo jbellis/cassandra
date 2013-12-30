@@ -33,7 +33,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
+import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class ColumnSlice
 {
@@ -248,7 +249,13 @@ public class ColumnSlice
             throw new UnsupportedOperationException();
         }
 
-        public long memorySize()
+        @Override
+        public void free(PoolAllocator<?> allocator)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public long excessHeapSize()
         {
             throw new UnsupportedOperationException();
         }

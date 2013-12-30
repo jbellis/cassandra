@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.utils;
+package org.apache.cassandra.utils.memory;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -23,6 +23,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Preconditions;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.concurrent.NonBlockingQueue;
+import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,23 +43,36 @@ import org.slf4j.LoggerFactory;
  * interleaved throughout the heap, and the old generation gets progressively
  * more fragmented until a stop-the-world compacting collection occurs.
  */
-public class SlabAllocator extends Allocator
+public class HeapSlabAllocator extends PoolAllocator
 {
-    private static final Logger logger = LoggerFactory.getLogger(SlabAllocator.class);
+    private static final Logger logger = LoggerFactory.getLogger(HeapSlabAllocator.class);
 
     private final static int REGION_SIZE = 1024 * 1024;
     private final static int MAX_CLONED_SIZE = 128 * 1024; // bigger than this don't go in the region
+
+    private static final NonBlockingQueue<Region> RACE_ALLOCATED = new NonBlockingQueue<>();
 
     private final AtomicReference<Region> currentRegion = new AtomicReference<Region>();
     private final AtomicInteger regionCount = new AtomicInteger(0);
     private AtomicLong unslabbed = new AtomicLong(0);
 
+    HeapSlabAllocator(Pool pool)
+    {
+        super(pool);
+    }
+
     public ByteBuffer allocate(int size)
+    {
+        return allocate(size, null);
+    }
+
+    public ByteBuffer allocate(int size, OpOrdering.Ordered writeOp)
     {
         assert size >= 0;
         if (size == 0)
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
+        onHeap.allocate(size, writeOp);
         // satisfy large allocations directly from JVM since they don't cause fragmentation
         // as badly, and fill up our regions quickly
         if (size > MAX_CLONED_SIZE)
@@ -79,6 +95,12 @@ public class SlabAllocator extends Allocator
         }
     }
 
+    @Override
+    public void free(ByteBuffer name)
+    {
+        // have to assume we cannot free the memory here, and just reclaim it all when we flush
+    }
+
     /**
      * Get the current region, or, if there is no current region, allocate a new one
      */
@@ -94,7 +116,9 @@ public class SlabAllocator extends Allocator
             // No current region, so we want to allocate one. We race
             // against other allocators to CAS in an uninitialized region
             // (which is cheap to allocate)
-            region = new Region(REGION_SIZE);
+            region = RACE_ALLOCATED.poll();
+            if (region == null)
+                region = new Region(REGION_SIZE);
             if (currentRegion.compareAndSet(null, region))
             {
                 // we won race - now we need to actually do the expensive allocation step
@@ -103,17 +127,11 @@ public class SlabAllocator extends Allocator
                 logger.trace("{} regions now allocated in {}", regionCount, this);
                 return region;
             }
+
             // someone else won race - that's fine, we'll try to grab theirs
             // in the next iteration of the loop.
+            RACE_ALLOCATED.append(region);
         }
-    }
-
-    /**
-     * @return a lower bound on how much space has been allocated
-     */
-    public long getMinimumSize()
-    {
-        return unslabbed.get() + (regionCount.get() - 1) * (long)REGION_SIZE;
     }
 
     /**

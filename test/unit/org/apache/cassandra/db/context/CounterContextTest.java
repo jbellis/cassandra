@@ -27,6 +27,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.memory.Allocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
+import org.apache.cassandra.utils.memory.HeapSlabAllocator;
+import org.apache.cassandra.utils.memory.HeapSlabPool;
 import org.junit.Test;
 import org.apache.cassandra.Util;
 
@@ -46,6 +51,8 @@ public class CounterContextTest
 
     private static final int stepLength;
 
+    private static final HeapSlabPool POOL = new HeapSlabPool(Integer.MAX_VALUE, Integer.MAX_VALUE, 1.1f, null);
+
     static
     {
         idLength       = CounterId.LENGTH; // size of int
@@ -57,7 +64,8 @@ public class CounterContextTest
     /** Allocates 1 byte from a new SlabAllocator and returns it. */
     private Allocator bumpedSlab()
     {
-        SlabAllocator allocator = new SlabAllocator();
+        // we don't bother reclaiming the memory, as the process is short lived and waste is low
+        HeapSlabAllocator allocator = POOL.newAllocator(new OpOrdering());
         allocator.allocate(1);
         return allocator;
     }

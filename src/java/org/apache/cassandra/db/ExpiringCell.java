@@ -26,8 +26,8 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.Allocator;
-import org.apache.cassandra.utils.HeapAllocator;
+import org.apache.cassandra.utils.memory.Allocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 
 /**
  * Alternative to Cell that have an expiring time.

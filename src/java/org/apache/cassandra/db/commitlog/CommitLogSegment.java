@@ -33,11 +33,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +47,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.PureJavaCrc32;
-import org.apache.cassandra.utils.WaitQueue;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 /*
  * A single commit log file on disk. Manages creation of the file and writing mutations to disk,
@@ -70,8 +67,8 @@ public class CommitLogSegment
     // The commit log (chained) sync marker/header size in bytes (int: length + long: checksum [segmentId, position])
     static final int SYNC_MARKER_SIZE = 4 + 8;
 
-    // The current AppendLock object - i.e. the one all threads adding new log records should use to synchronise
-    private final AtomicReference<AppendLock> appendLock = new AtomicReference<>(new AppendLock());
+    // The OpOrdering used to order appends wrt sync
+    private final OpOrdering appendOrdering = new OpOrdering();
 
     private final AtomicInteger allocatePosition = new AtomicInteger();
 
@@ -172,37 +169,26 @@ public class CommitLogSegment
      */
     boolean allocate(Mutation mutation, int size, Allocation alloc)
     {
-        final AppendLock appendLock = lockForAppend();
+        final OpOrdering.Ordered commandOrder = appendOrdering.start();
         try
         {
             int position = allocate(size);
             if (position < 0)
             {
-                appendLock.unlock();
+                commandOrder.finishOne();
                 return false;
             }
             alloc.buffer = (ByteBuffer) buffer.duplicate().position(position).limit(position + size);
             alloc.position = position;
             alloc.segment = this;
-            alloc.appendLock = appendLock;
+            alloc.appendOp = commandOrder;
             markDirty(mutation, position);
             return true;
         }
         catch (Throwable t)
         {
-            appendLock.unlock();
+            commandOrder.finishOne();
             throw t;
-        }
-    }
-
-    // obtain the current AppendLock and lock it for record appending
-    private AppendLock lockForAppend()
-    {
-        while (true)
-        {
-            AppendLock appendLock = this.appendLock.get();
-            if (appendLock.lock())
-                return appendLock;
         }
     }
 
@@ -221,7 +207,7 @@ public class CommitLogSegment
     }
 
     // ensures no more of this segment is writeable, by allocating any unused section at the end and marking it discarded
-    synchronized void discardUnusedTail()
+    void discardUnusedTail()
     {
         if (discardedTailFrom > 0)
             return;
@@ -229,6 +215,8 @@ public class CommitLogSegment
         {
             int prev = allocatePosition.get();
             int next = buffer.capacity();
+            if (prev == next)
+                return;
             if (allocatePosition.compareAndSet(prev, next))
             {
                 discardedTailFrom = prev;
@@ -271,10 +259,10 @@ public class CommitLogSegment
                 }
             }
 
-            // swap the append lock
-            AppendLock curAppendLock = appendLock.get();
-            appendLock.set(new AppendLock());
-            curAppendLock.expireAndWaitForCompletion();
+            // issue a barrier and wait for it
+            OpOrdering.Barrier barrier = appendOrdering.newBarrier();
+            barrier.issue();
+            barrier.await();
 
             // write previous sync marker to point to next sync marker
             // we don't chain the crcs here to ensure this method is idempotent if it fails
@@ -463,7 +451,6 @@ public class CommitLogSegment
         }
     }
 
-
     /**
      * @return a collection of dirty CFIDs for this segment file.
      */
@@ -543,63 +530,15 @@ public class CommitLogSegment
     }
 
     /**
-     * A relatively simple class for synchronising flushes() with log message writers:
-     * Log writers take the readLock prior to allocating themselves space in the segment;
-     * once they complete writing the record they release the read lock. A call to sync()
-     * will first check the position we have allocated space up until, then allocate a new AppendLock object,
-     * take the writeLock of the previous AppendLock, and invalidate it for further log writes. All appends are
-     * redirected to the new AppendLock so they do not block; only the sync() blocks waiting to obtain the writeLock.
-     * Once it obtains the lock it is guaranteed that all writes up to the allocation position it checked at
-     * the start have been completely written to.
-     */
-    private static final class AppendLock
-    {
-        final ReadWriteLock syncLock = new ReentrantReadWriteLock();
-        final Lock logLock = syncLock.readLock();
-        // a map of Cfs with log records that have not been synced to disk, so cannot be marked clean yet
-
-        boolean expired;
-
-        // false if the lock could not be acquired for adding a log record;
-        // a new AppendLock object will already be available, so fetch appendLock().get()
-        // and retry
-        boolean lock()
-        {
-            if (!logLock.tryLock())
-                return false;
-            if (expired)
-            {
-                logLock.unlock();
-                return false;
-            }
-            return true;
-        }
-
-        // release the lock so that a appendLock() may complete
-        void unlock()
-        {
-            logLock.unlock();
-        }
-
-        void expireAndWaitForCompletion()
-        {
-            // wait for log records to complete (take writeLock)
-            syncLock.writeLock().lock();
-            expired = true;
-            // release lock immediately, though effectively a NOOP since we use tryLock() for log record appends
-            syncLock.writeLock().unlock();
-        }
-    }
-
-    /**
      * A simple class for tracking information about the portion of a segment that has been allocated to a log write.
      * The constructor leaves the fields uninitialized for population by CommitlogManager, so that it can be
      * stack-allocated by escape analysis in CommitLog.add.
      */
-    static final class Allocation
+    static class Allocation
     {
+
         private CommitLogSegment segment;
-        private AppendLock appendLock;
+        private OpOrdering.Ordered appendOp;
         private int position;
         private ByteBuffer buffer;
 
@@ -614,19 +553,30 @@ public class CommitLogSegment
         }
 
         // markWritten() MUST be called once we are done with the segment or the CL will never flush
+        // but must not be called more than once
         void markWritten()
         {
-            appendLock.unlock();
+            appendOp.finishOne();
         }
 
         void awaitDiskSync()
         {
             while (segment.lastSyncedOffset < position)
             {
-                WaitQueue.Signal signal = segment.syncComplete.register();
+                WaitQueue.Signal signal = segment.syncComplete.register(CommitLog.instance.metrics.waitingOnCommit.time());
                 if (segment.lastSyncedOffset < position)
                     signal.awaitUninterruptibly();
+                else
+                    signal.cancel();
             }
         }
+
+        public ReplayPosition getReplayPosition()
+        {
+            // always allocate a ReplayPosition to let stack allocation do its magic. If we return null, we always
+            // have to allocate an object on the stack
+            return new ReplayPosition(segment == null ? -1 : segment.id, segment == null ? 0 : buffer.limit());
+        }
+
     }
 }

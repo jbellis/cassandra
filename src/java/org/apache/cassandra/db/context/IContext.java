@@ -19,7 +19,7 @@ package org.apache.cassandra.db.context;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 
 /**
  * An opaque commutative context.

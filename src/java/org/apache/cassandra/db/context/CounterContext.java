@@ -24,6 +24,8 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.memory.Allocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

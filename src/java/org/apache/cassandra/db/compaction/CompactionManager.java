@@ -30,6 +30,7 @@ import javax.management.openmbean.TabularData;
 import com.google.common.base.Throwables;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.RateLimiter;
+import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -714,14 +715,14 @@ public class CompactionManager implements CompactionManagerMBean
                 if (indexedColumnsInRow != null && !indexedColumnsInRow.isEmpty())
                 {
                     // acquire memtable lock here because secondary index deletion may cause a race. See CASSANDRA-3712
-                    Keyspace.switchLock.readLock().lock();
+                    final OpOrdering.Ordered op = cfs.keyspace.writeOrdering.start();
                     try
                     {
-                        cfs.indexManager.deleteFromIndexes(row.getKey(), indexedColumnsInRow);
+                        cfs.indexManager.deleteFromIndexes(row.getKey(), indexedColumnsInRow, op);
                     }
                     finally
                     {
-                        Keyspace.switchLock.readLock().unlock();
+                        op.finishOne();
                     }
                 }
                 return null;

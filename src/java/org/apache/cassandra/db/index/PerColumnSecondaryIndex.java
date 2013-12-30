@@ -19,6 +19,7 @@ package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -28,16 +29,33 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public abstract class PerColumnSecondaryIndex extends SecondaryIndex
 {
+
     /**
-     * Delete a column from the index
+     * Delete a column from the index. This method is deprecated and replaced by
+     * {@link #delete(java.nio.ByteBuffer, org.apache.cassandra.db.Cell, org.apache.cassandra.utils.concurrent.OpOrdering.Ordered)}
+     *
+     * @param rowKey the underlying row key which is indexed
+     * @param column all the column info
+     */
+    @Deprecated
+    public abstract void delete(ByteBuffer rowKey, Cell column);
+
+    /**
+     * Delete a column from the index.
+     * The default behaviour is to call any implementation of the deprecated version, but this should be overridden
+     * by any implementations.
      *
      * @param rowKey the underlying row key which is indexed
      * @param col all the column info
      */
-    public abstract void delete(ByteBuffer rowKey, Cell col);
+    public void delete(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op)
+    {
+        delete(rowKey, col);
+    }
 
     /**
-     * insert a column to the index
+     * insert a column to the index. This method is deprecated and replaced by
+     * {@link #insert(java.nio.ByteBuffer, org.apache.cassandra.db.Cell, org.apache.cassandra.utils.concurrent.OpOrdering.Ordered)}
      *
      * @param rowKey the underlying row key which is indexed
      * @param col all the column info
@@ -45,12 +63,39 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
     public abstract void insert(ByteBuffer rowKey, Cell col);
 
     /**
-     * update a column from the index
+     * insert a column to the index
+     * The default behaviour is to call any implementation of the deprecated version, but this should be overridden
+     * by any implementations.
+     *
+     * @param rowKey the underlying row key which is indexed
+     * @param col all the column info
+     */
+    public void insert(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op)
+    {
+        insert(rowKey, col);
+    }
+
+    /**
+     * update a column from the index. This method is deprecated and replaced by
+     * {@link #update(java.nio.ByteBuffer, org.apache.cassandra.db.Cell, org.apache.cassandra.utils.concurrent.OpOrdering.Ordered)}
      *
      * @param rowKey the underlying row key which is indexed
      * @param col all the column info
      */
     public abstract void update(ByteBuffer rowKey, Cell col);
+
+    /**
+     * update a column from the index
+     * The default behaviour is to call any implementation of the deprecated version, but this should be overridden
+     * by any implementations.
+     *
+     * @param rowKey the underlying row key which is indexed
+     * @param col all the column info
+     */
+    public void update(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op)
+    {
+        update(rowKey, col);
+    }
 
     public String getNameForSystemKeyspace(ByteBuffer column)
     {

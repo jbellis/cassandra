@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import org.apache.cassandra.utils.WaitQueue;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.slf4j.*;
 
 import java.util.concurrent.Semaphore;

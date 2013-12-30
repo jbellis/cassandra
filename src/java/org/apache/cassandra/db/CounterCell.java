@@ -26,6 +26,7 @@ import java.util.Set;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +39,7 @@ import org.apache.cassandra.db.context.IContext.ContextRelationship;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.*;

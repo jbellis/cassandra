@@ -27,7 +27,7 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 
 /**
  * A ColumnFamily that allows inserting in any order, even unsorted.
@@ -141,4 +141,5 @@ public class UnsortedColumns extends AbstractThreadUnsafeSortedColumns
     {
         throw new UnsupportedOperationException();
     }
+
 }

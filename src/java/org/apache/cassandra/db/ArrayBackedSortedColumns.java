@@ -29,7 +29,7 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 
 /**
  * A ColumnFamily backed by an ArrayList.
@@ -389,4 +389,5 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
             return cells.iterator();
         }
     }
+
 }

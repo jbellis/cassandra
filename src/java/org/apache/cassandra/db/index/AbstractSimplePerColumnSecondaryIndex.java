@@ -19,6 +19,7 @@ package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
@@ -84,6 +85,21 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
     public void delete(ByteBuffer rowKey, Cell cell)
     {
+        throw new IllegalStateException();
+    }
+
+    public void insert(ByteBuffer rowKey, Cell cell)
+    {
+        throw new IllegalStateException();
+    }
+
+    public void update(ByteBuffer rowKey, Cell cell)
+    {
+        throw new IllegalStateException();
+    }
+
+    public void delete(ByteBuffer rowKey, Cell cell, OpOrdering.Ordered op)
+    {
         if (cell.isMarkedForDelete(System.currentTimeMillis()))
             return;
 
@@ -91,12 +107,12 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
         cfi.addTombstone(makeIndexColumnName(rowKey, cell), localDeletionTime, cell.timestamp());
-        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater);
+        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, op, null);
         if (logger.isDebugEnabled())
             logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
     }
 
-    public void insert(ByteBuffer rowKey, Cell cell)
+    public void insert(ByteBuffer rowKey, Cell cell, OpOrdering.Ordered op)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, cell));
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
@@ -113,12 +129,12 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         if (logger.isDebugEnabled())
             logger.debug("applying index row {} in {}", indexCfs.metadata.getKeyValidator().getString(valueKey.key), cfi);
 
-        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater);
+        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, op, null);
     }
 
-    public void update(ByteBuffer rowKey, Cell col)
+    public void update(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op)
     {
-        insert(rowKey, col);
+        insert(rowKey, col, op);
     }
 
     public void removeIndex(ByteBuffer columnName)

@@ -35,6 +35,8 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
     public final ByteBuffer bytes;
     private final String text;
 
+    private static final long HEAP_SIZE = ObjectSizes.measure(new ColumnIdentifier("", true));
+
     public ColumnIdentifier(String rawText, boolean keepCase)
     {
         this.text = keepCase ? rawText : rawText.toLowerCase(Locale.US);
@@ -73,11 +75,11 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
         return text;
     }
 
-    public long memorySize()
+    public long excessHeapSize()
     {
-        return ObjectSizes.getFieldSize(2 * ObjectSizes.getReferenceSize())
-             + ObjectSizes.getSize(bytes)
-             + TypeSizes.NATIVE.sizeof(text);
+        return HEAP_SIZE
+             + ObjectSizes.sizeOnHeapOf(bytes)
+             + ObjectSizes.sizeOf(text);
     }
 
     public int compareTo(ColumnIdentifier other)

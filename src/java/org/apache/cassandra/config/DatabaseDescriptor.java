@@ -19,6 +19,7 @@ package org.apache.cassandra.config;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -26,6 +27,8 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Longs;
+import org.apache.cassandra.utils.memory.Pool;
+import org.apache.cassandra.utils.memory.HeapPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +42,6 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.IAllocator;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -50,7 +52,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.CacheService;
-import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class DatabaseDescriptor
@@ -92,7 +93,7 @@ public class DatabaseDescriptor
     private static String localDC;
     private static Comparator<InetAddress> localComparator;
 
-    private static Class<? extends Allocator> memtableAllocator;
+    private static Class<?> memtablePool;
 
     static
     {
@@ -264,8 +265,8 @@ public class DatabaseDescriptor
         if (conf.memtable_total_space_in_mb == null)
             conf.memtable_total_space_in_mb = (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576));
         if (conf.memtable_total_space_in_mb <= 0)
-            throw new ConfigurationException("memtable_total_space_in_mb must be positive");
-        logger.info("Global memtable threshold is enabled at {}MB", conf.memtable_total_space_in_mb);
+            throw new ConfigurationException("memtable_heap_space_in_mb must be positive");
+        logger.info("Global memtable heap threshold is enabled at {}MB", conf.memtable_total_space_in_mb);
 
         /* Memtable flush writer threads */
         if (conf.memtable_flush_writers != null && conf.memtable_flush_writers < 1)
@@ -474,10 +475,10 @@ public class DatabaseDescriptor
             conf.server_encryption_options = conf.encryption_options;
         }
 
-        String allocatorClass = conf.memtable_allocator;
-        if (!allocatorClass.contains("."))
-            allocatorClass = "org.apache.cassandra.utils." + allocatorClass;
-        memtableAllocator = FBUtilities.classForName(allocatorClass, "allocator");
+        String allocatorPoolClass = conf.memtable_allocator;
+        if (!allocatorPoolClass.contains("."))
+            allocatorPoolClass = "org.apache.cassandra.utils.memory" + allocatorPoolClass;
+        memtablePool = FBUtilities.classForName(allocatorPoolClass, "allocator pool");
 
         // Hardcoded system keyspaces
         List<KSMetaData> systemKeyspaces = Arrays.asList(KSMetaData.systemKeyspace());
@@ -1201,21 +1202,9 @@ public class DatabaseDescriptor
         conf.incremental_backups = value;
     }
 
-    public static int getFlushQueueSize()
-    {
-        return conf.memtable_flush_queue_size;
-    }
-
     public static int getFileCacheSizeInMB()
     {
         return conf.file_cache_size_in_mb;
-    }
-
-    public static int getTotalMemtableSpaceInMB()
-    {
-        // should only be called if estimatesRealMemtableSize() is true
-        assert conf.memtable_total_space_in_mb > 0;
-        return conf.memtable_total_space_in_mb;
     }
 
     public static long getTotalCommitlogSpaceInMB()
@@ -1323,15 +1312,17 @@ public class DatabaseDescriptor
         return conf.preheat_kernel_page_cache;
     }
 
-    public static Allocator getMemtableAllocator()
+    public static Pool getMemtableAllocatorPool()
     {
         try
         {
-            return memtableAllocator.newInstance();
+            return (Pool) memtablePool
+                    .getConstructor(long.class, long.class, float.class, Runnable.class)
+                    .newInstance(conf.memtable_total_space_in_mb << 20, 0L, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestMemtable());
         }
-        catch (InstantiationException | IllegalAccessException e)
+        catch (Exception e)
         {
-            throw new RuntimeException(e);
+            throw new AssertionError(e);
         }
     }
 

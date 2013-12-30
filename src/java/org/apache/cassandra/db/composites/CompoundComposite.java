@@ -20,14 +20,17 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.PoolAllocator;
 
 /**
  * A "truly-composite" Composite.
  */
 public class CompoundComposite extends AbstractComposite
 {
+    private static final long HEAP_SIZE = ObjectSizes.measure(new CompoundComposite(null, 0));
+
     // We could use a List, but we'll create such object *a lot* and using a array+size is not
     // all that harder, so we save the List object allocation.
     final ByteBuffer[] elements;
@@ -57,14 +60,21 @@ public class CompoundComposite extends AbstractComposite
         return elementsCopy;
     }
 
-    public long memorySize()
+    public long excessHeapSize()
     {
-        return ObjectSizes.getFieldSize(TypeSizes.NATIVE.sizeof(size))
-             + ObjectSizes.getArraySize(elements);
+        return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(elements);
     }
 
     public Composite copy(Allocator allocator)
     {
         return new CompoundComposite(elementsCopy(allocator), size);
     }
+
+    @Override
+    public void free(PoolAllocator<?> allocator)
+    {
+        for (ByteBuffer element : elements)
+            allocator.free(element);
+    }
+
 }

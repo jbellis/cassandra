@@ -29,7 +29,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 
 public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
 {
@@ -173,4 +173,5 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
     {
         return new ColumnSlice.NavigableMapIterator(map.descendingMap(), slices);
     }
+
 }

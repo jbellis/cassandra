@@ -21,7 +21,8 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
+import org.apache.cassandra.utils.memory.PoolAllocator;
 
 /**
  * A composite value.
@@ -73,4 +74,5 @@ public interface Composite extends IMeasurableMemory
 
     public int dataSize();
     public Composite copy(Allocator allocator);
+    public void free(PoolAllocator<?> allocator);
 }

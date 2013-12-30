@@ -20,11 +20,15 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class SimpleSparseCellName extends AbstractComposite implements CellName
 {
+
+    private static final long HEAP_SIZE = ObjectSizes.measure(new SimpleSparseCellName(null));
+
     private final ColumnIdentifier columnName;
 
     // Not meant to be used directly, you should use the CellNameType method instead
@@ -85,9 +89,10 @@ public class SimpleSparseCellName extends AbstractComposite implements CellName
     }
 
     @Override
-    public long memorySize()
+    public long excessHeapSize()
     {
-        return ObjectSizes.getFieldSize(ObjectSizes.getReferenceSize()) + columnName.memorySize();
+        // TODO : maybe return 0? as interned elsewhere
+        return HEAP_SIZE + columnName.excessHeapSize();
     }
 
     @Override
@@ -96,4 +101,11 @@ public class SimpleSparseCellName extends AbstractComposite implements CellName
         // We're interning those instance in SparceCellNameType so don't need to copy.
         return this;
     }
+
+    @Override
+    public void free(PoolAllocator<?> allocator)
+    {
+        // no-op, never copied
+    }
+
 }

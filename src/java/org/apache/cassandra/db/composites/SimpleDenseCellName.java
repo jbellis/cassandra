@@ -20,11 +20,14 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class SimpleDenseCellName extends SimpleComposite implements CellName
 {
+    private static final long HEAP_SIZE = ObjectSizes.measure(new SimpleDenseCellName(ByteBuffer.allocate(1)));
+
     // Not meant to be used directly, you should use the CellNameType method instead
     SimpleDenseCellName(ByteBuffer element)
     {
@@ -58,9 +61,9 @@ public class SimpleDenseCellName extends SimpleComposite implements CellName
     }
 
     @Override
-    public long memorySize()
+    public long excessHeapSize()
     {
-        return ObjectSizes.getSuperClassFieldSize(super.memorySize());
+        return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(element);
     }
 
     // If cellnames were sharing some prefix components, this will break it, so
@@ -70,4 +73,5 @@ public class SimpleDenseCellName extends SimpleComposite implements CellName
     {
         return new SimpleDenseCellName(allocator.clone(element));
     }
+
 }

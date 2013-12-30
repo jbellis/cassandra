@@ -30,7 +30,7 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 
 /**
  * A thread-safe and atomic ISortedColumns implementation.
@@ -49,6 +49,7 @@ import org.apache.cassandra.utils.Allocator;
  */
 public class AtomicSortedColumns extends ColumnFamily
 {
+
     private final AtomicReference<Holder> ref;
 
     public static final ColumnFamily.Factory<AtomicSortedColumns> factory = new Factory<AtomicSortedColumns>()
@@ -142,14 +143,14 @@ public class AtomicSortedColumns extends ColumnFamily
         {
             current = ref.get();
             modified = current.cloneMe();
-            modified.addColumn(cell, allocator, SecondaryIndexManager.nullUpdater);
+            modified.addColumn(cell, allocator, SecondaryIndexManager.nullUpdater, new Delta());
         }
         while (!ref.compareAndSet(current, modified));
     }
 
     public void addAll(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation)
     {
-        addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater);
+        addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater, new Delta());
     }
 
     /**
@@ -157,7 +158,7 @@ public class AtomicSortedColumns extends ColumnFamily
      *
      *  @return the difference in size seen after merging the given columns
      */
-    public long addAllWithSizeDelta(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation, SecondaryIndexManager.Updater indexer)
+    public Delta addAllWithSizeDelta(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation, SecondaryIndexManager.Updater indexer, Delta delta)
     {
         /*
          * This operation needs to atomicity and isolation. To that end, we
@@ -171,14 +172,14 @@ public class AtomicSortedColumns extends ColumnFamily
          * we bail early, avoiding unnecessary work if possible.
          */
         Holder current, modified;
-        long sizeDelta;
 
         main_loop:
-        do
+        while (true)
         {
-            sizeDelta = 0;
             current = ref.get();
+            delta.reset(current.map.size());
             DeletionInfo newDelInfo = current.deletionInfo.copy().add(cm.deletionInfo());
+            delta.addHeapSize(newDelInfo.excessHeapSize() - current.deletionInfo.excessHeapSize());
             modified = new Holder(current.map.clone(), newDelInfo);
 
             if (cm.deletionInfo().hasRanges())
@@ -190,19 +191,22 @@ public class AtomicSortedColumns extends ColumnFamily
                 }
             }
 
+            // TODO : if we fail we should always free up any space we allocated. This can wait until #6271
             for (Cell cell : cm)
             {
-                sizeDelta += modified.addColumn(transformation.apply(cell), allocator, indexer);
+                modified.addColumn(transformation.apply(cell), allocator, indexer, delta);
                 // bail early if we know we've been beaten
                 if (ref.get() != current)
                     continue main_loop;
             }
+
+            if (ref.compareAndSet(current, modified))
+                break;
         }
-        while (!ref.compareAndSet(current, modified));
 
         indexer.updateRowLevelIndexes();
 
-        return sizeDelta;
+        return delta;
     }
 
     public boolean replace(Cell oldCell, Cell newCell)
@@ -315,7 +319,7 @@ public class AtomicSortedColumns extends ColumnFamily
             return new Holder(new SnapTreeMap<CellName, Cell>(map.comparator()), LIVE);
         }
 
-        long addColumn(Cell cell, Allocator allocator, SecondaryIndexManager.Updater indexer)
+        void addColumn(Cell cell, Allocator allocator, SecondaryIndexManager.Updater indexer, Delta delta)
         {
             CellName name = cell.name();
             while (true)
@@ -324,23 +328,88 @@ public class AtomicSortedColumns extends ColumnFamily
                 if (oldCell == null)
                 {
                     indexer.insert(cell);
-                    return cell.dataSize();
+                    delta.insert(cell);
+                    return;
                 }
 
                 Cell reconciledCell = cell.reconcile(oldCell, allocator);
+                if (oldCell == reconciledCell)
+                {
+                    // when compacting we need to make sure we update indexes no matter the order we merge
+                    indexer.update(cell, reconciledCell);
+                    return;
+                }
                 if (map.replace(name, oldCell, reconciledCell))
                 {
-                    // for memtable updates we only care about oldcolumn, reconciledcolumn, but when compacting
-                    // we need to make sure we update indexes no matter the order we merge
-                    if (reconciledCell == cell)
-                        indexer.update(oldCell, reconciledCell);
-                    else
-                        indexer.update(cell, reconciledCell);
-                    return reconciledCell.dataSize() - oldCell.dataSize();
+                    indexer.update(oldCell, reconciledCell);
+                    delta.swap(oldCell, reconciledCell);
+                    return;
                 }
                 // We failed to replace cell due to a concurrent update or a concurrent removal. Keep trying.
                 // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
             }
         }
     }
+
+
+    // TODO: create a stack-allocation-friendly list to help optimise garbage for updates to rows with few columns
+    public static final class Delta
+    {
+        private long dataSize;
+        private long heapSize;
+        private int oldColumnCount;
+        private int newColumnCount;
+        private final List<Cell> discarded = new ArrayList<>();
+        protected void reset(int oldColumnCount)
+        {
+            this.dataSize = 0;
+            this.heapSize = 0;
+            this.newColumnCount = oldColumnCount;
+            this.oldColumnCount = oldColumnCount;
+            discarded.clear();
+        }
+        protected void addHeapSize(long heapSize)
+        {
+            this.heapSize += heapSize;
+        }
+        protected void swap(Cell old, Cell upd)
+        {
+            dataSize += upd.dataSize() - old.dataSize();
+            heapSize += upd.excessHeapSize() - old.excessHeapSize();
+            discarded.add(old);
+        }
+        protected void insert(Cell insert)
+        {
+            this.dataSize += insert.dataSize();
+            this.heapSize += insert.excessHeapSize();
+            this.newColumnCount += 1;
+        }
+
+        public long dataSize()
+        {
+            return dataSize;
+        }
+
+        public long excessHeapSize()
+        {
+            return heapSize;
+        }
+
+        public int newColumnCount()
+        {
+            return newColumnCount;
+        }
+
+        public int oldColumnCount()
+        {
+            return oldColumnCount;
+        }
+
+        public List<Cell> discarded()
+        {
+            return discarded;
+        }
+
+    }
+
 }

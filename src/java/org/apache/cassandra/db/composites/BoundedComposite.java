@@ -20,11 +20,14 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.Allocator;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class BoundedComposite extends AbstractComposite
 {
+    private static final long HEAP_SIZE = ObjectSizes.measure(new BoundedComposite(null, false));
+
     private final Composite wrapped;
     private final boolean isStart;
 
@@ -82,14 +85,19 @@ public class BoundedComposite extends AbstractComposite
         return bb;
     }
 
-    public long memorySize()
+    public long excessHeapSize()
     {
-        return ObjectSizes.getFieldSize(ObjectSizes.getReferenceSize() + TypeSizes.NATIVE.sizeof(isStart))
-             + wrapped.memorySize();
+        return HEAP_SIZE + wrapped.excessHeapSize();
     }
 
     public Composite copy(Allocator allocator)
     {
         return new BoundedComposite(wrapped.copy(allocator), isStart);
+    }
+
+    @Override
+    public void free(PoolAllocator<?> allocator)
+    {
+        wrapped.free(allocator);
     }
 }

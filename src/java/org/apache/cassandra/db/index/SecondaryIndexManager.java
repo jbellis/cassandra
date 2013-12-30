@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 
+import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -384,23 +385,12 @@ public class SecondaryIndexManager
     }
 
     /**
-     * @return total current ram size of all indexes
-     */
-    public long getTotalLiveSize()
-    {
-        long total = 0;
-        for (SecondaryIndex index : getIndexes())
-            total += index.getLiveSize();
-        return total;
-    }
-
-    /**
      * When building an index against existing data, add the given row to the index
      *
      * @param key the row key
      * @param cf the current rows data
      */
-    public void indexRow(ByteBuffer key, ColumnFamily cf)
+    public void indexRow(ByteBuffer key, ColumnFamily cf, OpOrdering.Ordered op)
     {
         // Update entire row only once per row level index
         Set<Class<? extends SecondaryIndex>> appliedRowLevelIndexes = null;
@@ -419,7 +409,7 @@ public class SecondaryIndexManager
             {
                 for (Cell cell : cf)
                     if (index.indexes(cell.name()))
-                        ((PerColumnSecondaryIndex) index).insert(key, cell);
+                        ((PerColumnSecondaryIndex) index).insert(key, cell, op);
             }
         }
     }
@@ -430,7 +420,7 @@ public class SecondaryIndexManager
      * @param key the row key
      * @param indexedColumnsInRow all column names in row
      */
-    public void deleteFromIndexes(DecoratedKey key, List<Cell> indexedColumnsInRow)
+    public void deleteFromIndexes(DecoratedKey key, List<Cell> indexedColumnsInRow, OpOrdering.Ordered op)
     {
         // Update entire row only once per row level index
         Set<Class<? extends SecondaryIndex>> cleanedRowLevelIndexes = null;
@@ -452,7 +442,7 @@ public class SecondaryIndexManager
             }
             else
             {
-                ((PerColumnSecondaryIndex) index).delete(key.key, cell);
+                ((PerColumnSecondaryIndex) index).delete(key.key, cell, op);
             }
         }
     }
@@ -464,19 +454,27 @@ public class SecondaryIndexManager
      * can get updated. Note: only a CF backed by AtomicSortedColumns implements
      * this behaviour fully, other types simply ignore the index updater.
      */
-    public Updater updaterFor(DecoratedKey key, ColumnFamily cf)
+    public Updater updaterFor(DecoratedKey key, ColumnFamily cf, OpOrdering.Ordered op)
     {
         return (indexesByColumn.isEmpty() && rowLevelIndexMap.isEmpty())
                 ? nullUpdater
-                : new StandardUpdater(key, cf);
+                : new StandardUpdater(key, cf, op);
     }
 
     /**
      * Updated closure with only the modified row key.
      */
-    public Updater updaterFor(DecoratedKey key)
+    public Updater updaterFor(DecoratedKey key, OpOrdering.Ordered op)
     {
-        return updaterFor(key, null);
+        return updaterFor(key, null, op);
+    }
+
+    /**
+     * Updated closure with only the modified row key.
+     */
+    public Updater gcUpdaterFor(DecoratedKey key)
+    {
+        return new GCUpdater(key);
     }
 
     /**
@@ -583,15 +581,65 @@ public class SecondaryIndexManager
         public void updateRowLevelIndexes();
     }
 
-    private class StandardUpdater implements Updater
+    private final class GCUpdater implements Updater
+    {
+        private final DecoratedKey key;
+
+        public GCUpdater(DecoratedKey key)
+        {
+            this.key = key;
+        }
+
+        public void insert(Cell cell)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public void update(Cell oldCell, Cell newCell)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public void remove(Cell cell)
+        {
+            if (cell.isMarkedForDelete(System.currentTimeMillis()))
+                return;
+
+            for (SecondaryIndex index : indexFor(cell.name()))
+            {
+                if (index instanceof PerColumnSecondaryIndex)
+                {
+                    OpOrdering.Ordered op = baseCfs.keyspace.writeOrdering.start();
+                    try
+                    {
+                        ((PerColumnSecondaryIndex) index).delete(key.key, cell, op);
+                    }
+                    finally
+                    {
+                        op.finishOne();
+                    }
+                }
+            }
+        }
+
+        public void updateRowLevelIndexes()
+        {
+            for (SecondaryIndex index : rowLevelIndexMap.values())
+                ((PerRowSecondaryIndex) index).index(key.key, null);
+        }
+    }
+
+    private final class StandardUpdater implements Updater
     {
         private final DecoratedKey key;
         private final ColumnFamily cf;
+        private final OpOrdering.Ordered op;
 
-        public StandardUpdater(DecoratedKey key, ColumnFamily cf)
+        public StandardUpdater(DecoratedKey key, ColumnFamily cf, OpOrdering.Ordered op)
         {
             this.key = key;
             this.cf = cf;
+            this.op = op;
         }
 
         public void insert(Cell cell)
@@ -601,7 +649,7 @@ public class SecondaryIndexManager
 
             for (SecondaryIndex index : indexFor(cell.name()))
                 if (index instanceof PerColumnSecondaryIndex)
-                    ((PerColumnSecondaryIndex) index).insert(key.key, cell);
+                    ((PerColumnSecondaryIndex) index).insert(key.key, cell, op);
         }
 
         public void update(Cell oldCell, Cell cell)
@@ -616,8 +664,8 @@ public class SecondaryIndexManager
                     // insert the new value before removing the old one, so we never have a period
                     // where the row is invisible to both queries (the opposite seems preferable); see CASSANDRA-5540
                     if (!cell.isMarkedForDelete(System.currentTimeMillis()))
-                        ((PerColumnSecondaryIndex) index).insert(key.key, cell);
-                    ((PerColumnSecondaryIndex) index).delete(key.key, oldCell);
+                        ((PerColumnSecondaryIndex) index).insert(key.key, cell, op);
+                    ((PerColumnSecondaryIndex) index).delete(key.key, oldCell, op);
                 }
             }
         }
@@ -629,7 +677,7 @@ public class SecondaryIndexManager
 
             for (SecondaryIndex index : indexFor(cell.name()))
                 if (index instanceof PerColumnSecondaryIndex)
-                   ((PerColumnSecondaryIndex) index).delete(key.key, cell);
+                   ((PerColumnSecondaryIndex) index).delete(key.key, cell, op);
         }
 
         public void updateRowLevelIndexes()
