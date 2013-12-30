@@ -37,15 +37,20 @@ final class ModifierLevel
     private Object upperBound;
 
     // ensure we aren't referencing any garbage
-    boolean clear()
+    void clear()
     {
-        if (upperBound == null)
-            return false;
-        reset(null, null);
-        Arrays.fill(buildKeys, 0, maxBuildKeyPosition, null);
-        Arrays.fill(buildChildren, 0, maxBuildChildPosition, null);
-        maxBuildChildPosition = maxBuildKeyPosition = 0;
-        return true;
+        ModifierLevel current = this;
+        while (current != null)
+        {
+            if (current.upperBound != null)
+            {
+                current.reset(null, null);
+                Arrays.fill(current.buildKeys, 0, current.maxBuildKeyPosition, null);
+                Arrays.fill(current.buildChildren, 0, current.maxBuildChildPosition, null);
+                current.maxBuildChildPosition = current.maxBuildKeyPosition = 0;
+            }
+            current = current.child;
+        }
     }
 
     // reset counters/setup to copy from provided node

@@ -36,7 +36,7 @@ final class Modifier
             {
                 if (terminateEarly != null && terminateEarly.apply(null) == Boolean.TRUE)
                 {
-                    clear(stack);
+                    stack.clear();
                     return null;
                 }
                 ModifierLevel next = current.update(key, comparator, replaceF);
@@ -56,7 +56,7 @@ final class Modifier
         }
 
         Object[] r = current.toNode();
-        clear(current);
+        current.clear();
         return r;
     }
 
@@ -76,17 +76,7 @@ final class Modifier
         current = current.ascendToRoot();
 
         Object[] r = current.toNode();
-        clear(current);
+        current.clear();
         return r;
-    }
-
-    private static void clear(ModifierLevel base)
-    {
-        ModifierLevel current = base;
-        while (current != null)
-        {
-            current.clear();
-            current = current.child;
-        }
     }
 }
