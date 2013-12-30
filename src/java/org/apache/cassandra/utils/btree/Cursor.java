@@ -32,7 +32,7 @@ public final class Cursor<V> extends Path implements Iterator<V>
 
     // the last node covered by the requested range
     private Object[] endNode;
-    // the last index within the last node covered by the requested range
+    // the index within endNode that signals we're finished -- that is, endNode[endIndex] is NOT part of the Cursor
     private byte endIndex;
 
     private boolean forwards;
@@ -95,13 +95,13 @@ public final class Cursor<V> extends Path implements Iterator<V>
         Path findLast = Path.newPath();
         if (forwards)
         {
-            findLast.find(btree, comparator, upperBound, inclusiveUpperBound ? Find.HIGHER : Find.CEIL, true);
-            find(btree, comparator, lowerBound, inclusiveLowerBound ? Find.CEIL : Find.HIGHER, true);
+            findLast.find(btree, comparator, upperBound, inclusiveUpperBound ? Op.HIGHER : Op.CEIL, true);
+            find(btree, comparator, lowerBound, inclusiveLowerBound ? Op.CEIL : Op.HIGHER, true);
         }
         else
         {
-            findLast.find(btree, comparator, lowerBound, inclusiveLowerBound ? Find.LOWER : Find.FLOOR, false);
-            find(btree, comparator, upperBound, inclusiveUpperBound ? Find.FLOOR : Find.LOWER, false);
+            findLast.find(btree, comparator, lowerBound, inclusiveLowerBound ? Op.LOWER : Op.FLOOR, false);
+            find(btree, comparator, upperBound, inclusiveUpperBound ? Op.FLOOR : Op.LOWER, false);
         }
         int c = this.compareTo(findLast, forwards);
         if (forwards ? c > 0 : c < 0)

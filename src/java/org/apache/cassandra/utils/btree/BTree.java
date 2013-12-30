@@ -32,6 +32,7 @@ public class BTree
             shift += 1;
         FAN_SHIFT = shift;
     }
+    // NB we encode Path indexes as Bytes, so this needs to be less than Byte.MAX_VALUE / 2
     static final int FAN_FACTOR = 1 << FAN_SHIFT;
     static final int QUICK_MERGE_LIMIT = Math.min(FAN_FACTOR, 16) * 2;
 

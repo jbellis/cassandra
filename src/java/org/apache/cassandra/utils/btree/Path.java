@@ -13,9 +13,13 @@ import static org.apache.cassandra.utils.btree.BTree.isLeaf;
  */
 class Path
 {
-    static enum Find
+    // operations corresponding to the ones in NavigableSet
+    static enum Op
     {
-        CEIL, FLOOR, HIGHER, LOWER
+        CEIL,   // the least element greater than or equal to the given element
+        FLOOR,  // the greatest element less than or equal to the given element
+        HIGHER, // the least element strictly greater than the given element
+        LOWER   // the greatest element strictly less than the given element
     }
 
     static Path newPath()
@@ -44,12 +48,12 @@ class Path
      *
      * @param node       the tree to search in
      * @param comparator the comparator defining the order on the tree
-     * @param find       the key to search for
+     * @param target     the key to search for
      * @param mode       the type of search to perform
      * @param forwards   if the path should be setup for forward or backward iteration
      * @param <V>
      */
-    <V> void find(Object[] node, Comparator<V> comparator, Object find, Find mode, boolean forwards)
+    <V> void find(Object[] node, Comparator<V> comparator, Object target, Op mode, boolean forwards)
     {
         // TODO : should not require parameter 'forwards' - consider modifying index to represent both
         // child and key position, as opposed to just key position (which necessitates a different value depending
@@ -61,10 +65,11 @@ class Path
         {
             path[depth] = node;
             int keyEnd = getKeyEnd(node);
-            int i = BTree.find(comparator, find, node, 0, keyEnd);
+            int i = BTree.find(comparator, target, node, 0, keyEnd);
             if (i >= 0)
             {
                 indexes[depth] = (byte) i;
+                // transform exclusive bounds into the correct index by moving back or forwards one
                 switch (mode)
                 {
                     case HIGHER:
