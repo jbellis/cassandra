@@ -134,7 +134,7 @@ class Path
         return path[depth];
     }
 
-    int currentIndex()
+    byte currentIndex()
     {
         return indexes[depth];
     }

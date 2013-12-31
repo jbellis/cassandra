@@ -106,13 +106,13 @@ public final class Cursor<V> extends Path implements Iterator<V>
         int c = this.compareTo(findLast, forwards);
         if (forwards ? c > 0 : c < 0)
         {
-            endNode = path[depth];
-            endIndex = indexes[depth];
+            endNode = currentNode();
+            endIndex = currentIndex();
         }
         else
         {
-            endNode = findLast.path[findLast.depth];
-            endIndex = findLast.indexes[findLast.depth];
+            endNode = findLast.currentNode();
+            endIndex = findLast.currentIndex();
         }
     }
 
