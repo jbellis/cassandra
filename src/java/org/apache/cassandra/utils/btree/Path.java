@@ -65,6 +65,8 @@ class Path
         {
             path[depth] = node;
             int keyEnd = getKeyEnd(node);
+
+            // search for the target in the current node
             int i = BTree.find(comparator, target, node, 0, keyEnd);
             if (i >= 0)
             {
@@ -80,39 +82,41 @@ class Path
                 }
                 return;
             }
-            else if (!isLeaf(node))
+
+            // traverse into the appropriate child
+            if (!isLeaf(node))
             {
                 i = -i - 1;
                 node = (Object[]) node[keyEnd + i];
                 indexes[depth] = (byte) (forwards ? i - 1 : i);
                 ++depth;
+                continue;
+            }
+
+            // bottom of the tree and still not found.  pick the right index to satisfy Op
+            i = -i - 1;
+            switch (mode)
+            {
+                case FLOOR:
+                case LOWER:
+                    i--;
+                    break;
+            }
+            if (i < 0)
+            {
+                indexes[depth] = 0;
+                predecessor(node, 0);
+            }
+            else if (i >= keyEnd)
+            {
+                indexes[depth] = (byte) (keyEnd - 1);
+                successor(node, keyEnd - 1);
             }
             else
             {
-                i = -i - 1;
-                switch (mode)
-                {
-                    case FLOOR:
-                    case LOWER:
-                        i--;
-                        break;
-                }
-                if (i < 0)
-                {
-                    indexes[depth] = 0;
-                    predecessor(node, 0);
-                }
-                else if (i >= keyEnd)
-                {
-                    indexes[depth] = (byte) (keyEnd - 1);
-                    successor(node, keyEnd - 1);
-                }
-                else
-                {
-                    indexes[depth] = (byte) i;
-                }
-                return;
+                indexes[depth] = (byte) i;
             }
+            return;
         }
     }
 
@@ -137,35 +141,33 @@ class Path
                 i = indexes[d] = -1;
             }
         }
-        else
+
+        // go up until we reach something we're not at the end of
+        i += 1;
+        int curKeyEnd = getLeafKeyEnd(node);
+        if (i < curKeyEnd)
         {
-            // go up until we reach something we're not at the end of
-            i += 1;
-            int curKeyEnd = getLeafKeyEnd(node);
+            indexes[d] = (byte) i;
+            return;
+        }
+        do
+        {
+            if (d == 0)
+            {
+                indexes[d] = (byte) curKeyEnd;
+                depth = d;
+                return;
+            }
+            d--;
+            i = indexes[d] + 1;
+            curKeyEnd = getKeyEnd(path[d]);
             if (i < curKeyEnd)
             {
                 indexes[d] = (byte) i;
+                depth = d;
                 return;
             }
-            do
-            {
-                if (d == 0)
-                {
-                    indexes[d] = (byte) curKeyEnd;
-                    depth = d;
-                    return;
-                }
-                d--;
-                i = indexes[d] + 1;
-                curKeyEnd = getKeyEnd(path[d]);
-                if (i < curKeyEnd)
-                {
-                    indexes[d] = (byte) i;
-                    depth = d;
-                    return;
-                }
-            } while (true);
-        }
+        } while (true);
     }
 
     // move to the previous key in the tree
@@ -189,33 +191,31 @@ class Path
                 curi = indexes[d] = (byte) curKeyEnd;
             }
         }
-        else
+
+        // go up until we reach something we're not at the end of!
+        curi -= 1;
+        if (curi >= 0)
         {
-            // go up until we reach something we're not at the end of!
-            curi -= 1;
+            indexes[d] = (byte) curi;
+            return;
+        }
+        do
+        {
+            if (d == 0)
+            {
+                indexes[d] = -1;
+                depth = d;
+                return;
+            }
+            d--;
+            curi = indexes[d] - 1;
             if (curi >= 0)
             {
                 indexes[d] = (byte) curi;
+                depth = d;
                 return;
             }
-            do
-            {
-                if (d == 0)
-                {
-                    indexes[d] = -1;
-                    depth = d;
-                    return;
-                }
-                d--;
-                curi = indexes[d] - 1;
-                if (curi >= 0)
-                {
-                    indexes[d] = (byte) curi;
-                    depth = d;
-                    return;
-                }
-            } while (true);
-        }
+        } while (true);
     }
 
     int compareTo(Path that, boolean forwards)
