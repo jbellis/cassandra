@@ -576,6 +576,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         if (i >= size)
             return;
 
+        starts[i] = null;
         System.arraycopy(starts, i, starts, i+1, size - i);
         System.arraycopy(ends, i, ends, i+1, size - i);
         System.arraycopy(markedAts, i, markedAts, i+1, size - i);
@@ -584,6 +585,8 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
     private void setInternal(int i, Composite start, Composite end, long markedAt, int delTime)
     {
+        if (starts[i] != null)
+            boundaryHeapSize -= starts[i].excessHeapSize() + ends[i].excessHeapSize();
         starts[i] = start;
         ends[i] = end;
         markedAts[i] = markedAt;
