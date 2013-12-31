@@ -123,13 +123,11 @@ public final class Cursor<V> extends Path implements Iterator<V>
 
     public V next()
     {
-        Object[] node = path[depth];
-        int i = indexes[depth];
-        Object r = node[i];
+        Object r = currentKey();
         if (forwards)
-            successor(node, i);
+            successor();
         else
-            predecessor(node, i);
+            predecessor();
         return (V) r;
     }
 
@@ -149,28 +147,29 @@ public final class Cursor<V> extends Path implements Iterator<V>
      */
     private int consumeNextLeaf()
     {
-        Object[] node = path[depth];
+        Object[] node = currentNode();
         int r = 0;
         if (!isLeaf(node))
         {
-            int i = indexes[depth];
+            int i = currentIndex();
             if (node == endNode && i == endIndex)
                 return -1;
             r = 1;
-            successor(node, i);
-            node = path[depth];
+            successor();
+            node = currentNode();
         }
         if (node == endNode)
         {
-            if (indexes[depth] == endIndex)
+            if (currentIndex() == endIndex)
                 return r > 0 ? r : -1;
-            r += endIndex - indexes[depth];
-            indexes[depth] = endIndex;
+            r += endIndex - currentIndex();
+            setIndex(endIndex);
             return r;
         }
         int keyEnd = getLeafKeyEnd(node);
-        r += keyEnd - indexes[depth];
-        successor(node, keyEnd);
+        r += keyEnd - currentIndex();
+        setIndex(keyEnd);
+        successor();
         return r;
     }
 

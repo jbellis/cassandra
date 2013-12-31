@@ -60,25 +60,24 @@ class Path
         // on which direction you're moving in. Prerequisite for making Path public and using to implement general
         // search
 
-        depth = 0;
+        depth = -1;
         while (true)
         {
-            path[depth] = node;
             int keyEnd = getKeyEnd(node);
 
             // search for the target in the current node
             int i = BTree.find(comparator, target, node, 0, keyEnd);
             if (i >= 0)
             {
-                indexes[depth] = (byte) i;
+                push(node, i);
                 // transform exclusive bounds into the correct index by moving back or forwards one
                 switch (mode)
                 {
                     case HIGHER:
-                        successor(node, i);
+                        successor();
                         break;
                     case LOWER:
-                        predecessor(node, i);
+                        predecessor();
                 }
                 return;
             }
@@ -87,9 +86,8 @@ class Path
             if (!isLeaf(node))
             {
                 i = -i - 1;
+                push(node, forwards ? i - 1 : i);
                 node = (Object[]) node[keyEnd + i];
-                indexes[depth] = (byte) (forwards ? i - 1 : i);
-                ++depth;
                 continue;
             }
 
@@ -100,122 +98,150 @@ class Path
                 case FLOOR:
                 case LOWER:
                     i--;
-                    break;
             }
+
             if (i < 0)
             {
-                indexes[depth] = 0;
-                predecessor(node, 0);
+                push(node, 0);
+                predecessor();
             }
             else if (i >= keyEnd)
             {
-                indexes[depth] = (byte) (keyEnd - 1);
-                successor(node, keyEnd - 1);
+                push(node, keyEnd - 1);
+                successor();
             }
             else
             {
-                indexes[depth] = (byte) i;
+                push(node, i);
             }
+
             return;
         }
     }
 
-    // move to the next key in the tree
-    void successor(Object[] node, int i)
+    private boolean isRoot()
     {
-        byte d = depth;
+        return depth == 0;
+    }
+
+    private void pop()
+    {
+        depth--;
+    }
+
+    Object[] currentNode()
+    {
+        return path[depth];
+    }
+
+    int currentIndex()
+    {
+        return indexes[depth];
+    }
+
+    private void push(Object[] node, int index)
+    {
+        path[++depth] = node;
+        indexes[depth] = (byte) index;
+    }
+
+    void setIndex(int index)
+    {
+        indexes[depth] = (byte) index;
+    }
+
+    // move to the next key in the tree
+    void successor()
+    {
+        Object[] node = currentNode();
+        int i = currentIndex();
+
         if (!isLeaf(node))
         {
             // if we're on a key in a leaf, we MUST have a descendant either side of us
             // so we always go down
-            while (true)
+            node = (Object[]) node[getBranchKeyEnd(node) + i + 1];
+            while (!isLeaf(node))
             {
-                d++;
-                node = (path[d] = (Object[]) node[getBranchKeyEnd(node) + i + 1]);
-                if (isLeaf(node))
-                {
-                    indexes[d] = 0;
-                    depth = d;
-                    return;
-                }
-                i = indexes[d] = -1;
+                push(node, -1);
+                node = (Object[]) node[getBranchKeyEnd(node)];
             }
+            push(node, 0);
+            return;
+        }
+
+        i += 1;
+        if (i < getLeafKeyEnd(node))
+        {
+            setIndex(i);
+            return;
         }
 
         // go up until we reach something we're not at the end of
-        i += 1;
-        int curKeyEnd = getLeafKeyEnd(node);
-        if (i < curKeyEnd)
+        while (true)
         {
-            indexes[d] = (byte) i;
-            return;
+            if (isRoot())
+            {
+                setIndex(getKeyEnd(node));
+                return;
+            }
+            pop();
+            i = currentIndex() + 1;
+            node = currentNode();
+            if (i < getKeyEnd(node))
+            {
+                setIndex(i);
+                return;
+            }
         }
-        do
-        {
-            if (d == 0)
-            {
-                indexes[d] = (byte) curKeyEnd;
-                depth = d;
-                return;
-            }
-            d--;
-            i = indexes[d] + 1;
-            curKeyEnd = getKeyEnd(path[d]);
-            if (i < curKeyEnd)
-            {
-                indexes[d] = (byte) i;
-                depth = d;
-                return;
-            }
-        } while (true);
     }
 
     // move to the previous key in the tree
-    void predecessor(Object[] cur, int curi)
+    void predecessor()
     {
-        byte d = depth;
-        if (!isLeaf(cur))
+        Object[] node = currentNode();
+        int i = currentIndex();
+
+        if (!isLeaf(node))
         {
-            int curKeyEnd = getBranchKeyEnd(cur);
-            while (true)
+            node = (Object[]) node[getBranchKeyEnd(node) + i];
+            while (!isLeaf(node))
             {
-                d++;
-                cur = (path[d] = (Object[]) cur[curKeyEnd + curi]);
-                if (isLeaf(cur))
-                {
-                    indexes[d] = (byte) (getLeafKeyEnd(cur) - 1);
-                    depth = d;
-                    return;
-                }
-                curKeyEnd = getBranchKeyEnd(cur);
-                curi = indexes[d] = (byte) curKeyEnd;
+                i = getBranchKeyEnd(node);
+                push(node, i);
+                node = (Object[]) node[i << 1];
             }
+            push(node, getLeafKeyEnd(node) - 1);
+            return;
         }
 
         // go up until we reach something we're not at the end of!
-        curi -= 1;
-        if (curi >= 0)
+        i -= 1;
+        if (i >= 0)
         {
-            indexes[d] = (byte) curi;
+            setIndex(i);
             return;
         }
-        do
+        while (true)
         {
-            if (d == 0)
+            if (isRoot())
             {
-                indexes[d] = -1;
-                depth = d;
+                setIndex(-1);
                 return;
             }
-            d--;
-            curi = indexes[d] - 1;
-            if (curi >= 0)
+            pop();
+            i = currentIndex() - 1;
+            if (i >= 0)
             {
-                indexes[d] = (byte) curi;
-                depth = d;
+                setIndex(i);
                 return;
             }
-        } while (true);
+        }
+    }
+
+    Object currentKey()
+    {
+        return currentNode()[currentIndex()];
     }
 
     int compareTo(Path that, boolean forwards)
