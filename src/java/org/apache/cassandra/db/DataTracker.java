@@ -105,7 +105,7 @@ public class DataTracker
      *
      * @return the previously active memtable
      */
-    public Memtable switchMemtable()
+    public Memtable switchMemtable(boolean truncating)
     {
         // atomically change the current memtable
         Memtable newMemtable = new Memtable(cfstore);
@@ -118,6 +118,9 @@ public class DataTracker
             newView = currentView.switchMemtable(newMemtable);
         }
         while (!view.compareAndSet(currentView, newView));
+
+        if (truncating)
+            notifyRenewed(newMemtable);
 
         return toFlushMemtable;
     }

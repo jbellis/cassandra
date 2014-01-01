@@ -880,7 +880,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // switch all memtables, regardless of their dirty status, setting the barrier
                 // so that we can reach a coordinated decision about cleanliness once they
                 // are no longer possible to be modified
-                Memtable mt = cfs.data.switchMemtable();
+                Memtable mt = cfs.data.switchMemtable(truncate);
                 mt.discarding(writeBarrier, minReplayPosition);
                 memtables.add(mt);
             }
