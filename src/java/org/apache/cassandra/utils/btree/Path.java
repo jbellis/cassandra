@@ -9,7 +9,13 @@ import static org.apache.cassandra.utils.btree.BTree.getLeafKeyEnd;
 import static org.apache.cassandra.utils.btree.BTree.isLeaf;
 
 /**
- * An internal class for searching and iterating through a tree
+ * An internal class for searching and iterating through a tree.  As it traverses the tree,
+ * it adds the nodes visited to a stack.  This allows us to backtrack from a child node
+ * to its parent.
+ *
+ * As we navigate the tree, we destructively modify this stack.
+ *
+ * Path is only intended to be used via Cursor.
  */
 class Path
 {
@@ -34,7 +40,7 @@ class Path
     final Object[][] path;
     // the index within the node of our path at a given depth
     final byte[] indexes;
-    // current depth
+    // current depth.  nothing in path[i] for i > depth is valid.
     byte depth;
 
     Path(Object[][] path, byte[] indexes)
@@ -69,8 +75,8 @@ class Path
             int i = BTree.find(comparator, target, node, 0, keyEnd);
             if (i >= 0)
             {
+                // exact match. transform exclusive bounds into the correct index by moving back or forwards one
                 push(node, i);
-                // transform exclusive bounds into the correct index by moving back or forwards one
                 switch (mode)
                 {
                     case HIGHER:
@@ -158,8 +164,7 @@ class Path
 
         if (!isLeaf(node))
         {
-            // if we're on a key in a leaf, we MUST have a descendant either side of us
-            // so we always go down
+            // if we're on a key in a branch, we MUST have a descendant either side of us, so we always go down
             node = (Object[]) node[getBranchKeyEnd(node) + i + 1];
             while (!isLeaf(node))
             {
@@ -173,6 +178,7 @@ class Path
         i += 1;
         if (i < getLeafKeyEnd(node))
         {
+            // moved to the next key in the same leaf
             setIndex(i);
             return;
         }
@@ -222,6 +228,7 @@ class Path
             setIndex(i);
             return;
         }
+
         while (true)
         {
             if (isRoot())

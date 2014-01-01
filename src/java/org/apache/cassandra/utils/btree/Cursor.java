@@ -10,12 +10,22 @@ import static org.apache.cassandra.utils.btree.BTree.getLeafKeyEnd;
 import static org.apache.cassandra.utils.btree.BTree.isLeaf;
 
 /**
- * An extension of Stack which provides a public interface for iterating over or counting a subrange of the tree
+ * An extension of Path which provides a public interface for iterating over or counting a subrange of the tree
  *
  * @param <V>
  */
 public final class Cursor<V> extends Path implements Iterator<V>
 {
+    /*
+     * Conceptually, a Cursor derives two Paths, one for the first object in the slice requested (inclusive),
+     * and one for the last (exclusive).  Then hasNext just checks, have we reached the last yet, and next
+     * calls successor() to get to the next item in the Tree.
+     *
+     * To optimize memory use, we summarize the last Path as just endNode/endIndex, and inherit from Path for
+     *
+     * the first one.
+     */
+
     /**
      * Returns a cursor that can be reused to iterate over trees
      *
@@ -143,14 +153,19 @@ public final class Cursor<V> extends Path implements Iterator<V>
     }
 
     /**
-     * @return
+     * @return the number of objects consumed by moving out of the next (possibly current) leaf
      */
     private int consumeNextLeaf()
     {
         Object[] node = currentNode();
         int r = 0;
+
         if (!isLeaf(node))
         {
+            // if we're not in a leaf, then calling successor once will take us to a leaf, since the next
+            // key will be in the leftmost subtree of whichever branch is next.  For instance, if we
+            // are in the root node of the tree depicted by http://cis.stvincent.edu/html/tutorials/swd/btree/btree1.gif,
+            // successor() will take us to the leaf containing N and O.
             int i = currentIndex();
             if (node == endNode && i == endIndex)
                 return -1;
@@ -158,14 +173,18 @@ public final class Cursor<V> extends Path implements Iterator<V>
             successor();
             node = currentNode();
         }
+
         if (node == endNode)
         {
+            // only count up to endIndex, and don't call successor()
             if (currentIndex() == endIndex)
                 return r > 0 ? r : -1;
             r += endIndex - currentIndex();
             setIndex(endIndex);
             return r;
         }
+
+        // count the remaining objects in this leaf
         int keyEnd = getLeafKeyEnd(node);
         r += keyEnd - currentIndex();
         setIndex(keyEnd);

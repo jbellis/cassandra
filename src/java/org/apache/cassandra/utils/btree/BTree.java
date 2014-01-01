@@ -18,6 +18,10 @@ public class BTree
      *
      * So we can quickly distinguish between leaves and branches, we require that leaf nodes are always even number
      * of elements (padded with a null, if necessary), and branches are always an odd number of elements.
+     *
+     * There are no references back to a parent node from its children.  (This would make it impossible to re-use
+     * subtrees when modifying the tree, since the modified tree would need new parent references.)
+     * Instead, we store these references in a Path as needed when navigating the tree.
      */
 
     // The maximum fan factor used for B-Trees
