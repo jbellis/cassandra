@@ -53,21 +53,22 @@ public class DataTracker
         this.init();
     }
 
-    public Memtable getMemtableFor(OpOrdering.Ordered ordered)
+    // get the Memtable that the ordered writeOp should be directed to
+    public Memtable getMemtableFor(OpOrdering.Ordered writeOp)
     {
         // since any new memtables appended to the list after we fetch it will be for operations started
-        // after us, we can safely assume that we will always find the memtable that "accepts" us;
+        // after us, we can safely assume that we will always find the memtable that 'accepts' us;
         // if the barrier for any memtable is set whilst we are reading the list, it must accept us.
 
-        // there may be multiple memtables in the list that would accept us, however we only ever choose
+        // there may be multiple memtables in the list that would 'accept' us, however we only ever choose
         // the oldest such memtable, as accepts() only prevents us falling behind (i.e. ensures we don't
         // assign operations to a memtable that was retired/queued before we started)
         for (Memtable memtable : view.get().liveMemtables)
         {
-            if (memtable.accepts(ordered))
+            if (memtable.accepts(writeOp))
                 return memtable;
         }
-        throw new IllegalStateException(view.get().liveMemtables.toString());
+        throw new AssertionError(view.get().liveMemtables.toString());
     }
 
     public Set<SSTableReader> getSSTables()
