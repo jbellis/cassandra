@@ -150,7 +150,6 @@ public class CommitLog implements CommitLogMBean
     /**
      * @return a Future representing a ReplayPosition such that when it is ready,
      * all Allocations created prior to the getContext call will be written to the log
-<<<<<<< HEAD
      */
     public ReplayPosition getContext()
     {

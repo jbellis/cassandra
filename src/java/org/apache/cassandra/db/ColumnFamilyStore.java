@@ -61,7 +61,6 @@ import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.index.SecondaryIndex;
@@ -88,10 +87,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
-    public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor(1, StageManager.KEEPALIVE, TimeUnit.SECONDS,
-            new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory("MemtablePostFlush"), "internal");
     private static final ExecutorService flushExecutor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(), StageManager.KEEPALIVE, TimeUnit.SECONDS,
             new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory("MemtableFlushWriter"), "internal");
+    // post-flush executor is single threaded to provide guarantee that any flush Future on a CF will never return until prior flushes have completed
+    public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor(1, StageManager.KEEPALIVE, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory("MemtablePostFlush"), "internal");
 
     public final Keyspace keyspace;
     public final String name;
@@ -170,12 +170,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     synchronized (data)
                     {
                         Memtable current = data.getView().getCurrentMemtable();
+                        // if we're not expired, we've been hit by a scheduled flush for an already flushed memtable, so ignore
                         if (current.isExpired())
                         {
                             if (current.isClean())
+                            {
+                                // if we're still clean, instead of swapping just reschedule a flush for later
                                 scheduleFlush();
+                            }
                             else
+                            {
+                                // we'll be rescheduled by the constructor of the Memtable.
                                 forceFlush();
+                            }
                         }
                     }
                 }
@@ -725,25 +732,72 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public Future<?> switchMemtable()
     {
         assert !isIndex();
+        logger.info("Enqueuing flush of {}", name);
         synchronized (data)
         {
-            logger.info("Enqueuing flush of {}", name);
-            final Flush flush = new Flush();
+            final Flush flush = new Flush(false);
             flushExecutor.execute(flush);
             return postFlushExecutor.submit(flush.postFlush);
         }
     }
 
+    public Future<?> forceFlush()
+    {
+        return forceFlush(null);
+    }
+
+    public Future<?> forceFlush(ReplayPosition flushIfBefore)
+    {
+        // we synchronize on the data tracker to ensure we don't race against other calls to switchMemtable(),
+        // unnecessarily queueing memtables that are about to be made clean
+        synchronized (data)
+        {
+            // during index build, 2ary index memtables can be dirty even if parent is not.  if so,
+            // we want to flush the 2ary index ones too.
+            boolean clean = true;
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                clean &= cfs.data.getView().getCurrentMemtable().isClean(flushIfBefore);
+
+            if (clean)
+            {
+                // We could have a memtable for this column family that is being
+                // flushed. Make sure the future returned wait for that so callers can
+                // assume that any data inserted prior to the call are fully flushed
+                // when the future returns (see #5241).
+                return postFlushExecutor.submit(new Runnable()
+                {
+                    public void run()
+                    {
+                        logger.debug("forceFlush requested but everything is clean in {}", name);
+                    }
+                });
+            }
+
+            return switchMemtable();
+        }
+    }
+
+    public void forceBlockingFlush()
+    {
+        FBUtilities.waitOnFuture(forceFlush());
+    }
+
+    /**
+     * Both synchronises custom secondary indexes and provides ordering guarantees for futures on switchMemtable/flush
+     * etc, which expect to be able to wait until the flush (and all prior flushes) requested have completed.
+     */
     private final class PostFlush implements Runnable
     {
 
+        final boolean flushSecondaryIndexes;
         final OpOrdering.Barrier writeBarrier;
         final CountDownLatch latch = new CountDownLatch(1);
         volatile ReplayPosition lastReplayPosition;
 
-        private PostFlush(OpOrdering.Barrier writeBarrier)
+        private PostFlush(boolean flushSecondaryIndexes, OpOrdering.Barrier writeBarrier)
         {
             this.writeBarrier = writeBarrier;
+            this.flushSecondaryIndexes = flushSecondaryIndexes;
         }
 
         @Override
@@ -759,15 +813,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
              * with CL as we do with memtables/CFS-backed SecondaryIndexes.
              */
 
-            for (SecondaryIndex index : indexManager.getIndexesNotBackedByCfs())
+            if (flushSecondaryIndexes)
             {
-                // flush any non-cfs backed indexes
-                logger.info("Flushing SecondaryIndex {}", index);
-                index.forceBlockingFlush();
+                for (SecondaryIndex index : indexManager.getIndexesNotBackedByCfs())
+                {
+                    // flush any non-cfs backed indexes
+                    logger.info("Flushing SecondaryIndex {}", index);
+                    index.forceBlockingFlush();
+                }
             }
 
             try
             {
+                // we always wait on the latch regardless of if we do work afterwards in order to provide the
+                // guarantee that a flush/switchMemtable future only returns once all prior flushes have completed
                 latch.await();
             } catch (InterruptedException e)
             {
@@ -782,25 +841,35 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     }
 
+    /**
+     * Should only be constructed/used from switchMemtable() with ownership of the DataTracker monitor.
+     * In the constructor the current memtable(s) are swapped, and a barrer on outstanding writes is issued;
+     * when run by the flushWriter the barrier is waited on to ensure all outstanding writes have completed
+     * before all memtables are immediately written, and the CL is either immediately marked clean or, if
+     * there are custom secondary indexes, the post flush clean up is left to update those indexes and mark
+     * the CL clean
+     */
     private final class Flush implements Runnable
     {
 
         final OpOrdering.Barrier writeBarrier;
         final List<Memtable> memtables;
         final PostFlush postFlush;
+        final boolean truncate;
 
-        private Flush()
+        private Flush(boolean truncate)
         {
+            // if true, we won't flush, we'll just wait for any outstanding writes, switch the memtable, and discard
+            this.truncate = truncate;
             /**
              * To ensure correctness of switch with non-blocking writes, we wait for all write operations started
              * prior to the switch to complete before we proceed. We do this by creating a Barrier on the writeOrdering
              * that all write operations register themselves with, and assigning this barrier to the memtables,
-             * after which we issue the barrier. This barrier is used to direct write operations started prior
-             * to the barrier into the memtable we have switched, and any started after to its replacement. In
-             * doing so it also directs the write operations to update the lastReplayPosition of the memtable, so
+             * after which we *.issue()* the barrier. This barrier is used to direct write operations started prior
+             * to the barrier.issue() into the memtable we have switched out, and any started after to its replacement.
+             * In doing so it also tells the write operations to update the lastReplayPosition of the memtable, so
              * that we know the CL position we are dirty to, which can be marked clean when we complete.
              */
-
             writeBarrier = keyspace.writeOrdering.newBarrier();
             memtables = new ArrayList<>();
 
@@ -817,7 +886,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             writeBarrier.issue();
-            postFlush = new PostFlush(writeBarrier);
+            postFlush = new PostFlush(!truncate, writeBarrier);
         }
 
         @Override
@@ -836,7 +905,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 Memtable memtable = iter.next();
                 memtable.cfs.data.markFlushing(memtable);
-                if (memtable.isClean())
+                if (memtable.isClean() || truncate)
                 {
                     memtable.cfs.replaceFlushed(memtable, null);
                     memtable.discarded();
@@ -865,11 +934,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             else
                 postFlush.lastReplayPosition = lastReplayPosition;
 
+            // signal the post-flush we've done our work
             postFlush.latch.countDown();
         }
+
     }
 
-    public static class FlushLargestMemtable implements Runnable
+    /**
+     * Finds the largest memtable, as a percentage of *either* on- or off-heap memory limits, and immediately
+     * queues it for flushing. If the memtable selected is flushed before this completes, no work is done.
+     */
+    public static class FlushLargestColumnFamily implements Runnable
     {
 
         public void run()
@@ -878,8 +953,22 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Memtable largest = null;
             for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
             {
-                final Memtable current = cfs.getDataTracker().getView().getCurrentMemtable();
-                float ratio = Math.max(current.getOnHeap().ownershipRatio(), current.getOffHeap().ownershipRatio());
+                // we take a reference to the current main memtable for the CF prior to snapping its ownership ratios
+                // to ensure we have some ordering guarantee for performing the switchMemtableIf(), i.e. we will only
+                // swap if the memtables we are measuring here haven't already been swapped by the time we try to swap them
+                Memtable current = cfs.getDataTracker().getView().getCurrentMemtable();
+
+                // find the total ownership ratio for all memtables owned by this CF, both on- and off-heap, and select
+                // the largest of the two ratios to weight this CF
+                float onHeap = 0f, offHeap = 0f;
+                for (ColumnFamilyStore store : cfs.concatWithIndexes())
+                {
+                    final Memtable memtable = store.getDataTracker().getView().getCurrentMemtable();
+                    onHeap += memtable.getOnHeap().ownershipRatio();
+                    offHeap += memtable.getOffHeap().ownershipRatio();
+                }
+                float ratio = Math.max(onHeap, offHeap);
+
                 if (ratio > largestRatio)
                 {
                     largest = current;
@@ -890,52 +979,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (largest != null)
             {
                 largest.cfs.switchMemtableIf(largest);
-                // reclaiming includes that which we are GC-ing;
                 logger.info("Reclaiming {} of {} retained memtable bytes", Memtable.POOL.onHeap.reclaiming(), Memtable.POOL.onHeap.used());
             }
         }
 
-    }
-
-    public Future<?> forceFlush()
-    {
-        return forceFlush(null);
-    }
-
-    public Future<?> forceFlush(ReplayPosition flushIfBefore)
-    {
-        // we synchronize on the data tracker to ensure we don't race against other calls to switchMemtable(),
-        // unnecessarily queueing memtables that are about to be made clean
-        synchronized (data)
-        {
-            // during index build, 2ary index memtables can be dirty even if parent is not.  if so,
-            // we want flushLargestMemtables to flush the 2ary index ones too.
-            boolean clean = true;
-            for (ColumnFamilyStore cfs : concatWithIndexes())
-                clean &= cfs.data.getView().getCurrentMemtable().isClean(flushIfBefore);
-
-            if (clean)
-            {
-                // We could have a memtable for this column family that is being
-                // flushed. Make sure the future returned wait for that so callers can
-                // assume that any data inserted prior to the call are fully flushed
-                // when the future returns (see #5241).
-                return postFlushExecutor.submit(new Runnable()
-                {
-                    public void run()
-                    {
-                        logger.debug("forceFlush requested but everything is clean in {}", name);
-                    }
-                });
-            }
-
-            return switchMemtable();
-        }
-    }
-
-    public void forceBlockingFlush()
-    {
-        FBUtilities.waitOnFuture(forceFlush());
     }
 
     public void maybeUpdateRowCache(DecoratedKey key)
@@ -2027,28 +2074,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             // sleep a little to make sure that our truncatedAt comes after any sstable
             // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
-            try
-            {
-                long starttime = System.currentTimeMillis();
-                while ((System.currentTimeMillis() - starttime) < 1)
-                {
-                    Thread.sleep(1);
-                }
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
         }
         else
         {
             // just nuke the memtable data w/o writing to disk first
-            for (ColumnFamilyStore cfs : concatWithIndexes())
+            synchronized (data)
             {
-                synchronized (cfs.data)
-                {
-                    cfs.data.nukeCurrentMemtable();
-                }
+                final Flush flush = new Flush(true);
+                flushExecutor.execute(flush);
+                postFlushExecutor.submit(flush.postFlush);
             }
         }
 

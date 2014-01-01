@@ -133,22 +133,6 @@ public class DataTracker
         while (!view.compareAndSet(currentView, newView));
     }
 
-    // this method is safe to interleave with calls to switchMemtable and discarding, i.e. it needs no
-    // outside synchronization, as it affects only the current/live memtable, which has no operation ordering
-    // guarantees imposed upon it yet
-    public void nukeCurrentMemtable()
-    {
-        Memtable newMemtable = new Memtable(cfstore);
-        View currentView, newView;
-        do
-        {
-            currentView = view.get();
-            newView = currentView.nukeMemtable(newMemtable);
-        }
-        while (!view.compareAndSet(currentView, newView));
-        notifyRenewed(currentView.getCurrentMemtable());
-    }
-
     public void replaceFlushed(Memtable memtable, SSTableReader sstable)
     {
         // sstable may be null if we flushed batchlog and nothing needed to be retained

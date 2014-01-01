@@ -19,7 +19,6 @@ package org.apache.cassandra.config;
 
 import java.io.File;
 import java.io.FileFilter;
-import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -28,7 +27,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Longs;
 import org.apache.cassandra.utils.memory.Pool;
-import org.apache.cassandra.utils.memory.HeapPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1318,7 +1316,7 @@ public class DatabaseDescriptor
         {
             return (Pool) memtablePool
                     .getConstructor(long.class, long.class, float.class, Runnable.class)
-                    .newInstance(conf.memtable_total_space_in_mb << 20, 0L, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestMemtable());
+                    .newInstance(conf.memtable_total_space_in_mb << 20, 0L, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
         }
         catch (Exception e)
         {
