@@ -112,7 +112,7 @@ public class CompactionTask extends AbstractCompactionTask
         assert !Iterables.any(toCompact, new Predicate<SSTableReader>()
         {
             @Override
-            public boolean apply(@Nullable SSTableReader sstable)
+            public boolean apply(SSTableReader sstable)
             {
                 return !sstable.descriptor.cfname.equals(cfs.name);
             }

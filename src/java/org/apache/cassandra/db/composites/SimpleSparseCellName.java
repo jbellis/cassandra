@@ -91,21 +91,19 @@ public class SimpleSparseCellName extends AbstractComposite implements CellName
     @Override
     public long excessHeapSize()
     {
-        // TODO : maybe return 0? as interned elsewhere
         return HEAP_SIZE + columnName.excessHeapSize();
     }
 
     @Override
     public CellName copy(Allocator allocator)
     {
-        // We're interning those instance in SparceCellNameType so don't need to copy.
-        return this;
+        return new SimpleSparseCellName(columnName.clone(allocator));
     }
 
     @Override
     public void free(PoolAllocator<?> allocator)
     {
-        // no-op, never copied
+        allocator.free(columnName.bytes);
     }
 
 }

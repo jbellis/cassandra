@@ -41,6 +41,7 @@ public final class MemoryOwner
         tracker.adjustReclaiming(-reclaiming);
     }
 
+    // if this.owns > size, subtract size from this.owns (atomically) and add it to the provided MemoryOwner
     boolean transfer(int size, MemoryOwner to)
     {
         while (true)
@@ -57,6 +58,7 @@ public final class MemoryOwner
         }
     }
 
+    // allocate memory in the tracker, and mark ourselves as owning it
     public void allocate(int size, OpOrdering.Ordered writeOp)
     {
         while (true)
@@ -82,12 +84,14 @@ public final class MemoryOwner
         }
     }
 
+    // retroactively mark an amount allocated in the tracker, and owned by us
     void allocated(int size)
     {
         tracker.allocated(size);
         acquired(size);
     }
 
+    // retroactively mark an amount acquired in the trackker, and owned by us
     void acquired(int size)
     {
         tracker.acquired(size);

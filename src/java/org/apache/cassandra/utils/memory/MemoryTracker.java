@@ -4,7 +4,6 @@ import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
-// TODO : descriptive javadoc
 // note difference between acquire() and allocate()
 public class MemoryTracker
 {
@@ -95,11 +94,14 @@ public class MemoryTracker
         }
     }
 
+    // by default is equivalent to allocated(), but when a pool caches an allocated quantity for reuse this
+    // may be a different counter that tracks the amount actively in use as opposed to the amount actually allocated
     void acquired(long size)
     {
         allocated(size);
     }
 
+    // un-acquires (as opposed to deallocates) the amount of memory, and signals any waiting threads
     void release(long size)
     {
         allocated(-size);

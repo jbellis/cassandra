@@ -26,6 +26,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.Allocator;
 
 /**
  * Represents an identifer for a CQL column definition.
@@ -47,6 +48,12 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
     {
         this.bytes = bytes;
         this.text = type.getString(bytes);
+    }
+
+    private ColumnIdentifier(ByteBuffer bytes, String text)
+    {
+        this.bytes = bytes;
+        this.text = text;
     }
 
     @Override
@@ -89,4 +96,10 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
 
         return bytes.compareTo(other.bytes);
     }
+
+    public ColumnIdentifier clone(Allocator allocator)
+    {
+        return new ColumnIdentifier(allocator.clone(bytes), text);
+    }
+
 }

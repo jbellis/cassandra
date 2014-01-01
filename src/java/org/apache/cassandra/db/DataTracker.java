@@ -596,22 +596,31 @@ public class DataTracker
             return new View(newLiveMemtables, flushingMemtables, sstables, compacting, intervalTree);
         }
 
-        View nukeMemtable(Memtable newMemtable)
-        {
-            List<Memtable> newLiveMemtables = ImmutableList.<Memtable>builder().addAll(liveMemtables.subList(0, liveMemtables.size() - 1)).add(newMemtable).build();
-            return new View(newLiveMemtables, flushingMemtables, sstables, compacting, intervalTree);
-        }
-
         View markFlushing(Memtable toFlushMemtable)
         {
-            int index = liveMemtables.indexOf(toFlushMemtable);
-            assert index < liveMemtables.size() - 1;
-            List<Memtable> newLiveMemtables = ImmutableList.<Memtable>builder()
-                    .addAll(liveMemtables.subList(0, index))
-                    .addAll(liveMemtables.subList(index + 1, liveMemtables.size()))
+            List<Memtable> live = liveMemtables, flushing = flushingMemtables;
+
+            // since we can have multiple flushes queued, we may occasionally race and start a flush out of order,
+            // so must locate it in the list to remove, rather than just removing from the beginning
+            int i = live.indexOf(toFlushMemtable);
+            assert i < live.size() - 1;
+            List<Memtable> newLive = ImmutableList.<Memtable>builder()
+                    .addAll(live.subList(0, i))
+                    .addAll(live.subList(i + 1, live.size()))
                     .build();
-            List<Memtable> newQueuedMemtables = ImmutableList.<Memtable>builder().addAll(flushingMemtables).add(liveMemtables.get(0)).build();
-            return new View(newLiveMemtables, newQueuedMemtables, sstables, compacting, intervalTree);
+
+            // similarly, if we out-of-order markFlushing once, we may afterwards need to insert a memtable into the
+            // flushing list in a position other than the end, though this will be rare
+            i = flushing.size();
+            while (i > 0 && flushing.get(i - 1).creationTime() > toFlushMemtable.creationTime())
+                i--;
+            List<Memtable> newFlushing = ImmutableList.<Memtable>builder()
+                    .addAll(flushing.subList(0, i))
+                    .add(toFlushMemtable)
+                    .addAll(flushing.subList(i, flushing.size()))
+                    .build();
+
+            return new View(newLive, newFlushing, sstables, compacting, intervalTree);
         }
 
         View replaceFlushed(Memtable flushedMemtable, SSTableReader newSSTable)

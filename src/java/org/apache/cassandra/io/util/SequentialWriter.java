@@ -37,9 +37,6 @@ public class SequentialWriter extends OutputStream
     // absolute path to the given file
     private final String filePath;
 
-    // so we can use the write(int) path w/o tons of new byte[] allocations
-    private final byte[] singleByteBuffer = new byte[1];
-
     protected byte[] buffer;
     private final boolean skipIOCache;
     private final int fd;

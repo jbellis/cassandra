@@ -164,7 +164,9 @@ public class Memtable
         if (replayPosition != null && writeBarrier != null)
         {
             // if the writeBarrier is set, we want to maintain lastReplayPosition; this is an optimisation to avoid
-            // casing it for every write, but still ensure it is correct when writeBarrier.await() completes
+            // casing it for every write, but still ensure it is correct when writeBarrier.await() completes.
+            // we clone the replay position so that the object passed in does not "escape", permitting stack allocation
+            replayPosition = replayPosition.clone();
             while (true)
             {
                 ReplayPosition last = lastReplayPosition.get();
@@ -233,9 +235,8 @@ public class Memtable
 
     public String toString()
     {
-        return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%%/%.0f%% of on/off-heap limit)",
-                cfs.name, hashCode(), liveDataSize, currentOperations,
-                100 * allocator.onHeap.ownershipRatio(), 100 * allocator.offHeap.ownershipRatio());
+        return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%%of heap limit)",
+                cfs.name, hashCode(), liveDataSize, currentOperations, 100 * allocator.onHeap.ownershipRatio());
     }
 
     /**
@@ -345,8 +346,6 @@ public class Memtable
                 //  since the memtable is being used for queries in the "pending flush" category)
                 for (Map.Entry<RowPosition, AtomicSortedColumns> entry : rows.entrySet())
                 {
-                    // guard the writer with a read op for each row; this permits faster resource collection than
-                    // taking one for the entire write
                     ColumnFamily cf = entry.getValue();
                     if (cf.isMarkedForDelete())
                     {

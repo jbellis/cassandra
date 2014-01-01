@@ -55,7 +55,7 @@ public class Keyspace
 
     private static final Logger logger = LoggerFactory.getLogger(Keyspace.class);
 
-    // It is possible to call Table.open without a running daemon, so it makes sense to ensure
+    // It is possible to call Keyspace.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
     static
     {
@@ -361,9 +361,7 @@ public class Keyspace
                 }
 
                 Tracing.trace("Adding to {} memtable", cf.metadata().cfName);
-                SecondaryIndexManager.Updater updater = updateIndexes
-                        ? cfs.indexManager.updaterFor(key, op)
-                        : SecondaryIndexManager.nullUpdater;
+                SecondaryIndexManager.Updater updater = updateIndexes ? cfs.indexManager.updaterFor(key, op) : SecondaryIndexManager.nullUpdater;
                 cfs.apply(key, cf, updater, op, replayPosition);
             }
 

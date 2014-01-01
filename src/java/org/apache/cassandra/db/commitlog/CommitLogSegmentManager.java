@@ -454,7 +454,7 @@ public class CommitLogSegmentManager
         final ReplayPosition maxReplayPosition = segments.get(segments.size() - 1).getContext();
 
         // a map of CfId -> forceFlush() to ensure we only queue one flush per cf
-        final Map<UUID, Future<?>> flushes = new LinkedHashMap<>();
+        final Map<UUID, ListenableFuture<?>> flushes = new LinkedHashMap<>();
 
         for (CommitLogSegment segment : segments)
         {
@@ -470,32 +470,16 @@ public class CommitLogSegmentManager
                 }
                 else if (!flushes.containsKey(dirtyCFId))
                 {
-                    // TODO: only flush the CFS if the Memtable containing the dirty data isn't already flushing
                     String keyspace = pair.left;
                     final ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(dirtyCFId);
-                    // Push the flush out to another thread to avoid potential deadlock: Table.add
-                    // acquires switchlock, and could be blocking for the manager thread.  So if the manager
-                    // thread itself tries to acquire switchlock (via flush -> switchMemtable) we'd have a problem.
-                    Runnable runnable = new Runnable()
-                    {
-                        public void run()
-                        {
-                            cfs.forceFlush(maxReplayPosition);
-                        }
-                    };
-                    flushes.put(dirtyCFId, StorageService.optionalTasks.submit(runnable));
+                    // can safely call forceFlush here as we will only ever block (briefly) for other attempts to flush,
+                    // no deadlock possibility since switchLock removal
+                    flushes.put(dirtyCFId, cfs.forceFlush(maxReplayPosition));
                 }
             }
         }
 
-        return new FutureTask<>(new Callable<Object>()
-        {
-            public Object call()
-            {
-                FBUtilities.waitOnFutures(flushes.values());
-                return null;
-            }
-        });
+        return Futures.allAsList(flushes.values());
     }
 
     /**

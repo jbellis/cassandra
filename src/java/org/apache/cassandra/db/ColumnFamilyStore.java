@@ -729,24 +729,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * not complete until the Memtable (and all prior Memtables) have been successfully flushed, and the CL
      * marked clean up to the position owned by the Memtable.
      */
-    public Future<?> switchMemtable()
+    public ListenableFuture<?> switchMemtable()
     {
         assert !isIndex();
         logger.info("Enqueuing flush of {}", name);
         synchronized (data)
         {
-            final Flush flush = new Flush(false);
+            Flush flush = new Flush(false);
             flushExecutor.execute(flush);
-            return postFlushExecutor.submit(flush.postFlush);
+            ListenableFutureTask<?> task = ListenableFutureTask.create(flush.postFlush, null);
+            postFlushExecutor.submit(task);
+            return task;
         }
     }
 
-    public Future<?> forceFlush()
+    public ListenableFuture<?> forceFlush()
     {
         return forceFlush(null);
     }
 
-    public Future<?> forceFlush(ReplayPosition flushIfBefore)
+    public ListenableFuture<?> forceFlush(ReplayPosition flushIfBefore)
     {
         // we synchronize on the data tracker to ensure we don't race against other calls to switchMemtable(),
         // unnecessarily queueing memtables that are about to be made clean
@@ -764,13 +766,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // flushed. Make sure the future returned wait for that so callers can
                 // assume that any data inserted prior to the call are fully flushed
                 // when the future returns (see #5241).
-                return postFlushExecutor.submit(new Runnable()
+                ListenableFutureTask<?> task = ListenableFutureTask.create(new Runnable()
                 {
                     public void run()
                     {
                         logger.debug("forceFlush requested but everything is clean in {}", name);
                     }
-                });
+                }, null);
+                postFlushExecutor.execute(task);
+                return task;
             }
 
             return switchMemtable();
@@ -1621,8 +1625,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore)
     {
         Tracing.trace("Executing single-partition query on {}", name);
-        final CollationController controller = new CollationController(this, filter, gcBefore);
-        final ColumnFamily columns = controller.getTopLevelColumns();
+        CollationController controller = new CollationController(this, filter, gcBefore);
+        ColumnFamily columns = controller.getTopLevelColumns();
         metric.updateSSTableIterated(controller.getSstablesIterated());
         return columns;
     }
