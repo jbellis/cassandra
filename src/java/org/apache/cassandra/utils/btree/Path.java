@@ -158,8 +158,8 @@ class Path
 
         if (!isLeaf(node))
         {
-            // if we're on a key in a leaf, we MUST have a descendant either side of us
-            // so we always go down
+            // if we're on a key in a branch, we MUST have a descendant either side of us
+            // so we always go down the left-most child until we hit a leaf
             node = (Object[]) node[getBranchKeyEnd(node) + i + 1];
             while (!isLeaf(node))
             {
@@ -170,6 +170,7 @@ class Path
             return;
         }
 
+        // if we haven't reached the end of this leaf, just increment our index and return
         i += 1;
         if (i < getLeafKeyEnd(node))
         {
@@ -177,14 +178,10 @@ class Path
             return;
         }
 
-        // go up until we reach something we're not at the end of
-        while (true)
+        // we've reached the end of this leaf
+        // so go up until we reach something we've not finished visiting
+        while (!isRoot())
         {
-            if (isRoot())
-            {
-                setIndex(getKeyEnd(node));
-                return;
-            }
             pop();
             i = currentIndex() + 1;
             node = currentNode();
@@ -194,6 +191,8 @@ class Path
                 return;
             }
         }
+        // we've reached the end of the tree if we're here, so update the index accordingly and return
+        setIndex(getKeyEnd(node));
     }
 
     // move to the previous key in the tree
@@ -204,6 +203,8 @@ class Path
 
         if (!isLeaf(node))
         {
+            // if we're on a key in a branch, we MUST have a descendant either side of us
+            // so we always go down the right-most child until we hit a leaf
             node = (Object[]) node[getBranchKeyEnd(node) + i];
             while (!isLeaf(node))
             {
@@ -215,20 +216,18 @@ class Path
             return;
         }
 
-        // go up until we reach something we're not at the end of!
+        // if we haven't reached the beginning of this leaf, just decrement our index and return
         i -= 1;
         if (i >= 0)
         {
             setIndex(i);
             return;
         }
-        while (true)
+
+        // we've reached the beginning of this leaf
+        // so go up until we reach something we've not finished visiting
+        while (!isRoot())
         {
-            if (isRoot())
-            {
-                setIndex(-1);
-                return;
-            }
             pop();
             i = currentIndex() - 1;
             if (i >= 0)
@@ -237,6 +236,8 @@ class Path
                 return;
             }
         }
+        // we've reached the beginning of the tree if we're here, so update the index accordingly and return
+        setIndex(-1);
     }
 
     Object currentKey()
