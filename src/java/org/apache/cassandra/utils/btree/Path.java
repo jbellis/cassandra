@@ -185,7 +185,7 @@ class Path
             return;
         }
 
-        // we've reached the end of this leaf
+        // we've reached the end of this leaf,
         // so go up until we reach something we've not finished visiting
         while (!isRoot())
         {
@@ -198,7 +198,8 @@ class Path
                 return;
             }
         }
-        // we've reached the end of the tree if we're here, so update the index accordingly and return
+
+        // we've visited the last key in the root node, so we're done
         setIndex(getKeyEnd(node));
     }
 
@@ -231,7 +232,7 @@ class Path
             return;
         }
 
-        // we've reached the beginning of this leaf
+        // we've reached the beginning of this leaf,
         // so go up until we reach something we've not finished visiting
         while (!isRoot())
         {
@@ -243,7 +244,8 @@ class Path
                 return;
             }
         }
-        // we've reached the beginning of the tree if we're here, so update the index accordingly and return
+
+        // we've visited the last key in the root node, so we're done
         setIndex(-1);
     }
 

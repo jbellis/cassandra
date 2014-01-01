@@ -87,7 +87,7 @@ public class BTree
         if (!sorted)
             source = sorted(source, comparator, size);
 
-        return MODIFIER.get().build(source, size);
+        return modifier.get().build(source, size);
     }
 
     /**
@@ -131,7 +131,7 @@ public class BTree
         if (!updateWithIsSorted)
             updateWith = sorted(updateWith, comparator, updateWith.size());
 
-        // try a quick in-place merge
+        // if the b-tree is just a single root node, we can try a quick in-place merge
         if (isLeaf(btree) && btree.length + updateWith.size() < QUICK_MERGE_LIMIT)
         {
             // since updateWith is sorted, we can skip elements from earlier iterations tracked by this offset
@@ -192,7 +192,7 @@ public class BTree
             return Arrays.copyOfRange(merged, 0, mergedCount + (mergedCount & 1));
         }
 
-        return MODIFIER.get().update(btree, comparator, updateWith, replaceF, terminateEarly);
+        return modifier.get().update(btree, comparator, updateWith, replaceF, terminateEarly);
     }
 
     /**
@@ -357,7 +357,7 @@ public class BTree
         }
     };
 
-    private static final ThreadLocal<Modifier> MODIFIER = new ThreadLocal<Modifier>()
+    private static final ThreadLocal<Modifier> modifier = new ThreadLocal<Modifier>()
     {
         @Override
         protected Modifier initialValue()

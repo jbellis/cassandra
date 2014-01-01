@@ -46,7 +46,7 @@ final class Modifier
             }
         }
 
-        // finish copying any remaining keys
+        // finish copying any remaining keys from the original btree
         while (true)
         {
             ModifierLevel next = current.update(POSITIVE_INFINITY, comparator, replaceF);
