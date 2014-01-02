@@ -29,7 +29,7 @@ final class ModifierLevel
 
     // copying from
     private Object[] copyFrom;
-    // the first
+    // the index of the first key in copyFrom that has not yet been copied into the build arrays
     private int copyFromKeyPosition;
     private int copyFromChildPosition;
     private int copyFromKeyEnd;
@@ -65,8 +65,6 @@ final class ModifierLevel
         buildChildPosition = 0;
         copyFromKeyPosition = 0;
         copyFromChildPosition = 0;
-        if (copyFrom != null)
-            copyFromKeyEnd = getKeyEnd(copyFrom);
     }
 
     /**
@@ -77,6 +75,9 @@ final class ModifierLevel
      */
     <V> ModifierLevel update(Object key, Comparator<V> comparator, ReplaceFunction<V> replaceF)
     {
+        assert copyFrom != null;
+        int copyFromKeyEnd = getKeyEnd(copyFrom);
+
         // true iff we found the exact key in this node
         boolean found = false;
         // true iff this node (or a child) should contain the key
@@ -247,7 +248,7 @@ final class ModifierLevel
         if (copyFromChildPosition >= upToChildPosition)
             return;
         int len = upToChildPosition - copyFromChildPosition;
-        System.arraycopy(copyFrom, copyFromKeyEnd + copyFromChildPosition, buildChildren, buildChildPosition, len);
+        System.arraycopy(copyFrom, getKeyEnd(copyFrom) + copyFromChildPosition, buildChildren, buildChildPosition, len);
         copyFromChildPosition = upToChildPosition;
         buildChildPosition += len;
     }
