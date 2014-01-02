@@ -37,7 +37,7 @@ public final class MemoryOwner
     // currently no corroboration/enforcement of this is performed.
     void releaseAll()
     {
-        tracker.adjustAcquired(ownsUpdater.getAndSet(this, 0), false);
+        tracker.adjustAcquired(-ownsUpdater.getAndSet(this, 0), false);
         tracker.adjustReclaiming(-reclaiming);
     }
 
