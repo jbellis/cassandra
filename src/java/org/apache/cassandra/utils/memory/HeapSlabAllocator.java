@@ -50,6 +50,7 @@ public class HeapSlabAllocator extends PoolAllocator
     private final static int REGION_SIZE = 1024 * 1024;
     private final static int MAX_CLONED_SIZE = 128 * 1024; // bigger than this don't go in the region
 
+    // globally stash any Regions we allocate but are beaten to using, and use these up before allocating any more
     private static final NonBlockingQueue<Region> RACE_ALLOCATED = new NonBlockingQueue<>();
 
     private final AtomicReference<Region> currentRegion = new AtomicReference<Region>();

@@ -9,8 +9,9 @@ import java.util.concurrent.Executors;
 public abstract class Pool
 {
 
-    private final ExecutorService cleanerExec;
     final PoolCleaner<?> cleaner;
+
+    // the total memory used by this pool
     public final MemoryTracker onHeap;
     public final MemoryTracker offHeap;
 
@@ -21,12 +22,9 @@ public abstract class Pool
         this.offHeap = setup.offHeap(this, cleaner);
         if (cleaner != null)
         {
-            this.cleanerExec = Executors.newFixedThreadPool(1, new NamedThreadFactory(this.getClass().getSimpleName() + "Cleaner"));
-            this.cleanerExec.execute(this.cleaner);
-        }
-        else
-        {
-            this.cleanerExec = null;
+            // start a thread to run the cleaner
+            ExecutorService cleanerExec = Executors.newFixedThreadPool(1, new NamedThreadFactory(this.getClass().getSimpleName() + "Cleaner"));
+            cleanerExec.execute(this.cleaner);
         }
     }
 

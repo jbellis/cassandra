@@ -6,13 +6,13 @@ import org.apache.cassandra.utils.concurrent.WaitQueue;
 class PoolCleaner<P extends Pool> implements Runnable
 {
 
+    /** The pool we're cleaning */
     final P pool;
 
-    /**
-     * should ensure that at least some memory has been reclaimed after completion. should not return if clean is
-     * still in progress.
-     */
+    /** should ensure that at least some memory has been marked reclaiming after completion */
     final Runnable clean;
+
+    /** signalled whenever needsCleaning() may return true */
     final WaitQueue wait = new WaitQueue();
 
     PoolCleaner(P pool, Runnable clean)
@@ -52,11 +52,6 @@ class PoolCleaner<P extends Pool> implements Runnable
             }
             clean();
         }
-    }
-
-    // if can do some cleaning out-of-band, do it
-    void forceClean()
-    {
     }
 
 }

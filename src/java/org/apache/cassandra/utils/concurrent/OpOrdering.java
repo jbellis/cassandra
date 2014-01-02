@@ -59,148 +59,87 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
     }
  * </pre>
  */
-// TODO : support nesting/child creation, so that can register/barrier with greater granularity when useful
 public class OpOrdering
 {
 
+    /**
+     * Constant that when an Ordered.running is equal to, indicates the Ordered is complete
+     */
     private static final int FINISHED = -1;
 
-    public final class Barrier
+    /**
+     * A linked list starting with the most recent Ordered object, i.e. the one we should start new operations from,
+     * with (prev) links to any incomplete Ordered instances, and (next) links to any potential future Ordered instances.
+     * Once all operations started against an Ordered instance and its ancestors have been finished the next instance
+     * will unlink this one
+     */
+    private volatile Ordered current = new Ordered();
+
+    /**
+     * Start an operation against this OpOrdering, and return the Ordered instance that manages it.
+     * Once the operation is completed Ordered.finishOne() MUST be called EXACTLY once for this operation.
+     * @return
+     */
+    public Ordered start()
     {
-
-        // this Barrier was issued after all Ordered operations started against orderOnOrBefore
-        private volatile Ordered orderOnOrBefore;
-
-        // if the barrier has been exposed to all operations prior to .issue() being called, then
-        // accept() will return true only for (and for all) those operations started prior to the issue of the barrier
-        public boolean accept(Ordered op)
+        while (true)
         {
-            if (orderOnOrBefore == null)
-                return true;
-            // we subtract to permit wrapping round the full range of Long - so we only need to ensure
-            // there are never Long.MAX_VALUE * 2 total Ordered objects in existence at any one timem which will
-            // take care of itself
-            return orderOnOrBefore.id - op.id >= 0;
+            Ordered cur = current;
+            if (cur.register())
+                return cur;
         }
-
-        /**
-         * Issues the barrier; must be called after exposing the barrier to any operations it may affect,
-         * but before it is used, so that the accept() method is properly synchronised.
-         */
-        public void issue()
-        {
-            if (orderOnOrBefore != null)
-                throw new IllegalStateException("Can only call issue() once on each Barrier");
-
-            final Ordered cur;
-            synchronized (OpOrdering.this)
-            {
-                cur = OpOrdering.this.current;
-                orderOnOrBefore = cur;
-                OpOrdering.this.current = cur.next = new Ordered(cur);
-            }
-            cur.expire();
-        }
-
-        /**
-         * Mark all prior operations as blocking, potentially signalling them to more aggressively make progress
-         */
-        public void markBlocking()
-        {
-            Ordered cur = orderOnOrBefore;
-            while (cur != null)
-            {
-                cur.isBlocking = true;
-                cur.isBlockingSignal.signalAll();
-                cur = cur.prev;
-            }
-        }
-
-        /**
-         * Register to be signalled once allPriorOpsAreFinished() or allPriorOpsAreFinishedOrSafe() may return true
-         */
-        public WaitQueue.Signal register()
-        {
-            return orderOnOrBefore.waiting.register();
-        }
-
-        /**
-         * @return true if all operations started prior to barrier.issue() have completed
-         */
-        public boolean allPriorOpsAreFinished()
-        {
-            return check(false);
-        }
-
-        /**
-         * @return true if all operations started prior to barrier.issue() have either completed or are marked safe.
-         * Note that 'safe' is a transient property, and there is no guarantee that the threads remain safe after this call
-         * returns true, only that all threads were safe at this point. like the rest of this classes' functionality,
-         * it offers ordering guarantees only.
-         */
-        public boolean allPriorOpsAreFinishedOrSafe()
-        {
-            return check(true);
-        }
-
-        private boolean check(boolean safe)
-        {
-            Ordered cur = orderOnOrBefore;
-            if (cur == null)
-                throw new IllegalStateException("This barrier needs to have issue() called on it before prior operations can complete");
-            if (cur.next.prev == null)
-                return true;
-            while (safe && cur != null)
-            {
-                safe = cur.isSafe();
-                cur = cur.prev;
-            }
-            return safe;
-        }
-
-        /**
-         * wait for all operations started prior to issuing the barrier to complete
-         */
-        public void await()
-        {
-            await(false);
-            assert orderOnOrBefore.running == FINISHED;
-        }
-
-        /**
-         * wait for allPriorOpsAreFinishedOrSafe() to hold; this is a transient property, and may not hold
-         * after this method returns.
-         */
-        public void awaitSafe()
-        {
-            await(true);
-        }
-
-        private void await(boolean safe)
-        {
-            while (!check(safe))
-            {
-                WaitQueue.Signal signal = register();
-                if (check(safe))
-                {
-                    signal.cancel();
-                    return;
-                }
-                else
-                    signal.awaitUninterruptibly();
-            }
-        }
-
-        /**
-         * returns the Ordered object we are waiting on - any Ordered with .compareTo(getSyncPoint()) <= 0
-         * must complete before await() returns
-         */
-        public Ordered getSyncPoint()
-        {
-            return orderOnOrBefore;
-        }
-
     }
+
+    /**
+     * Start an operation that can be used for a longer running transaction, that periodically reaches points that
+     * can be considered to restart the transaction. This is stronger than 'safe', as it declares that all guarded
+     * entry points have been exited and will be re-entered, or an equivalent guarantee can be made that no reclaimed
+     * resources are being referenced.
+     *
+     * <pre>
+     * ReusableOrdered ord = startSync();
+     * while (...)
+     * {
+     *     ...
+     *     ord.sync();
+     * }
+     * ord.finish();
+     *</pre>
+     * is semantically equivalent to (but more efficient than):
+     *<pre>
+     * Ordered ord = start();
+     * while (...)
+     * {
+     *     ...
+     *     ord.finishOne();
+     *     ord = start();
+     * }
+     * ord.finishOne();
+     * </pre>
+     */
+    public SyncingOrdered startSync()
+    {
+        return new SyncingOrdered();
+    }
+
+    /**
+     * Creates a new barrier. The barrier is only a placeholder until barrier.issue() is called on it,
+     * after which all new operations will start against a new Ordered instance that will not be accepted
+     * by barrier.accept(), and barrier.await() will return only once all operations started prior to the issue
+     * have completed.
+     *
+     * @return
+     */
+    public Barrier newBarrier()
+    {
+        return new Barrier();
+    }
+
+    public Ordered getCurrent()
+    {
+        return current;
+    }
+
 
     /**
      * Represents a 'batch' of identically ordered operations, i.e. all operations started in the interval between
@@ -213,7 +152,7 @@ public class OpOrdering
         private volatile Ordered prev, next;
         private final long id;
         private volatile int running; // number of operations currently running
-        private volatile int safe; // number of operations currently running but 'safe'
+        private volatile int safe; // number of operations currently running but 'safe' (see below)
         private volatile boolean isBlocking; // indicates running operations are blocking future barriers
         private final WaitQueue isBlockingSignal = new WaitQueue(); // signal to wait on to indicate isBlocking is true
         private final WaitQueue waiting = new WaitQueue(); // signal to wait on for safe/completion
@@ -248,15 +187,6 @@ public class OpOrdering
             }
         }
 
-        // internal convenience method indicating if all running operations ON THIS ORDERED ONLY (not preceding ones)
-        // are currently 'safe' (generally means waiting on a SafeSignal).
-        private boolean isSafe()
-        {
-            int safe = this.safe;
-            int running = this.running;
-            return (safe == -1 - running) | (safe == running);
-        }
-
         // attempts to start an operation against this Ordered instance, and returns true if successful.
         private boolean register()
         {
@@ -271,7 +201,8 @@ public class OpOrdering
         }
 
         /**
-         * To be called exactly once for each register() call this object is returned for.
+         * To be called exactly once for each register() call this object is returned for, indicating the operation
+         * is complete
          */
         public void finishOne()
         {
@@ -282,21 +213,22 @@ public class OpOrdering
                 {
                     if (runningUpdater.compareAndSet(this, cur, cur + 1))
                     {
-                        // if we're now finished, unlink ourselves
                         if (cur + 1 == FINISHED)
                         {
+                            // if we're now finished, unlink ourselves
                             unlink();
                         }
                         else
                         {
-                            signalSafe();
+                            // otherwise we have modified the result of isSafe(), so maybe signal
+                            maybeSignalSafe();
                         }
                         return;
                     }
                 }
                 else if (runningUpdater.compareAndSet(this, cur, cur - 1))
                 {
-                    signalSafe();
+                    maybeSignalSafe();
                     return;
                 }
             }
@@ -313,7 +245,7 @@ public class OpOrdering
         }
 
         /**
-         * register to be signalled when a barrier we are behind is, or maybe, blocking general progress,
+         * register to be signalled when a barrier waiting on us is, or maybe, blocking general progress,
          * so we should try more aggressively to progress
          */
         public WaitQueue.Signal isBlockingSignal()
@@ -322,20 +254,34 @@ public class OpOrdering
         }
 
         /**
-         * indicate a running operation is 'safe' wrt memory accesses, i.e. is waiting or at some other safe point.
-         * must be proceeded by a single call to markOneUnsafe()
+         * internal convenience method indicating if all running operations ON THIS ORDERED ONLY (not preceding ones)
+         * are currently 'safe' (generally means waiting on a SafeSignal), i.e. that they are currently guaranteed
+         * not to be in the middle of reading memory guarded by this OpOrdering. This is used to prevent blocked
+         * operations from preventing off-heap allocator GC progress.
          */
+
         // TODO: Safe should be a requested operation for each Ordered, that results in each op marking itself as past
         // the requested safe point, thereby not needing to match safe with unsafe, nor requiring all threads to remain
         // in the safe point for the safe point to be considered reached.
         // if possible, should be used through safe(Signal)
+        private boolean isSafe()
+        {
+            int safe = this.safe;
+            int running = this.running;
+            return (safe == -1 - running) | (safe == running);
+        }
+
+        /**
+         * indicate a running operation is 'safe' wrt memory accesses, i.e. is waiting or at some other safe point.
+         * must be proceeded by a single call to markOneUnsafe()
+         */
         public void markOneSafe()
         {
             safeUpdater.incrementAndGet(this);
-            signalSafe();
+            maybeSignalSafe();
         }
 
-        private void signalSafe()
+        private void maybeSignalSafe()
         {
             Ordered cur = this;
             // wake up all waiters on or after us, in case they're interested
@@ -508,7 +454,7 @@ public class OpOrdering
                 start.waiting.signalAll();
                 start = next;
             }
-            end.signalSafe();
+            end.maybeSignalSafe();
         }
 
         @Override
@@ -528,6 +474,7 @@ public class OpOrdering
         static final AtomicIntegerFieldUpdater<Ordered> runningUpdater = AtomicIntegerFieldUpdater.newUpdater(Ordered.class, "running");
         static final AtomicIntegerFieldUpdater<Ordered> safeUpdater = AtomicIntegerFieldUpdater.newUpdater(Ordered.class, "safe");
     }
+
 
     /**
      * see {@link #startSync}
@@ -568,77 +515,141 @@ public class OpOrdering
 
     }
 
-    /**
-     * A linked list starting with the most recent Ordered object, i.e. the one we should start new operations from,
-     * with (prev) links to any incomplete Ordered instances, and (next) links to any potential future Ordered instances.
-     * Once all operations started against an Ordered instance and its ancestors have been finished the next instance
-     * will unlink this one
-     */
-    private volatile Ordered current = new Ordered();
-
-    /**
-     * Start an operation against this OpOrdering, and return the Ordered instance that manages it.
-     * Once the operation is completed Ordered.finishOne() MUST be called EXACTLY once for this operation.
-     * @return
-     */
-    public Ordered start()
+    public final class Barrier
     {
-        while (true)
+
+        // this Barrier was issued after all Ordered operations started against orderOnOrBefore
+        private volatile Ordered orderOnOrBefore;
+
+        // if the barrier has been exposed to all operations prior to .issue() being called, then
+        // accept() will return true only for (and for all) those operations started prior to the issue of the barrier
+        public boolean accept(Ordered op)
         {
-            Ordered cur = current;
-            if (cur.register())
-                return cur;
+            if (orderOnOrBefore == null)
+                return true;
+            // we subtract to permit wrapping round the full range of Long - so we only need to ensure
+            // there are never Long.MAX_VALUE * 2 total Ordered objects in existence at any one timem which will
+            // take care of itself
+            return orderOnOrBefore.id - op.id >= 0;
         }
-    }
 
-    /**
-     * Start an operation that can be used for a longer running transaction, that periodically reaches points that
-     * can be considered to restart the transaction. This is stronger than 'safe', as it declares that all guarded
-     * entry points have been exited and will be re-entered, or an equivalent guarantee can be made that no reclaimed
-     * resources are being referenced.
-     *
-     * <pre>
-     * ReusableOrdered ord = startSync();
-     * while (...)
-     * {
-     *     ...
-     *     ord.sync();
-     * }
-     * ord.finish();
-     *</pre>
-     * is semantically equivalent to (but more efficient than):
-     *<pre>
-     * Ordered ord = start();
-     * while (...)
-     * {
-     *     ...
-     *     ord.finishOne();
-     *     ord = start();
-     * }
-     * ord.finishOne();
-     * </pre>
-     */
-    public SyncingOrdered startSync()
-    {
-        return new SyncingOrdered();
-    }
+        /**
+         * Issues the barrier; must be called after exposing the barrier to any operations it may affect,
+         * but before it is used, so that the accept() method is properly synchronised.
+         */
+        public void issue()
+        {
+            if (orderOnOrBefore != null)
+                throw new IllegalStateException("Can only call issue() once on each Barrier");
 
-    /**
-     * Creates a new barrier. The barrier is only a placeholder until barrier.issue() is called on it,
-     * after which all new operations will start against a new Ordered instance that will not be accepted
-     * by barrier.accept(), and barrier.await() will return only once all operations started prior to the issue
-     * have completed.
-     *
-     * @return
-     */
-    public Barrier newBarrier()
-    {
-        return new Barrier();
-    }
+            final Ordered cur;
+            synchronized (OpOrdering.this)
+            {
+                cur = OpOrdering.this.current;
+                orderOnOrBefore = cur;
+                OpOrdering.this.current = cur.next = new Ordered(cur);
+            }
+            cur.expire();
+        }
 
-    public Ordered getCurrent()
-    {
-        return current;
+        /**
+         * Mark all prior operations as blocking, potentially signalling them to more aggressively make progress
+         */
+        public void markBlocking()
+        {
+            Ordered cur = orderOnOrBefore;
+            while (cur != null)
+            {
+                cur.isBlocking = true;
+                cur.isBlockingSignal.signalAll();
+                cur = cur.prev;
+            }
+        }
+
+        /**
+         * Register to be signalled once allPriorOpsAreFinished() or allPriorOpsAreFinishedOrSafe() may return true
+         */
+        public WaitQueue.Signal register()
+        {
+            return orderOnOrBefore.waiting.register();
+        }
+
+        /**
+         * @return true if all operations started prior to barrier.issue() have completed
+         */
+        public boolean allPriorOpsAreFinished()
+        {
+            return check(false);
+        }
+
+        /**
+         * @return true if all operations started prior to barrier.issue() have either completed or are marked safe.
+         * Note that 'safe' is a transient property, and there is no guarantee that the threads remain safe after this call
+         * returns true, only that all threads were safe at this point. like the rest of this classes' functionality,
+         * it offers ordering guarantees only.
+         */
+        public boolean allPriorOpsAreFinishedOrSafe()
+        {
+            return check(true);
+        }
+
+        private boolean check(boolean safe)
+        {
+            Ordered cur = orderOnOrBefore;
+            if (cur == null)
+                throw new IllegalStateException("This barrier needs to have issue() called on it before prior operations can complete");
+            if (cur.next.prev == null)
+                return true;
+            while (safe && cur != null)
+            {
+                safe = cur.isSafe();
+                cur = cur.prev;
+            }
+            return safe;
+        }
+
+        /**
+         * wait for all operations started prior to issuing the barrier to complete
+         */
+        public void await()
+        {
+            await(false);
+            assert orderOnOrBefore.running == FINISHED;
+        }
+
+        /**
+         * wait for allPriorOpsAreFinishedOrSafe() to hold; this is a transient property, and may not hold
+         * after this method returns.
+         */
+        public void awaitSafe()
+        {
+            await(true);
+        }
+
+        private void await(boolean safe)
+        {
+            while (!check(safe))
+            {
+                WaitQueue.Signal signal = register();
+                if (check(safe))
+                {
+                    signal.cancel();
+                    return;
+                }
+                else
+                    signal.awaitUninterruptibly();
+            }
+        }
+
+        /**
+         * returns the Ordered object we are waiting on - any Ordered with .compareTo(getSyncPoint()) <= 0
+         * must complete before await() returns
+         */
+        public Ordered getSyncPoint()
+        {
+            return orderOnOrBefore;
+        }
+
     }
 
 }

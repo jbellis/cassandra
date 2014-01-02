@@ -7,6 +7,10 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 
 import java.nio.ByteBuffer;
 
+/**
+ * Wraps calls to a PoolAllocator with the provided writeOp. Also doubles as a Function that clones Cells
+ * using itself
+ */
 public final class ContextAllocator extends Allocator implements Function<Cell, Cell>
 {
 

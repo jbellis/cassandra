@@ -60,178 +60,6 @@ public final class WaitQueue
     private static final int SIGNALLED = 1;
     private static final int NOT_SET = 0;
 
-    public static interface Signal
-    {
-
-        public boolean isSignalled();
-        public boolean isCancelled();
-        public boolean isSet();
-        public boolean checkAndClear();
-
-        /**
-         * Should only be called by the registered thread. Indicates the signal can be retired,
-         * and if signalled propagates the signal to another waiting thread
-         */
-        public abstract void cancel();
-        public void awaitUninterruptibly();
-        public void await() throws InterruptedException;
-        public long awaitNanos(long nanosTimeout) throws InterruptedException;
-        public boolean awaitUntil(long until) throws InterruptedException;
-    }
-
-    public static abstract class AbstractSignal implements Signal
-    {
-
-        public void awaitUninterruptibly()
-        {
-            boolean interrupted = false;
-            while (!isSignalled())
-            {
-                if (Thread.currentThread().interrupted())
-                    interrupted = true;
-                LockSupport.park();
-            }
-            if (interrupted)
-                Thread.currentThread().interrupt();
-            checkAndClear();
-        }
-
-        public void await() throws InterruptedException
-        {
-            while (!isSignalled())
-            {
-                checkInterrupted();
-                LockSupport.park();
-            }
-            checkAndClear();
-        }
-
-        public long awaitNanos(long nanosTimeout) throws InterruptedException
-        {
-            long start = System.nanoTime();
-            while (!isSignalled())
-            {
-                checkInterrupted();
-                LockSupport.parkNanos(nanosTimeout);
-            }
-            checkAndClear();
-            return nanosTimeout - (System.nanoTime() - start);
-        }
-
-        public boolean awaitUntil(long until) throws InterruptedException
-        {
-            while (until < System.currentTimeMillis() && !isSignalled())
-            {
-                checkInterrupted();
-                LockSupport.parkUntil(until);
-            }
-            return checkAndClear();
-        }
-
-        private void checkInterrupted() throws InterruptedException
-        {
-            if (Thread.interrupted())
-            {
-                cancel();
-                throw new InterruptedException();
-            }
-        }
-
-    }
-
-    final class TimedSignal extends RegisteredSignal
-    {
-        private final TimerContext context;
-
-        private TimedSignal(TimerContext context)
-        {
-            this.context = context;
-        }
-
-        @Override
-        public boolean checkAndClear()
-        {
-            context.stop();
-            return super.checkAndClear();
-        }
-
-        @Override
-        public void cancel()
-        {
-            if (!isCancelled())
-            {
-                context.stop();
-                super.cancel();
-            }
-        }
-
-    }
-
-    private class RegisteredSignal extends AbstractSignal
-    {
-
-        private volatile Thread thread = Thread.currentThread();
-        volatile int state;
-
-        public boolean isSignalled()
-        {
-            return state == SIGNALLED;
-        }
-
-        public boolean isCancelled()
-        {
-            return state == CANCELLED;
-        }
-
-        public boolean isSet()
-        {
-            return state != NOT_SET;
-        }
-
-        private boolean signal()
-        {
-            if (!isSet() && signalledUpdater.compareAndSet(this, NOT_SET, SIGNALLED))
-            {
-                LockSupport.unpark(thread);
-                thread = null;
-                return true;
-            }
-            return false;
-        }
-
-        public boolean checkAndClear()
-        {
-            if (!isSet() && signalledUpdater.compareAndSet(this, NOT_SET, CANCELLED))
-            {
-                thread = null;
-                cleanUpCancelled();
-                return false;
-            }
-            // must now be signalled assuming correct API usage
-            return true;
-        }
-
-        /**
-         * Should only be called by the registered thread. Indicates the signal can be retired,
-         * and if signalled propagates the signal to another waiting thread
-         */
-        public void cancel()
-        {
-            if (isCancelled())
-                return;
-            if (!signalledUpdater.compareAndSet(this, NOT_SET, CANCELLED))
-            {
-                // must already be signalled - switch to cancelled and
-                state = CANCELLED;
-                // propagate the signal
-                WaitQueue.this.signal();
-            }
-            thread = null;
-            cleanUpCancelled();
-        }
-
-    }
-
     private static final AtomicIntegerFieldUpdater signalledUpdater = AtomicIntegerFieldUpdater.newUpdater(RegisteredSignal.class, "state");
 
     // the waiting signals
@@ -354,16 +182,200 @@ public final class WaitQueue
         return count;
     }
 
-    public static Signal any(Signal ... signals)
+    /**
+     * A abstract definition of Signal, with the
+     */
+    public static interface Signal
     {
-        return new AnySignal(signals);
+
+        public boolean isSignalled();
+        public boolean isCancelled();
+        public boolean isSet();
+
+        /**
+         * atomically invalidates the Signal if !isSet(), or returns true if isSignalled()
+         * @return true if isSignalled()
+         */
+        public boolean checkAndClear();
+
+        /**
+         * Should only be called by the registered thread. Indicates the signal can be retired,
+         * and if signalled propagates the signal to another waiting thread
+         */
+        public abstract void cancel();
+        public void awaitUninterruptibly();
+        public void await() throws InterruptedException;
+        public long awaitNanos(long nanosTimeout) throws InterruptedException;
+        public boolean awaitUntil(long until) throws InterruptedException;
     }
 
-    public static Signal all(Signal ... signals)
+    /**
+     * An abstract signal implementation
+     */
+    public static abstract class AbstractSignal implements Signal
     {
-        return new AllSignal(signals);
+
+        public void awaitUninterruptibly()
+        {
+            boolean interrupted = false;
+            while (!isSignalled())
+            {
+                if (Thread.currentThread().interrupted())
+                    interrupted = true;
+                LockSupport.park();
+            }
+            if (interrupted)
+                Thread.currentThread().interrupt();
+            checkAndClear();
+        }
+
+        public void await() throws InterruptedException
+        {
+            while (!isSignalled())
+            {
+                checkInterrupted();
+                LockSupport.park();
+            }
+            checkAndClear();
+        }
+
+        public long awaitNanos(long nanosTimeout) throws InterruptedException
+        {
+            long start = System.nanoTime();
+            while (!isSignalled())
+            {
+                checkInterrupted();
+                LockSupport.parkNanos(nanosTimeout);
+            }
+            checkAndClear();
+            return nanosTimeout - (System.nanoTime() - start);
+        }
+
+        public boolean awaitUntil(long until) throws InterruptedException
+        {
+            while (until < System.currentTimeMillis() && !isSignalled())
+            {
+                checkInterrupted();
+                LockSupport.parkUntil(until);
+            }
+            return checkAndClear();
+        }
+
+        private void checkInterrupted() throws InterruptedException
+        {
+            if (Thread.interrupted())
+            {
+                cancel();
+                throw new InterruptedException();
+            }
+        }
+
     }
 
+    /**
+     * A signal registered with this WaitQueue
+     */
+    private class RegisteredSignal extends AbstractSignal
+    {
+
+        private volatile Thread thread = Thread.currentThread();
+        volatile int state;
+
+        public boolean isSignalled()
+        {
+            return state == SIGNALLED;
+        }
+
+        public boolean isCancelled()
+        {
+            return state == CANCELLED;
+        }
+
+        public boolean isSet()
+        {
+            return state != NOT_SET;
+        }
+
+        private boolean signal()
+        {
+            if (!isSet() && signalledUpdater.compareAndSet(this, NOT_SET, SIGNALLED))
+            {
+                LockSupport.unpark(thread);
+                thread = null;
+                return true;
+            }
+            return false;
+        }
+
+        public boolean checkAndClear()
+        {
+            if (!isSet() && signalledUpdater.compareAndSet(this, NOT_SET, CANCELLED))
+            {
+                thread = null;
+                cleanUpCancelled();
+                return false;
+            }
+            // must now be signalled assuming correct API usage
+            return true;
+        }
+
+        /**
+         * Should only be called by the registered thread. Indicates the signal can be retired,
+         * and if signalled propagates the signal to another waiting thread
+         */
+        public void cancel()
+        {
+            if (isCancelled())
+                return;
+            if (!signalledUpdater.compareAndSet(this, NOT_SET, CANCELLED))
+            {
+                // must already be signalled - switch to cancelled and
+                state = CANCELLED;
+                // propagate the signal
+                WaitQueue.this.signal();
+            }
+            thread = null;
+            cleanUpCancelled();
+        }
+
+    }
+
+    /**
+     * A RegisteredSignal that stores a TimerContext, and stops the timer when either cancelled or
+     * finished waiting. i.e. if the timer is started when the signal is registered it tracks the
+     * time in between registering and invalidating the signal.
+     */
+    private final class TimedSignal extends RegisteredSignal
+    {
+        private final TimerContext context;
+
+        private TimedSignal(TimerContext context)
+        {
+            this.context = context;
+        }
+
+        @Override
+        public boolean checkAndClear()
+        {
+            context.stop();
+            return super.checkAndClear();
+        }
+
+        @Override
+        public void cancel()
+        {
+            if (!isCancelled())
+            {
+                context.stop();
+                super.cancel();
+            }
+        }
+
+    }
+
+    /**
+     * An abstract signal wrapping multiple delegate signals
+     */
     private abstract static class MultiSignal extends AbstractSignal
     {
 
@@ -399,6 +411,9 @@ public final class WaitQueue
 
     }
 
+    /**
+     * A Signal that wraps multiple Signals and returns when any single one of them would have returned
+     */
     private static class AnySignal extends MultiSignal
     {
 
@@ -426,6 +441,9 @@ public final class WaitQueue
         }
     }
 
+    /**
+     * A Signal that wraps multiple Signals and returns when all of them would have finished returning
+     */
     private static class AllSignal extends MultiSignal
     {
 
@@ -452,6 +470,24 @@ public final class WaitQueue
             return true;
         }
 
+    }
+
+    /**
+     * @param signals
+     * @return a signal that returns only when any of the provided signals would have returned
+     */
+    public static Signal any(Signal ... signals)
+    {
+        return new AnySignal(signals);
+    }
+
+    /**
+     * @param signals
+     * @return a signal that returns only when all provided signals would have returned
+     */
+    public static Signal all(Signal ... signals)
+    {
+        return new AllSignal(signals);
     }
 
 }

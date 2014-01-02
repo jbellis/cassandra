@@ -91,7 +91,7 @@ public final class MemoryOwner
         acquired(size);
     }
 
-    // retroactively mark an amount acquired in the trackker, and owned by us
+    // retroactively mark an amount acquired in the tracker, and owned by us
     void acquired(int size)
     {
         tracker.acquired(size);
@@ -102,11 +102,6 @@ public final class MemoryOwner
     {
         tracker.release(size);
         ownsUpdater.addAndGet(this, -size);
-    }
-
-    WaitQueue.Signal hasRoomSignal()
-    {
-        return tracker.hasRoom.register();
     }
 
     public long owns()
