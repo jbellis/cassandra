@@ -69,25 +69,25 @@ public class LongBTreeTest
     @Test
     public void testIndividualInsertsMediumSparseRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(100000000, 500, 10, 1, true);
+        testInsertions(10000000, 500, 10, 1, true);
     }
 
     @Test
     public void testBatchesMediumSparseRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(100000000, 500, 10, 10, true);
+        testInsertions(10000000, 500, 10, 10, true);
     }
 
     @Test
     public void testLargeBatchesLargeRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(100000000, 5000, 3, 100, true);
+        testInsertions(10000000, 5000, 3, 100, true);
     }
 
     @Test
     public void testSlicingSmallRandomTrees() throws ExecutionException, InterruptedException
     {
-        testInsertions(100000, 50, 10, 10, false);
+        testInsertions(10000, 50, 10, 10, false);
     }
 
     private static void testInsertions(int totalCount, int perTestCount, int testKeyRatio, int modificationBatchSize, boolean quickEquality) throws ExecutionException, InterruptedException
@@ -100,7 +100,7 @@ public class LongBTreeTest
                 tests, perTestCount, 1 / (float) testKeyRatio, modificationBatchSize));
 
         // if we're not doing quick-equality, we can spam with garbage for all the checks we perform, so we'll split the work into smaller chunks
-        int chunkSize = quickEquality ? tests : (int) (200000 / Math.pow(perTestCount, 2));
+        int chunkSize = quickEquality ? tests : (int) (100000 / Math.pow(perTestCount, 2));
         for (int chunk = 0 ; chunk < tests ; chunk += chunkSize)
         {
             final List<ListenableFutureTask<List<ListenableFuture<?>>>> outer = new ArrayList<>();
@@ -190,7 +190,8 @@ public class LongBTreeTest
     {
         Object[] cur = BTree.empty();
         TreeSet<Integer> canon = new TreeSet<>();
-        for (int i = 0 ; i < 500 ; i++)
+        // we set FAN_FACTOR to 4, so 128 items is four levels deep, three fully populated
+        for (int i = 0 ; i < 128 ; i++)
         {
             String id = String.format("[0..%d)", canon.size());
             System.out.println("Testing " + id);
@@ -300,7 +301,6 @@ public class LongBTreeTest
                     end = -2;
                     cur = from == Integer.MIN_VALUE ? size : from;
                     delta = -1;
-
                 }
             }
             @Override
