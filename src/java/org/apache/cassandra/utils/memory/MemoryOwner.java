@@ -87,7 +87,7 @@ public final class MemoryOwner
     // retroactively mark an amount allocated in the tracker, and owned by us
     void allocated(int size)
     {
-        tracker.allocated(size);
+        tracker.adjustAllocated(size);
         acquired(size);
     }
 

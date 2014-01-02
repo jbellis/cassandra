@@ -102,12 +102,6 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         return new CompoundSparseCellName(elementsCopy(allocator), columnName);
     }
 
-    @Override
-    public long excessHeapSize()
-    {
-        return HEAP_SIZE + columnName.excessHeapSize();
-    }
-
     public static class WithCollection extends CompoundSparseCellName
     {
         private static final long HEAP_SIZE = ObjectSizes.measure(new WithCollection(null, ByteBufferUtil.EMPTY_BYTE_BUFFER));
@@ -162,7 +156,13 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         @Override
         public long excessHeapSize()
         {
-            return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(collectionElement);
+            return super.excessHeapSize() + ObjectSizes.sizeOnHeapOf(collectionElement);
+        }
+
+        @Override
+        public long sizeOnHeapWithoutDataBytes()
+        {
+            return super.sizeOnHeapWithoutDataBytes() + ObjectSizes.sizeOnHeapWithoutDataBytes(collectionElement);
         }
 
         @Override

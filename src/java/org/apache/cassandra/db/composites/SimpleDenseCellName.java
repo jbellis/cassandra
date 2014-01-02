@@ -66,6 +66,12 @@ public class SimpleDenseCellName extends SimpleComposite implements CellName
         return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(element);
     }
 
+    @Override
+    public long sizeOnHeapWithoutDataBytes()
+    {
+        return HEAP_SIZE + ObjectSizes.sizeOnHeapWithoutDataBytes(element);
+    }
+
     // If cellnames were sharing some prefix components, this will break it, so
     // we might want to try to do better.
     @Override

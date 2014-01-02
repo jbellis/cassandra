@@ -52,6 +52,7 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
 
     private ColumnIdentifier(ByteBuffer bytes, String text)
     {
+        // TODO : should support light-weight mode without text representation for when not interned
         this.bytes = bytes;
         this.text = text;
     }
@@ -87,6 +88,13 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
         return HEAP_SIZE
              + ObjectSizes.sizeOnHeapOf(bytes)
              + ObjectSizes.sizeOf(text);
+    }
+
+    public long sizeOnHeapWithoutDataBytes()
+    {
+        return HEAP_SIZE
+                + ObjectSizes.sizeOnHeapWithoutDataBytes(bytes)
+                + ObjectSizes.sizeOf(text);
     }
 
     public int compareTo(ColumnIdentifier other)

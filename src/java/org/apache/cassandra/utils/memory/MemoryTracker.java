@@ -16,6 +16,7 @@ public class MemoryTracker
 
     // total bytes allocated and reclaiming
     private volatile long allocated;
+    private volatile long acquired;
     private volatile long reclaiming;
 
     final WaitQueue hasRoom = new WaitQueue();
@@ -48,7 +49,7 @@ public class MemoryTracker
     private boolean updateNextClean()
     {
         long reclaiming = this.reclaiming;
-        return used() >= (nextClean = reclaiming
+        return acquired >= (nextClean = reclaiming
                 + (long) (this.limit * cleanThreshold));
     }
 
@@ -62,10 +63,7 @@ public class MemoryTracker
             if ((cur = allocated) + size > limit)
                 return false;
             if (allocatedUpdater.compareAndSet(this, cur, cur + size))
-            {
-                maybeClean();
                 return true;
-            }
         }
     }
 
@@ -73,7 +71,7 @@ public class MemoryTracker
      * apply the size adjustment to allocated, bypassing any limits or constraints. If this reduces the
      * allocated total, we will signal waiters
      */
-    void allocated(long size)
+    void adjustAllocated(long size)
     {
         if (size == 0)
             return;
@@ -81,30 +79,22 @@ public class MemoryTracker
         {
             long cur = allocated;
             if (allocatedUpdater.compareAndSet(this, cur, cur + size))
-            {
-                // TODO : we should extend WaitQueue to permit waking up all waiters requiring less than X combined room,
-                // to avoid context switching churn
-                if (size < 0)
-                    hasRoom.signalAll();
-                else
-                    maybeClean();
-
                 return;
-            }
         }
     }
 
-    // by default is equivalent to allocated(), but when a pool caches an allocated quantity for reuse this
-    // may be a different counter that tracks the amount actively in use as opposed to the amount actually allocated
+    // when a pool caches an allocated quantity for reuse this method is used to track the use of
+    // memory that is in use / owned.
     void acquired(long size)
     {
-        allocated(size);
+        acquiredUpdater.addAndGet(this, size);
+        maybeClean();
     }
 
     // un-acquires (as opposed to deallocates) the amount of memory, and signals any waiting threads
     void release(long size)
     {
-        allocated(-size);
+        acquiredUpdater.addAndGet(this, -size);
         hasRoom.signalAll();
     }
 
@@ -130,7 +120,7 @@ public class MemoryTracker
 
     public long used()
     {
-        return allocated;
+        return acquired;
     }
 
     public long reclaiming()
@@ -139,6 +129,7 @@ public class MemoryTracker
     }
 
     private static final AtomicLongFieldUpdater<MemoryTracker> allocatedUpdater = AtomicLongFieldUpdater.newUpdater(MemoryTracker.class, "allocated");
+    private static final AtomicLongFieldUpdater<MemoryTracker> acquiredUpdater = AtomicLongFieldUpdater.newUpdater(MemoryTracker.class, "acquired");
     private static final AtomicLongFieldUpdater<MemoryTracker> reclaimingUpdater = AtomicLongFieldUpdater.newUpdater(MemoryTracker.class, "reclaiming");
 
     public MemoryOwner newOwner()

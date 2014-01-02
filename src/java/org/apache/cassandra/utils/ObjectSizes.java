@@ -108,6 +108,10 @@ public class ObjectSizes
         return allElementsSize + sizeOfArray(array);
     }
 
+    public static long sizeOnHeapWithoutDataBytes(ByteBuffer[] array)
+    {
+        return BUFFER_HEAP_SIZE * array.length + sizeOfArray(array);
+    }
     /**
      * Memory a byte buffer consumes
      * @param buffer ByteBuffer to calculate in memory size
@@ -117,7 +121,16 @@ public class ObjectSizes
     {
         if (buffer.isDirect())
             return BUFFER_HEAP_SIZE;
+        // if we're only referencing a sub-portion of the ByteBuffer, don't count the array overhead (assume it's slab
+        // allocated, so amortized over all the allocations the overhead is negligible and better ti undercount than over)
+//        if (buffer.capacity() > buffer.remaining())
+//            return BUFFER_HEAP_SIZE + buffer.remaining();
         return BUFFER_HEAP_SIZE + sizeOfArray(buffer.capacity(), 1);
+    }
+
+    public static long sizeOnHeapWithoutDataBytes(ByteBuffer buffer)
+    {
+        return BUFFER_HEAP_SIZE;
     }
 
     /**

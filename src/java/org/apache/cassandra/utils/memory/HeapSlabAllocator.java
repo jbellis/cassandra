@@ -115,15 +115,12 @@ public class HeapSlabAllocator extends PoolAllocator
                 return region;
 
             // No current region, so we want to allocate one. We race
-            // against other allocators to CAS in an uninitialized region
-            // (which is cheap to allocate)
+            // against other allocators to CAS in a Region, and if we fail we stash the region for re-use
             region = RACE_ALLOCATED.poll();
             if (region == null)
                 region = new Region(REGION_SIZE);
             if (currentRegion.compareAndSet(null, region))
             {
-                // we won race - now we need to actually do the expensive allocation step
-                region.init();
                 regionCount.incrementAndGet();
                 logger.trace("{} regions now allocated in {}", regionCount, this);
                 return region;
@@ -150,22 +147,16 @@ public class HeapSlabAllocator extends PoolAllocator
          */
         private ByteBuffer data;
 
-        private static final int UNINITIALIZED = -1;
         /**
          * Offset for the next allocation, or the sentinel value -1
          * which implies that the region is still uninitialized.
          */
-        private AtomicInteger nextFreeOffset = new AtomicInteger(UNINITIALIZED);
+        private AtomicInteger nextFreeOffset = new AtomicInteger(0);
 
         /**
          * Total number of allocations satisfied from this buffer
          */
         private AtomicInteger allocCount = new AtomicInteger();
-
-        /**
-         * Size of region in bytes
-         */
-        private final int size;
 
         /**
          * Create an uninitialized region. Note that memory is not allocated yet, so
@@ -175,23 +166,7 @@ public class HeapSlabAllocator extends PoolAllocator
          */
         private Region(int size)
         {
-            this.size = size;
-        }
-
-        /**
-         * Actually claim the memory for this region. This should only be called from
-         * the thread that constructed the region. It is thread-safe against other
-         * threads calling alloc(), who will block until the allocation is complete.
-         */
-        public void init()
-        {
-            assert nextFreeOffset.get() == UNINITIALIZED;
             data = ByteBuffer.allocate(size);
-            assert data.remaining() == data.capacity();
-            // Mark that it's ready for use
-            boolean initted = nextFreeOffset.compareAndSet(UNINITIALIZED, 0);
-            // We should always succeed the above CAS since only one thread calls init()!
-            Preconditions.checkState(initted, "Multiple threads tried to init same region");
         }
 
         /**
@@ -204,15 +179,6 @@ public class HeapSlabAllocator extends PoolAllocator
             while (true)
             {
                 int oldOffset = nextFreeOffset.get();
-                if (oldOffset == UNINITIALIZED)
-                {
-                    // The region doesn't have its data allocated yet.
-                    // Since we found this in currentRegion, we know that whoever
-                    // CAS-ed it there is allocating it right now. So spin-loop
-                    // shouldn't spin long!
-                    Thread.yield();
-                    continue;
-                }
 
                 if (oldOffset + size > data.capacity()) // capacity == remaining
                     return null;

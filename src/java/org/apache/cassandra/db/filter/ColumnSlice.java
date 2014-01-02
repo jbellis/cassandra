@@ -250,6 +250,12 @@ public class ColumnSlice
         }
 
         @Override
+        public long sizeOnHeapWithoutDataBytes()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public void free(PoolAllocator<?> allocator)
         {
             throw new UnsupportedOperationException();

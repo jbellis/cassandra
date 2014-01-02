@@ -65,6 +65,11 @@ public class CompoundComposite extends AbstractComposite
         return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(elements);
     }
 
+    public long sizeOnHeapWithoutDataBytes()
+    {
+        return HEAP_SIZE + ObjectSizes.sizeOnHeapWithoutDataBytes(elements);
+    }
+
     public Composite copy(Allocator allocator)
     {
         return new CompoundComposite(elementsCopy(allocator), size);

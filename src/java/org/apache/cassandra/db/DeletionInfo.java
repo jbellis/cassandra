@@ -325,7 +325,7 @@ public class DeletionInfo implements IMeasurableMemory
     @Override
     public long excessHeapSize()
     {
-        return HEAP_SIZE + topLevel.excessHeapSize() + ranges.excessHeapSize();
+        return HEAP_SIZE + topLevel.excessHeapSize() + (ranges == null ? 0 : ranges.excessHeapSize());
     }
 
     public static class Serializer implements IVersionedSerializer<DeletionInfo>

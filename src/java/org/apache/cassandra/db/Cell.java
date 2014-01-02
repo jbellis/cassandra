@@ -47,7 +47,7 @@ import org.apache.cassandra.utils.memory.HeapAllocator;
 /**
  * Cell is immutable, which prevents all kinds of confusion in a multithreaded environment.
  */
-public class Cell implements OnDiskAtom, IMeasurableMemory
+public class Cell implements OnDiskAtom
 {
     public static final int MAX_NAME_LENGTH = FBUtilities.MAX_UNSIGNED_SHORT;
 
@@ -169,9 +169,11 @@ public class Cell implements OnDiskAtom, IMeasurableMemory
         return name.dataSize() + value.remaining() + TypeSizes.NATIVE.sizeof(timestamp);
     }
 
-    public long excessHeapSize()
+    // returns the size of the Cell and all references on the heap, excluding any costs associated with byte arrays
+    // that would be allocated by a localCopy, as these will be accounted for by the allocator
+    public long sizeOnHeapWithoutDataBytes()
     {
-        return HEAP_SIZE + name.excessHeapSize() + ObjectSizes.sizeOnHeapOf(value);
+        return HEAP_SIZE + name.sizeOnHeapWithoutDataBytes() + ObjectSizes.sizeOnHeapWithoutDataBytes(value);
     }
 
     public int serializedSize(CellNameType type, TypeSizes typeSizes)

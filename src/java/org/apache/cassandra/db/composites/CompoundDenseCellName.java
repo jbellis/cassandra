@@ -66,6 +66,12 @@ public class CompoundDenseCellName extends CompoundComposite implements CellName
         return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(elements);
     }
 
+    @Override
+    public long sizeOnHeapWithoutDataBytes()
+    {
+        return HEAP_SIZE + ObjectSizes.sizeOnHeapWithoutDataBytes(elements);
+    }
+
     public CellName copy(Allocator allocator)
     {
         return new CompoundDenseCellName(elementsCopy(allocator));

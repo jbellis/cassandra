@@ -1316,7 +1316,7 @@ public class DatabaseDescriptor
         {
             return (Pool) memtablePool
                     .getConstructor(long.class, long.class, float.class, Runnable.class)
-                    .newInstance(conf.memtable_total_space_in_mb << 20, 0L, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
+                    .newInstance(conf.memtable_total_space_in_mb << 20, Long.MAX_VALUE, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
         }
         catch (Exception e)
         {
