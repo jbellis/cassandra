@@ -475,7 +475,7 @@ public class DatabaseDescriptor
 
         String allocatorPoolClass = conf.memtable_allocator;
         if (!allocatorPoolClass.contains("."))
-            allocatorPoolClass = "org.apache.cassandra.utils.memory" + allocatorPoolClass;
+            allocatorPoolClass = "org.apache.cassandra.utils.memory." + allocatorPoolClass;
         memtablePool = FBUtilities.classForName(allocatorPoolClass, "allocator pool");
 
         // Hardcoded system keyspaces
