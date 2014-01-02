@@ -29,6 +29,7 @@ final class ModifierLevel
 
     // copying from
     private Object[] copyFrom;
+    // the first
     private int copyFromKeyPosition;
     private int copyFromChildPosition;
     private int copyFromKeyEnd;
@@ -209,15 +210,14 @@ final class ModifierLevel
     // copy keys from copyf to the builder, up to the provided index in copyf (exclusive)
     private void copyKeys(int upToKeyPosition)
     {
-        int cpfPos = copyFromKeyPosition;
-        if (cpfPos >= upToKeyPosition)
+        if (copyFromKeyPosition >= upToKeyPosition)
             return;
-        copyFromKeyPosition = upToKeyPosition;
-        int len = upToKeyPosition - cpfPos;
+        int len = upToKeyPosition - copyFromKeyPosition;
         if (len > FAN_FACTOR)
-            throw new IllegalStateException(upToKeyPosition + "," + cpfPos);
+            throw new IllegalStateException(upToKeyPosition + "," + copyFromKeyPosition);
         ensureRoom(buildKeyPosition + len);
-        System.arraycopy(copyFrom, cpfPos, buildKeys, buildKeyPosition, len);
+        System.arraycopy(copyFrom, copyFromKeyPosition, buildKeys, buildKeyPosition, len);
+        copyFromKeyPosition = upToKeyPosition;
         buildKeyPosition += len;
     }
 
@@ -243,13 +243,12 @@ final class ModifierLevel
     // copies children from copyf to the builder, up to the provided index in copyf (exclusive)
     private void copyChildren(int upToChildPosition)
     {
-        // note ensureRoom isn't called here, as we should always be at/behind key additions
-        int cpfPos = copyFromChildPosition;
-        if (cpfPos >= upToChildPosition)
+        // (ensureRoom isn't called here, as we should always be at/behind key additions)
+        if (copyFromChildPosition >= upToChildPosition)
             return;
+        int len = upToChildPosition - copyFromChildPosition;
+        System.arraycopy(copyFrom, copyFromKeyEnd + copyFromChildPosition, buildChildren, buildChildPosition, len);
         copyFromChildPosition = upToChildPosition;
-        int len = upToChildPosition - cpfPos;
-        System.arraycopy(copyFrom, copyFromKeyEnd + cpfPos, buildChildren, buildChildPosition, len);
         buildChildPosition += len;
     }
 
