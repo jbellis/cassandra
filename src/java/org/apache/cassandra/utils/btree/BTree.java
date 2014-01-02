@@ -357,12 +357,12 @@ public class BTree
         }
     };
 
-    private static final ThreadLocal<Modifier> modifier = new ThreadLocal<Modifier>()
+    private static final ThreadLocal<Builder> modifier = new ThreadLocal<Builder>()
     {
         @Override
-        protected Modifier initialValue()
+        protected Builder initialValue()
         {
-            return new Modifier();
+            return new Builder();
         }
     };
 

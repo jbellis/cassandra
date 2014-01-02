@@ -14,10 +14,10 @@ import static org.apache.cassandra.utils.btree.BTree.isLeaf;
 /**
  * Represents a level / stack item of in progress modifications to a BTree.
  */
-final class ModifierLevel
+final class NodeBuilder
 {
     // parent stack
-    private ModifierLevel parent, child;
+    private NodeBuilder parent, child;
 
     // buffer for building new nodes
     private Object[] buildKeys = new Object[1 + (FAN_FACTOR << 1)];  // buffers keys for branches and leaves
@@ -44,7 +44,7 @@ final class ModifierLevel
     // ensure we aren't referencing any garbage
     void clear()
     {
-        ModifierLevel current = this;
+        NodeBuilder current = this;
         while (current != null)
         {
             if (current.upperBound != null)
@@ -77,7 +77,7 @@ final class ModifierLevel
      * @param key key we are inserting/replacing
      * @return the ML to retry the update against, or null if finished
      */
-    <V> ModifierLevel update(Object key, Comparator<V> comparator, ReplaceFunction<V> replaceF)
+    <V> NodeBuilder update(Object key, Comparator<V> comparator, ReplaceFunction<V> replaceF)
     {
         assert copyFrom != null;
         int copyFromKeyEnd = getKeyEnd(copyFrom);
@@ -157,7 +157,7 @@ final class ModifierLevel
 
     // ascend to the root node, finishing up work as we go; useful for building where we work only on the newest
     // child node, which may construct many spill-over parents as it goes
-    ModifierLevel ascendToRoot()
+    NodeBuilder ascendToRoot()
     {
         boolean isLeaf = isLeaf(copyFrom);
         // <= 2 check is enough if we have FAN_FACTOR >= 8, but if FAN_FACTOR is 4 this could terminate on
@@ -184,7 +184,7 @@ final class ModifierLevel
     }
 
     // finish up this level and pass any constructed children up to our parent, ensuring a parent exists
-    private ModifierLevel ascend(boolean isLeaf)
+    private NodeBuilder ascend(boolean isLeaf)
     {
         ensureParent();
         // we don't own it, so we're ascending, so update and return our parent
@@ -305,11 +305,11 @@ final class ModifierLevel
     // checks if there is an initialised parent, and if not creates/initialises one and returns it.
     // different to ensureChild, as we initialise here instead of caller, as parents in general should
     // already be initialised, and only aren't in the case where we are overflowing the original root node
-    private ModifierLevel ensureParent()
+    private NodeBuilder ensureParent()
     {
         if (parent == null)
         {
-            parent = new ModifierLevel();
+            parent = new NodeBuilder();
             parent.child = this;
         }
         if (parent.upperBound == null)
@@ -318,11 +318,11 @@ final class ModifierLevel
     }
 
     // ensures a child level exists and returns it
-    ModifierLevel ensureChild()
+    NodeBuilder ensureChild()
     {
         if (child == null)
         {
-            child = new ModifierLevel();
+            child = new NodeBuilder();
             child.parent = this;
         }
         return child;

@@ -13,21 +13,21 @@ import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
 /**
  * A class for constructing a new BTree, either from an existing one and some set of modifications
  * or a new tree from a sorted collection of items. It works largely as a Stack of in progress modifications, delegating
- * to ModifierLevel which represents a single stack item, performing operations on the current level for each modification,
+ * to NodeBuilder which represents a single node-in-progress, performing operations on the current level for each modification,
  * and moving the stack pointer / level as dictated by the result of that operation.
  * <p/>
  * This is a fairly heavy-weight object, so a ThreadLocal instance is created for making modifications to a tree
  */
-final class Modifier
+final class Builder
 {
-    private final ModifierLevel stack = new ModifierLevel();
+    private final NodeBuilder rootBuilder = new NodeBuilder();
 
     /**
      * Assumes @param source has been sorted, e.g. by BTree.update
      */
     public <V> Object[] update(Object[] btree, Comparator<V> comparator, Collection<V> source, ReplaceFunction<V> replaceF, Function<?, Boolean> terminateEarly)
     {
-        ModifierLevel current = stack;
+        NodeBuilder current = rootBuilder;
         current.reset(btree, POSITIVE_INFINITY);
 
         for (V key : source)
@@ -36,10 +36,10 @@ final class Modifier
             {
                 if (terminateEarly != null && terminateEarly.apply(null) == Boolean.TRUE)
                 {
-                    stack.clear();
+                    rootBuilder.clear();
                     return null;
                 }
-                ModifierLevel next = current.update(key, comparator, replaceF);
+                NodeBuilder next = current.update(key, comparator, replaceF);
                 if (next == null)
                     break;
                 current = next;
@@ -49,7 +49,7 @@ final class Modifier
         // finish copying any remaining keys from the original btree
         while (true)
         {
-            ModifierLevel next = current.update(POSITIVE_INFINITY, comparator, replaceF);
+            NodeBuilder next = current.update(POSITIVE_INFINITY, comparator, replaceF);
             if (next == null)
                 break;
             current = next;
@@ -62,7 +62,7 @@ final class Modifier
 
     public <V> Object[] build(Collection<V> source, int size)
     {
-        ModifierLevel current = stack;
+        NodeBuilder current = rootBuilder;
         do
         {
             current.reset(EMPTY_BRANCH, POSITIVE_INFINITY);
