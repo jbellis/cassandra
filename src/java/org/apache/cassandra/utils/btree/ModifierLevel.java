@@ -24,17 +24,21 @@ final class ModifierLevel
     private Object[] buildChildren = new Object[2 + (FAN_FACTOR << 1)]; // buffers children for branches only
     private int buildKeyPosition;
     private int buildChildPosition;
+    // we null out the contents of buildKeys/buildChildren when clear()ing them for re-use; this is where
+    // we track how much we actually have to null out
     private int maxBuildKeyPosition;
     private int maxBuildChildPosition;
 
-    // copying from
+    // current node of the btree we're modifying/copying from
     private Object[] copyFrom;
     // the index of the first key in copyFrom that has not yet been copied into the build arrays
     private int copyFromKeyPosition;
+    // the index of the first child node in copyFrom that has not yet been copied into the build arrays
     private int copyFromChildPosition;
-    private int copyFromKeyEnd;
 
-    // upper bound of range owned by this level
+    // upper bound of range owned by this level; lets us know if we need to ascend back up the tree
+    // for the next key we update when bsearch gives an insertion point past the end of the values
+    // in the current node
     private Object upperBound;
 
     // ensure we aren't referencing any garbage
