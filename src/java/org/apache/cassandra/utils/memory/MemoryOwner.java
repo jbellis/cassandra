@@ -37,7 +37,7 @@ public final class MemoryOwner
     // currently no corroboration/enforcement of this is performed.
     void releaseAll()
     {
-        tracker.release(ownsUpdater.getAndSet(this, 0));
+        tracker.adjustAcquired(ownsUpdater.getAndSet(this, 0), false);
         tracker.adjustReclaiming(-reclaiming);
     }
 
@@ -65,7 +65,7 @@ public final class MemoryOwner
         {
             if (tracker.tryAllocate(size))
             {
-                ownsUpdater.addAndGet(this, size);
+                acquired(size);
                 return;
             }
             WaitQueue.Signal signal = writeOp.safeIsBlockingSignal(tracker.hasRoom.register());
@@ -74,7 +74,7 @@ public final class MemoryOwner
             {
                 signal.cancel();
                 if (allocated) // if we allocated, take ownership
-                    ownsUpdater.addAndGet(this, size);
+                    acquired(size);
                 else // otherwise we're blocking so we're permitted to overshoot our constraints, to just allocate without blocking
                     allocated(size);
                 return;
@@ -84,23 +84,23 @@ public final class MemoryOwner
         }
     }
 
-    // retroactively mark an amount allocated in the tracker, and owned by us
+    // retroactively mark an amount allocated amd acquired in the tracker, and owned by us
     void allocated(int size)
     {
-        tracker.adjustAllocated(size);
-        acquired(size);
+        tracker.adjustAcquired(size, true);
+        ownsUpdater.addAndGet(this, size);
     }
 
     // retroactively mark an amount acquired in the tracker, and owned by us
     void acquired(int size)
     {
-        tracker.acquired(size);
+        tracker.adjustAcquired(size, false);
         ownsUpdater.addAndGet(this, size);
     }
 
     void release(int size)
     {
-        tracker.release(size);
+        tracker.adjustAcquired(-size, false);
         ownsUpdater.addAndGet(this, -size);
     }
 

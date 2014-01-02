@@ -16,7 +16,6 @@ public class MemoryTracker
 
     // total bytes allocated and reclaiming
     private volatile long allocated;
-    private volatile long acquired;
     private volatile long reclaiming;
 
     final WaitQueue hasRoom = new WaitQueue();
@@ -49,7 +48,7 @@ public class MemoryTracker
     private boolean updateNextClean()
     {
         long reclaiming = this.reclaiming;
-        return acquired >= (nextClean = reclaiming
+        return used() >= (nextClean = reclaiming
                 + (long) (this.limit * cleanThreshold));
     }
 
@@ -83,19 +82,21 @@ public class MemoryTracker
         }
     }
 
-    // when a pool caches an allocated quantity for reuse this method is used to track the use of
-    // memory that is in use / owned.
-    void acquired(long size)
+    // 'acquires' an amount of memory, and maybe also marks it allocated. This method is meant to be overridden
+    // by implementations with a separate concept of acquired/allocated. As this method stands, an acquire
+    // without an allocate is a no-op (acquisition is achieved through allocation), however a release (where size < 0)
+    // is always processed and accounted for in allocated.
+    void adjustAcquired(long size, boolean alsoAllocated)
     {
-        acquiredUpdater.addAndGet(this, size);
-        maybeClean();
-    }
-
-    // un-acquires (as opposed to deallocates) the amount of memory, and signals any waiting threads
-    void release(long size)
-    {
-        acquiredUpdater.addAndGet(this, -size);
-        hasRoom.signalAll();
+        if (alsoAllocated)
+        {
+            adjustAllocated(size);
+        }
+        else if (size < 0)
+        {
+            adjustAllocated(size);
+            hasRoom.signalAll();
+        }
     }
 
     // space reclaimed should be released prior to calling this, to avoid triggering unnecessary cleans
@@ -120,7 +121,7 @@ public class MemoryTracker
 
     public long used()
     {
-        return acquired;
+        return allocated;
     }
 
     public long reclaiming()
@@ -129,7 +130,6 @@ public class MemoryTracker
     }
 
     private static final AtomicLongFieldUpdater<MemoryTracker> allocatedUpdater = AtomicLongFieldUpdater.newUpdater(MemoryTracker.class, "allocated");
-    private static final AtomicLongFieldUpdater<MemoryTracker> acquiredUpdater = AtomicLongFieldUpdater.newUpdater(MemoryTracker.class, "acquired");
     private static final AtomicLongFieldUpdater<MemoryTracker> reclaimingUpdater = AtomicLongFieldUpdater.newUpdater(MemoryTracker.class, "reclaiming");
 
     public MemoryOwner newOwner()
