@@ -82,28 +82,19 @@ final class ModifierLevel
         assert copyFrom != null;
         int copyFromKeyEnd = getKeyEnd(copyFrom);
 
-        // true iff we found the exact key in this node
-        boolean found = false;
-        // true iff this node (or a child) should contain the key
-        boolean owns = true;
-        // find insert position
         int i = find(comparator, (V) key, copyFrom, copyFromKeyPosition, copyFromKeyEnd);
-        if (i < 0)
+        boolean found = i >= 0; // exact key match?
+        boolean owns = true; // true iff this node (or a child) should contain the key
+        if (!found)
         {
             i = -i - 1;
             if (i == copyFromKeyEnd && compare(comparator, upperBound, key) <= 0)
                 owns = false;
         }
-        else
-        {
-            found = true;
-        }
 
-        boolean isLeaf = isLeaf(copyFrom);
-
-        if (isLeaf)
+        if (isLeaf(copyFrom))
         {
-            // copy any keys up to prior to the found index
+            // copy keys from the original node up to prior to the found index
             copyKeys(i);
 
             if (owns)
@@ -118,48 +109,46 @@ final class ModifierLevel
             }
 
             // if we don't own it, all we need to do is ensure we've copied everything in this node
-            // and the next part will deal with ascending; since not owning means pos >= keyEnd
-            // we have already dealt with that
+            // (which we have done, since not owning means pos >= keyEnd), ascend, and let Modifier.update
+            // retry against the parent node
+            return ascend(true);
+        }
+
+        // branch
+        if (found)
+        {
+            copyKeys(i);
+            replaceNextKey(key, replaceF);
+            copyChildren(i + 1);
+            return null;
+        }
+        else if (owns)
+        {
+            copyKeys(i);
+            copyChildren(i);
+
+            // belongs to the range owned by this node, but not equal to any key in the node
+            // so descend into the owning child
+            Object newUpperBound;
+            if (i < copyFromKeyEnd)
+                newUpperBound = copyFrom[i];
+            else
+                newUpperBound = upperBound;
+            Object[] descendInto = (Object[]) copyFrom[copyFromKeyEnd + i];
+            ensureChild().reset(descendInto, newUpperBound);
+            return child;
         }
         else
         {
-            if (found)
-            {
-                copyKeys(i);
-                replaceNextKey(key, replaceF);
-                copyChildren(i + 1);
-                return null;
-            }
-            else if (owns)
-            {
-
-                copyKeys(i);
-                copyChildren(i);
-
-                // belongs to the range owned by this node, but not equal to any key in the node
-                // so descend into the owning child
-                Object newUpperBound;
-                if (i < copyFromKeyEnd)
-                    newUpperBound = copyFrom[i];
-                else
-                    newUpperBound = upperBound;
-                Object[] descendInto = (Object[]) copyFrom[copyFromKeyEnd + i];
-                ensureChild().reset(descendInto, newUpperBound);
-                return child;
-
-            }
-            else
-            {
-                // ensure we've copied all keys and children
-                copyKeys(copyFromKeyEnd);
-                copyChildren(copyFromKeyEnd + 1);
-            }
+            // ensure we've copied all keys and children
+            copyKeys(copyFromKeyEnd);
+            copyChildren(copyFromKeyEnd + 1); // since we know that there are exactly 1 more child nodes, than keys
         }
 
         if (key == POSITIVE_INFINITY && buildChildPosition >= 1 && buildChildPosition <= 2)
             return null;
 
-        return ascend(isLeaf);
+        return ascend(false);
     }
 
 
