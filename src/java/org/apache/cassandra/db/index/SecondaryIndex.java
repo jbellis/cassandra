@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 
+import org.apache.cassandra.utils.memory.MemoryOwner;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,6 +96,7 @@ public abstract class SecondaryIndex
      */
     abstract public String getIndexName();
 
+
     /**
      * Return the unique name for this index and column
      * to be stored in the SystemKeyspace that tracks if each column is built
@@ -136,9 +138,19 @@ public abstract class SecondaryIndex
     protected abstract SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns);
 
     /**
-     * Forces this indexes in memory data to disk
+     * Forces this indexes' in memory data to disk
      */
     public abstract void forceBlockingFlush();
+
+    /**
+     * Get current amount of memory this index is consuming (in bytes)
+     */
+    public abstract MemoryOwner getOnHeapSize();
+
+    /**
+     * Get current amount of memory this index is consuming (in bytes)
+     */
+    public abstract MemoryOwner getOffHeapSize();
 
     /**
      * Allow access to the underlying column family store if there is one

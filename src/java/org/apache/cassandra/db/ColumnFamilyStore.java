@@ -977,15 +977,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // swap if the memtables we are measuring here haven't already been swapped by the time we try to swap them
                 Memtable current = cfs.getDataTracker().getView().getCurrentMemtable();
 
-                // find the total ownership ratio for all memtables owned by this CF, both on- and off-heap, and select
-                // the largest of the two ratios to weight this CF
+                // find the total ownership ratio for the memtable and all SecondaryIndexes owned by this CF,
+                // both on- and off-heap, and select the largest of the two ratios to weight this CF
                 float onHeap = 0f, offHeap = 0f;
-                for (ColumnFamilyStore store : cfs.concatWithIndexes())
+                onHeap += current.getOnHeap().ownershipRatio();
+                offHeap += current.getOffHeap().ownershipRatio();
+
+                for (SecondaryIndex index : cfs.indexManager.getIndexes())
                 {
-                    final Memtable memtable = store.getDataTracker().getView().getCurrentMemtable();
-                    onHeap += memtable.getOnHeap().ownershipRatio();
-                    offHeap += memtable.getOffHeap().ownershipRatio();
+                    if (index.getOnHeapSize() != null)
+                        onHeap += index.getOnHeapSize().ownershipRatio();
+                    if (index.getOffHeapSize() != null)
+                        offHeap += index.getOffHeapSize().ownershipRatio();
                 }
+
                 float ratio = Math.max(onHeap, offHeap);
 
                 if (ratio > largestRatio)

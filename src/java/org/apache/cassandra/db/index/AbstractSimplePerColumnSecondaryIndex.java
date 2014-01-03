@@ -30,6 +30,7 @@ import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.MemoryOwner;
 
 /**
  * Implements a secondary index for a column family using a second column family
@@ -175,9 +176,14 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         return indexCfs.name;
     }
 
-    public long getLiveSize()
+    public MemoryOwner getOnHeapSize()
     {
-        return indexCfs.getMemtableDataSize();
+        return indexCfs.getDataTracker().getView().getCurrentMemtable().getOnHeap();
+    }
+
+    public MemoryOwner getOffHeapSize()
+    {
+        return indexCfs.getDataTracker().getView().getCurrentMemtable().getOffHeap();
     }
 
     public void reload()
