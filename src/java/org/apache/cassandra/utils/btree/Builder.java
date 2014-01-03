@@ -72,6 +72,9 @@ final class Builder
             current = next;
         }
 
+        // updating with POSITIVE_INFINITY means that current should be back to the root
+        assert current.isRoot();
+
         Object[] r = current.toNode();
         current.clear();
         return r;

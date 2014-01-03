@@ -155,7 +155,7 @@ final class NodeBuilder
 
     // UTILITY METHODS FOR IMPLEMENTATION OF UPDATE/BUILD/DELETE
 
-    private boolean isRoot()
+    boolean isRoot()
     {
         // if parent == null, or parent.upperBound == null, then we have not initialised a parent builder,
         // so we are the top level builder holding modifications; if we have more than FAN_FACTOR items, though,
@@ -203,9 +203,10 @@ final class NodeBuilder
     {
         if (copyFromKeyPosition >= upToKeyPosition)
             return;
+
         int len = upToKeyPosition - copyFromKeyPosition;
-        if (len > FAN_FACTOR)
-            throw new IllegalStateException(upToKeyPosition + "," + copyFromKeyPosition);
+        assert len <= FAN_FACTOR : upToKeyPosition + "," + copyFromKeyPosition;
+
         ensureRoom(buildKeyPosition + len);
         System.arraycopy(copyFrom, copyFromKeyPosition, buildKeys, buildKeyPosition, len);
         copyFromKeyPosition = upToKeyPosition;
@@ -215,10 +216,7 @@ final class NodeBuilder
     // skips the next key in copyf, and puts the provided key in the builder instead
     private <V> void replaceNextKey(Object with, ReplaceFunction<V> replaceF)
     {
-        ensureRoom(buildKeyPosition + 1);
-        if (replaceF != null)
-            with = replaceF.apply((V) copyFrom[copyFromKeyPosition], (V) with);
-        buildKeys[buildKeyPosition++] = with;
+        addNewKey(with, replaceF);
         copyFromKeyPosition++;
     }
 
@@ -268,8 +266,7 @@ final class NodeBuilder
         Object[] flushUp = buildFromRange(0, FAN_FACTOR, isLeaf(copyFrom));
         ensureParent().addExtraChild(flushUp, buildKeys[FAN_FACTOR]);
         int size = FAN_FACTOR + 1;
-        if (size > buildKeyPosition)
-            throw new IllegalStateException(buildKeyPosition + "," + nextBuildKeyPosition);
+        assert size <= buildKeyPosition : buildKeyPosition + "," + nextBuildKeyPosition;
         System.arraycopy(buildKeys, size, buildKeys, 0, buildKeyPosition - size);
         buildKeyPosition -= size;
         maxBuildKeyPosition = buildKeys.length;
