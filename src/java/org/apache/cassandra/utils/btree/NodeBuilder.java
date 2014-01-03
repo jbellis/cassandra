@@ -16,12 +16,14 @@ import static org.apache.cassandra.utils.btree.BTree.isLeaf;
  */
 final class NodeBuilder
 {
+    private static final int MAX_KEYS = 1 + (FAN_FACTOR << 1);
+
     // parent stack
     private NodeBuilder parent, child;
 
     // buffer for building new nodes
-    private Object[] buildKeys = new Object[1 + (FAN_FACTOR << 1)];  // buffers keys for branches and leaves
-    private Object[] buildChildren = new Object[2 + (FAN_FACTOR << 1)]; // buffers children for branches only
+    private Object[] buildKeys = new Object[MAX_KEYS];  // buffers keys for branches and leaves
+    private Object[] buildChildren = new Object[1 + MAX_KEYS]; // buffers children for branches only
     private int buildKeyPosition;
     private int buildChildPosition;
     // we null out the contents of buildKeys/buildChildren when clear()ing them for re-use; this is where
@@ -259,7 +261,7 @@ final class NodeBuilder
     // checks if we can add the requested keys+children to the builder, and if not we spill-over into our parent
     private void ensureRoom(int nextBuildKeyPosition)
     {
-        if (nextBuildKeyPosition <= FAN_FACTOR << 1)
+        if (nextBuildKeyPosition < MAX_KEYS)
             return;
 
         // flush even number of items so we don't waste leaf space repeatedly
