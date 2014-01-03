@@ -855,6 +855,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 CommitLog.instance.discardCompletedSegments(metadata.cfId, lastReplayPosition);
             }
+
+            metric.pendingTasks.dec();
         }
 
     }
@@ -880,6 +882,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // if true, we won't flush, we'll just wait for any outstanding writes, switch the memtable, and discard
             this.truncate = truncate;
 
+            metric.pendingTasks.inc();
             /**
              * To ensure correctness of switch with non-blocking writes, we wait for all write operations started
              * prior to the switch to complete before we proceed. We do this by creating a Barrier on the writeOrdering
@@ -1341,7 +1344,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public int getPendingTasks()
     {
-        return metric.pendingTasks.value();
+        return (int) metric.pendingTasks.count();
     }
 
     public long getWriteCount()

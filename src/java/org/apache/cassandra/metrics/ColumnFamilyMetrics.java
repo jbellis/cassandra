@@ -58,7 +58,7 @@ public class ColumnFamilyMetrics
     /** (Local) write metrics */
     public final LatencyMetrics writeLatency;
     /** Estimated number of tasks pending for this column family */
-    public final Gauge<Integer> pendingTasks;
+    public final Counter pendingTasks;
     /** Number of SSTables on disk for this CF */
     public final Gauge<Integer> liveSSTableCount;
     /** Disk space used by SSTables belonging to this CF */
@@ -203,16 +203,7 @@ public class ColumnFamilyMetrics
         });
         readLatency = new LatencyMetrics(factory, "Read");
         writeLatency = new LatencyMetrics(factory, "Write");
-        pendingTasks = Metrics.newGauge(factory.createMetricName("PendingTasks"), new Gauge<Integer>()
-        {
-            public Integer value()
-            {
-                // TODO: not convinced this is worth maintaining in brave new world.
-                // if we want it, can add an AtomicInteger to memtable that we increment when
-                // we begin modifying
-                return 0;
-            }
-        });
+        pendingTasks = Metrics.newCounter(factory.createMetricName("PendingTasks"));
         liveSSTableCount = Metrics.newGauge(factory.createMetricName("LiveSSTableCount"), new Gauge<Integer>()
         {
             public Integer value()
