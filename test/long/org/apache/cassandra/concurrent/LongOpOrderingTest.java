@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 // TODO: we don't currently test SAFE functionality at all!
+// TODO: should also test markBlocking and SyncOrdered
 public class LongOpOrderingTest
 {
 
