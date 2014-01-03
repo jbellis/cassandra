@@ -376,13 +376,13 @@ public class AtomicSortedColumns extends ColumnFamily
         protected void swap(Cell old, Cell upd)
         {
             dataSize += upd.dataSize() - old.dataSize();
-            heapSize += upd.sizeOnHeapWithoutDataBytes() - old.sizeOnHeapWithoutDataBytes();
+            heapSize += upd.excessHeapSizeExcludingData() - old.excessHeapSizeExcludingData();
             discarded.add(old);
         }
         protected void insert(Cell insert)
         {
             this.dataSize += insert.dataSize();
-            this.heapSize += insert.sizeOnHeapWithoutDataBytes();
+            this.heapSize += insert.excessHeapSizeExcludingData();
             this.newColumnCount += 1;
         }
 

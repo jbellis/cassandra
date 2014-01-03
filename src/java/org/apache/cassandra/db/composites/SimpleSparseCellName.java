@@ -89,9 +89,9 @@ public class SimpleSparseCellName extends AbstractComposite implements CellName
     }
 
     @Override
-    public long sizeOnHeapWithoutDataBytes()
+    public long excessHeapSizeExcludingData()
     {
-        return HEAP_SIZE + columnName.sizeOnHeapWithoutDataBytes();
+        return HEAP_SIZE + columnName.excessHeapSizeExcludingData();
     }
 
     @Override

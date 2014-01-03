@@ -26,14 +26,10 @@ import java.util.Iterator;
 
 import com.google.common.collect.AbstractIterator;
 
-import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.CellNames;
-import org.apache.cassandra.db.composites.SimpleSparseCellName;
-import org.apache.cassandra.db.composites.SimpleSparseCellNameType;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -171,9 +167,9 @@ public class Cell implements OnDiskAtom
 
     // returns the size of the Cell and all references on the heap, excluding any costs associated with byte arrays
     // that would be allocated by a localCopy, as these will be accounted for by the allocator
-    public long sizeOnHeapWithoutDataBytes()
+    public long excessHeapSizeExcludingData()
     {
-        return HEAP_SIZE + name.sizeOnHeapWithoutDataBytes() + ObjectSizes.sizeOnHeapWithoutDataBytes(value);
+        return HEAP_SIZE + name.excessHeapSizeExcludingData() + ObjectSizes.sizeOnHeapExcludingData(value);
     }
 
     public int serializedSize(CellNameType type, TypeSizes typeSizes)

@@ -160,9 +160,9 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         }
 
         @Override
-        public long sizeOnHeapWithoutDataBytes()
+        public long excessHeapSizeExcludingData()
         {
-            return super.sizeOnHeapWithoutDataBytes() + ObjectSizes.sizeOnHeapWithoutDataBytes(collectionElement);
+            return super.excessHeapSizeExcludingData() + ObjectSizes.sizeOnHeapExcludingData(collectionElement);
         }
 
         @Override

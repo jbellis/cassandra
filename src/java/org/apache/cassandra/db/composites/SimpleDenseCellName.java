@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.utils.memory.Allocator;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class SimpleDenseCellName extends SimpleComposite implements CellName
 {
@@ -67,9 +66,9 @@ public class SimpleDenseCellName extends SimpleComposite implements CellName
     }
 
     @Override
-    public long sizeOnHeapWithoutDataBytes()
+    public long excessHeapSizeExcludingData()
     {
-        return HEAP_SIZE + ObjectSizes.sizeOnHeapWithoutDataBytes(element);
+        return HEAP_SIZE + ObjectSizes.sizeOnHeapExcludingData(element);
     }
 
     // If cellnames were sharing some prefix components, this will break it, so

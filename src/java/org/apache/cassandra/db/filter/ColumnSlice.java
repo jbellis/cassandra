@@ -250,7 +250,7 @@ public class ColumnSlice
         }
 
         @Override
-        public long sizeOnHeapWithoutDataBytes()
+        public long excessHeapSizeExcludingData()
         {
             throw new UnsupportedOperationException();
         }

@@ -108,7 +108,7 @@ public class ObjectSizes
         return allElementsSize + sizeOfArray(array);
     }
 
-    public static long sizeOnHeapWithoutDataBytes(ByteBuffer[] array)
+    public static long sizeOnHeapExcludingData(ByteBuffer[] array)
     {
         return BUFFER_HEAP_SIZE * array.length + sizeOfArray(array);
     }
@@ -128,7 +128,7 @@ public class ObjectSizes
         return BUFFER_HEAP_SIZE + sizeOfArray(buffer.capacity(), 1);
     }
 
-    public static long sizeOnHeapWithoutDataBytes(ByteBuffer buffer)
+    public static long sizeOnHeapExcludingData(ByteBuffer buffer)
     {
         return BUFFER_HEAP_SIZE;
     }

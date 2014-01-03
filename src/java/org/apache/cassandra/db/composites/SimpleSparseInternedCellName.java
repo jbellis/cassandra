@@ -34,6 +34,12 @@ public class SimpleSparseInternedCellName extends SimpleSparseCellName
     }
 
     @Override
+    public long excessHeapSizeExcludingData()
+    {
+        return 0;
+    }
+
+    @Override
     public long excessHeapSize()
     {
         return 0;

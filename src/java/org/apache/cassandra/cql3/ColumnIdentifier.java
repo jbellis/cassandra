@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.cql3.statements.Selectable;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -30,6 +29,7 @@ import org.apache.cassandra.utils.memory.Allocator;
 
 /**
  * Represents an identifer for a CQL column definition.
+ * TODO : should support light-weight mode without text representation for when not interned
  */
 public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier>, IMeasurableMemory
 {
@@ -52,7 +52,6 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
 
     private ColumnIdentifier(ByteBuffer bytes, String text)
     {
-        // TODO : should support light-weight mode without text representation for when not interned
         this.bytes = bytes;
         this.text = text;
     }
@@ -90,10 +89,10 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
              + ObjectSizes.sizeOf(text);
     }
 
-    public long sizeOnHeapWithoutDataBytes()
+    public long excessHeapSizeExcludingData()
     {
         return HEAP_SIZE
-                + ObjectSizes.sizeOnHeapWithoutDataBytes(bytes)
+                + ObjectSizes.sizeOnHeapExcludingData(bytes)
                 + ObjectSizes.sizeOf(text);
     }
 
