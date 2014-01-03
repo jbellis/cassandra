@@ -235,6 +235,45 @@ public class OpOrdering
         }
 
         /**
+         * called once we know all operations started against this Ordered have completed,
+         * however we do not know if operations against its ancestors have completed, or
+         * if its descendants have completed ahead of it, so we attempt to create the longest
+         * chain from the oldest still linked Ordered. If we can't reach the oldest through
+         * an unbroken chain of completed Ordered, we abort, and leave the still completing
+         * ancestor to tidy up.
+         */
+        private void unlink()
+        {
+            // walk back in time to find the start of the list
+            Ordered start = this;
+            while (true)
+            {
+                Ordered prev = start.prev;
+                if (prev == null)
+                    break;
+                // if we haven't finished this Ordered yet abort and let it clean up when it's done
+                if (prev.running != FINISHED)
+                    return;
+                start = prev;
+            }
+
+            // now walk forwards in time, in case we finished up late
+            Ordered end = this.next;
+            while (end.running == FINISHED)
+                end = end.next;
+
+            // now walk from first to last, unlinking the prev pointer and waking up any blocking threads
+            while (start != end)
+            {
+                Ordered next = start.next;
+                next.prev = null;
+                start.waiting.signalAll();
+                start = next;
+            }
+            end.maybeSignalSafe();
+        }
+
+        /**
          * indicates a barrier we are behind is, or maybe, blocking general progress,
          * so we should try more aggressively to progress
          * @return
@@ -416,45 +455,6 @@ public class OpOrdering
                     markOneUnsafe();
                 }
             }
-        }
-
-        /**
-         * called once we know all operations started against this Ordered have completed,
-         * however we do not know if operations against its ancestors have completed, or
-         * if its descendants have completed ahead of it, so we attempt to create the longest
-         * chain from the oldest still linked Ordered. If we can't reach the oldest through
-         * an unbroken chain of completed Ordered, we abort, and leave the still completing
-         * ancestor to tidy up.
-         */
-        private void unlink()
-        {
-            // walk back in time to find the start of the list
-            Ordered start = this;
-            while (true)
-            {
-                Ordered prev = start.prev;
-                if (prev == null)
-                    break;
-                // if we haven't finished this Ordered yet abort and let it clean up when it's done
-                if (prev.running != FINISHED)
-                    return;
-                start = prev;
-            }
-
-            // now walk forwards in time, in case we finished up late
-            Ordered end = this.next;
-            while (end.running == FINISHED)
-                end = end.next;
-
-            // now walk from first to last, unlinking the prev pointer and waking up any blocking threads
-            while (start != end)
-            {
-                Ordered next = start.next;
-                next.prev = null;
-                start.waiting.signalAll();
-                start = next;
-            }
-            end.maybeSignalSafe();
         }
 
         @Override
