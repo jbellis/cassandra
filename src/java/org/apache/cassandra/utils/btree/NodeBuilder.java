@@ -145,7 +145,7 @@ final class NodeBuilder
             copyChildren(copyFromKeyEnd + 1); // since we know that there are exactly 1 more child nodes, than keys
         }
 
-        if (key == POSITIVE_INFINITY && buildChildPosition >= 1 && buildChildPosition <= 2)
+        if (key == POSITIVE_INFINITY && isRoot())
             return null;
 
         return ascend(false);
@@ -154,33 +154,29 @@ final class NodeBuilder
 
     // UTILITY METHODS FOR IMPLEMENTATION OF UPDATE/BUILD/DELETE
 
+    private boolean isRoot()
+    {
+        // if parent == null, or parent.upperBound == null, then we have no initialised the parent builder,
+        // so we are the top level builder holding modifications; if we have more than FAN_FACTOR items, though,
+        // we are not a valid root so we would need to spill-up to create a new root
+        return (parent == null || parent.upperBound == null) && buildKeyPosition <= FAN_FACTOR;
+    }
 
     // ascend to the root node, finishing up work as we go; useful for building where we work only on the newest
     // child node, which may construct many spill-over parents as it goes
     NodeBuilder ascendToRoot()
     {
-        boolean isLeaf = isLeaf(copyFrom);
-        // <= 2 check is enough if we have FAN_FACTOR >= 8, but if FAN_FACTOR is 4 this could terminate on
-        // branches that are not the root, so must check the parent is not initialised. VM should optimise this
-        // check away when FAN_FACTOR >= 8.
-        if (!isLeaf && buildChildPosition <= 2 && (FAN_FACTOR >= 8 || parent == null || parent.upperBound == null))
-            return this;
-        return ascend(isLeaf).ascendToRoot();
+        NodeBuilder cur = this;
+        while (!cur.isRoot())
+            cur = cur.ascend(isLeaf(cur.copyFrom));
+        return cur;
     }
 
     // builds a new root BTree node - must be called on root of operation
     Object[] toNode()
     {
-        switch (buildChildPosition)
-        {
-            case 1:
-                return (Object[]) buildChildren[0];
-            case 2:
-                return new Object[] { buildKeys[0], buildChildren[0], buildChildren[1] };
-            default:
-                throw new IllegalStateException();
-        }
-
+        assert buildKeyPosition <= FAN_FACTOR && buildKeyPosition > 0 : "" + buildKeyPosition;
+        return buildFromRange(0, buildKeyPosition, isLeaf(copyFrom));
     }
 
     // finish up this level and pass any constructed children up to our parent, ensuring a parent exists

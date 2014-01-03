@@ -63,11 +63,10 @@ final class Builder
     public <V> Object[] build(Collection<V> source, int size)
     {
         NodeBuilder current = rootBuilder;
-        do
-        {
-            current.reset(EMPTY_BRANCH, POSITIVE_INFINITY);
+        // we descend only to avoid wasting memory; in update() we will often descend into existing trees
+        // so here we want to descend also, so we don't have lg max(N) depth in both directions
+        while ((size >>= FAN_SHIFT) > 0)
             current = current.ensureChild();
-        } while ((size >>= FAN_SHIFT) > 0);
 
         current.reset(EMPTY_LEAF, POSITIVE_INFINITY);
         for (V key : source)
