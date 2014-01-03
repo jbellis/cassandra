@@ -209,8 +209,6 @@ public class CommitLogSegment
     // ensures no more of this segment is writeable, by allocating any unused section at the end and marking it discarded
     void discardUnusedTail()
     {
-        if (discardedTailFrom > 0)
-            return;
         while (true)
         {
             int prev = allocatePosition.get();
@@ -299,9 +297,9 @@ public class CommitLogSegment
         }
     }
 
-    public boolean isFullySynced()
+    public boolean isStillAllocating()
     {
-        return lastSyncedOffset == buffer.capacity();
+        return allocatePosition.get() < buffer.capacity();
     }
 
     /**
@@ -433,7 +431,7 @@ public class CommitLogSegment
     private void removeCleanFromDirty()
     {
         // if we're still allocating from this segment, don't touch anything since it can't be done thread-safely
-        if (!isFullySynced())
+        if (isStillAllocating())
             return;
 
         Iterator<Map.Entry<UUID, AtomicInteger>> iter = cfClean.entrySet().iterator();
@@ -476,8 +474,9 @@ public class CommitLogSegment
      */
     public boolean isUnused()
     {
-        // if it's not fully synced, we assume we're still in use as the active allocatingFrom
-        if (!isFullySynced())
+        // if room to allocate, we're still in use as the active allocatingFrom,
+        // so we don't want to race with updates to cfClean with removeCleanFromDirty
+        if (isStillAllocating())
             return false;
 
         removeCleanFromDirty();

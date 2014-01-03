@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.*;
+import org.apache.cassandra.service.paxos.Commit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -136,7 +137,7 @@ public class CommitLogSegmentManager
                                 if (spaceToReclaim + unused >= 0)
                                     break;
                             }
-                            flushDataFrom(segmentsToRecycle);
+                            flushDataFrom(segmentsToRecycle, false);
                         }
 
                         try
@@ -286,13 +287,12 @@ public class CommitLogSegmentManager
      */
     void forceRecycleAll()
     {
-        CommitLogSegment last = allocatingFrom;
-        last.discardUnusedTail();
         List<CommitLogSegment> segmentsToRecycle = new ArrayList<>(activeSegments);
+        CommitLogSegment last = segmentsToRecycle.get(segmentsToRecycle.size() - 1);
         advanceAllocatingFrom(last);
 
         // flush and wait for all CFs that are dirty in segments up-to and including 'last'
-        Future<?> future = flushDataFrom(segmentsToRecycle);
+        Future<?> future = flushDataFrom(segmentsToRecycle, true);
         try
         {
             future.get();
@@ -447,7 +447,7 @@ public class CommitLogSegmentManager
      *
      * @return a Future that will finish when all the flushes are complete.
      */
-    private Future<?> flushDataFrom(List<CommitLogSegment> segments)
+    private Future<?> flushDataFrom(List<CommitLogSegment> segments, boolean force)
     {
         if (segments.isEmpty())
             return Futures.immediateFuture(null);
@@ -474,7 +474,7 @@ public class CommitLogSegmentManager
                     final ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(dirtyCFId);
                     // can safely call forceFlush here as we will only ever block (briefly) for other attempts to flush,
                     // no deadlock possibility since switchLock removal
-                    flushes.put(dirtyCFId, cfs.forceFlush(maxReplayPosition));
+                    flushes.put(dirtyCFId, force ? cfs.forceFlush() : cfs.forceFlush(maxReplayPosition));
                 }
             }
         }
