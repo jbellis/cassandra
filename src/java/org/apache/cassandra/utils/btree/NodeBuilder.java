@@ -110,45 +110,46 @@ final class NodeBuilder
 
             // if we don't own it, all we need to do is ensure we've copied everything in this node
             // (which we have done, since not owning means pos >= keyEnd), ascend, and let Modifier.update
-            // retry against the parent node
-            return ascend(true);
-        }
-
-        // branch
-        if (found)
-        {
-            copyKeys(i);
-            replaceNextKey(key, replaceF);
-            copyChildren(i + 1);
-            return null;
-        }
-        else if (owns)
-        {
-            copyKeys(i);
-            copyChildren(i);
-
-            // belongs to the range owned by this node, but not equal to any key in the node
-            // so descend into the owning child
-            Object newUpperBound;
-            if (i < copyFromKeyEnd)
-                newUpperBound = copyFrom[i];
-            else
-                newUpperBound = upperBound;
-            Object[] descendInto = (Object[]) copyFrom[copyFromKeyEnd + i];
-            ensureChild().reset(descendInto, newUpperBound);
-            return child;
+            // retry against the parent node.  The if/ascend after the else branch takes care of that.
         }
         else
         {
-            // ensure we've copied all keys and children
-            copyKeys(copyFromKeyEnd);
-            copyChildren(copyFromKeyEnd + 1); // since we know that there are exactly 1 more child nodes, than keys
+            // branch
+            if (found)
+            {
+                copyKeys(i);
+                replaceNextKey(key, replaceF);
+                copyChildren(i + 1);
+                return null;
+            }
+            else if (owns)
+            {
+                copyKeys(i);
+                copyChildren(i);
+
+                // belongs to the range owned by this node, but not equal to any key in the node
+                // so descend into the owning child
+                Object newUpperBound;
+                if (i < copyFromKeyEnd)
+                    newUpperBound = copyFrom[i];
+                else
+                    newUpperBound = upperBound;
+                Object[] descendInto = (Object[]) copyFrom[copyFromKeyEnd + i];
+                ensureChild().reset(descendInto, newUpperBound);
+                return child;
+            }
+            else
+            {
+                // ensure we've copied all keys and children
+                copyKeys(copyFromKeyEnd);
+                copyChildren(copyFromKeyEnd + 1); // since we know that there are exactly 1 more child nodes, than keys
+            }
         }
 
         if (key == POSITIVE_INFINITY && isRoot())
             return null;
 
-        return ascend(false);
+        return ascend(isLeaf(copyFrom));
     }
 
 
