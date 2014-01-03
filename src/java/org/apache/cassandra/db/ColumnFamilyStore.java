@@ -731,7 +731,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ListenableFuture<?> switchMemtable()
     {
-        assert !isIndex();
         logger.info("Enqueuing flush of {}", name);
         synchronized (data)
         {
@@ -865,6 +864,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             // if true, we won't flush, we'll just wait for any outstanding writes, switch the memtable, and discard
             this.truncate = truncate;
+
             /**
              * To ensure correctness of switch with non-blocking writes, we wait for all write operations started
              * prior to the switch to complete before we proceed. We do this by creating a Barrier on the writeOrdering
