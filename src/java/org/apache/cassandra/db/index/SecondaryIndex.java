@@ -95,7 +95,6 @@ public abstract class SecondaryIndex
      */
     abstract public String getIndexName();
 
-
     /**
      * Return the unique name for this index and column
      * to be stored in the SystemKeyspace that tracks if each column is built
@@ -140,11 +139,6 @@ public abstract class SecondaryIndex
      * Forces this indexes in memory data to disk
      */
     public abstract void forceBlockingFlush();
-
-    /**
-     * Get current amount of memory this index is consuming (in bytes)
-     */
-    public abstract long getLiveSize();
 
     /**
      * Allow access to the underlying column family store if there is one

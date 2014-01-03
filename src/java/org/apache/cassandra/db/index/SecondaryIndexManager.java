@@ -313,8 +313,22 @@ public class SecondaryIndexManager
      */
     public void flushIndexesBlocking()
     {
+        // despatch flushes for all CFS backed indexes
+        List<Future<?>> wait = new ArrayList<>();
+        synchronized (baseCfs.getDataTracker())
+        {
+            for (SecondaryIndex index : indexesByColumn.values())
+                if (index.getIndexCfs() != null)
+                    wait.add(index.getIndexCfs().forceFlush());
+        }
+
+        // blockingFlush any non-CFS-backed indexes
         for (SecondaryIndex index : indexesByColumn.values())
-            index.forceBlockingFlush();
+            if (index.getIndexCfs() == null)
+                index.forceBlockingFlush();
+
+        // wait for the CFS-backed index flushes to complete
+        FBUtilities.waitOnFutures(wait);
     }
 
     /**
