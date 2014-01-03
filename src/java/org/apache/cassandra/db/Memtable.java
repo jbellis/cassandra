@@ -235,7 +235,7 @@ public class Memtable
 
     public String toString()
     {
-        return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%%of heap limit)",
+        return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%% of heap limit)",
                 cfs.name, hashCode(), liveDataSize, currentOperations, 100 * allocator.onHeap.ownershipRatio());
     }
 
