@@ -72,10 +72,12 @@ final class NodeBuilder
     }
 
     /**
-     * Inserts or replaces the provided key, copying all not-yet-visited keys prior to it into the builder
+     * Inserts or replaces the provided key, copying all not-yet-visited keys prior to it into our buffer.
      *
      * @param key key we are inserting/replacing
-     * @return the ML to retry the update against, or null if finished
+     * @return the NodeBuilder to retry the update against (a child if we own the range being updated,
+     * a parent if we do not -- we got here from an earlier key -- and we need to ascend back up),
+     * or null if we finished the update in this node.
      */
     <V> NodeBuilder update(Object key, Comparator<V> comparator, ReplaceFunction<V> replaceF)
     {
@@ -102,7 +104,7 @@ final class NodeBuilder
                 if (found)
                     replaceNextKey(key, replaceF);
                 else
-                    addNewKey(key, replaceF);
+                    addNewKey(key, replaceF); // handles splitting parent if necessary via ensureRoom
 
                 // done, so return null
                 return null;
@@ -129,11 +131,7 @@ final class NodeBuilder
 
                 // belongs to the range owned by this node, but not equal to any key in the node
                 // so descend into the owning child
-                Object newUpperBound;
-                if (i < copyFromKeyEnd)
-                    newUpperBound = copyFrom[i];
-                else
-                    newUpperBound = upperBound;
+                Object newUpperBound = i < copyFromKeyEnd ? copyFrom[i] : upperBound;
                 Object[] descendInto = (Object[]) copyFrom[copyFromKeyEnd + i];
                 ensureChild().reset(descendInto, newUpperBound);
                 return child;
@@ -157,26 +155,26 @@ final class NodeBuilder
 
     private boolean isRoot()
     {
-        // if parent == null, or parent.upperBound == null, then we have no initialised the parent builder,
+        // if parent == null, or parent.upperBound == null, then we have not initialised a parent builder,
         // so we are the top level builder holding modifications; if we have more than FAN_FACTOR items, though,
         // we are not a valid root so we would need to spill-up to create a new root
         return (parent == null || parent.upperBound == null) && buildKeyPosition <= FAN_FACTOR;
     }
 
-    // ascend to the root node, finishing up work as we go; useful for building where we work only on the newest
-    // child node, which may construct many spill-over parents as it goes
+    // ascend to the root node, splitting into proper node sizes as we go; useful for building
+    // where we work only on the newest child node, which may construct many spill-over parents as it goes
     NodeBuilder ascendToRoot()
     {
-        NodeBuilder cur = this;
-        while (!cur.isRoot())
-            cur = cur.ascend(isLeaf(cur.copyFrom));
-        return cur;
+        NodeBuilder current = this;
+        while (!current.isRoot())
+            current = current.ascend(isLeaf(current.copyFrom));
+        return current;
     }
 
     // builds a new root BTree node - must be called on root of operation
     Object[] toNode()
     {
-        assert buildKeyPosition <= FAN_FACTOR && buildKeyPosition > 0 : "" + buildKeyPosition;
+        assert buildKeyPosition <= FAN_FACTOR && buildKeyPosition > 0 : buildKeyPosition;
         return buildFromRange(0, buildKeyPosition, isLeaf(copyFrom));
     }
 
@@ -184,9 +182,9 @@ final class NodeBuilder
     private NodeBuilder ascend(boolean isLeaf)
     {
         ensureParent();
-        // we don't own it, so we're ascending, so update and return our parent
         if (buildKeyPosition > FAN_FACTOR)
         {
+            // split current node and move the midpoint into parent, with the two halves as children
             int mid = buildKeyPosition >> 1;
             parent.addExtraChild(buildFromRange(0, mid, isLeaf), buildKeys[mid]);
             parent.finishChild(buildFromRange(mid + 1, buildKeyPosition - (mid + 1), isLeaf));
@@ -261,27 +259,27 @@ final class NodeBuilder
     // checks if we can add the requested keys+children to the builder, and if not we spill-over into our parent
     private void ensureRoom(int nextBuildKeyPosition)
     {
-        if (nextBuildKeyPosition > FAN_FACTOR << 1)
+        if (nextBuildKeyPosition <= FAN_FACTOR << 1)
+            return;
+
+        // flush even number of items so we don't waste leaf space repeatedly
+        Object[] flushUp = buildFromRange(0, FAN_FACTOR, isLeaf(copyFrom));
+        ensureParent().addExtraChild(flushUp, buildKeys[FAN_FACTOR]);
+        int size = FAN_FACTOR + 1;
+        if (size > buildKeyPosition)
+            throw new IllegalStateException(buildKeyPosition + "," + nextBuildKeyPosition);
+        System.arraycopy(buildKeys, size, buildKeys, 0, buildKeyPosition - size);
+        buildKeyPosition -= size;
+        maxBuildKeyPosition = buildKeys.length;
+        if (buildChildPosition > 0)
         {
-            // flush even number of items so we don't waste leaf space repeatedly
-            Object[] flushUp = buildFromRange(0, FAN_FACTOR, isLeaf(copyFrom));
-            ensureParent().addExtraChild(flushUp, buildKeys[FAN_FACTOR]);
-            int size = FAN_FACTOR + 1;
-            if (size > buildKeyPosition)
-                throw new IllegalStateException(buildKeyPosition + "," + nextBuildKeyPosition);
-            System.arraycopy(buildKeys, size, buildKeys, 0, buildKeyPosition - size);
-            buildKeyPosition -= size;
-            maxBuildKeyPosition = buildKeys.length;
-            if (buildChildPosition > 0)
-            {
-                System.arraycopy(buildChildren, size, buildChildren, 0, buildChildPosition - size);
-                buildChildPosition -= size;
-                maxBuildChildPosition = buildChildren.length;
-            }
+            System.arraycopy(buildChildren, size, buildChildren, 0, buildChildPosition - size);
+            buildChildPosition -= size;
+            maxBuildChildPosition = buildChildren.length;
         }
     }
 
-    // builds a node from the requested builder range
+    // builds and returns a node from the buffered objects in the given range
     private Object[] buildFromRange(int offset, int keyLength, boolean isLeaf)
     {
         Object[] a;
