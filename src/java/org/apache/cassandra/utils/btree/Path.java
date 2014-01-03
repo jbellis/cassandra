@@ -218,7 +218,7 @@ class Path
             {
                 i = getBranchKeyEnd(node);
                 push(node, i);
-                node = (Object[]) node[i << 1];
+                node = (Object[]) node[i * 2];
             }
             push(node, getLeafKeyEnd(node) - 1);
             return;

@@ -296,7 +296,7 @@ public class BTree
 
         while (low <= high)
         {
-            int mid = (low + high) >>> 1;
+            int mid = (low + high) / 2;
             int cmp = compare(comparator, key, a[mid]);
 
             if (cmp > 0)
@@ -333,7 +333,7 @@ public class BTree
     // return the boundary position between keys/children for the branch node
     static int getBranchKeyEnd(Object[] node)
     {
-        return node.length >> 1;
+        return node.length / 2;
     }
 
     // returns true if the provided node is a leaf, false if it is a branch

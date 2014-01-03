@@ -16,7 +16,7 @@ import static org.apache.cassandra.utils.btree.BTree.isLeaf;
  */
 final class NodeBuilder
 {
-    private static final int MAX_KEYS = 1 + (FAN_FACTOR << 1);
+    private static final int MAX_KEYS = 1 + (FAN_FACTOR * 2);
 
     // parent stack
     private NodeBuilder parent, child;
@@ -187,7 +187,7 @@ final class NodeBuilder
         if (buildKeyPosition > FAN_FACTOR)
         {
             // split current node and move the midpoint into parent, with the two halves as children
-            int mid = buildKeyPosition >> 1;
+            int mid = buildKeyPosition / 2;
             parent.addExtraChild(buildFromRange(0, mid, isLeaf), buildKeys[mid]);
             parent.finishChild(buildFromRange(mid + 1, buildKeyPosition - (mid + 1), isLeaf));
         }
@@ -292,7 +292,7 @@ final class NodeBuilder
         }
         else
         {
-            a = new Object[1 + (keyLength << 1)];
+            a = new Object[1 + (keyLength * 2)];
             System.arraycopy(buildKeys, offset, a, 0, keyLength);
             System.arraycopy(buildChildren, offset, a, keyLength, keyLength + 1);
         }
