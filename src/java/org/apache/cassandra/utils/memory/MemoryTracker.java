@@ -88,9 +88,11 @@ public class MemoryTracker
     // is always processed and accounted for in allocated.
     void adjustAcquired(long size, boolean alsoAllocated)
     {
-        if (alsoAllocated)
+        if (size > 0 || alsoAllocated)
         {
-            adjustAllocated(size);
+            if (alsoAllocated)
+                adjustAllocated(size);
+            maybeClean();
         }
         else if (size < 0)
         {
