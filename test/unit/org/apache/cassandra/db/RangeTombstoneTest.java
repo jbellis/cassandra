@@ -20,6 +20,8 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+
+import org.apache.cassandra.utils.memory.MemoryOwner;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
@@ -409,7 +411,18 @@ public class RangeTombstoneTest extends SchemaLoader
 
         public void forceBlockingFlush(){}
 
-        public long getLiveSize(){ return 0; }
+        @Override
+        public MemoryOwner getOnHeapSize()
+        {
+            return null;
+        }
+
+        @Override
+        public MemoryOwner getOffHeapSize()
+        {
+            return null;
+        }
+
 
         public ColumnFamilyStore getIndexCfs(){ return null; }
 

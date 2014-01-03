@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.Set;
 
+import org.apache.cassandra.utils.memory.MemoryOwner;
 import org.junit.Test;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -96,9 +97,15 @@ public class SecondaryIndexCellSizeTest
         }
 
         @Override
-        public long getLiveSize()
+        public MemoryOwner getOnHeapSize()
         {
-            return 0;
+            return null;
+        }
+
+        @Override
+        public MemoryOwner getOffHeapSize()
+        {
+            return null;
         }
 
         @Override
@@ -176,9 +183,15 @@ public class SecondaryIndexCellSizeTest
         }
 
         @Override
-        public long getLiveSize()
+        public MemoryOwner getOnHeapSize()
         {
-            return 0;
+            return null;
+        }
+
+        @Override
+        public MemoryOwner getOffHeapSize()
+        {
+            return null;
         }
 
         @Override

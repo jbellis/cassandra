@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Set;
 
+import org.apache.cassandra.utils.memory.MemoryOwner;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -174,9 +175,15 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         }
 
         @Override
-        public long getLiveSize()
+        public MemoryOwner getOnHeapSize()
         {
-            return 0;
+            return null;
+        }
+
+        @Override
+        public MemoryOwner getOffHeapSize()
+        {
+            return null;
         }
 
         @Override
