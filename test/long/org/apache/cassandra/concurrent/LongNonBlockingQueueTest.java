@@ -17,12 +17,12 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.apache.cassandra.utils.concurrent.NonBlockingQueue.Snap;
+import static org.apache.cassandra.utils.concurrent.NonBlockingQueueView.Snap;
 
-public class NonBlockingQueueTest
+public class LongNonBlockingQueueTest
 {
 
-    private static final Logger logger = LoggerFactory.getLogger(NonBlockingQueueTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(LongNonBlockingQueueTest.class);
 
     final int THREAD_COUNT = 32;
     final int THREAD_MASK = 31;
@@ -49,7 +49,7 @@ public class NonBlockingQueueTest
                 @Override
                 public Boolean call()
                 {
-                    final int batchCount = 1000;
+                    final int batchCount = 200;
                     final int batchSize = 1 << 14;
                     for (int batch = 0 ; batch < batchCount ; batch++)
                     {
@@ -156,7 +156,7 @@ public class NonBlockingQueueTest
                 @Override
                 public Boolean call()
                 {
-                    final int batchCount = 1000;
+                    final int batchCount = 200;
                     final int batchSize = 1 << 16;
                     for (int batch = 0 ; batch < batchCount ; batch++)
                     {
@@ -223,7 +223,7 @@ public class NonBlockingQueueTest
     public void testSimpleAppendAndPoll() throws ExecutionException, InterruptedException
     {
         final int batchSize = 1 << 20;
-        final int batchCount = 20;
+        final int batchCount = 10;
         for (int batch = 0 ; batch < batchCount ; batch++)
         {
             final NonBlockingQueue<Integer> queue = new NonBlockingQueue<>();
@@ -269,7 +269,7 @@ public class NonBlockingQueueTest
         final NonBlockingQueue<Integer> queue = new NonBlockingQueue<>();
         final List<Future<Boolean>> success = new ArrayList<>();
         final AtomicLong totalOps = new AtomicLong();
-        final int perThreadOps = 1 << 24;
+        final int perThreadOps = 1 << 20;
         queue.append(-1);
         for (int i = 0 ; i < THREAD_COUNT ; i++)
         {
@@ -279,8 +279,7 @@ public class NonBlockingQueueTest
                 @Override
                 public Boolean call()
                 {
-                    final int operations = 1 << 24;
-                    for (int i = 0 ; i < operations ; i++)
+                    for (int i = 0 ; i < perThreadOps ; i++)
                     {
                         int v = (i * THREAD_COUNT) + offset;
                         while (true)

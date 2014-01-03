@@ -15,10 +15,11 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class OpOrderingTest
+// TODO: we don't currently test SAFE functionality at all!
+public class LongOpOrderingTest
 {
 
-    private static final Logger logger = LoggerFactory.getLogger(NonBlockingQueueTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(LongNonBlockingQueueTest.class);
 
     static final int CONSUMERS = 4;
     static final int PRODUCERS = 32;
