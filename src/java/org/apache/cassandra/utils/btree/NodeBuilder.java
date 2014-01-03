@@ -149,7 +149,7 @@ final class NodeBuilder
         if (key == POSITIVE_INFINITY && isRoot())
             return null;
 
-        return ascend(isLeaf(copyFrom));
+        return ascend();
     }
 
 
@@ -169,7 +169,7 @@ final class NodeBuilder
     {
         NodeBuilder current = this;
         while (!current.isRoot())
-            current = current.ascend(isLeaf(current.copyFrom));
+            current = current.ascend();
         return current;
     }
 
@@ -181,9 +181,10 @@ final class NodeBuilder
     }
 
     // finish up this level and pass any constructed children up to our parent, ensuring a parent exists
-    private NodeBuilder ascend(boolean isLeaf)
+    private NodeBuilder ascend()
     {
         ensureParent();
+        boolean isLeaf = isLeaf(copyFrom);
         if (buildKeyPosition > FAN_FACTOR)
         {
             // split current node and move the midpoint into parent, with the two halves as children
