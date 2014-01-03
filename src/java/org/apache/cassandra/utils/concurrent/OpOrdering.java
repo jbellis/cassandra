@@ -149,8 +149,31 @@ public class OpOrdering
     public static final class Ordered implements Comparable<Ordered>
     {
 
+        /**
+         * In general this class goes through the following stages:
+         * 1) LIVE:      many calls to register() and finishOne()
+         * 2) FINISHING: a call to expire() (after a barrier issue), means calls to register() will now fail,
+         *               and we are now 'in the past' (new operations will be started against a new Ordered)
+         * 3) FINISHED:  once the last finishOne() is called, this Ordered is done. We call unlink().
+         * 4) ZOMBIE:    all our operations are finished, but some operations against an earlier Ordered are still
+         *               running, or tidying up, so unlink() fails to remove us
+         * 5) COMPLETE:  all operations started on or before us are FINISHED (and COMPLETE), so we are unlinked
+         *
+         * Two other parallel states are SAFE and ISBLOCKING:
+         *
+         * safe => all running operations were paused, so safe wrt memory access. Like a java safe point, except
+         * that it only provides ordering guarantees, as the safe point can be exited at any point. The only reason
+         * we require all to be stopped is to avoid tracking which threads are safe at any point, though we may want
+         * to do so in future.
+         *
+         * isBlocking => a barrier that is waiting on us (either directly, or via a future Ordered) is blocking general
+         * progress. This state is entered by calling Barrier.markBlocking(). If the running operations are blocked
+         * on a Signal that is also registered with the isBlockingSignal (probably through isSafeBlockingSignal)
+         * then they will be notified that they are blocking forward progress, and may take action to avoid that.
+         */
+
         private volatile Ordered prev, next;
-        private final long id;
+        private final long id; // monotonically increasing id for compareTo()
         private volatile int running; // number of operations currently running
         private volatile int safe; // number of operations currently running but 'safe' (see below)
         private volatile boolean isBlocking; // indicates running operations are blocking future barriers
