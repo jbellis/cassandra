@@ -316,7 +316,7 @@ public class ColumnSlice
             throw new UnsupportedOperationException();
         }
 
-        public long excessHeapSize()
+        public long unsharedHeapSize()
         {
             throw new UnsupportedOperationException();
         }

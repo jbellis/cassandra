@@ -323,9 +323,9 @@ public class DeletionInfo implements IMeasurableMemory
     }
 
     @Override
-    public long excessHeapSize()
+    public long unsharedHeapSize()
     {
-        return HEAP_SIZE + topLevel.excessHeapSize() + (ranges == null ? 0 : ranges.excessHeapSize());
+        return HEAP_SIZE + topLevel.unsharedHeapSize() + (ranges == null ? 0 : ranges.unsharedHeapSize());
     }
 
     public static class Serializer implements IVersionedSerializer<DeletionInfo>

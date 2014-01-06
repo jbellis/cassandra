@@ -68,7 +68,7 @@ public class SimpleComposite extends AbstractComposite
         return element;
     }
 
-    public long excessHeapSize()
+    public long unsharedHeapSize()
     {
         return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(element);
     }

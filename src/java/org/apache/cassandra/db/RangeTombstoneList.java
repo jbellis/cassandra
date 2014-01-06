@@ -144,7 +144,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             int pos = Arrays.binarySearch(ends, 0, size, start, comparator);
             insertFrom((pos >= 0 ? pos+1 : -pos-1), start, end, markedAt, delTime);
         }
-        boundaryHeapSize += start.excessHeapSize() + end.excessHeapSize();
+        boundaryHeapSize += start.unsharedHeapSize() + end.unsharedHeapSize();
     }
 
     /**
@@ -586,16 +586,16 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     private void setInternal(int i, Composite start, Composite end, long markedAt, int delTime)
     {
         if (starts[i] != null)
-            boundaryHeapSize -= starts[i].excessHeapSize() + ends[i].excessHeapSize();
+            boundaryHeapSize -= starts[i].unsharedHeapSize() + ends[i].unsharedHeapSize();
         starts[i] = start;
         ends[i] = end;
         markedAts[i] = markedAt;
         delTimes[i] = delTime;
-        boundaryHeapSize += start.excessHeapSize() + end.excessHeapSize();
+        boundaryHeapSize += start.unsharedHeapSize() + end.unsharedHeapSize();
     }
 
     @Override
-    public long excessHeapSize()
+    public long unsharedHeapSize()
     {
         return HEAP_SIZE
                 + boundaryHeapSize

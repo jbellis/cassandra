@@ -28,5 +28,5 @@ public interface IMeasurableMemory
      * i.e. it should try to exclude globally cached data where possible, or counting portions of arrays that are
      * referenced by the object but used by other objects only (e.g. slabbed byte-buffers), etc.
      */
-    public long excessHeapSize();
+    public long unsharedHeapSize();
 }

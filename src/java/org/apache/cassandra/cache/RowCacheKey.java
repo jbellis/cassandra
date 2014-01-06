@@ -52,7 +52,7 @@ public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
         return Schema.instance.getCF(cfId);
     }
 
-    public long excessHeapSize()
+    public long unsharedHeapSize()
     {
         return HEAP_SIZE + ObjectSizes.sizeOfArray(key);
     }

@@ -154,9 +154,9 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         }
 
         @Override
-        public long excessHeapSize()
+        public long unsharedHeapSize()
         {
-            return super.excessHeapSize() + ObjectSizes.sizeOnHeapOf(collectionElement);
+            return super.unsharedHeapSize() + ObjectSizes.sizeOnHeapOf(collectionElement);
         }
 
         @Override

@@ -142,7 +142,7 @@ public class CacheProviderTest extends SchemaLoader
             this.string = input;
         }
 
-        public long excessHeapSize()
+        public long unsharedHeapSize()
         {
             return string.length();
         }

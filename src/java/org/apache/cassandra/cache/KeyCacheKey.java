@@ -52,7 +52,7 @@ public class KeyCacheKey implements CacheKey
         return String.format("KeyCacheKey(%s, %s)", desc, ByteBufferUtil.bytesToHex(ByteBuffer.wrap(key)));
     }
 
-    public long excessHeapSize()
+    public long unsharedHeapSize()
     {
         return HEAP_SIZE + ObjectSizes.sizeOfArray(key);
     }

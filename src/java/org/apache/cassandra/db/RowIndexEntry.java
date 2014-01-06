@@ -84,7 +84,7 @@ public class RowIndexEntry implements IMeasurableMemory
         return Collections.emptyList();
     }
 
-    public long excessHeapSize()
+    public long unsharedHeapSize()
     {
         return HEAP_SIZE;
     }
@@ -203,7 +203,7 @@ public class RowIndexEntry implements IMeasurableMemory
         }
 
         @Override
-        public long excessHeapSize()
+        public long unsharedHeapSize()
         {
             long entrySize = 0;
             for (IndexHelper.IndexInfo idx : columnsIndex)
@@ -211,7 +211,7 @@ public class RowIndexEntry implements IMeasurableMemory
 
             return BASE_SIZE
                    + entrySize
-                   + deletionTime.excessHeapSize()
+                   + deletionTime.unsharedHeapSize()
                    + ObjectSizes.sizeOfReferenceArray(columnsIndex.size());
         }
     }

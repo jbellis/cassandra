@@ -109,7 +109,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         return atom.maxTimestamp() <= markedForDeleteAt;
     }
 
-    public long excessHeapSize()
+    public long unsharedHeapSize()
     {
         return HEAP_SIZE;
     }

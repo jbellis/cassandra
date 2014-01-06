@@ -207,7 +207,7 @@ public class IndexHelper
 
         public long excessHeapSize()
         {
-            return HEAP_SIZE + firstName.excessHeapSize() + lastName.excessHeapSize();
+            return HEAP_SIZE + firstName.unsharedHeapSize() + lastName.unsharedHeapSize();
         }
     }
 }

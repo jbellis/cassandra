@@ -93,7 +93,7 @@ public abstract class Composites
             return 0;
         }
 
-        public long excessHeapSize()
+        public long unsharedHeapSize()
         {
             return 0;
         }

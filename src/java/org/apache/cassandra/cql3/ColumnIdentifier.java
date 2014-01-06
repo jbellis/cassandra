@@ -82,7 +82,7 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
         return text;
     }
 
-    public long excessHeapSize()
+    public long unsharedHeapSize()
     {
         return HEAP_SIZE
              + ObjectSizes.sizeOnHeapOf(bytes)

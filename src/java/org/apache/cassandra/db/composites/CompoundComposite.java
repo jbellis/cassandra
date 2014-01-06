@@ -59,7 +59,7 @@ public class CompoundComposite extends AbstractComposite
         return elementsCopy;
     }
 
-    public long excessHeapSize()
+    public long unsharedHeapSize()
     {
         return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(elements);
     }

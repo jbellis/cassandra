@@ -60,7 +60,7 @@ public class SimpleDenseCellName extends SimpleComposite implements CellName
     }
 
     @Override
-    public long excessHeapSize()
+    public long unsharedHeapSize()
     {
         return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(element);
     }
