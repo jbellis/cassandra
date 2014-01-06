@@ -23,7 +23,6 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 
-import com.google.common.base.*;
 import org.github.jamm.MemoryLayoutSpecification;
 import org.github.jamm.MemoryMeter;
 
@@ -37,8 +36,8 @@ public class ObjectSizes
             .omitSharedBufferOverhead()
             .withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE);
 
-    private static final long BUFFER_HEAP_SIZE = measure(ByteBufferUtil.EMPTY_BYTE_BUFFER);
-    private static final long STRING_HEAP_SIZE = measure("");
+    private static final long BUFFER_EMPTY_SIZE = measure(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+    private static final long STRING_EMPTY_SIZE = measure("");
 
     /**
      * Memory a byte array consumes
@@ -110,7 +109,7 @@ public class ObjectSizes
 
     public static long sizeOnHeapExcludingData(ByteBuffer[] array)
     {
-        return BUFFER_HEAP_SIZE * array.length + sizeOfArray(array);
+        return BUFFER_EMPTY_SIZE * array.length + sizeOfArray(array);
     }
     /**
      * Memory a byte buffer consumes
@@ -120,17 +119,17 @@ public class ObjectSizes
     public static long sizeOnHeapOf(ByteBuffer buffer)
     {
         if (buffer.isDirect())
-            return BUFFER_HEAP_SIZE;
+            return BUFFER_EMPTY_SIZE;
         // if we're only referencing a sub-portion of the ByteBuffer, don't count the array overhead (assume it's slab
         // allocated, so amortized over all the allocations the overhead is negligible and better ti undercount than over)
 //        if (buffer.capacity() > buffer.remaining())
 //            return BUFFER_HEAP_SIZE + buffer.remaining();
-        return BUFFER_HEAP_SIZE + sizeOfArray(buffer.capacity(), 1);
+        return BUFFER_EMPTY_SIZE + sizeOfArray(buffer.capacity(), 1);
     }
 
     public static long sizeOnHeapExcludingData(ByteBuffer buffer)
     {
-        return BUFFER_HEAP_SIZE;
+        return BUFFER_EMPTY_SIZE;
     }
 
     /**
@@ -140,7 +139,7 @@ public class ObjectSizes
      */
     public static long sizeOf(String str)
     {
-        return STRING_HEAP_SIZE + sizeOfArray(str.length(), 2);
+        return STRING_EMPTY_SIZE + sizeOfArray(str.length(), 2);
     }
 
     /**

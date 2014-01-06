@@ -47,7 +47,7 @@ public class Cell implements OnDiskAtom
 {
     public static final int MAX_NAME_LENGTH = FBUtilities.MAX_UNSIGNED_SHORT;
 
-    private static final long HEAP_SIZE = ObjectSizes.measure(new Cell(CellNames.simpleDense(ByteBuffer.allocate(1))));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new Cell(CellNames.simpleDense(ByteBuffer.allocate(1))));
 
     /**
      * For 2.0-formatted sstables (where column count is not stored), @param count should be Integer.MAX_VALUE,
@@ -169,7 +169,7 @@ public class Cell implements OnDiskAtom
     // that would be allocated by a localCopy, as these will be accounted for by the allocator
     public long excessHeapSizeExcludingData()
     {
-        return HEAP_SIZE + name.excessHeapSizeExcludingData() + ObjectSizes.sizeOnHeapExcludingData(value);
+        return EMPTY_SIZE + name.excessHeapSizeExcludingData() + ObjectSizes.sizeOnHeapExcludingData(value);
     }
 
     public int serializedSize(CellNameType type, TypeSizes typeSizes)

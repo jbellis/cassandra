@@ -33,7 +33,7 @@ public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
     public final UUID cfId;
     public final byte[] key;
 
-    private static final long HEAP_SIZE = ObjectSizes.measure(new RowCacheKey(null, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new RowCacheKey(null, ByteBufferUtil.EMPTY_BYTE_BUFFER));
 
     public RowCacheKey(UUID cfId, DecoratedKey key)
     {
@@ -54,7 +54,7 @@ public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
 
     public long unsharedHeapSize()
     {
-        return HEAP_SIZE + ObjectSizes.sizeOfArray(key);
+        return EMPTY_SIZE + ObjectSizes.sizeOfArray(key);
     }
 
     @Override

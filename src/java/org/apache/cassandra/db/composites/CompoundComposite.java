@@ -28,7 +28,7 @@ import org.apache.cassandra.utils.memory.PoolAllocator;
  */
 public class CompoundComposite extends AbstractComposite
 {
-    private static final long HEAP_SIZE = ObjectSizes.measure(new CompoundComposite(null, 0));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new CompoundComposite(null, 0));
 
     // We could use a List, but we'll create such object *a lot* and using a array+size is not
     // all that harder, so we save the List object allocation.
@@ -61,12 +61,12 @@ public class CompoundComposite extends AbstractComposite
 
     public long unsharedHeapSize()
     {
-        return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(elements);
+        return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(elements);
     }
 
     public long excessHeapSizeExcludingData()
     {
-        return HEAP_SIZE + ObjectSizes.sizeOnHeapExcludingData(elements);
+        return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingData(elements);
     }
 
     public Composite copy(Allocator allocator)

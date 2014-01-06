@@ -37,9 +37,9 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public class RowIndexEntry implements IMeasurableMemory
 {
-    public final long position;
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new RowIndexEntry(0));
 
-    private static final long HEAP_SIZE = ObjectSizes.measure(new RowIndexEntry(0));
+    public final long position;
 
     public RowIndexEntry(long position)
     {
@@ -86,7 +86,7 @@ public class RowIndexEntry implements IMeasurableMemory
 
     public long unsharedHeapSize()
     {
-        return HEAP_SIZE;
+        return EMPTY_SIZE;
     }
 
     public static class Serializer

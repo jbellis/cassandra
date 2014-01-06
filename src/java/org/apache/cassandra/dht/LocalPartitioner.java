@@ -22,16 +22,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.base.*;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.github.jamm.MemoryMeter;
 
 public class LocalPartitioner extends AbstractPartitioner<LocalToken>
 {
-    private static final long HEAP_SIZE = ObjectSizes.measure(new LocalToken(null, null));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new LocalToken(null, null));
 
     private final AbstractType<?> comparator;
 
@@ -62,7 +60,7 @@ public class LocalPartitioner extends AbstractPartitioner<LocalToken>
 
     public long getHeapSizeOf(LocalToken token)
     {
-        return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(token.token);
+        return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(token.token);
     }
 
     public LocalToken getRandomToken()

@@ -25,7 +25,7 @@ import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class BoundedComposite extends AbstractComposite
 {
-    private static final long HEAP_SIZE = ObjectSizes.measure(new BoundedComposite(null, false));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new BoundedComposite(null, false));
 
     private final Composite wrapped;
     private final boolean isStart;
@@ -86,7 +86,7 @@ public class BoundedComposite extends AbstractComposite
 
     public long unsharedHeapSize()
     {
-        return HEAP_SIZE + wrapped.unsharedHeapSize();
+        return EMPTY_SIZE + wrapped.unsharedHeapSize();
     }
 
     public Composite copy(Allocator allocator)

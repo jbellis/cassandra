@@ -19,7 +19,6 @@ package org.apache.cassandra.db.composites;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.Allocator;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.PoolAllocator;
@@ -29,7 +28,7 @@ import org.apache.cassandra.utils.memory.PoolAllocator;
  */
 public class SimpleComposite extends AbstractComposite
 {
-    private static final long HEAP_SIZE = ObjectSizes.measure(new SimpleComposite(ByteBuffer.allocate(1)));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new SimpleComposite(ByteBuffer.allocate(1)));
 
     protected final ByteBuffer element;
 
@@ -70,7 +69,7 @@ public class SimpleComposite extends AbstractComposite
 
     public long unsharedHeapSize()
     {
-        return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(element);
+        return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(element);
     }
 
     public Composite copy(Allocator allocator)

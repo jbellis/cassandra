@@ -41,7 +41,7 @@ public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
     public static final BigInteger MAXIMUM = new BigInteger("2").pow(127);
 
-    private static final int HEAP_SIZE = (int) ObjectSizes.measureDeep(new BigIntegerToken(FBUtilities.hashToBigInteger(ByteBuffer.allocate(1))));
+    private static final int EMPTY_SIZE = (int) ObjectSizes.measureDeep(new BigIntegerToken(FBUtilities.hashToBigInteger(ByteBuffer.allocate(1))));
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
@@ -128,7 +128,7 @@ public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
 
     public long getHeapSizeOf(BigIntegerToken token)
     {
-        return HEAP_SIZE;
+        return EMPTY_SIZE;
     }
 
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)

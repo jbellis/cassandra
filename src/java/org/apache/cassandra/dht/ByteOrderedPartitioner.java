@@ -17,16 +17,13 @@
  */
 package org.apache.cassandra.dht;
 
-import com.google.common.base.*;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.github.jamm.MemoryMeter;
 
 import java.nio.ByteBuffer;
 
 public class ByteOrderedPartitioner extends AbstractByteOrderedPartitioner
 {
-
-    private static final long HEAP_SIZE = ObjectSizes.measure(MINIMUM);
+    private static final long EMPTY_SIZE = ObjectSizes.measure(MINIMUM);
 
     public BytesToken getToken(ByteBuffer key)
     {
@@ -38,6 +35,6 @@ public class ByteOrderedPartitioner extends AbstractByteOrderedPartitioner
     @Override
     public long getHeapSizeOf(BytesToken token)
     {
-        return HEAP_SIZE + ObjectSizes.sizeOfArray(token.token);
+        return EMPTY_SIZE + ObjectSizes.sizeOfArray(token.token);
     }
 }

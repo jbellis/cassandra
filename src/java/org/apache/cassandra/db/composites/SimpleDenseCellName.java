@@ -25,7 +25,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public class SimpleDenseCellName extends SimpleComposite implements CellName
 {
-    private static final long HEAP_SIZE = ObjectSizes.measure(new SimpleDenseCellName(ByteBuffer.allocate(1)));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new SimpleDenseCellName(ByteBuffer.allocate(1)));
 
     // Not meant to be used directly, you should use the CellNameType method instead
     SimpleDenseCellName(ByteBuffer element)
@@ -62,13 +62,13 @@ public class SimpleDenseCellName extends SimpleComposite implements CellName
     @Override
     public long unsharedHeapSize()
     {
-        return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(element);
+        return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(element);
     }
 
     @Override
     public long excessHeapSizeExcludingData()
     {
-        return HEAP_SIZE + ObjectSizes.sizeOnHeapExcludingData(element);
+        return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingData(element);
     }
 
     // If cellnames were sharing some prefix components, this will break it, so

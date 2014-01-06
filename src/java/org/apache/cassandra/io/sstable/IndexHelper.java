@@ -155,8 +155,7 @@ public class IndexHelper
 
     public static class IndexInfo
     {
-
-        private static final long HEAP_SIZE = ObjectSizes.measure(new IndexInfo(null, null, 0, 0));
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new IndexInfo(null, null, 0, 0));
 
         public final long width;
         public final Composite lastName;
@@ -207,7 +206,7 @@ public class IndexHelper
 
         public long excessHeapSize()
         {
-            return HEAP_SIZE + firstName.unsharedHeapSize() + lastName.unsharedHeapSize();
+            return EMPTY_SIZE + firstName.unsharedHeapSize() + lastName.unsharedHeapSize();
         }
     }
 }

@@ -36,7 +36,7 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
     public final ByteBuffer bytes;
     private final String text;
 
-    private static final long HEAP_SIZE = ObjectSizes.measure(new ColumnIdentifier("", true));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new ColumnIdentifier("", true));
 
     public ColumnIdentifier(String rawText, boolean keepCase)
     {
@@ -84,14 +84,14 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
 
     public long unsharedHeapSize()
     {
-        return HEAP_SIZE
+        return EMPTY_SIZE
              + ObjectSizes.sizeOnHeapOf(bytes)
              + ObjectSizes.sizeOf(text);
     }
 
     public long excessHeapSizeExcludingData()
     {
-        return HEAP_SIZE
+        return EMPTY_SIZE
                 + ObjectSizes.sizeOnHeapExcludingData(bytes)
                 + ObjectSizes.sizeOf(text);
     }

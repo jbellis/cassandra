@@ -37,8 +37,7 @@ import org.apache.cassandra.utils.ObjectSizes;
  */
 public class DeletionInfo implements IMeasurableMemory
 {
-
-    private static final long HEAP_SIZE = ObjectSizes.measure(new DeletionInfo(0, 0));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new DeletionInfo(0, 0));
 
     /**
      * This represents a deletion of the entire row.  We can't represent this within the RangeTombstoneList, so it's
@@ -325,7 +324,7 @@ public class DeletionInfo implements IMeasurableMemory
     @Override
     public long unsharedHeapSize()
     {
-        return HEAP_SIZE + topLevel.unsharedHeapSize() + (ranges == null ? 0 : ranges.unsharedHeapSize());
+        return EMPTY_SIZE + topLevel.unsharedHeapSize() + (ranges == null ? 0 : ranges.unsharedHeapSize());
     }
 
     public static class Serializer implements IVersionedSerializer<DeletionInfo>

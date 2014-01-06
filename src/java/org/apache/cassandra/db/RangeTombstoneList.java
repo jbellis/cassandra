@@ -56,7 +56,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeTombstoneList.class);
 
-    private static long HEAP_SIZE = ObjectSizes.measure(new RangeTombstoneList(null, 0));
+    private static long EMPTY_SIZE = ObjectSizes.measure(new RangeTombstoneList(null, 0));
 
     private final Comparator<Composite> comparator;
 
@@ -597,7 +597,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     @Override
     public long unsharedHeapSize()
     {
-        return HEAP_SIZE
+        return EMPTY_SIZE
                 + boundaryHeapSize
                 + ObjectSizes.sizeOfArray(starts)
                 + ObjectSizes.sizeOfArray(ends)

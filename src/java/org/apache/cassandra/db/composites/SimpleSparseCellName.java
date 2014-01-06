@@ -26,8 +26,7 @@ import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class SimpleSparseCellName extends AbstractComposite implements CellName
 {
-
-    private static final long HEAP_SIZE = ObjectSizes.measure(new SimpleSparseCellName(null));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new SimpleSparseCellName(null));
 
     private final ColumnIdentifier columnName;
 
@@ -91,13 +90,13 @@ public class SimpleSparseCellName extends AbstractComposite implements CellName
     @Override
     public long excessHeapSizeExcludingData()
     {
-        return HEAP_SIZE + columnName.excessHeapSizeExcludingData();
+        return EMPTY_SIZE + columnName.excessHeapSizeExcludingData();
     }
 
     @Override
     public long unsharedHeapSize()
     {
-        return HEAP_SIZE + columnName.unsharedHeapSize();
+        return EMPTY_SIZE + columnName.unsharedHeapSize();
     }
 
     @Override

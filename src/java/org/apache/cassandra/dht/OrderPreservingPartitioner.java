@@ -40,7 +40,7 @@ public class OrderPreservingPartitioner extends AbstractPartitioner<StringToken>
 
     public static final BigInteger CHAR_MASK = new BigInteger("65535");
 
-    private static final long HEAP_SIZE = ObjectSizes.measure(MINIMUM);
+    private static final long EMPTY_SIZE = ObjectSizes.measure(MINIMUM);
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
@@ -174,7 +174,7 @@ public class OrderPreservingPartitioner extends AbstractPartitioner<StringToken>
 
     public long getHeapSizeOf(StringToken token)
     {
-        return HEAP_SIZE + ObjectSizes.sizeOf(token.token);
+        return EMPTY_SIZE + ObjectSizes.sizeOf(token.token);
     }
 
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
