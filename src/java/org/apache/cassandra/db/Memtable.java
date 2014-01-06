@@ -28,6 +28,7 @@ import com.google.common.base.Throwables;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.composites.SimpleSparseCellNameType;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -56,7 +57,7 @@ public class Memtable
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
     static final Pool POOL = DatabaseDescriptor.getMemtableAllocatorPool();
-    private static final HeapSizeEstimator OVERHEAD_ESTIMATOR = HeapSizeEstimator.calculate();
+    private static final int ROW_OVERHEAD_HEAP_SIZE;
 
     private final PoolAllocator allocator;
     private final AtomicLong liveDataSize = new AtomicLong(0);
@@ -72,7 +73,7 @@ public class Memtable
     // We index the memtable by RowPosition only for the purpose of being able
     // to select key range using Token.KeyBound. However put() ensures that we
     // actually only store DecoratedKey.
-    private final ConcurrentNavigableMap<RowPosition, AtomicSortedColumns> rows = new ConcurrentSkipListMap<>();
+    private final ConcurrentNavigableMap<RowPosition, AtomicBTreeColumns> rows = new ConcurrentSkipListMap<>();
     public final ColumnFamilyStore cfs;
     private final long creationTime = System.currentTimeMillis();
     private final long creationNano = System.nanoTime();
@@ -177,11 +178,11 @@ public class Memtable
             }
         }
 
-        AtomicSortedColumns previous = rows.get(key);
+        AtomicBTreeColumns previous = rows.get(key);
 
         if (previous == null)
         {
-            AtomicSortedColumns empty = cf.cloneMeShallow(AtomicSortedColumns.factory, false);
+            AtomicBTreeColumns empty = cf.cloneMeShallow(AtomicBTreeColumns.factory, false);
             final DecoratedKey cloneKey = new DecoratedKey(key.token, allocator.clone(key.key, writeOp));
             // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
             previous = rows.putIfAbsent(cloneKey, empty);
@@ -190,7 +191,7 @@ public class Memtable
                 previous = empty;
                 // allocate the row overhead after the fact; this saves over allocating and having to free after, but
                 // means we can overshoot our declared limit.
-                int overhead = OVERHEAD_ESTIMATOR.rowOverhead(key.token, cfs.partitioner);
+                int overhead = (int) (cfs.partitioner.getHeapSizeOf(key.token) + ROW_OVERHEAD_HEAP_SIZE);
                 allocator.onHeap.allocate(overhead, writeOp);
             }
             else
@@ -200,19 +201,19 @@ public class Memtable
         }
 
         ContextAllocator contextAllocator = allocator.wrap(writeOp, cfs);
-        AtomicSortedColumns.Delta delta = previous.addAllWithSizeDelta(cf, contextAllocator, contextAllocator, indexer, new AtomicSortedColumns.Delta());
+        AtomicBTreeColumns.Delta delta = previous.addAllWithSizeDelta(cf, contextAllocator, contextAllocator, indexer, new AtomicBTreeColumns.Delta());
         liveDataSize.addAndGet(delta.dataSize());
         currentOperations.addAndGet((cf.getColumnCount() == 0)
                 ? cf.isMarkedForDelete() ? 1 : 0
                 : cf.getColumnCount());
+
         // allocate or free the delta in column overhead after the fact
-        for (Cell cell : delta.discarded())
+        for (Cell cell : delta.reclaim())
         {
             cell.name.free(allocator);
             allocator.free(cell.value);
         }
-        int overhead = OVERHEAD_ESTIMATOR.delta(delta.oldColumnCount(), delta.newColumnCount());
-        allocator.onHeap.allocate(overhead + (int) delta.excessHeapSize(), writeOp);
+        allocator.onHeap.allocate((int) delta.excessHeapSize(), writeOp);
     }
 
     // for debugging
@@ -220,7 +221,7 @@ public class Memtable
     {
         StringBuilder builder = new StringBuilder();
         builder.append("{");
-        for (Map.Entry<RowPosition, AtomicSortedColumns> entry : rows.entrySet())
+        for (Map.Entry<RowPosition, AtomicBTreeColumns> entry : rows.entrySet())
         {
             builder.append(entry.getKey()).append(": ").append(entry.getValue()).append(", ");
         }
@@ -243,29 +244,29 @@ public class Memtable
      * @param startWith Include data in the result from and including this key and to the end of the memtable
      * @return An iterator of entries with the data from the start key
      */
-    public Iterator<Map.Entry<DecoratedKey, AtomicSortedColumns>> getEntryIterator(final RowPosition startWith, final RowPosition stopAt)
+    public Iterator<Map.Entry<DecoratedKey, AtomicBTreeColumns>> getEntryIterator(final RowPosition startWith, final RowPosition stopAt)
     {
-        return new Iterator<Map.Entry<DecoratedKey, AtomicSortedColumns>>()
+        return new Iterator<Map.Entry<DecoratedKey, AtomicBTreeColumns>>()
         {
-            private Iterator<Map.Entry<RowPosition, AtomicSortedColumns>> iter = stopAt.isMinimum(cfs.partitioner)
-                                                                               ? rows.tailMap(startWith).entrySet().iterator()
-                                                                               : rows.subMap(startWith, true, stopAt, true).entrySet().iterator();
-            private Map.Entry<RowPosition, AtomicSortedColumns> currentEntry;
+            private Iterator<? extends Map.Entry<RowPosition, AtomicBTreeColumns>> iter = stopAt.isMinimum(cfs.partitioner)
+                                                                                        ? rows.tailMap(startWith).entrySet().iterator()
+                                                                                        : rows.subMap(startWith, true, stopAt, true).entrySet().iterator();
+            private Map.Entry<RowPosition, AtomicBTreeColumns> currentEntry;
 
             public boolean hasNext()
             {
                 return iter.hasNext();
             }
 
-            public Map.Entry<DecoratedKey, AtomicSortedColumns> next()
+            public Map.Entry<DecoratedKey, AtomicBTreeColumns> next()
             {
-                Map.Entry<RowPosition, AtomicSortedColumns> entry = iter.next();
+                Map.Entry<RowPosition, AtomicBTreeColumns> entry = iter.next();
                 // Store the reference to the current entry so that remove() can update the current size.
                 currentEntry = entry;
                 // Actual stored key should be true DecoratedKey
                 assert entry.getKey() instanceof DecoratedKey;
                 // Object cast is required since otherwise we can't turn RowPosition into DecoratedKey
-                return (Map.Entry<DecoratedKey, AtomicSortedColumns>) (Object)entry;
+                return (Map.Entry<DecoratedKey, AtomicBTreeColumns>) (Object)entry;
             }
 
             public void remove()
@@ -344,7 +345,7 @@ public class Memtable
             {
                 // (we can't clear out the map as-we-go to free up memory,
                 //  since the memtable is being used for queries in the "pending flush" category)
-                for (Map.Entry<RowPosition, AtomicSortedColumns> entry : rows.entrySet())
+                for (Map.Entry<RowPosition, AtomicBTreeColumns> entry : rows.entrySet())
                 {
                     ColumnFamily cf = entry.getValue();
                     if (cf.isMarkedForDelete())
@@ -397,63 +398,20 @@ public class Memtable
         }
     }
 
-    private static final class HeapSizeEstimator
+    static
     {
-
-        final int baseRowOverhead;
-        final int columnOverhead;
-
-        private HeapSizeEstimator(int baseRowOverhead, int columnOverhead)
-        {
-            this.baseRowOverhead = baseRowOverhead;
-            this.columnOverhead = columnOverhead;
-        }
-
-        int rowOverhead(Token token, IPartitioner partitioner)
-        {
-            return (int) (baseRowOverhead + partitioner.getHeapSizeOf(token));
-        }
-
-        private int sizeOf(int columnCount)
-        {
-            return columnOverhead * columnCount;
-        }
-
-        int delta(int oldColumnCount, int newColumnCount)
-        {
-            return sizeOf(newColumnCount) - sizeOf(oldColumnCount);
-        }
-
-        static HeapSizeEstimator calculate()
-        {
-            final OpOrdering writes = new OpOrdering();
-            final OpOrdering.Ordered op = writes.start();
-            PoolAllocator<?> allocator = POOL.newAllocator(writes);
-            // calculate row overhead
-            int rowOverhead;
-            {
-                ConcurrentNavigableMap<RowPosition, AtomicSortedColumns> rows = new ConcurrentSkipListMap<>();
-                final int count = 100000;
-                for (int i = 0 ; i < count ; i++)
-                    rows.put(new DecoratedKey(new LongToken((long) i), allocator.allocate(0, op)), AtomicSortedColumns.factory.create(CFMetaData.IndexCf));
-                double avgSize = ObjectSizes.measureDeep(rows) / (double) count;
-                rowOverhead = (int) ((avgSize - Math.floor(avgSize)) < 0.05 ? Math.floor(avgSize) : Math.ceil(avgSize));
-                rowOverhead -= ObjectSizes.measureDeep(new LongToken((long) 0));
-            }
-            int columnOverhead;
-            {
-                AtomicSortedColumns columns = AtomicSortedColumns.factory.create(CFMetaData.IndexCf);
-                CellNameType type = new SimpleSparseCellNameType(LongType.instance);
-                long baseSize = ObjectSizes.measureDeep(columns);
-                columns.addColumn(new Cell(type.makeCellName((long) 2), allocator.allocate(0, op), 0));
-                // second and further columns will incur twice overhead of first column as SnapTreeMap is a binary search tree
-                columnOverhead = (int) (ObjectSizes.measureDeep(columns) - baseSize - ObjectSizes.measureDeep(type.makeCellName((long) 2)));
-            }
-            allocator.discarding();
-            allocator.discarded();
-            return new HeapSizeEstimator(rowOverhead, columnOverhead);
-        }
-
+        // calculate row overhead
+        int rowOverhead;
+        ConcurrentNavigableMap<RowPosition, Object> rows = new ConcurrentSkipListMap<>();
+        final int count = 100000;
+        final Object val = new Object();
+        for (int i = 0 ; i < count ; i++)
+            rows.put(new DecoratedKey(new LongToken((long) i), ByteBufferUtil.EMPTY_BYTE_BUFFER), val);
+        double avgSize = ObjectSizes.measureDeep(rows) / (double) count;
+        rowOverhead = (int) ((avgSize - Math.floor(avgSize)) < 0.05 ? Math.floor(avgSize) : Math.ceil(avgSize));
+        rowOverhead -= ObjectSizes.measureDeep(new LongToken((long) 0));
+        rowOverhead += AtomicBTreeColumns.HEAP_SIZE;
+        ROW_OVERHEAD_HEAP_SIZE = rowOverhead;
     }
 
 }
