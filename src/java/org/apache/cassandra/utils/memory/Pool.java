@@ -8,7 +8,6 @@ import java.util.concurrent.Executors;
 
 public abstract class Pool
 {
-
     final PoolCleaner<?> cleaner;
 
     // the total memory used by this pool
@@ -62,7 +61,5 @@ public abstract class Pool
                 return null;
             return new PoolCleaner<>(pool, cleaner);
         }
-
     }
-
 }

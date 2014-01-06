@@ -92,8 +92,8 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
     public long excessHeapSizeExcludingData()
     {
         return EMPTY_SIZE
-                + ObjectSizes.sizeOnHeapExcludingData(bytes)
-                + ObjectSizes.sizeOf(text);
+             + ObjectSizes.sizeOnHeapExcludingData(bytes)
+             + ObjectSizes.sizeOf(text);
     }
 
     public int compareTo(ColumnIdentifier other)

@@ -337,11 +337,9 @@ public class Keyspace
      */
     public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-
         final OpOrdering.Ordered op = writeOrdering.start();
         try
         {
-
             // write the mutation to the commitlog and memtables
             if (writeCommitLog)
                 Tracing.trace("Appending to commitlog");
@@ -364,7 +362,6 @@ public class Keyspace
                 SecondaryIndexManager.Updater updater = updateIndexes ? cfs.indexManager.updaterFor(key, op) : SecondaryIndexManager.nullUpdater;
                 cfs.apply(key, cf, updater, op, replayPosition);
             }
-
         }
         finally
         {

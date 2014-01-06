@@ -36,10 +36,8 @@ import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
-import org.apache.cassandra.utils.concurrent.WaitQueue;
-import org.apache.cassandra.utils.memory.Allocator;
 import org.apache.cassandra.utils.memory.HeapAllocator;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
+
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
@@ -87,11 +85,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
-    private static final ExecutorService flushExecutor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(), StageManager.KEEPALIVE, TimeUnit.SECONDS,
-            new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory("MemtableFlushWriter"), "internal");
+    private static final ExecutorService flushExecutor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
+                                                                                          StageManager.KEEPALIVE,
+                                                                                          TimeUnit.SECONDS,
+                                                                                          new LinkedBlockingQueue<Runnable>(),
+                                                                                          new NamedThreadFactory("MemtableFlushWriter"),
+                                                                                          "internal");
     // post-flush executor is single threaded to provide guarantee that any flush Future on a CF will never return until prior flushes have completed
-    public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor(1, StageManager.KEEPALIVE, TimeUnit.SECONDS,
-            new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory("MemtablePostFlush"), "internal");
+    public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor(1,
+                                                                                             StageManager.KEEPALIVE,
+                                                                                             TimeUnit.SECONDS,
+                                                                                             new LinkedBlockingQueue<Runnable>(),
+                                                                                             new NamedThreadFactory("MemtablePostFlush"),
+                                                                                             "internal");
 
     public final Keyspace keyspace;
     public final String name;
@@ -100,7 +106,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private final String mbeanName;
     private volatile boolean valid = true;
 
-    /* Memtables and SSTables on disk for this column family */
+    /**
+     * Memtables and SSTables on disk for this column family.
+     *
+     * We synchronize on the DataTracker to ensure isolation when we want to make sure
+     * that the memtable we're acting on doesn't change out from under us.  I.e., flush
+     * syncronizes on it to make sure it can submit on both executors atomically,
+     * so anyone else who wants to make sure flush doesn't interfere should as well.
+     */
     private final DataTracker data;
 
     /* This is used to generate the next index for a SSTable */
@@ -725,13 +738,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * Switches the memtable iff the live memtable is the one provided
      *
-     * @param isCurrent
+     * @param memtable
      */
-    public Future<?> switchMemtableIf(Memtable isCurrent)
+    public Future<?> switchMemtableIfCurrent(Memtable memtable)
     {
         synchronized (data)
         {
-            if (data.getView().getCurrentMemtable() == isCurrent)
+            if (data.getView().getCurrentMemtable() == memtable)
                 return switchMemtable();
         }
         return Futures.immediateFuture(null);
@@ -740,7 +753,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /*
      * switchMemtable puts Memtable.getSortedContents on the writer executor.  When the write is complete,
      * we turn the writer into an SSTableReader and add it to ssTables where it is available for reads.
-     * This method does not block except for other calls to switchMemtable, but the Future it returns will
+     * This method does not block except for synchronizing on DataTracker, but the Future it returns will
      * not complete until the Memtable (and all prior Memtables) have been successfully flushed, and the CL
      * marked clean up to the position owned by the Memtable.
      */
@@ -806,7 +819,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     private final class PostFlush implements Runnable
     {
-
         final boolean flushSecondaryIndexes;
         final OpOrdering.Barrier writeBarrier;
         final CountDownLatch latch = new CountDownLatch(1);
@@ -855,11 +867,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             metric.pendingTasks.dec();
         }
-
     }
 
     /**
-     * Should only be constructed/used from switchMemtable() with ownership of the DataTracker monitor.
+     * Should only be constructed/used from switchMemtable() or truncate(), with ownership of the DataTracker monitor.
      * In the constructor the current memtable(s) are swapped, and a barrer on outstanding writes is issued;
      * when run by the flushWriter the barrier is waited on to ensure all outstanding writes have completed
      * before all memtables are immediately written, and the CL is either immediately marked clean or, if
@@ -868,7 +879,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     private final class Flush implements Runnable
     {
-
         final OpOrdering.Barrier writeBarrier;
         final List<Memtable> memtables;
         final PostFlush postFlush;
@@ -908,7 +918,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             postFlush = new PostFlush(!truncate, writeBarrier);
         }
 
-        @Override
         public void run()
         {
 
@@ -951,7 +960,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             postFlush.lastReplayPosition = memtables.get(0).getLastReplayPosition();
             postFlush.latch.countDown();
         }
-
     }
 
     /**
@@ -960,7 +968,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public static class FlushLargestColumnFamily implements Runnable
     {
-
         public void run()
         {
             float largestRatio = 0f;
@@ -997,11 +1004,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             if (largest != null)
             {
-                largest.cfs.switchMemtableIf(largest);
+                largest.cfs.switchMemtableIfCurrent(largest);
                 logger.info("Reclaiming {} of {} retained memtable bytes", Memtable.POOL.onHeap.reclaiming(), Memtable.POOL.onHeap.used());
             }
         }
-
     }
 
     public void maybeUpdateRowCache(DecoratedKey key)

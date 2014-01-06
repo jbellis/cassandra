@@ -73,5 +73,4 @@ public interface CellName extends Composite
     public CellName copy(Allocator allocator);
 
     public long excessHeapSizeExcludingData();
-
 }

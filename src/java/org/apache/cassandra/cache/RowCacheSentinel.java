@@ -57,5 +57,4 @@ public class RowCacheSentinel implements IRowCacheEntry
     {
         return Objects.hashCode(sentinelId);
     }
-
 }

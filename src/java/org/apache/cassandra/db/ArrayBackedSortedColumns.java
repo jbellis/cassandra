@@ -131,7 +131,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
             if (pos >= 0)
                 resolveAgainst(pos, cell, allocator);
             else
-                cells.add(-pos-1, cell);
+                cells.add(-pos - 1, cell);
         }
     }
 
@@ -389,5 +389,4 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
             return cells.iterator();
         }
     }
-
 }

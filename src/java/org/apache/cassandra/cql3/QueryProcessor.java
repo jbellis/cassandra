@@ -77,13 +77,13 @@ public class QueryProcessor
     static
     {
         preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
-                .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
-                .weigher(cqlMemoryUsageWeigher)
-                .build();
+                             .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
+                             .weigher(cqlMemoryUsageWeigher)
+                             .build();
         thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
-                .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
-                .weigher(thriftMemoryUsageWeigher)
-                .build();
+                                   .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
+                                   .weigher(thriftMemoryUsageWeigher)
+                                   .build();
     }
 
     private static final List<PreExecutionHook> preExecutionHooks = new CopyOnWriteArrayList<>();
