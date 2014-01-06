@@ -26,6 +26,8 @@ import java.util.concurrent.Future;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.slf4j.Logger;
@@ -341,12 +343,18 @@ public class Keyspace
         try
         {
             // write the mutation to the commitlog and memtables
+            final ReplayPosition replayPosition;
             if (writeCommitLog)
+            {
                 Tracing.trace("Appending to commitlog");
-
-            // we always call add() even if we don't want to append, to ensure we stack allocate the RP
-            // this seems less ugly than allocating a state object here we pass around, or wasting heap allocations
-            final ReplayPosition replayPosition = CommitLog.instance.add(writeCommitLog ? mutation : null);
+                replayPosition = CommitLog.instance.add(mutation);
+            }
+            else
+            {
+                // we don't need the replayposition, but grab one anyway so that it stays stack allocated.
+                // (the JVM will not stack allocate if the object may be null.)
+                replayPosition = CommitLog.instance.getContext();
+            }
 
             DecoratedKey key = StorageService.getPartitioner().decorateKey(mutation.key());
             for (ColumnFamily cf : mutation.getColumnFamilies())

@@ -199,8 +199,7 @@ public class CommitLog implements CommitLogMBean
 
     private Allocation add(Mutation mutation, Allocation alloc)
     {
-        if (mutation == null)
-            return alloc;
+        assert mutation != null;
 
         long size = Mutation.serializer.serializedSize(mutation, MessagingService.current_version);
 
