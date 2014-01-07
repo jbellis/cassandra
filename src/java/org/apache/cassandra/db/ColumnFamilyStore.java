@@ -843,8 +843,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             try
             {
-                // we always wait on the latch regardless of if we do work afterwards in order to provide the
-                // guarantee that a flush/switchMemtable future only returns once all prior flushes have completed
+                // we wait on the latch for the lastReplayPosition to be set, and so that waiters
+                // on this task can rely on all prior flushes being complete
                 latch.await();
             } catch (InterruptedException e)
             {
