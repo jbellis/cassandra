@@ -851,10 +851,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 throw new IllegalStateException();
             }
 
-            if (lastReplayPosition != null)
-            {
-                CommitLog.instance.discardCompletedSegments(metadata.cfId, lastReplayPosition);
-            }
+            CommitLog.instance.discardCompletedSegments(metadata.cfId, lastReplayPosition);
 
             metric.pendingTasks.dec();
         }
@@ -950,13 +947,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 memtable.discarded();
             }
 
-            ReplayPosition lastReplayPosition = memtables.get(0).getLastReplayPosition();
-            if (indexManager.getIndexesNotBackedByCfs().isEmpty())
-                CommitLog.instance.discardCompletedSegments(metadata.cfId, lastReplayPosition);
-            else
-                postFlush.lastReplayPosition = lastReplayPosition;
-
             // signal the post-flush we've done our work
+            postFlush.lastReplayPosition = memtables.get(0).getLastReplayPosition();
             postFlush.latch.countDown();
         }
 
