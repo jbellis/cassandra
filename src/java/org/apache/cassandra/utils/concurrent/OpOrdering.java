@@ -6,15 +6,16 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
  * <p>A class for providing synchronization between producers and consumers that do not
  * communicate directly with each other, but where the consumers need to process their
  * work in contiguous batches. In particular this is useful for both CommitLog and Memtable
- * where the producers are modifying a structure that the consumer only batch syncs, but
- * needs to know what 'position' the work is at for co-ordination with other processes,
+ * where the producers (writing threads) are modifying a structure that the consumer
+ * (flush executor) only batch syncs, but needs to know what 'position' the work is at
+ * for co-ordination with other processes,
  *
  * <p>The typical usage is something like:
  * <pre>
      public final class ExampleShared
      {
-         final OpOrdering ordering = new OpOrdering();
-         volatile SharedState state;
+        final OpOrdering ordering = new OpOrdering();
+        volatile SharedState state;
 
         static class SharedState
         {
@@ -35,8 +36,6 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
             // wait for all producer work started prior to the barrier to complete
             state.barrier.await();
-
-            state = state.getReplacement();
 
             state.doSomethingWithExclusiveAccess();
         }
@@ -61,7 +60,6 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
  */
 public class OpOrdering
 {
-
     /**
      * Constant that when an Ordered.running is equal to, indicates the Ordered is complete
      */
@@ -76,9 +74,10 @@ public class OpOrdering
     private volatile Ordered current = new Ordered();
 
     /**
-     * Start an operation against this OpOrdering, and return the Ordered instance that manages it.
+     * Start an operation against this OpOrdering.
      * Once the operation is completed Ordered.finishOne() MUST be called EXACTLY once for this operation.
-     * @return
+     *
+     * @return the Ordered instance that manages this OpOrdering
      */
     public Ordered start()
     {
@@ -95,7 +94,7 @@ public class OpOrdering
      * can be considered to restart the transaction. This is stronger than 'safe', as it declares that all guarded
      * entry points have been exited and will be re-entered, or an equivalent guarantee can be made that no reclaimed
      * resources are being referenced.
-     *
+     * <p/>
      * <pre>
      * ReusableOrdered ord = startSync();
      * while (...)
@@ -104,9 +103,9 @@ public class OpOrdering
      *     ord.sync();
      * }
      * ord.finish();
-     *</pre>
+     * </pre>
      * is semantically equivalent to (but more efficient than):
-     *<pre>
+     * <pre>
      * Ordered ord = start();
      * while (...)
      * {
@@ -140,7 +139,6 @@ public class OpOrdering
         return current;
     }
 
-
     /**
      * Represents a 'batch' of identically ordered operations, i.e. all operations started in the interval between
      * two barrier issuances. For each register() call this is returned, finishOne() must be called exactly once.
@@ -148,7 +146,6 @@ public class OpOrdering
      */
     public static final class Ordered implements Comparable<Ordered>
     {
-
         /**
          * In general this class goes through the following stages:
          * 1) LIVE:      many calls to register() and finishOne()
@@ -158,14 +155,14 @@ public class OpOrdering
          * 4) ZOMBIE:    all our operations are finished, but some operations against an earlier Ordered are still
          *               running, or tidying up, so unlink() fails to remove us
          * 5) COMPLETE:  all operations started on or before us are FINISHED (and COMPLETE), so we are unlinked
-         *
+         * <p/>
          * Two other parallel states are SAFE and ISBLOCKING:
-         *
+         * <p/>
          * safe => all running operations were paused, so safe wrt memory access. Like a java safe point, except
          * that it only provides ordering guarantees, as the safe point can be exited at any point. The only reason
          * we require all to be stopped is to avoid tracking which threads are safe at any point, though we may want
          * to do so in future.
-         *
+         * <p/>
          * isBlocking => a barrier that is waiting on us (either directly, or via a future Ordered) is blocking general
          * progress. This state is entered by calling Barrier.markBlocking(). If the running operations are blocked
          * on a Signal that is also registered with the isBlockingSignal (probably through isSafeBlockingSignal)
@@ -297,9 +294,8 @@ public class OpOrdering
         }
 
         /**
-         * indicates a barrier we are behind is, or maybe, blocking general progress,
+         * @return true if a barrier we are behind is, or may be, blocking general progress,
          * so we should try more aggressively to progress
-         * @return
          */
         public boolean isBlocking()
         {
@@ -386,8 +382,8 @@ public class OpOrdering
          */
         private class SafeSignal implements WaitQueue.Signal
         {
-
             final WaitQueue.Signal delegate;
+
             private SafeSignal(WaitQueue.Signal delegate)
             {
                 this.delegate = delegate;

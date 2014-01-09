@@ -898,8 +898,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             metric.pendingFlushes.inc();
             /**
-             * To ensure correctness of switch with non-blocking writes, we wait for all write operations started
-             * prior to the switch to complete before we proceed. We do this by creating a Barrier on the writeOrdering
+             * To ensure correctness of switch without blocking writes, run() needs to wait for all write operations
+             * started prior to the switch to complete. We do this by creating a Barrier on the writeOrdering
              * that all write operations register themselves with, and assigning this barrier to the memtables,
              * after which we *.issue()* the barrier. This barrier is used to direct write operations started prior
              * to the barrier.issue() into the memtable we have switched out, and any started after to its replacement.
