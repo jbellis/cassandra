@@ -146,7 +146,7 @@ public interface ColumnFamilyStoreMBean
     public double getRecentWriteLatencyMicros();
 
     /**
-     * @see org.apache.cassandra.metrics.ColumnFamilyMetrics#pendingTasks
+     * @see org.apache.cassandra.metrics.ColumnFamilyMetrics#pendingFlushes
      * @return the estimated number of tasks pending for this column family
      */
     @Deprecated

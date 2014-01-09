@@ -58,7 +58,7 @@ public class ColumnFamilyMetrics
     /** (Local) write metrics */
     public final LatencyMetrics writeLatency;
     /** Estimated number of tasks pending for this column family */
-    public final Counter pendingTasks;
+    public final Counter pendingFlushes;
     /** Number of SSTables on disk for this CF */
     public final Gauge<Integer> liveSSTableCount;
     /** Disk space used by SSTables belonging to this CF */
@@ -203,7 +203,7 @@ public class ColumnFamilyMetrics
         });
         readLatency = new LatencyMetrics(factory, "Read");
         writeLatency = new LatencyMetrics(factory, "Write");
-        pendingTasks = Metrics.newCounter(factory.createMetricName("PendingTasks"));
+        pendingFlushes = Metrics.newCounter(factory.createMetricName("PendingFlushes"));
         liveSSTableCount = Metrics.newGauge(factory.createMetricName("LiveSSTableCount"), new Gauge<Integer>()
         {
             public Integer value()
