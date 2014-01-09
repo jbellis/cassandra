@@ -177,6 +177,9 @@ public class OpOrdering
         private final WaitQueue isBlockingSignal = new WaitQueue(); // signal to wait on to indicate isBlocking is true
         private final WaitQueue waiting = new WaitQueue(); // signal to wait on for safe/completion
 
+        static final AtomicIntegerFieldUpdater<Ordered> runningUpdater = AtomicIntegerFieldUpdater.newUpdater(Ordered.class, "running");
+        static final AtomicIntegerFieldUpdater<Ordered> safeUpdater = AtomicIntegerFieldUpdater.newUpdater(Ordered.class, "safe");
+
         // constructs first instance only
         private Ordered()
         {
@@ -389,37 +392,31 @@ public class OpOrdering
                 this.delegate = delegate;
             }
 
-            @Override
             public boolean isSignalled()
             {
                 return delegate.isSignalled();
             }
 
-            @Override
             public boolean isCancelled()
             {
                 return delegate.isCancelled();
             }
 
-            @Override
             public boolean isSet()
             {
                 return delegate.isSet();
             }
 
-            @Override
             public boolean checkAndClear()
             {
                 return delegate.checkAndClear();
             }
 
-            @Override
             public void cancel()
             {
                 delegate.cancel();
             }
 
-            @Override
             public void awaitUninterruptibly()
             {
                 markOneSafe();
@@ -433,7 +430,6 @@ public class OpOrdering
                 }
             }
 
-            @Override
             public void await() throws InterruptedException
             {
                 markOneSafe();
@@ -447,7 +443,6 @@ public class OpOrdering
                 }
             }
 
-            @Override
             public long awaitNanos(long nanosTimeout) throws InterruptedException
             {
                 markOneSafe();
@@ -461,7 +456,6 @@ public class OpOrdering
                 }
             }
 
-            @Override
             public boolean awaitUntil(long until) throws InterruptedException
             {
                 markOneSafe();
@@ -476,7 +470,6 @@ public class OpOrdering
             }
         }
 
-        @Override
         public int compareTo(Ordered that)
         {
             // we deliberately use subtraction, as opposed to Long.compareTo() as we care about ordering
@@ -489,9 +482,6 @@ public class OpOrdering
             else
                 return 0;
         }
-
-        static final AtomicIntegerFieldUpdater<Ordered> runningUpdater = AtomicIntegerFieldUpdater.newUpdater(Ordered.class, "running");
-        static final AtomicIntegerFieldUpdater<Ordered> safeUpdater = AtomicIntegerFieldUpdater.newUpdater(Ordered.class, "safe");
     }
 
 
@@ -536,7 +526,6 @@ public class OpOrdering
 
     public final class Barrier
     {
-
         // this Barrier was issued after all Ordered operations started against orderOnOrBefore
         private volatile Ordered orderOnOrBefore;
 
@@ -670,5 +659,4 @@ public class OpOrdering
         }
 
     }
-
 }

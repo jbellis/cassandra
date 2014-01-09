@@ -31,7 +31,6 @@ public abstract class Pool
 
     static class Setup
     {
-
         final long maxOnHeapMemory;
         final long maxOffHeapMemory;
         final float cleanupThreshold;

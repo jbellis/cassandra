@@ -837,10 +837,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             this.flushSecondaryIndexes = flushSecondaryIndexes;
         }
 
-        @Override
         public void run()
         {
-
             writeBarrier.await();
 
             /**
@@ -865,7 +863,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // we wait on the latch for the lastReplayPosition to be set, and so that waiters
                 // on this task can rely on all prior flushes being complete
                 latch.await();
-            } catch (InterruptedException e)
+            }
+            catch (InterruptedException e)
             {
                 throw new IllegalStateException();
             }
@@ -927,7 +926,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         public void run()
         {
-
             // mark writes older than the barrier as blocking progress, permitting them to exceed our memory limit
             // if they are stuck waiting on it, then wait for them all to complete
             writeBarrier.markBlocking();

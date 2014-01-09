@@ -4,7 +4,6 @@ import org.apache.cassandra.utils.concurrent.OpOrdering;
 
 public class HeapPool extends Pool
 {
-
     public HeapPool(long maxOnHeapMemory, long maxOffHeapMemory, float cleanupThreshold, Runnable cleaner)
     {
         super(new Setup(maxOnHeapMemory, maxOffHeapMemory, cleanupThreshold, cleaner));
@@ -15,5 +14,4 @@ public class HeapPool extends Pool
     {
         return new HeapPoolAllocator(this);
     }
-
 }

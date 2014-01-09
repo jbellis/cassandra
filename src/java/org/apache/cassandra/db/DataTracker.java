@@ -108,7 +108,6 @@ public class DataTracker
      */
     public Memtable switchMemtable(boolean truncating)
     {
-        // atomically change the current memtable
         Memtable newMemtable = new Memtable(cfstore);
         Memtable toFlushMemtable;
         View currentView, newView;
@@ -605,9 +604,9 @@ public class DataTracker
             int i = live.indexOf(toFlushMemtable);
             assert i < live.size() - 1;
             List<Memtable> newLive = ImmutableList.<Memtable>builder()
-                    .addAll(live.subList(0, i))
-                    .addAll(live.subList(i + 1, live.size()))
-                    .build();
+                                                  .addAll(live.subList(0, i))
+                                                  .addAll(live.subList(i + 1, live.size()))
+                                                  .build();
 
             // similarly, if we out-of-order markFlushing once, we may afterwards need to insert a memtable into the
             // flushing list in a position other than the end, though this will be rare
@@ -615,10 +614,10 @@ public class DataTracker
             while (i > 0 && flushing.get(i - 1).creationTime() > toFlushMemtable.creationTime())
                 i--;
             List<Memtable> newFlushing = ImmutableList.<Memtable>builder()
-                    .addAll(flushing.subList(0, i))
-                    .add(toFlushMemtable)
-                    .addAll(flushing.subList(i, flushing.size()))
-                    .build();
+                                                      .addAll(flushing.subList(0, i))
+                                                      .add(toFlushMemtable)
+                                                      .addAll(flushing.subList(i, flushing.size()))
+                                                      .build();
 
             return new View(newLive, newFlushing, sstables, compacting, intervalTree);
         }
@@ -627,12 +626,12 @@ public class DataTracker
         {
             int index = flushingMemtables.indexOf(flushedMemtable);
             List<Memtable> newQueuedMemtables = ImmutableList.<Memtable>builder()
-                    .addAll(flushingMemtables.subList(0, index))
-                    .addAll(flushingMemtables.subList(index + 1, flushingMemtables.size()))
-                    .build();
+                                                             .addAll(flushingMemtables.subList(0, index))
+                                                             .addAll(flushingMemtables.subList(index + 1, flushingMemtables.size()))
+                                                             .build();
             Set<SSTableReader> newSSTables = newSSTable == null
-                                           ? sstables
-                                           : newSSTables(newSSTable);
+                                             ? sstables
+                                             : newSSTables(newSSTable);
             SSTableIntervalTree intervalTree = buildIntervalTree(newSSTables);
             return new View(liveMemtables, newQueuedMemtables, newSSTables, compacting, intervalTree);
         }

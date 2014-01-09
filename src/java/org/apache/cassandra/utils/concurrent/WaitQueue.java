@@ -187,7 +187,6 @@ public final class WaitQueue
      */
     public static interface Signal
     {
-
         public boolean isSignalled();
         public boolean isCancelled();
         public boolean isSet();
@@ -214,7 +213,6 @@ public final class WaitQueue
      */
     public static abstract class AbstractSignal implements Signal
     {
-
         public void awaitUninterruptibly()
         {
             boolean interrupted = false;
@@ -269,7 +267,6 @@ public final class WaitQueue
                 throw new InterruptedException();
             }
         }
-
     }
 
     /**
@@ -277,7 +274,6 @@ public final class WaitQueue
      */
     private class RegisteredSignal extends AbstractSignal
     {
-
         private volatile Thread thread = Thread.currentThread();
         volatile int state;
 
@@ -337,7 +333,6 @@ public final class WaitQueue
             thread = null;
             cleanUpCancelled();
         }
-
     }
 
     /**
@@ -370,7 +365,6 @@ public final class WaitQueue
                 super.cancel();
             }
         }
-
     }
 
     /**
@@ -378,14 +372,12 @@ public final class WaitQueue
      */
     private abstract static class MultiSignal extends AbstractSignal
     {
-
         final Signal[] signals;
         protected MultiSignal(Signal[] signals)
         {
             this.signals = signals;
         }
 
-        @Override
         public boolean isCancelled()
         {
             for (Signal signal : signals)
@@ -394,7 +386,6 @@ public final class WaitQueue
             return true;
         }
 
-        @Override
         public boolean checkAndClear()
         {
             for (Signal signal : signals)
@@ -402,13 +393,11 @@ public final class WaitQueue
             return isSignalled();
         }
 
-        @Override
         public void cancel()
         {
             for (Signal signal : signals)
                 signal.cancel();
         }
-
     }
 
     /**
@@ -416,13 +405,11 @@ public final class WaitQueue
      */
     private static class AnySignal extends MultiSignal
     {
-
         protected AnySignal(Signal ... signals)
         {
             super(signals);
         }
 
-        @Override
         public boolean isSignalled()
         {
             for (Signal signal : signals)
@@ -431,7 +418,6 @@ public final class WaitQueue
             return false;
         }
 
-        @Override
         public boolean isSet()
         {
             for (Signal signal : signals)
@@ -446,13 +432,11 @@ public final class WaitQueue
      */
     private static class AllSignal extends MultiSignal
     {
-
         protected AllSignal(Signal ... signals)
         {
             super(signals);
         }
 
-        @Override
         public boolean isSignalled()
         {
             for (Signal signal : signals)
@@ -461,7 +445,6 @@ public final class WaitQueue
             return true;
         }
 
-        @Override
         public boolean isSet()
         {
             for (Signal signal : signals)
@@ -469,7 +452,6 @@ public final class WaitQueue
                     return false;
             return true;
         }
-
     }
 
     /**
@@ -489,5 +471,4 @@ public final class WaitQueue
     {
         return new AllSignal(signals);
     }
-
 }
