@@ -26,16 +26,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.composites.SimpleSparseCellNameType;
-import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.OpOrdering;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LongToken;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DiskAwareRunnable;
 
 import org.apache.cassandra.utils.memory.MemoryOwner;
@@ -111,17 +106,17 @@ public class Memtable
         return currentOperations.get();
     }
 
-    void discarding(OpOrdering.Barrier writeBarrier, ReplayPosition minLastReplayPosition)
+    void setDiscarding(OpOrdering.Barrier writeBarrier, ReplayPosition minLastReplayPosition)
     {
         assert this.writeBarrier == null;
         this.lastReplayPosition.set(minLastReplayPosition);
         this.writeBarrier = writeBarrier;
-        allocator.discarding();
+        allocator.setDiscarding();
     }
 
-    void discarded()
+    void setDiscarded()
     {
-        allocator.discarded();
+        allocator.setDiscarded();
     }
 
     public boolean accepts(OpOrdering.Ordered op)

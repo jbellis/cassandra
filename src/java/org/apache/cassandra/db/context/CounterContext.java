@@ -24,7 +24,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.memory.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,7 +98,7 @@ public class CounterContext implements IContext
      * @param allocator
      * @return an empty counter context.
      */
-    public ByteBuffer create(long value, Allocator allocator)
+    public ByteBuffer create(long value, AbstractAllocator allocator)
     {
         ByteBuffer context = allocator.allocate(HEADER_SIZE_LENGTH + HEADER_ELT_LENGTH + STEP_LENGTH);
         // The first (and only) elt is a delta
@@ -298,7 +298,7 @@ public class CounterContext implements IContext
      * @param right counter context.
      * @param allocator An allocator for the merged value.
      */
-    public ByteBuffer merge(ByteBuffer left, ByteBuffer right, Allocator allocator)
+    public ByteBuffer merge(ByteBuffer left, ByteBuffer right, AbstractAllocator allocator)
     {
         ContextState leftState = new ContextState(left, headerLength(left));
         ContextState rightState = new ContextState(right, headerLength(right));
@@ -912,7 +912,7 @@ public class CounterContext implements IContext
             return allocate(elementCount, deltaCount, HeapAllocator.instance);
         }
 
-        public static ContextState allocate(int elementCount, int deltaCount, Allocator allocator)
+        public static ContextState allocate(int elementCount, int deltaCount, AbstractAllocator allocator)
         {
             assert deltaCount <= elementCount;
             int hlength = HEADER_SIZE_LENGTH + deltaCount * HEADER_ELT_LENGTH;

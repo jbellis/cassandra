@@ -35,7 +35,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.HeapAllocator;
@@ -226,7 +226,7 @@ public class Cell implements OnDiskAtom
         return reconcile(cell, HeapAllocator.instance);
     }
 
-    public Cell reconcile(Cell cell, Allocator allocator)
+    public Cell reconcile(Cell cell, AbstractAllocator allocator)
     {
         // tombstones take precedence.  (if both are tombstones, then it doesn't matter which one we use.)
         if (isMarkedForDelete(System.currentTimeMillis()))
@@ -272,7 +272,7 @@ public class Cell implements OnDiskAtom
         return localCopy(cfs, HeapAllocator.instance);
     }
 
-    public Cell localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    public Cell localCopy(ColumnFamilyStore cfs, AbstractAllocator allocator)
     {
         return new Cell(name.copy(allocator), allocator.clone(value), timestamp);
     }

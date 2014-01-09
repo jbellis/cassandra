@@ -18,11 +18,8 @@
 package org.apache.cassandra.db.composites;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.memory.PoolAllocator;
-
-import java.nio.ByteBuffer;
 
 public class SimpleSparseInternedCellName extends SimpleSparseCellName
 {
@@ -46,7 +43,7 @@ public class SimpleSparseInternedCellName extends SimpleSparseCellName
     }
 
     @Override
-    public CellName copy(Allocator allocator)
+    public CellName copy(AbstractAllocator allocator)
     {
         // We're interning those instance in SparceCellNameType so don't need to copy.
         return this;

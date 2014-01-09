@@ -96,7 +96,6 @@ public class HeapSlabAllocator extends PoolAllocator
         }
     }
 
-    @Override
     public void free(ByteBuffer name)
     {
         // have to assume we cannot free the memory here, and just reclaim it all when we flush

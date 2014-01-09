@@ -11,9 +11,8 @@ import java.nio.ByteBuffer;
  * Wraps calls to a PoolAllocator with the provided writeOp. Also doubles as a Function that clones Cells
  * using itself
  */
-public final class ContextAllocator extends Allocator implements Function<Cell, Cell>
+public final class ContextAllocator extends AbstractAllocator implements Function<Cell, Cell>
 {
-
     private final OpOrdering.Ordered writeOp;
     private final PoolAllocator allocator;
     private final ColumnFamilyStore cfs;
@@ -31,16 +30,13 @@ public final class ContextAllocator extends Allocator implements Function<Cell, 
         return allocator.clone(buffer, writeOp);
     }
 
-    @Override
     public ByteBuffer allocate(int size)
     {
         return allocator.allocate(size, writeOp);
     }
 
-    @Override
     public Cell apply(Cell column)
     {
         return column.localCopy(cfs, this);
     }
-
 }

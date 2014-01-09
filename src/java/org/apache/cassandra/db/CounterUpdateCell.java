@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.utils.memory.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 
@@ -57,7 +57,7 @@ public class CounterUpdateCell extends Cell
     }
 
     @Override
-    public Cell reconcile(Cell cell, Allocator allocator)
+    public Cell reconcile(Cell cell, AbstractAllocator allocator)
     {
         // The only time this could happen is if a batchAdd ships two
         // increment for the same cell. Hence we simply sums the delta.
@@ -89,7 +89,7 @@ public class CounterUpdateCell extends Cell
     }
 
     @Override
-    public Cell localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    public Cell localCopy(ColumnFamilyStore cfs, AbstractAllocator allocator)
     {
         return new CounterCell(name.copy(allocator),
                                  CounterContext.instance().create(delta(), allocator),

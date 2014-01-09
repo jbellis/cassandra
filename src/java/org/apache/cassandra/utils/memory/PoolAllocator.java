@@ -24,9 +24,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
-public abstract class PoolAllocator<P extends Pool> extends Allocator
+public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
 {
-
     public final P pool;
     public final MemoryOwner onHeap;
     public final MemoryOwner offHeap;
@@ -45,23 +44,24 @@ public abstract class PoolAllocator<P extends Pool> extends Allocator
 
     static final class State
     {
-        final LifeCycle lifeCycle;
-        final Gc gc;
-
         // Cache not all of the possible combinations of LifeCycle/Gc.
         // Not all of these states are valid, but easier to just create them all.
         private static final State[] ALL;
         private static final int MULT;
+
         static
         {
             LifeCycle[] lifeCycles = LifeCycle.values();
             Gc[] gcs = Gc.values();
             ALL = new State[lifeCycles.length * gcs.length];
-            for (int i = 0 ; i < lifeCycles.length ; i++)
-                for (int j = 0 ; j < gcs.length ; j++)
+            for (int i = 0; i < lifeCycles.length; i++)
+                for (int j = 0; j < gcs.length; j++)
                     ALL[(i * gcs.length) + j] = new State(lifeCycles[i], gcs[j]);
             MULT = gcs.length;
         }
+
+        final LifeCycle lifeCycle;
+        final Gc gc;
 
         private State(LifeCycle lifeCycle, Gc gc)
         {
@@ -117,7 +117,6 @@ public abstract class PoolAllocator<P extends Pool> extends Allocator
         {
             return lifeCycle + ", GC:" + gc;
         }
-
     }
 
     PoolAllocator(P pool)
@@ -131,7 +130,7 @@ public abstract class PoolAllocator<P extends Pool> extends Allocator
      * Mark this allocator reclaiming; this will permit any outstanding allocations to temporarily
      * overshoot the maximum memory limit so that flushing can begin immediately
      */
-    public void discarding()
+    public void setDiscarding()
     {
         state = state.transition(LifeCycle.DISCARDING);
         // mark the memory owned by this allocator as reclaiming
@@ -139,7 +138,7 @@ public abstract class PoolAllocator<P extends Pool> extends Allocator
         offHeap.markAllReclaiming();
     }
 
-    public void discarded()
+    public void setDiscarded()
     {
         state = state.transition(LifeCycle.DISCARDED);
         // release any memory owned by this allocator; automatically signals waiters
@@ -177,5 +176,4 @@ public abstract class PoolAllocator<P extends Pool> extends Allocator
     {
         return new ContextAllocator(writeOp, this, cfs);
     }
-
 }

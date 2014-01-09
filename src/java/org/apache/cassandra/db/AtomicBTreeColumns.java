@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.UpdateFunction;
-import org.apache.cassandra.utils.memory.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 import static org.apache.cassandra.db.index.SecondaryIndexManager.Updater;
 
@@ -158,7 +158,7 @@ public class AtomicBTreeColumns extends ColumnFamily
         }
     }
 
-    public void addAll(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation)
+    public void addAll(ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation)
     {
         addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater, new Delta());
     }
@@ -168,12 +168,12 @@ public class AtomicBTreeColumns extends ColumnFamily
     {
         final AtomicBTreeColumns updating;
         final Holder ref;
-        final Allocator allocator;
+        final AbstractAllocator allocator;
         final Function<Cell, Cell> transform;
         final Updater indexer;
         final Delta delta;
 
-        private ColumnUpdater(AtomicBTreeColumns updating, Holder ref, Allocator allocator, Function<Cell, Cell> transform, Updater indexer, Delta delta)
+        private ColumnUpdater(AtomicBTreeColumns updating, Holder ref, AbstractAllocator allocator, Function<Cell, Cell> transform, Updater indexer, Delta delta)
         {
             this.updating = updating;
             this.ref = ref;
@@ -239,7 +239,7 @@ public class AtomicBTreeColumns extends ColumnFamily
      *
      * @return the difference in size seen after merging the given columns
      */
-    public Delta addAllWithSizeDelta(final ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation, Updater indexer, Delta delta)
+    public Delta addAllWithSizeDelta(final ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation, Updater indexer, Delta delta)
     {
         boolean transformed = false;
         Collection<Cell> insert;
@@ -293,7 +293,7 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     // no particular reason not to implement these next methods, we just haven't needed them yet
 
-    public void addColumn(Cell column, Allocator allocator)
+    public void addColumn(Cell column, AbstractAllocator allocator)
     {
         throw new UnsupportedOperationException();
     }

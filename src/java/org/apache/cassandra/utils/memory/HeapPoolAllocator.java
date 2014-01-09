@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 
 public final class HeapPoolAllocator extends PoolAllocator
 {
-
     HeapPoolAllocator(HeapPool pool)
     {
         super(pool);
@@ -41,10 +40,8 @@ public final class HeapPoolAllocator extends PoolAllocator
         return ByteBuffer.allocate(size);
     }
 
-    @Override
     public void free(ByteBuffer name)
     {
         onHeap.release(name.remaining());
     }
-
 }

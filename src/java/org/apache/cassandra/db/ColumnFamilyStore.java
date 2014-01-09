@@ -917,7 +917,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // so that we can reach a coordinated decision about cleanliness once they
                 // are no longer possible to be modified
                 Memtable mt = cfs.data.switchMemtable(truncate);
-                mt.discarding(writeBarrier, minReplayPosition);
+                mt.setDiscarding(writeBarrier, minReplayPosition);
                 memtables.add(mt);
             }
 
@@ -943,7 +943,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (memtable.isClean() || truncate)
                 {
                     memtable.cfs.replaceFlushed(memtable, null);
-                    memtable.discarded();
+                    memtable.setDiscarded();
                     iter.remove();
                 }
             }
@@ -960,7 +960,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 // flush the memtable
                 MoreExecutors.sameThreadExecutor().execute(memtable.flushRunnable());
-                memtable.discarded();
+                memtable.setDiscarded();
             }
 
             // signal the post-flush we've done our work

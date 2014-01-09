@@ -20,7 +20,7 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.utils.memory.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ObjectSizes;
 
 public class CompoundDenseCellName extends CompoundComposite implements CellName
@@ -72,7 +72,7 @@ public class CompoundDenseCellName extends CompoundComposite implements CellName
         return HEAP_SIZE + ObjectSizes.sizeOnHeapExcludingData(elements);
     }
 
-    public CellName copy(Allocator allocator)
+    public CellName copy(AbstractAllocator allocator)
     {
         return new CompoundDenseCellName(elementsCopy(allocator));
     }

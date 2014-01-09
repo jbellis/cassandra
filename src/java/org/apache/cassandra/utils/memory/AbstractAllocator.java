@@ -21,9 +21,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 
-public abstract class Allocator
+public abstract class AbstractAllocator
 {
-
     /**
      * Allocate a slice of the given length.
      */
@@ -41,5 +40,4 @@ public abstract class Allocator
     }
 
     public abstract ByteBuffer allocate(int size);
-
 }

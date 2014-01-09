@@ -19,7 +19,7 @@ package org.apache.cassandra.utils.memory;
 
 import java.nio.ByteBuffer;
 
-public final class HeapAllocator extends Allocator
+public final class HeapAllocator extends AbstractAllocator
 {
     public static final HeapAllocator instance = new HeapAllocator();
 
@@ -33,5 +33,4 @@ public final class HeapAllocator extends Allocator
     {
         return ByteBuffer.allocate(size);
     }
-
 }
