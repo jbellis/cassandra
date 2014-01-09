@@ -140,9 +140,9 @@ public class Memtable
         return rows.isEmpty();
     }
 
-    public boolean isClean(ReplayPosition isCleanFrom)
+    public boolean isCleanAfter(ReplayPosition position)
     {
-        return isClean() || (isCleanFrom != null && minReplayPosition.compareTo(isCleanFrom) >= 0);
+        return isClean() || (position != null && minReplayPosition.compareTo(position) >= 0);
     }
 
     /**

@@ -775,7 +775,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return forceFlush(null);
     }
 
-    public ListenableFuture<?> forceFlush(ReplayPosition flushIfBefore)
+    /**
+     * Flush if there is unflushed data that was written to the CommitLog before @param flushIfDirtyBefore
+     * (inclusive).  If @param flushIfDirtyBefore is null, flush if there is any unflushed data.
+     *
+     * @return a Future such that when the future completes, all data inserted before forceFlush was called,
+     * will be flushed.
+     */
+    public ListenableFuture<?> forceFlush(ReplayPosition flushIfDirtyBefore)
     {
         // we synchronize on the data tracker to ensure we don't race against other calls to switchMemtable(),
         // unnecessarily queueing memtables that are about to be made clean
@@ -785,7 +792,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // we want to flush the 2ary index ones too.
             boolean clean = true;
             for (ColumnFamilyStore cfs : concatWithIndexes())
-                clean &= cfs.data.getView().getCurrentMemtable().isClean(flushIfBefore);
+                clean &= cfs.data.getView().getCurrentMemtable().isCleanAfter(flushIfDirtyBefore);
 
             if (clean)
             {
