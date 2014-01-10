@@ -271,7 +271,7 @@ public class AtomicBTreeColumns extends ColumnFamily
 
             delta.reset();
             deletionInfo = current.deletionInfo.copy().add(deletionInfo);
-            delta.addHeapSize(deletionInfo.excessHeapSize() - current.deletionInfo.excessHeapSize());
+            delta.addHeapSize(deletionInfo.unsharedHeapSize() - current.deletionInfo.unsharedHeapSize());
             ColumnUpdater updater = new ColumnUpdater(this, current, allocator, transformation, indexer, delta);
             Object[] tree = BTree.update(current.tree, metadata.comparator.columnComparator(), insert, true, updater);
 

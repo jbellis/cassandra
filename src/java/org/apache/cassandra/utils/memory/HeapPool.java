@@ -6,7 +6,7 @@ public class HeapPool extends Pool
 {
     public HeapPool(long maxOnHeapMemory, long maxOffHeapMemory, float cleanupThreshold, Runnable cleaner)
     {
-        super(new Setup(maxOnHeapMemory, maxOffHeapMemory, cleanupThreshold, cleaner));
+        super(maxOnHeapMemory, maxOffHeapMemory, cleanupThreshold, cleaner);
     }
 
     @Override

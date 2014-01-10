@@ -6,7 +6,7 @@ public class HeapSlabPool extends Pool
 {
     public HeapSlabPool(long maxOnHeapMemory, long maxOffHeapMemory, float cleanupThreshold, Runnable cleaner)
     {
-        super(new Setup(maxOnHeapMemory, maxOffHeapMemory, cleanupThreshold, cleaner));
+        super(maxOnHeapMemory, maxOffHeapMemory, cleanupThreshold, cleaner);
     }
 
     public HeapSlabAllocator newAllocator(OpOrdering writes)

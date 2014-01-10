@@ -869,7 +869,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 throw new IllegalStateException();
             }
 
-            CommitLog.instance.discardCompletedSegments(metadata.cfId, lastReplayPosition);
+            // must check lastReplayPosition != null because Flush may find that all memtables are clean
+            // and so not set a lastReplayPosition
+            if (lastReplayPosition != null)
+            {
+                CommitLog.instance.discardCompletedSegments(metadata.cfId, lastReplayPosition);
+            }
 
             metric.pendingFlushes.dec();
         }

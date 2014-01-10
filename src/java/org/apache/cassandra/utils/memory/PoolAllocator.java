@@ -29,93 +29,15 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
     public final P pool;
     public final MemoryOwner onHeap;
     public final MemoryOwner offHeap;
-    volatile State state = State.get(LifeCycle.LIVE, Gc.INACTIVE);
-
-    static final AtomicReferenceFieldUpdater<PoolAllocator, State> stateUpdater = AtomicReferenceFieldUpdater.newUpdater(PoolAllocator.class, State.class, "state");
+    volatile LifeCycle state = LifeCycle.LIVE;
 
     static enum LifeCycle
     {
-        LIVE, DISCARDING, DISCARDED
-    }
-    static enum Gc
-    {
-        INACTIVE, MARKING, COLLECTING, FORBIDDEN
-    }
-
-    static final class State
-    {
-        // Cache not all of the possible combinations of LifeCycle/Gc.
-        // Not all of these states are valid, but easier to just create them all.
-        private static final State[] ALL;
-        private static final int MULT;
-
-        static
+        LIVE, DISCARDING, DISCARDED;
+        LifeCycle transition(LifeCycle target)
         {
-            LifeCycle[] lifeCycles = LifeCycle.values();
-            Gc[] gcs = Gc.values();
-            ALL = new State[lifeCycles.length * gcs.length];
-            for (int i = 0; i < lifeCycles.length; i++)
-                for (int j = 0; j < gcs.length; j++)
-                    ALL[(i * gcs.length) + j] = new State(lifeCycles[i], gcs[j]);
-            MULT = gcs.length;
-        }
-
-        final LifeCycle lifeCycle;
-        final Gc gc;
-
-        private State(LifeCycle lifeCycle, Gc gc)
-        {
-            this.lifeCycle = lifeCycle;
-            this.gc = gc;
-        }
-
-        private static State get(LifeCycle lifeCycle, Gc gc)
-        {
-            return ALL[(lifeCycle.ordinal() * MULT) + gc.ordinal()];
-        }
-
-        /**
-         * maybe transition to the requested Gc state, depending on the current state.
-         */
-        State transition(Gc targetState)
-        {
-            switch (targetState)
-            {
-                case MARKING:
-                    // we only permit entering the marking state if GC is not already running for this allocator
-                    if (gc != Gc.INACTIVE)
-                        return null;
-                    // we don't permit GC on an allocator we're discarding, or have discarded
-                    if (lifeCycle.compareTo(LifeCycle.DISCARDING) >= 0)
-                        return null;
-                    return get(lifeCycle, Gc.MARKING);
-                case COLLECTING:
-                    assert gc == Gc.MARKING;
-                    return get(lifeCycle, Gc.COLLECTING);
-                case INACTIVE:
-                    assert gc == Gc.COLLECTING;
-                    return get(lifeCycle, Gc.INACTIVE);
-            }
-            throw new IllegalStateException();
-        }
-
-        State transition(LifeCycle targetState)
-        {
-            switch (targetState)
-            {
-                case DISCARDING:
-                    assert lifeCycle == LifeCycle.LIVE;
-                    return get(LifeCycle.DISCARDING, gc);
-                case DISCARDED:
-                    assert lifeCycle == LifeCycle.DISCARDING;
-                    return get(LifeCycle.DISCARDED, gc);
-            }
-            throw new IllegalStateException();
-        }
-
-        public String toString()
-        {
-            return lifeCycle + ", GC:" + gc;
+            assert target.ordinal() == ordinal() + 1;
+            return target;
         }
     }
 
@@ -127,8 +49,8 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
     }
 
     /**
-     * Mark this allocator reclaiming; this will permit any outstanding allocations to temporarily
-     * overshoot the maximum memory limit so that flushing can begin immediately
+     * Mark this allocator as reclaiming; this will mark the memory it owns as reclaiming, so remove it from
+     * any calculation deciding if further cleaning/reclamation is necessary.
      */
     public void setDiscarding()
     {
@@ -138,6 +60,10 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
         offHeap.markAllReclaiming();
     }
 
+    /**
+     * Indicate the memory and resources owned by this allocator are no longer referenced,
+     * and can be reclaimed/reused.
+     */
     public void setDiscarded()
     {
         state = state.transition(LifeCycle.DISCARDED);
@@ -153,7 +79,7 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
 
     public boolean isLive()
     {
-        return state.lifeCycle == LifeCycle.LIVE;
+        return state == LifeCycle.LIVE;
     }
 
     /**

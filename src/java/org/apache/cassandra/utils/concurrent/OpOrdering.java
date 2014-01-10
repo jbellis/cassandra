@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
         public void consume()
         {
+            SharedState state = this.state;
             state.setReplacement(new State())
             state.doSomethingToPrepareForBarrier();
 
@@ -37,6 +38,9 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
             // wait for all producer work started prior to the barrier to complete
             state.barrier.await();
 
+            // change the shared state to its replacement, as the current state will no longer be used by producers
+            this.state = state.getReplacement();
+
             state.doSomethingWithExclusiveAccess();
         }
 
@@ -46,7 +50,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
             try
             {
                 SharedState s = state;
-                while (!s.barrier.accept(ordered))
+                while (s.barrier != null && !s.barrier.accept(ordered))
                     s = s.getReplacement();
                 s.doProduceWork();
             }
@@ -90,38 +94,6 @@ public class OpOrdering
     }
 
     /**
-     * Start an operation that can be used for a longer running transaction, that periodically reaches points that
-     * can be considered to restart the transaction. This is stronger than 'safe', as it declares that all guarded
-     * entry points have been exited and will be re-entered, or an equivalent guarantee can be made that no reclaimed
-     * resources are being referenced.
-     * <p/>
-     * <pre>
-     * ReusableOrdered ord = startSync();
-     * while (...)
-     * {
-     *     ...
-     *     ord.sync();
-     * }
-     * ord.finish();
-     * </pre>
-     * is semantically equivalent to (but more efficient than):
-     * <pre>
-     * Ordered ord = start();
-     * while (...)
-     * {
-     *     ...
-     *     ord.finishOne();
-     *     ord = start();
-     * }
-     * ord.finishOne();
-     * </pre>
-     */
-    public SyncingOrdered startSync()
-    {
-        return new SyncingOrdered();
-    }
-
-    /**
      * Creates a new barrier. The barrier is only a placeholder until barrier.issue() is called on it,
      * after which all new operations will start against a new Ordered instance that will not be accepted
      * by barrier.accept(), and barrier.await() will return only once all operations started prior to the issue
@@ -156,12 +128,7 @@ public class OpOrdering
          *               running, or tidying up, so unlink() fails to remove us
          * 5) COMPLETE:  all operations started on or before us are FINISHED (and COMPLETE), so we are unlinked
          * <p/>
-         * Two other parallel states are SAFE and ISBLOCKING:
-         * <p/>
-         * safe => all running operations were paused, so safe wrt memory access. Like a java safe point, except
-         * that it only provides ordering guarantees, as the safe point can be exited at any point. The only reason
-         * we require all to be stopped is to avoid tracking which threads are safe at any point, though we may want
-         * to do so in future.
+         * Another parallel states is ISBLOCKING:
          * <p/>
          * isBlocking => a barrier that is waiting on us (either directly, or via a future Ordered) is blocking general
          * progress. This state is entered by calling Barrier.markBlocking(). If the running operations are blocked
@@ -172,13 +139,11 @@ public class OpOrdering
         private volatile Ordered prev, next;
         private final long id; // monotonically increasing id for compareTo()
         private volatile int running; // number of operations currently running
-        private volatile int safe; // number of operations currently running but 'safe' (see below)
         private volatile boolean isBlocking; // indicates running operations are blocking future barriers
         private final WaitQueue isBlockingSignal = new WaitQueue(); // signal to wait on to indicate isBlocking is true
-        private final WaitQueue waiting = new WaitQueue(); // signal to wait on for safe/completion
+        private final WaitQueue waiting = new WaitQueue(); // signal to wait on for completion
 
         static final AtomicIntegerFieldUpdater<Ordered> runningUpdater = AtomicIntegerFieldUpdater.newUpdater(Ordered.class, "running");
-        static final AtomicIntegerFieldUpdater<Ordered> safeUpdater = AtomicIntegerFieldUpdater.newUpdater(Ordered.class, "safe");
 
         // constructs first instance only
         private Ordered()
@@ -241,17 +206,11 @@ public class OpOrdering
                             // if we're now finished, unlink ourselves
                             unlink();
                         }
-                        else
-                        {
-                            // otherwise we have modified the result of isSafe(), so maybe signal
-                            maybeSignalSafe();
-                        }
                         return;
                     }
                 }
                 else if (runningUpdater.compareAndSet(this, cur, cur - 1))
                 {
-                    maybeSignalSafe();
                     return;
                 }
             }
@@ -293,7 +252,6 @@ public class OpOrdering
                 start.waiting.signalAll();
                 start = next;
             }
-            end.maybeSignalSafe();
         }
 
         /**
@@ -315,159 +273,11 @@ public class OpOrdering
         }
 
         /**
-         * internal convenience method indicating if all running operations ON THIS ORDERED ONLY (not preceding ones)
-         * are currently 'safe' (generally means waiting on a SafeSignal), i.e. that they are currently guaranteed
-         * not to be in the middle of reading memory guarded by this OpOrdering. This is used to prevent blocked
-         * operations from preventing off-heap allocator GC progress.
+         * wrap the provided signal to also be signalled if the operation gets marked blocking
          */
-
-        // TODO: Safe should be a requested operation for each Ordered, that results in each op marking itself as past
-        // the requested safe point, thereby not needing to match safe with unsafe, nor requiring all threads to remain
-        // in the safe point for the safe point to be considered reached.
-        // if possible, should be used through safe(Signal)
-        private boolean isSafe()
+        public WaitQueue.Signal isBlockingSignal(WaitQueue.Signal signal)
         {
-            int safe = this.safe;
-            int running = this.running;
-            return (safe == -1 - running) | (safe == running);
-        }
-
-        /**
-         * indicate a running operation is 'safe' wrt memory accesses, i.e. is waiting or at some other safe point.
-         * must be proceeded by a single call to markOneUnsafe()
-         */
-        public void markOneSafe()
-        {
-            safeUpdater.incrementAndGet(this);
-            maybeSignalSafe();
-        }
-
-        private void maybeSignalSafe()
-        {
-            Ordered cur = this;
-            // wake up all waiters on or after us, in case they're interested
-            // when we make safe a more general requested check-pointing this can be optimised
-            while (cur != null && cur.isSafe())
-            {
-                cur.waiting.signalAll();
-                cur = cur.next;
-            }
-        }
-
-        /**
-         * indicate a running operation that was 'safe' wrt memory accesses, is no longer.
-         * if possible, should be used through safe(Signal)
-         */
-        public void markOneUnsafe()
-        {
-            safeUpdater.decrementAndGet(this);
-        }
-
-        /**
-         * wrap the provided signal to mark the thread as safe during any waiting
-         */
-        public WaitQueue.Signal safe(WaitQueue.Signal signal)
-        {
-            return new SafeSignal(signal);
-        }
-
-        /**
-         * wrap the provided signal to mark the thread as safe during any waiting, and to be signalled if the
-         * operation gets marked blocking
-         */
-        public WaitQueue.Signal safeIsBlockingSignal(WaitQueue.Signal signal)
-        {
-            return new SafeSignal(WaitQueue.any(signal, isBlockingSignal()));
-        }
-
-        /**
-         * A wrapper class that simply marks safe/unsafe on entry/exit, and delegates to the wrapped signal
-         */
-        private class SafeSignal implements WaitQueue.Signal
-        {
-            final WaitQueue.Signal delegate;
-
-            private SafeSignal(WaitQueue.Signal delegate)
-            {
-                this.delegate = delegate;
-            }
-
-            public boolean isSignalled()
-            {
-                return delegate.isSignalled();
-            }
-
-            public boolean isCancelled()
-            {
-                return delegate.isCancelled();
-            }
-
-            public boolean isSet()
-            {
-                return delegate.isSet();
-            }
-
-            public boolean checkAndClear()
-            {
-                return delegate.checkAndClear();
-            }
-
-            public void cancel()
-            {
-                delegate.cancel();
-            }
-
-            public void awaitUninterruptibly()
-            {
-                markOneSafe();
-                try
-                {
-                    delegate.awaitUninterruptibly();
-                }
-                finally
-                {
-                    markOneUnsafe();
-                }
-            }
-
-            public void await() throws InterruptedException
-            {
-                markOneSafe();
-                try
-                {
-                    delegate.await();
-                }
-                finally
-                {
-                    markOneUnsafe();
-                }
-            }
-
-            public long awaitNanos(long nanosTimeout) throws InterruptedException
-            {
-                markOneSafe();
-                try
-                {
-                    return delegate.awaitNanos(nanosTimeout);
-                }
-                finally
-                {
-                    markOneUnsafe();
-                }
-            }
-
-            public boolean awaitUntil(long until) throws InterruptedException
-            {
-                markOneSafe();
-                try
-                {
-                    return delegate.awaitUntil(until);
-                }
-                finally
-                {
-                    markOneUnsafe();
-                }
-            }
+            return WaitQueue.any(signal, isBlockingSignal());
         }
 
         public int compareTo(Ordered that)
@@ -484,46 +294,14 @@ public class OpOrdering
         }
     }
 
-
     /**
-     * see {@link #startSync}
+     * This class represents a synchronisation point providing ordering guarantees on operations started
+     * against the enclosing OpOrdering. When issue() is called upon it (may only happen once per Barrier), the
+     * Barrier atomically partitions new operations from those already running, and activates its accept() method
+     * which indicates if an operation was started before or after this partition. It offers methods to
+     * determine, or block until, all prior operations have finished, and a means to indicate to those operations
+     * that they are blocking forward progress. See {@link OpOrdering} for idiomatic usage.
      */
-    public final class SyncingOrdered
-    {
-
-        private Ordered current = start();
-
-        /**
-         * Called periodically to indicate we have reached a safe point wrt data guarded by this OpOrdering
-         */
-        public void sync()
-        {
-            if (current != OpOrdering.this.current)
-            {
-                // only swap the operation if we're behind the present
-                current.finishOne();
-                current = start();
-            }
-        }
-
-        public Ordered current()
-        {
-            return current;
-        }
-
-        /**
-         * Called once our transactions have completed. May safely be called multiple times, with each extra call
-         * a no-op.
-         */
-        public void finish()
-        {
-            if (current != null)
-                current.finishOne();
-            current = null;
-        }
-
-    }
-
     public final class Barrier
     {
         // this Barrier was issued after all Ordered operations started against orderOnOrBefore
@@ -587,33 +365,12 @@ public class OpOrdering
          */
         public boolean allPriorOpsAreFinished()
         {
-            return check(false);
-        }
-
-        /**
-         * @return true if all operations started prior to barrier.issue() have either completed or are marked safe.
-         * Note that 'safe' is a transient property, and there is no guarantee that the threads remain safe after this call
-         * returns true, only that all threads were safe at this point. like the rest of this classes' functionality,
-         * it offers ordering guarantees only.
-         */
-        public boolean allPriorOpsAreFinishedOrSafe()
-        {
-            return check(true);
-        }
-
-        private boolean check(boolean safe)
-        {
             Ordered cur = orderOnOrBefore;
             if (cur == null)
                 throw new IllegalStateException("This barrier needs to have issue() called on it before prior operations can complete");
             if (cur.next.prev == null)
                 return true;
-            while (safe && cur != null)
-            {
-                safe = cur.isSafe();
-                cur = cur.prev;
-            }
-            return safe;
+            return false;
         }
 
         /**
@@ -621,25 +378,10 @@ public class OpOrdering
          */
         public void await()
         {
-            await(false);
-            assert orderOnOrBefore.running == FINISHED;
-        }
-
-        /**
-         * wait for allPriorOpsAreFinishedOrSafe() to hold; this is a transient property, and may not hold
-         * after this method returns.
-         */
-        public void awaitSafe()
-        {
-            await(true);
-        }
-
-        private void await(boolean safe)
-        {
-            while (!check(safe))
+            while (!allPriorOpsAreFinished())
             {
                 WaitQueue.Signal signal = register();
-                if (check(safe))
+                if (allPriorOpsAreFinished())
                 {
                     signal.cancel();
                     return;
@@ -647,6 +389,7 @@ public class OpOrdering
                 else
                     signal.awaitUninterruptibly();
             }
+            assert orderOnOrBefore.running == FINISHED;
         }
 
         /**

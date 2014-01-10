@@ -68,7 +68,7 @@ public final class MemoryOwner
                 acquired(size);
                 return;
             }
-            WaitQueue.Signal signal = writeOp.safeIsBlockingSignal(tracker.hasRoom.register());
+            WaitQueue.Signal signal = writeOp.isBlockingSignal(tracker.hasRoom.register());
             boolean allocated = tracker.tryAllocate(size);
             if (allocated || writeOp.isBlocking())
             {
