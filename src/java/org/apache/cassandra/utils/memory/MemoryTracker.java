@@ -4,7 +4,17 @@ import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
-// note difference between acquire() and allocate()
+
+/**
+ * Represents an amount of memory used for a given purpose, that can be allocated to specific tasks through
+ * child MemoryOwner objects. MemoryOwner and MemoryTracker correspond approximately to PoolAllocator and Pool,
+ * respectively, with the MemoryTracker bookkeeping the total shared use of resources, and the MemoryOwner the amount
+ * checked out and in use by a specific PoolAllocator.
+ *
+ * Note the difference between acquire() and allocate(); allocate() makes more resources available to all owners,
+ * and acquire() makes shared resources unavailable but still recorded. An Owner must always acquire resources,
+ * but only needs to allocate if there are none already available. This distinction is not always meaningful.
+ */
 public class MemoryTracker
 {
 

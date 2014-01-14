@@ -5,6 +5,15 @@ import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
+/**
+ * Represents an amount of memory that is tracked by the parent MemoryTracker, but that is temporarily allocated
+ * to a specific task. When the task needs more memory, it allocates it through this object, which acquires
+ * (and maybe allocates) memory in its parent tracker and accounts for it here as well. Once the task is complete
+ * it relinquishes the resources through this class, which ensures the resources are freed in the MemoryTracker.
+ *
+ * At present, this maps two-to-one to PoolAllocator, i.e. there is one MemoryOwner per PoolAllocator to track its
+ * on-heap memory usage, and one to track its off-heap memory usage.
+ */
 public final class MemoryOwner
 {
 
@@ -39,23 +48,6 @@ public final class MemoryOwner
     {
         tracker.adjustAcquired(-ownsUpdater.getAndSet(this, 0), false);
         tracker.adjustReclaiming(-reclaiming);
-    }
-
-    // if this.owns > size, subtract size from this.owns (atomically) and add it to the provided MemoryOwner
-    boolean transfer(int size, MemoryOwner to)
-    {
-        while (true)
-        {
-            long cur = owns;
-            long next = cur - size;
-            if (next < 0)
-                return false;
-            if (ownsUpdater.compareAndSet(this, cur, next))
-            {
-                ownsUpdater.addAndGet(to, size);
-                return true;
-            }
-        }
     }
 
     // allocate memory in the tracker, and mark ourselves as owning it
