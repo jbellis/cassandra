@@ -183,23 +183,23 @@ public class AtomicBTreeColumns extends ColumnFamily
             this.delta = delta;
         }
 
-        public Cell apply(Cell replaced, Cell update)
+        public Cell apply(Cell existing, Cell update)
         {
-            if (replaced == null)
+            if (existing == null)
             {
                 indexer.insert(update);
                 delta.insert(update);
             }
             else
             {
-                Cell reconciled = update.reconcile(replaced, allocator);
+                Cell reconciled = update.reconcile(existing, allocator);
                 if (reconciled == update)
-                    indexer.update(replaced, reconciled);
+                    indexer.update(existing, reconciled);
                 else
                     indexer.update(update, reconciled);
 
-                if (replaced != reconciled)
-                    delta.swap(replaced, reconciled);
+                if (existing != reconciled)
+                    delta.swap(existing, reconciled);
                 else
                     delta.abort(update);
             }
@@ -207,13 +207,11 @@ public class AtomicBTreeColumns extends ColumnFamily
             return transform.apply(update);
         }
 
-        @Override
-        public boolean abort()
+        public boolean abortEarly()
         {
             return updating.ref != ref;
         }
 
-        @Override
         public void allocated(long heapSize)
         {
             delta.addHeapSize(heapSize);
@@ -235,7 +233,7 @@ public class AtomicBTreeColumns extends ColumnFamily
     }
 
     /**
-     * This is only called by Memtable.resolve, so only AtomicSortedColumns needs to implement it.
+     * This is only called by Memtable.resolve, so only AtomicBTreeColumns needs to implement it.
      *
      * @return the difference in size seen after merging the given columns
      */
@@ -395,14 +393,21 @@ public class AtomicBTreeColumns extends ColumnFamily
         {
             return new Holder(this.tree, info);
         }
-
     }
 
     // TODO: create a stack-allocation-friendly list to help optimise garbage for updates to rows with few columns
+
+    /**
+     * tracks the size changes made while merging a new group of cells in
+     */
     public static final class Delta
     {
         private long dataSize;
         private long heapSize;
+
+        // we track the discarded cells (cells that were in the btree, but replaced by new ones)
+        // separately from aborted ones (were part of an update but older than existing cells)
+        // since we need to reset the former when we race on the btree update, but not the latter
         private List<Cell> discarded = new ArrayList<>();
         private List<Cell> aborted;
 
@@ -418,10 +423,10 @@ public class AtomicBTreeColumns extends ColumnFamily
             this.heapSize += heapSize;
         }
 
-        protected void swap(Cell old, Cell upd)
+        protected void swap(Cell old, Cell updated)
         {
-            dataSize += upd.dataSize() - old.dataSize();
-            heapSize += upd.excessHeapSizeExcludingData() - old.excessHeapSizeExcludingData();
+            dataSize += updated.dataSize() - old.dataSize();
+            heapSize += updated.excessHeapSizeExcludingData() - old.excessHeapSizeExcludingData();
             discarded.add(old);
         }
 
@@ -448,12 +453,11 @@ public class AtomicBTreeColumns extends ColumnFamily
             return heapSize;
         }
 
-        public Iterable<Cell> reclaim()
+        public Iterable<Cell> reclaimed()
         {
             if (aborted == null)
                 return discarded;
             return Iterables.concat(discarded, aborted);
         }
-
     }
 }

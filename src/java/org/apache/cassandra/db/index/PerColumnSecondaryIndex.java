@@ -29,7 +29,6 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public abstract class PerColumnSecondaryIndex extends SecondaryIndex
 {
-
     /**
      * Delete a column from the index. This method is deprecated and replaced by
      * {@link #delete(java.nio.ByteBuffer, org.apache.cassandra.db.Cell, org.apache.cassandra.utils.concurrent.OpOrdering.Ordered)}

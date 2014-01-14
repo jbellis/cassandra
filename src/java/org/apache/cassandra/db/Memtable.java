@@ -150,8 +150,8 @@ public class Memtable
     }
 
     /**
-     * Should only be called by ColumnFamilyStore.apply.  NOT a public API.
-     * (CFS handles locking to avoid submitting an op to a flushing memtable.  Any other way is unsafe.)
+     * Should only be called by ColumnFamilyStore.apply via Keyspace.apply, which supplies the appropriate
+     * OpOrdering.
      *
      * replayPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
@@ -199,11 +199,11 @@ public class Memtable
         AtomicBTreeColumns.Delta delta = previous.addAllWithSizeDelta(cf, contextAllocator, contextAllocator, indexer, new AtomicBTreeColumns.Delta());
         liveDataSize.addAndGet(delta.dataSize());
         currentOperations.addAndGet((cf.getColumnCount() == 0)
-                ? cf.isMarkedForDelete() ? 1 : 0
-                : cf.getColumnCount());
+                                    ? cf.isMarkedForDelete() ? 1 : 0
+                                    : cf.getColumnCount());
 
         // allocate or free the delta in column overhead after the fact
-        for (Cell cell : delta.reclaim())
+        for (Cell cell : delta.reclaimed())
         {
             cell.name.free(allocator);
             allocator.free(cell.value);
@@ -356,7 +356,6 @@ public class Memtable
 
                     if (cf.getColumnCount() > 0 || cf.isMarkedForDelete())
                         writer.append((DecoratedKey)entry.getKey(), cf);
-
                 }
 
                 if (writer.getFilePointer() > 0)
@@ -408,5 +407,4 @@ public class Memtable
         rowOverhead += AtomicBTreeColumns.HEAP_SIZE;
         ROW_OVERHEAD_HEAP_SIZE = rowOverhead;
     }
-
 }

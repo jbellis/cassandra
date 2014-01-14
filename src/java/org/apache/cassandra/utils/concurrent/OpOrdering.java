@@ -87,9 +87,9 @@ public class OpOrdering
     {
         while (true)
         {
-            Ordered cur = current;
-            if (cur.register())
-                return cur;
+            Ordered current = this.current;
+            if (current.register())
+                return current;
         }
     }
 
@@ -138,7 +138,7 @@ public class OpOrdering
 
         private volatile Ordered prev, next;
         private final long id; // monotonically increasing id for compareTo()
-        private volatile int running; // number of operations currently running
+        private volatile int running = 0; // number of operations currently running.  < 0 means we're expired, and the count of tasks still running is -(running + 1)
         private volatile boolean isBlocking; // indicates running operations are blocking future barriers
         private final WaitQueue isBlockingSignal = new WaitQueue(); // signal to wait on to indicate isBlocking is true
         private final WaitQueue waiting = new WaitQueue(); // signal to wait on for completion
@@ -158,17 +158,19 @@ public class OpOrdering
         }
 
         // prevents any further operations starting against this Ordered instance
+        // if there are no running operations, calls unlink; otherwise, we let the last op to finishOne call it.
+        // this means issue() won't have to block for ops to finish.
         private void expire()
         {
             while (true)
             {
-                int cur = running;
-                if (cur < 0)
+                int current = running;
+                if (current < 0)
                     throw new IllegalStateException();
-                if (runningUpdater.compareAndSet(this, cur, -1 - cur))
+                if (runningUpdater.compareAndSet(this, current, -1 - current))
                 {
                     // if we're already finished (no running ops), unlink ourselves
-                    if (-1 - cur == FINISHED)
+                    if (current == 0)
                         unlink();
                     return;
                 }
@@ -180,10 +182,10 @@ public class OpOrdering
         {
             while (true)
             {
-                int cur = running;
-                if (cur < 0)
+                int current = running;
+                if (current < 0)
                     return false;
-                if (runningUpdater.compareAndSet(this, cur, cur + 1))
+                if (runningUpdater.compareAndSet(this, current, current + 1))
                     return true;
             }
         }
@@ -196,12 +198,12 @@ public class OpOrdering
         {
             while (true)
             {
-                int cur = running;
-                if (cur < 0)
+                int current = running;
+                if (current < 0)
                 {
-                    if (runningUpdater.compareAndSet(this, cur, cur + 1))
+                    if (runningUpdater.compareAndSet(this, current, current + 1))
                     {
-                        if (cur + 1 == FINISHED)
+                        if (current + 1 == FINISHED)
                         {
                             // if we're now finished, unlink ourselves
                             unlink();
@@ -209,7 +211,7 @@ public class OpOrdering
                         return;
                     }
                 }
-                else if (runningUpdater.compareAndSet(this, cur, cur - 1))
+                else if (runningUpdater.compareAndSet(this, current, current - 1))
                 {
                     return;
                 }
@@ -328,14 +330,14 @@ public class OpOrdering
             if (orderOnOrBefore != null)
                 throw new IllegalStateException("Can only call issue() once on each Barrier");
 
-            final Ordered cur;
+            final Ordered current;
             synchronized (OpOrdering.this)
             {
-                cur = OpOrdering.this.current;
-                orderOnOrBefore = cur;
-                OpOrdering.this.current = cur.next = new Ordered(cur);
+                current = OpOrdering.this.current;
+                orderOnOrBefore = current;
+                OpOrdering.this.current = current.next = new Ordered(current);
             }
-            cur.expire();
+            current.expire();
         }
 
         /**
@@ -343,12 +345,12 @@ public class OpOrdering
          */
         public void markBlocking()
         {
-            Ordered cur = orderOnOrBefore;
-            while (cur != null)
+            Ordered current = orderOnOrBefore;
+            while (current != null)
             {
-                cur.isBlocking = true;
-                cur.isBlockingSignal.signalAll();
-                cur = cur.prev;
+                current.isBlocking = true;
+                current.isBlockingSignal.signalAll();
+                current = current.prev;
             }
         }
 
@@ -365,10 +367,10 @@ public class OpOrdering
          */
         public boolean allPriorOpsAreFinished()
         {
-            Ordered cur = orderOnOrBefore;
-            if (cur == null)
+            Ordered current = orderOnOrBefore;
+            if (current == null)
                 throw new IllegalStateException("This barrier needs to have issue() called on it before prior operations can complete");
-            if (cur.next.prev == null)
+            if (current.next.prev == null)
                 return true;
             return false;
         }

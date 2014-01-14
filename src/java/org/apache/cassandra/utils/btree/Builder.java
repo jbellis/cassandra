@@ -3,8 +3,6 @@ package org.apache.cassandra.utils.btree;
 import java.util.Collection;
 import java.util.Comparator;
 
-import com.google.common.base.Function;
-
 import static org.apache.cassandra.utils.btree.BTree.EMPTY_LEAF;
 import static org.apache.cassandra.utils.btree.BTree.FAN_SHIFT;
 import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
@@ -48,7 +46,7 @@ final class Builder
         {
             while (true)
             {
-                if (updateF != null && updateF.abort())
+                if (updateF != null && updateF.abortEarly())
                 {
                     rootBuilder.clear();
                     return null;

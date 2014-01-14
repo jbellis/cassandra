@@ -17,7 +17,6 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  */
 public class MemoryTracker
 {
-
     // total memory/resource permitted to allocate
     public final long limit;
 
@@ -148,6 +147,5 @@ public class MemoryTracker
     {
         return new MemoryOwner(this);
     }
-
 }
 

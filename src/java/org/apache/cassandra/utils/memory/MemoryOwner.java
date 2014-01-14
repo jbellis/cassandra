@@ -6,7 +6,7 @@ import org.apache.cassandra.utils.concurrent.WaitQueue;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 /**
- * Represents an amount of memory that is tracked by the parent MemoryTracker, but that is temporarily allocated
+ * Created by a MemoryTracker to represent memory that is temporarily allocated
  * to a specific task. When the task needs more memory, it allocates it through this object, which acquires
  * (and maybe allocates) memory in its parent tracker and accounts for it here as well. Once the task is complete
  * it relinquishes the resources through this class, which ensures the resources are freed in the MemoryTracker.
@@ -16,7 +16,6 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  */
 public final class MemoryOwner
 {
-
     // the tracker we are owning memory from
     private final MemoryTracker tracker;
 
@@ -110,6 +109,5 @@ public final class MemoryOwner
     {
         return owns / (float) tracker.limit;
     }
-
 }
 

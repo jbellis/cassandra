@@ -18,7 +18,7 @@ public interface UpdateFunction<V>
     /**
      * @return true if we should fail the update
      */
-    boolean abort();
+    boolean abortEarly();
 
     /**
      * @param heapSize extra heap space allocated (over previous tree)
