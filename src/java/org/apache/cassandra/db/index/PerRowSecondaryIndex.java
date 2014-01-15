@@ -44,12 +44,7 @@ public abstract class PerRowSecondaryIndex extends SecondaryIndex
      *
      * @param key
      */
-    public abstract void delete(DecoratedKey key);
-
-    public void delete(DecoratedKey key, OpOrdering.Ordered op)
-    {
-        delete(key);
-    }
+    public abstract void delete(DecoratedKey key, OpOrdering.Ordered op);
 
     @Override
     public String getNameForSystemKeyspace(ByteBuffer columnName)

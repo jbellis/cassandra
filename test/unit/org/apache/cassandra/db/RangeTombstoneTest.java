@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.apache.cassandra.utils.memory.MemoryOwner;
 import org.junit.Test;
 
@@ -387,17 +388,17 @@ public class RangeTombstoneTest extends SchemaLoader
             deletes.clear();
         }
 
-        public void delete(ByteBuffer rowKey, Cell col)
+        public void delete(ByteBuffer rowKey, Cell col, OpOrdering.Ordered group)
         {
             deletes.add(col);
         }
 
-        public void insert(ByteBuffer rowKey, Cell col)
+        public void insert(ByteBuffer rowKey, Cell col, OpOrdering.Ordered group)
         {
             inserts.add(col);
         }
 
-        public void update(ByteBuffer rowKey, Cell col){}
+        public void update(ByteBuffer rowKey, Cell col, OpOrdering.Ordered group){}
 
         public void init(){}
 

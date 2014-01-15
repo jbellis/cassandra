@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.Set;
 
+import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.apache.cassandra.utils.memory.MemoryOwner;
 import org.junit.Test;
 
@@ -69,62 +70,51 @@ public class SecondaryIndexCellSizeTest
 
     private class MockRowIndex extends PerRowSecondaryIndex
     {
-        @Override
         public void init()
         {
         }
 
-        @Override
         public void validateOptions() throws ConfigurationException
         {
         }
 
-        @Override
         public String getIndexName()
         {
             return null;
         }
 
-        @Override
         protected SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns)
         {
             return null;
         }
 
-        @Override
         public void forceBlockingFlush()
         {
         }
 
-        @Override
         public MemoryOwner getOnHeapSize()
         {
             return null;
         }
 
-        @Override
         public MemoryOwner getOffHeapSize()
         {
             return null;
         }
 
-        @Override
         public ColumnFamilyStore getIndexCfs()
         {
             return null;
         }
 
-        @Override
         public void removeIndex(ByteBuffer columnName)
         {
         }
 
-        @Override
         public void invalidate()
         {
         }
 
-        @Override
         public void truncateBlocking(long truncatedAt)
         {
         }
@@ -133,15 +123,14 @@ public class SecondaryIndexCellSizeTest
         {
         }
 
+        public void delete(DecoratedKey key, OpOrdering.Ordered op)
+        {
+        }
+
         public void index(ByteBuffer rowKey)
         {
         }
 
-        public void delete(DecoratedKey key)
-        {
-        }
-
-        @Override
         public void reload()
         {
         }
@@ -216,17 +205,17 @@ public class SecondaryIndexCellSizeTest
         }
 
         @Override
-        public void delete(ByteBuffer rowKey, Cell col)
+        public void delete(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op)
         {
         }
 
         @Override
-        public void insert(ByteBuffer rowKey, Cell col)
+        public void insert(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op)
         {
         }
 
         @Override
-        public void update(ByteBuffer rowKey, Cell col)
+        public void update(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op)
         {
         }
 

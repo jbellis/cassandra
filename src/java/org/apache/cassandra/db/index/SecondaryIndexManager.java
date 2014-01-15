@@ -452,7 +452,7 @@ public class SecondaryIndexManager
                     cleanedRowLevelIndexes = new HashSet<>();
 
                 if (cleanedRowLevelIndexes.add(index.getClass()))
-                    ((PerRowSecondaryIndex)index).delete(key);
+                    ((PerRowSecondaryIndex)index).delete(key, op);
             }
             else
             {
