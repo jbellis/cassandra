@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
-import org.apache.cassandra.db.commitlog.CommitLog;
+
 import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,7 +54,7 @@ public class DataTracker
     }
 
     // get the Memtable that the ordered writeOp should be directed to
-    public Memtable getMemtableFor(OpOrdering.Ordered writeOp)
+    public Memtable getMemtableFor(OpOrdering.Group opGroup)
     {
         // since any new memtables appended to the list after we fetch it will be for operations started
         // after us, we can safely assume that we will always find the memtable that 'accepts' us;
@@ -65,7 +65,7 @@ public class DataTracker
         // assign operations to a memtable that was retired/queued before we started)
         for (Memtable memtable : view.get().liveMemtables)
         {
-            if (memtable.accepts(writeOp))
+            if (memtable.accepts(opGroup))
                 return memtable;
         }
         throw new AssertionError(view.get().liveMemtables.toString());

@@ -187,14 +187,14 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         {
                             // delete the index entry w/ its own timestamp
                             Cell dummyCell = new Cell(primaryColumn, indexKey.key, cell.timestamp());
-                            OpOrdering.Ordered op = baseCfs.keyspace.writeOrdering.start();
+                            OpOrdering.Group opGroup = baseCfs.keyspace.writeOrdering.start();
                             try
                             {
-                                ((PerColumnSecondaryIndex)index).delete(dk.key, dummyCell, op);
+                                ((PerColumnSecondaryIndex)index).delete(dk.key, dummyCell, opGroup);
                             }
                             finally
                             {
-                                op.finishOne();
+                                opGroup.finishOne();
                             }
                             continue;
                         }

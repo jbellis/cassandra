@@ -715,14 +715,14 @@ public class CompactionManager implements CompactionManagerMBean
                 if (indexedColumnsInRow != null && !indexedColumnsInRow.isEmpty())
                 {
                     // acquire memtable lock here because secondary index deletion may cause a race. See CASSANDRA-3712
-                    final OpOrdering.Ordered op = cfs.keyspace.writeOrdering.start();
+                    final OpOrdering.Group opGroup = cfs.keyspace.writeOrdering.start();
                     try
                     {
-                        cfs.indexManager.deleteFromIndexes(row.getKey(), indexedColumnsInRow, op);
+                        cfs.indexManager.deleteFromIndexes(row.getKey(), indexedColumnsInRow, opGroup);
                     }
                     finally
                     {
-                        op.finishOne();
+                        opGroup.finishOne();
                     }
                 }
                 return null;

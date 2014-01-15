@@ -27,7 +27,6 @@ import java.util.concurrent.Future;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.slf4j.Logger;
@@ -339,7 +338,7 @@ public class Keyspace
      */
     public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        final OpOrdering.Ordered op = writeOrdering.start();
+        final OpOrdering.Group opGroup = writeOrdering.start();
         try
         {
             // write the mutation to the commitlog and memtables
@@ -367,13 +366,13 @@ public class Keyspace
                 }
 
                 Tracing.trace("Adding to {} memtable", cf.metadata().cfName);
-                SecondaryIndexManager.Updater updater = updateIndexes ? cfs.indexManager.updaterFor(key, op) : SecondaryIndexManager.nullUpdater;
-                cfs.apply(key, cf, updater, op, replayPosition);
+                SecondaryIndexManager.Updater updater = updateIndexes ? cfs.indexManager.updaterFor(key, opGroup) : SecondaryIndexManager.nullUpdater;
+                cfs.apply(key, cf, updater, opGroup, replayPosition);
             }
         }
         finally
         {
-            op.finishOne();
+            opGroup.finishOne();
         }
     }
 
@@ -392,7 +391,7 @@ public class Keyspace
         if (logger.isDebugEnabled())
             logger.debug("Indexing row {} ", cfs.metadata.getKeyValidator().getString(key.key));
 
-        final OpOrdering.Ordered op = cfs.keyspace.writeOrdering.start();
+        final OpOrdering.Group opGroup = cfs.keyspace.writeOrdering.start();
         try
         {
             Collection<SecondaryIndex> indexes = cfs.indexManager.getIndexesByNames(idxNames);
@@ -407,12 +406,12 @@ public class Keyspace
                     if (cfs.indexManager.indexes(cell.name(), indexes))
                         cf2.addColumn(cell);
                 }
-                cfs.indexManager.indexRow(key.key, cf2, op);
+                cfs.indexManager.indexRow(key.key, cf2, opGroup);
             }
         }
         finally
         {
-            op.finishOne();
+            opGroup.finishOne();
         }
     }
 

@@ -35,7 +35,7 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
      * @param rowKey the underlying row key which is indexed
      * @param col all the column info
      */
-    public abstract void delete(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op);
+    public abstract void delete(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup);
 
     /**
      * insert a column to the index
@@ -43,7 +43,7 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
      * @param rowKey the underlying row key which is indexed
      * @param col all the column info
      */
-    public abstract void insert(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op);
+    public abstract void insert(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup);
 
     /**
      * update a column from the index
@@ -51,7 +51,7 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
      * @param rowKey the underlying row key which is indexed
      * @param col all the column info
      */
-    public abstract void update(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op);
+    public abstract void update(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup);
 
     public String getNameForSystemKeyspace(ByteBuffer column)
     {

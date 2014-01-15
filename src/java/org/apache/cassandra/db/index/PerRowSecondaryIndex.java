@@ -44,9 +44,8 @@ public abstract class PerRowSecondaryIndex extends SecondaryIndex
      *
      * @param key
      */
-    public abstract void delete(DecoratedKey key, OpOrdering.Ordered op);
+    public abstract void delete(DecoratedKey key, OpOrdering.Group opGroup);
 
-    @Override
     public String getNameForSystemKeyspace(ByteBuffer columnName)
     {
         try
@@ -59,7 +58,6 @@ public abstract class PerRowSecondaryIndex extends SecondaryIndex
         }
     }
 
-    @Override
     public boolean validate(Cell cell)
     {
         return true;

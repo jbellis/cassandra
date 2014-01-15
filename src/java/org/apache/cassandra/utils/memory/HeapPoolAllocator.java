@@ -33,9 +33,9 @@ public final class HeapPoolAllocator extends PoolAllocator
         return allocate(size, null);
     }
 
-    public ByteBuffer allocate(int size, OpOrdering.Ordered writeOp)
+    public ByteBuffer allocate(int size, OpOrdering.Group opGroup)
     {
-        onHeap.allocate(size, writeOp);
+        onHeap.allocate(size, opGroup);
         // must loop trying to acquire
         return ByteBuffer.allocate(size);
     }

@@ -110,18 +110,18 @@ public class LongOpOrderingTest
 
             volatile OpOrdering.Barrier barrier;
             volatile State replacement;
-            final NonBlockingHashMap<OpOrdering.Ordered, AtomicInteger> count = new NonBlockingHashMap<>();
+            final NonBlockingHashMap<OpOrdering.Group, AtomicInteger> count = new NonBlockingHashMap<>();
             int checkCount = -1;
 
-            boolean accept(OpOrdering.Ordered ordered)
+            boolean accept(OpOrdering.Group opGroup)
             {
-                if (barrier != null && !barrier.accept(ordered))
+                if (barrier != null && !barrier.accept(opGroup))
                     return false;
                 AtomicInteger c;
-                if (null == (c = count.get(ordered)))
+                if (null == (c = count.get(opGroup)))
                 {
-                    count.putIfAbsent(ordered, new AtomicInteger());
-                    c = count.get(ordered);
+                    count.putIfAbsent(opGroup, new AtomicInteger());
+                    c = count.get(opGroup);
                 }
                 c.incrementAndGet();
                 return true;
@@ -152,7 +152,7 @@ public class LongOpOrderingTest
                     checkCount = totalCount();
                     delete = false;
                 }
-                for (Map.Entry<OpOrdering.Ordered, AtomicInteger> e : count.entrySet())
+                for (Map.Entry<OpOrdering.Group, AtomicInteger> e : count.entrySet())
                 {
                     if (e.getKey().compareTo(barrier.getSyncPoint()) > 0)
                     {
@@ -171,7 +171,7 @@ public class LongOpOrderingTest
 
         }
 
-        final NonBlockingHashMap<OpOrdering.Ordered, AtomicInteger> count = new NonBlockingHashMap<>();
+        final NonBlockingHashMap<OpOrdering.Group, AtomicInteger> count = new NonBlockingHashMap<>();
 
         class Producer implements Runnable
         {
@@ -180,22 +180,22 @@ public class LongOpOrderingTest
                 while (true)
                 {
                     AtomicInteger c;
-                    OpOrdering.Ordered ordered = ordering.start();
+                    OpOrdering.Group opGroup = ordering.start();
                     try
                     {
-                        if (null == (c = count.get(ordered)))
+                        if (null == (c = count.get(opGroup)))
                         {
-                            count.putIfAbsent(ordered, new AtomicInteger());
-                            c = count.get(ordered);
+                            count.putIfAbsent(opGroup, new AtomicInteger());
+                            c = count.get(opGroup);
                         }
                         c.incrementAndGet();
                         State s = state;
-                        while (!s.accept(ordered))
+                        while (!s.accept(opGroup))
                             s = s.replacement;
                     }
                     finally
                     {
-                        ordered.finishOne();
+                        opGroup.finishOne();
                     }
                 }
             }

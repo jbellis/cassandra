@@ -123,7 +123,7 @@ public class SecondaryIndexCellSizeTest
         {
         }
 
-        public void delete(DecoratedKey key, OpOrdering.Ordered op)
+        public void delete(DecoratedKey key, OpOrdering.Group opGroup)
         {
         }
 
@@ -205,17 +205,17 @@ public class SecondaryIndexCellSizeTest
         }
 
         @Override
-        public void delete(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op)
+        public void delete(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup)
         {
         }
 
         @Override
-        public void insert(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op)
+        public void insert(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup)
         {
         }
 
         @Override
-        public void update(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op)
+        public void update(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup)
         {
         }
 

@@ -119,10 +119,10 @@ public class Memtable
         allocator.setDiscarded();
     }
 
-    public boolean accepts(OpOrdering.Ordered op)
+    public boolean accepts(OpOrdering.Group opGroup)
     {
         OpOrdering.Barrier barrier = this.writeBarrier;
-        return barrier == null || barrier.accept(op);
+        return barrier == null || barrier.accept(opGroup);
     }
 
     public boolean isLive()
@@ -155,7 +155,7 @@ public class Memtable
      *
      * replayPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
-    void put(DecoratedKey key, ColumnFamily cf, SecondaryIndexManager.Updater indexer, OpOrdering.Ordered writeOp, ReplayPosition replayPosition)
+    void put(DecoratedKey key, ColumnFamily cf, SecondaryIndexManager.Updater indexer, OpOrdering.Group opGroup, ReplayPosition replayPosition)
     {
         if (replayPosition != null && writeBarrier != null)
         {
@@ -178,7 +178,7 @@ public class Memtable
         if (previous == null)
         {
             AtomicBTreeColumns empty = cf.cloneMeShallow(AtomicBTreeColumns.factory, false);
-            final DecoratedKey cloneKey = new DecoratedKey(key.token, allocator.clone(key.key, writeOp));
+            final DecoratedKey cloneKey = new DecoratedKey(key.token, allocator.clone(key.key, opGroup));
             // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
             previous = rows.putIfAbsent(cloneKey, empty);
             if (previous == null)
@@ -187,7 +187,7 @@ public class Memtable
                 // allocate the row overhead after the fact; this saves over allocating and having to free after, but
                 // means we can overshoot our declared limit.
                 int overhead = (int) (cfs.partitioner.getHeapSizeOf(key.token) + ROW_OVERHEAD_HEAP_SIZE);
-                allocator.onHeap.allocate(overhead, writeOp);
+                allocator.onHeap.allocate(overhead, opGroup);
             }
             else
             {
@@ -195,7 +195,7 @@ public class Memtable
             }
         }
 
-        ContextAllocator contextAllocator = allocator.wrap(writeOp, cfs);
+        ContextAllocator contextAllocator = allocator.wrap(opGroup, cfs);
         AtomicBTreeColumns.Delta delta = previous.addAllWithSizeDelta(cf, contextAllocator, contextAllocator, indexer, new AtomicBTreeColumns.Delta());
         liveDataSize.addAndGet(delta.dataSize());
         currentOperations.addAndGet((cf.getColumnCount() == 0)
@@ -208,7 +208,7 @@ public class Memtable
             cell.name.free(allocator);
             allocator.free(cell.value);
         }
-        allocator.onHeap.allocate((int) delta.excessHeapSize(), writeOp);
+        allocator.onHeap.allocate((int) delta.excessHeapSize(), opGroup);
     }
 
     // for debugging

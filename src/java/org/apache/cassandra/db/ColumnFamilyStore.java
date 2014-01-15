@@ -1036,12 +1036,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ key - key for update/insert
      * param @ columnFamily - columnFamily changes
      */
-    public void apply(DecoratedKey key, ColumnFamily columnFamily, SecondaryIndexManager.Updater indexer, OpOrdering.Ordered writeOp, ReplayPosition replayPosition)
+    public void apply(DecoratedKey key, ColumnFamily columnFamily, SecondaryIndexManager.Updater indexer, OpOrdering.Group opGroup, ReplayPosition replayPosition)
     {
         long start = System.nanoTime();
 
-        Memtable mt = data.getMemtableFor(writeOp);
-        mt.put(key, columnFamily, indexer, writeOp, replayPosition);
+        Memtable mt = data.getMemtableFor(opGroup);
+        mt.put(key, columnFamily, indexer, opGroup, replayPosition);
         maybeUpdateRowCache(key);
         metric.writeLatency.addNano(System.nanoTime() - start);
     }

@@ -22,7 +22,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
 {
@@ -72,7 +71,7 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
         offHeap.releaseAll();
     }
 
-    public abstract ByteBuffer allocate(int size, OpOrdering.Ordered writeOp);
+    public abstract ByteBuffer allocate(int size, OpOrdering.Group opGroup);
 
     /** Mark the BB as unused, permitting it to be reclaimed */
     public abstract void free(ByteBuffer name);
@@ -85,12 +84,12 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
     /**
      * Allocate a slice of the given length.
      */
-    public ByteBuffer clone(ByteBuffer buffer, OpOrdering.Ordered writeOp)
+    public ByteBuffer clone(ByteBuffer buffer, OpOrdering.Group opGroup)
     {
         assert buffer != null;
         if (buffer.remaining() == 0)
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        ByteBuffer cloned = allocate(buffer.remaining(), writeOp);
+        ByteBuffer cloned = allocate(buffer.remaining(), opGroup);
 
         cloned.mark();
         cloned.put(buffer.duplicate());
@@ -98,8 +97,8 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
         return cloned;
     }
 
-    public ContextAllocator wrap(OpOrdering.Ordered writeOp, ColumnFamilyStore cfs)
+    public ContextAllocator wrap(OpOrdering.Group opGroup, ColumnFamilyStore cfs)
     {
-        return new ContextAllocator(writeOp, this, cfs);
+        return new ContextAllocator(opGroup, this, cfs);
     }
 }

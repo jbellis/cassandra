@@ -46,17 +46,17 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
         public void produce()
         {
-            Ordered ordered = ordering.start();
+            Group opGroup = ordering.start();
             try
             {
                 SharedState s = state;
-                while (s.barrier != null && !s.barrier.accept(ordered))
+                while (s.barrier != null && !s.barrier.accept(opGroup))
                     s = s.getReplacement();
                 s.doProduceWork();
             }
             finally
             {
-                ordered.finishOne();
+                opGroup.finishOne();
             }
         }
     }
@@ -75,7 +75,7 @@ public class OpOrdering
      * Once all operations started against an Ordered instance and its ancestors have been finished the next instance
      * will unlink this one
      */
-    private volatile Ordered current = new Ordered();
+    private volatile Group current = new Group();
 
     /**
      * Start an operation against this OpOrdering.
@@ -83,11 +83,11 @@ public class OpOrdering
      *
      * @return the Ordered instance that manages this OpOrdering
      */
-    public Ordered start()
+    public Group start()
     {
         while (true)
         {
-            Ordered current = this.current;
+            Group current = this.current;
             if (current.register())
                 return current;
         }
@@ -106,17 +106,17 @@ public class OpOrdering
         return new Barrier();
     }
 
-    public Ordered getCurrent()
+    public Group getCurrent()
     {
         return current;
     }
 
     /**
-     * Represents a 'batch' of identically ordered operations, i.e. all operations started in the interval between
+     * Represents a group of identically ordered operations, i.e. all operations started in the interval between
      * two barrier issuances. For each register() call this is returned, finishOne() must be called exactly once.
      * It should be treated like taking a lock().
      */
-    public static final class Ordered implements Comparable<Ordered>
+    public static final class Group implements Comparable<Group>
     {
         /**
          * In general this class goes through the following stages:
@@ -136,22 +136,22 @@ public class OpOrdering
          * then they will be notified that they are blocking forward progress, and may take action to avoid that.
          */
 
-        private volatile Ordered prev, next;
+        private volatile Group prev, next;
         private final long id; // monotonically increasing id for compareTo()
         private volatile int running = 0; // number of operations currently running.  < 0 means we're expired, and the count of tasks still running is -(running + 1)
         private volatile boolean isBlocking; // indicates running operations are blocking future barriers
         private final WaitQueue isBlockingSignal = new WaitQueue(); // signal to wait on to indicate isBlocking is true
         private final WaitQueue waiting = new WaitQueue(); // signal to wait on for completion
 
-        static final AtomicIntegerFieldUpdater<Ordered> runningUpdater = AtomicIntegerFieldUpdater.newUpdater(Ordered.class, "running");
+        static final AtomicIntegerFieldUpdater<Group> runningUpdater = AtomicIntegerFieldUpdater.newUpdater(Group.class, "running");
 
         // constructs first instance only
-        private Ordered()
+        private Group()
         {
             this.id = 0;
         }
 
-        private Ordered(Ordered prev)
+        private Group(Group prev)
         {
             this.id = prev.id + 1;
             this.prev = prev;
@@ -229,10 +229,10 @@ public class OpOrdering
         private void unlink()
         {
             // walk back in time to find the start of the list
-            Ordered start = this;
+            Group start = this;
             while (true)
             {
-                Ordered prev = start.prev;
+                Group prev = start.prev;
                 if (prev == null)
                     break;
                 // if we haven't finished this Ordered yet abort and let it clean up when it's done
@@ -242,14 +242,14 @@ public class OpOrdering
             }
 
             // now walk forwards in time, in case we finished up late
-            Ordered end = this.next;
+            Group end = this.next;
             while (end.running == FINISHED)
                 end = end.next;
 
             // now walk from first to last, unlinking the prev pointer and waking up any blocking threads
             while (start != end)
             {
-                Ordered next = start.next;
+                Group next = start.next;
                 next.prev = null;
                 start.waiting.signalAll();
                 start = next;
@@ -282,7 +282,7 @@ public class OpOrdering
             return WaitQueue.any(signal, isBlockingSignal());
         }
 
-        public int compareTo(Ordered that)
+        public int compareTo(Group that)
         {
             // we deliberately use subtraction, as opposed to Long.compareTo() as we care about ordering
             // not which is the smaller value, so this permits wrapping in the unlikely event we exhaust the long space
@@ -306,19 +306,19 @@ public class OpOrdering
      */
     public final class Barrier
     {
-        // this Barrier was issued after all Ordered operations started against orderOnOrBefore
-        private volatile Ordered orderOnOrBefore;
+        // this Barrier was issued after all Group operations started against orderOnOrBefore
+        private volatile Group orderOnOrBefore;
 
         // if the barrier has been exposed to all operations prior to .issue() being called, then
         // accept() will return true only for (and for all) those operations started prior to the issue of the barrier
-        public boolean accept(Ordered op)
+        public boolean accept(Group group)
         {
             if (orderOnOrBefore == null)
                 return true;
             // we subtract to permit wrapping round the full range of Long - so we only need to ensure
-            // there are never Long.MAX_VALUE * 2 total Ordered objects in existence at any one timem which will
+            // there are never Long.MAX_VALUE * 2 total Group objects in existence at any one timem which will
             // take care of itself
-            return orderOnOrBefore.id - op.id >= 0;
+            return orderOnOrBefore.id - group.id >= 0;
         }
 
         /**
@@ -330,12 +330,12 @@ public class OpOrdering
             if (orderOnOrBefore != null)
                 throw new IllegalStateException("Can only call issue() once on each Barrier");
 
-            final Ordered current;
+            final Group current;
             synchronized (OpOrdering.this)
             {
                 current = OpOrdering.this.current;
                 orderOnOrBefore = current;
-                OpOrdering.this.current = current.next = new Ordered(current);
+                OpOrdering.this.current = current.next = new Group(current);
             }
             current.expire();
         }
@@ -345,7 +345,7 @@ public class OpOrdering
          */
         public void markBlocking()
         {
-            Ordered current = orderOnOrBefore;
+            Group current = orderOnOrBefore;
             while (current != null)
             {
                 current.isBlocking = true;
@@ -367,7 +367,7 @@ public class OpOrdering
          */
         public boolean allPriorOpsAreFinished()
         {
-            Ordered current = orderOnOrBefore;
+            Group current = orderOnOrBefore;
             if (current == null)
                 throw new IllegalStateException("This barrier needs to have issue() called on it before prior operations can complete");
             if (current.next.prev == null)
@@ -395,13 +395,12 @@ public class OpOrdering
         }
 
         /**
-         * returns the Ordered object we are waiting on - any Ordered with .compareTo(getSyncPoint()) <= 0
+         * returns the Group we are waiting on - any Group with .compareTo(getSyncPoint()) <= 0
          * must complete before await() returns
          */
-        public Ordered getSyncPoint()
+        public Group getSyncPoint()
         {
             return orderOnOrBefore;
         }
-
     }
 }

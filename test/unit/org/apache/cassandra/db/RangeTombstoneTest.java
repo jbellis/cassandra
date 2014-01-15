@@ -388,17 +388,17 @@ public class RangeTombstoneTest extends SchemaLoader
             deletes.clear();
         }
 
-        public void delete(ByteBuffer rowKey, Cell col, OpOrdering.Ordered group)
+        public void delete(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup)
         {
             deletes.add(col);
         }
 
-        public void insert(ByteBuffer rowKey, Cell col, OpOrdering.Ordered group)
+        public void insert(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup)
         {
             inserts.add(col);
         }
 
-        public void update(ByteBuffer rowKey, Cell col, OpOrdering.Ordered group){}
+        public void update(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup){}
 
         public void init(){}
 

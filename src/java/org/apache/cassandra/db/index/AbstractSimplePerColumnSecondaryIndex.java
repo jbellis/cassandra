@@ -101,7 +101,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         throw new IllegalStateException();
     }
 
-    public void delete(ByteBuffer rowKey, Cell cell, OpOrdering.Ordered op)
+    public void delete(ByteBuffer rowKey, Cell cell, OpOrdering.Group opGroup)
     {
         if (cell.isMarkedForDelete(System.currentTimeMillis()))
             return;
@@ -110,12 +110,12 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
         cfi.addTombstone(makeIndexColumnName(rowKey, cell), localDeletionTime, cell.timestamp());
-        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, op, null);
+        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
         if (logger.isDebugEnabled())
             logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
     }
 
-    public void insert(ByteBuffer rowKey, Cell cell, OpOrdering.Ordered op)
+    public void insert(ByteBuffer rowKey, Cell cell, OpOrdering.Group opGroup)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, cell));
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
@@ -132,12 +132,12 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         if (logger.isDebugEnabled())
             logger.debug("applying index row {} in {}", indexCfs.metadata.getKeyValidator().getString(valueKey.key), cfi);
 
-        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, op, null);
+        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
     }
 
-    public void update(ByteBuffer rowKey, Cell col, OpOrdering.Ordered op)
+    public void update(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup)
     {
-        insert(rowKey, col, op);
+        insert(rowKey, col, opGroup);
     }
 
     public void removeIndex(ByteBuffer columnName)

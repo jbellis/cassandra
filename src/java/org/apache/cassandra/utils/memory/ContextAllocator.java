@@ -13,13 +13,13 @@ import java.nio.ByteBuffer;
  */
 public final class ContextAllocator extends AbstractAllocator implements Function<Cell, Cell>
 {
-    private final OpOrdering.Ordered writeOp;
+    private final OpOrdering.Group opGroup;
     private final PoolAllocator allocator;
     private final ColumnFamilyStore cfs;
 
-    public ContextAllocator(OpOrdering.Ordered writeOp, PoolAllocator allocator, ColumnFamilyStore cfs)
+    public ContextAllocator(OpOrdering.Group opGroup, PoolAllocator allocator, ColumnFamilyStore cfs)
     {
-        this.writeOp = writeOp;
+        this.opGroup = opGroup;
         this.allocator = allocator;
         this.cfs = cfs;
     }
@@ -27,12 +27,12 @@ public final class ContextAllocator extends AbstractAllocator implements Functio
     @Override
     public ByteBuffer clone(ByteBuffer buffer)
     {
-        return allocator.clone(buffer, writeOp);
+        return allocator.clone(buffer, opGroup);
     }
 
     public ByteBuffer allocate(int size)
     {
-        return allocator.allocate(size, writeOp);
+        return allocator.allocate(size, opGroup);
     }
 
     public Cell apply(Cell column)

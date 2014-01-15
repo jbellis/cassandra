@@ -169,7 +169,7 @@ public class CommitLogSegment
      */
     boolean allocate(Mutation mutation, int size, Allocation alloc)
     {
-        final OpOrdering.Ordered commandOrder = appendOrdering.start();
+        final OpOrdering.Group commandOrder = appendOrdering.start();
         try
         {
             int position = allocate(size);
@@ -537,7 +537,7 @@ public class CommitLogSegment
     {
 
         private CommitLogSegment segment;
-        private OpOrdering.Ordered appendOp;
+        private OpOrdering.Group appendOp;
         private int position;
         private ByteBuffer buffer;
 

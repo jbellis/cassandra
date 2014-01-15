@@ -50,7 +50,7 @@ public final class MemoryOwner
     }
 
     // allocate memory in the tracker, and mark ourselves as owning it
-    public void allocate(int size, OpOrdering.Ordered writeOp)
+    public void allocate(int size, OpOrdering.Group opGroup)
     {
         while (true)
         {
@@ -59,9 +59,9 @@ public final class MemoryOwner
                 acquired(size);
                 return;
             }
-            WaitQueue.Signal signal = writeOp.isBlockingSignal(tracker.hasRoom.register());
+            WaitQueue.Signal signal = opGroup.isBlockingSignal(tracker.hasRoom.register());
             boolean allocated = tracker.tryAllocate(size);
-            if (allocated || writeOp.isBlocking())
+            if (allocated || opGroup.isBlocking())
             {
                 signal.cancel();
                 if (allocated) // if we allocated, take ownership

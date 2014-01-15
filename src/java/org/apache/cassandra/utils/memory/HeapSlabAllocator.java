@@ -22,7 +22,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.google.common.base.Preconditions;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.NonBlockingQueue;
 import org.apache.cassandra.utils.concurrent.OpOrdering;
@@ -67,13 +66,13 @@ public class HeapSlabAllocator extends PoolAllocator
         return allocate(size, null);
     }
 
-    public ByteBuffer allocate(int size, OpOrdering.Ordered writeOp)
+    public ByteBuffer allocate(int size, OpOrdering.Group opGroup)
     {
         assert size >= 0;
         if (size == 0)
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
-        onHeap.allocate(size, writeOp);
+        onHeap.allocate(size, opGroup);
         // satisfy large allocations directly from JVM since they don't cause fragmentation
         // as badly, and fill up our regions quickly
         if (size > MAX_CLONED_SIZE)

@@ -139,7 +139,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         }
 
         @Override
-        public void delete(DecoratedKey key, OpOrdering.Ordered op)
+        public void delete(DecoratedKey key, OpOrdering.Group opGroup)
         {
         }
 
