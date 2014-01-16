@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
  * <pre>
      public final class ExampleShared
      {
-        final OpOrdering ordering = new OpOrdering();
+        final OpOrder order = new OpOrder();
         volatile SharedState state;
 
         static class SharedState
@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
             state.setReplacement(new State())
             state.doSomethingToPrepareForBarrier();
 
-            state.barrier = ordering.newBarrier();
+            state.barrier = order.newBarrier();
             // issue() MUST be called after newBarrier() else barrier.accept()
             // will always return true, and barrier.await() will fail
             state.barrier.issue();
@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
         public void produce()
         {
-            Group opGroup = ordering.start();
+            Group opGroup = order.start();
             try
             {
                 SharedState s = state;
@@ -62,7 +62,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
     }
  * </pre>
  */
-public class OpOrdering
+public class OpOrder
 {
     /**
      * Constant that when an Ordered.running is equal to, indicates the Ordered is complete
@@ -78,10 +78,10 @@ public class OpOrdering
     private volatile Group current = new Group();
 
     /**
-     * Start an operation against this OpOrdering.
+     * Start an operation against this OpOrder.
      * Once the operation is completed Ordered.finishOne() MUST be called EXACTLY once for this operation.
      *
-     * @return the Ordered instance that manages this OpOrdering
+     * @return the Ordered instance that manages this OpOrder
      */
     public Group start()
     {
@@ -95,7 +95,7 @@ public class OpOrdering
 
     /**
      * Creates a new barrier. The barrier is only a placeholder until barrier.issue() is called on it,
-     * after which all new operations will start against a new Ordered instance that will not be accepted
+     * after which all new operations will start against a new Group that will not be accepted
      * by barrier.accept(), and barrier.await() will return only once all operations started prior to the issue
      * have completed.
      *
@@ -302,7 +302,7 @@ public class OpOrdering
      * Barrier atomically partitions new operations from those already running, and activates its accept() method
      * which indicates if an operation was started before or after this partition. It offers methods to
      * determine, or block until, all prior operations have finished, and a means to indicate to those operations
-     * that they are blocking forward progress. See {@link OpOrdering} for idiomatic usage.
+     * that they are blocking forward progress. See {@link OpOrder} for idiomatic usage.
      */
     public final class Barrier
     {
@@ -331,11 +331,11 @@ public class OpOrdering
                 throw new IllegalStateException("Can only call issue() once on each Barrier");
 
             final Group current;
-            synchronized (OpOrdering.this)
+            synchronized (OpOrder.this)
             {
-                current = OpOrdering.this.current;
+                current = OpOrder.this.current;
                 orderOnOrBefore = current;
-                OpOrdering.this.current = current.next = new Group(current);
+                OpOrder.this.current = current.next = new Group(current);
             }
             current.expire();
         }

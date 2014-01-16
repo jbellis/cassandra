@@ -1,6 +1,7 @@
 package org.apache.cassandra.concurrent;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.junit.*;
 import org.slf4j.*;
@@ -17,7 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 // TODO: we don't currently test SAFE functionality at all!
 // TODO: should also test markBlocking and SyncOrdered
-public class LongOpOrderingTest
+public class LongOpOrderTest
 {
 
     private static final Logger logger = LoggerFactory.getLogger(LongNonBlockingQueueTest.class);
@@ -38,7 +39,7 @@ public class LongOpOrderingTest
         }
     };
 
-    final OpOrdering ordering = new OpOrdering();
+    final OpOrder order = new OpOrder();
     final AtomicInteger errors = new AtomicInteger();
 
     class TestOrdering implements Runnable
@@ -86,7 +87,7 @@ public class LongOpOrderingTest
                 }
 
                 final State s = state;
-                s.barrier = ordering.newBarrier();
+                s.barrier = order.newBarrier();
                 s.replacement = new State();
                 s.barrier.issue();
                 s.barrier.await();
@@ -108,12 +109,12 @@ public class LongOpOrderingTest
         class State
         {
 
-            volatile OpOrdering.Barrier barrier;
+            volatile OpOrder.Barrier barrier;
             volatile State replacement;
-            final NonBlockingHashMap<OpOrdering.Group, AtomicInteger> count = new NonBlockingHashMap<>();
+            final NonBlockingHashMap<OpOrder.Group, AtomicInteger> count = new NonBlockingHashMap<>();
             int checkCount = -1;
 
-            boolean accept(OpOrdering.Group opGroup)
+            boolean accept(OpOrder.Group opGroup)
             {
                 if (barrier != null && !barrier.accept(opGroup))
                     return false;
@@ -152,7 +153,7 @@ public class LongOpOrderingTest
                     checkCount = totalCount();
                     delete = false;
                 }
-                for (Map.Entry<OpOrdering.Group, AtomicInteger> e : count.entrySet())
+                for (Map.Entry<OpOrder.Group, AtomicInteger> e : count.entrySet())
                 {
                     if (e.getKey().compareTo(barrier.getSyncPoint()) > 0)
                     {
@@ -171,7 +172,7 @@ public class LongOpOrderingTest
 
         }
 
-        final NonBlockingHashMap<OpOrdering.Group, AtomicInteger> count = new NonBlockingHashMap<>();
+        final NonBlockingHashMap<OpOrder.Group, AtomicInteger> count = new NonBlockingHashMap<>();
 
         class Producer implements Runnable
         {
@@ -180,7 +181,7 @@ public class LongOpOrderingTest
                 while (true)
                 {
                     AtomicInteger c;
-                    OpOrdering.Group opGroup = ordering.start();
+                    OpOrder.Group opGroup = order.start();
                     try
                     {
                         if (null == (c = count.get(opGroup)))

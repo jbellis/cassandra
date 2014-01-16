@@ -21,7 +21,7 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.Set;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemoryOwner;
 import org.junit.Test;
 
@@ -123,7 +123,7 @@ public class SecondaryIndexCellSizeTest
         {
         }
 
-        public void delete(DecoratedKey key, OpOrdering.Group opGroup)
+        public void delete(DecoratedKey key, OpOrder.Group opGroup)
         {
         }
 
@@ -205,17 +205,17 @@ public class SecondaryIndexCellSizeTest
         }
 
         @Override
-        public void delete(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup)
+        public void delete(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup)
         {
         }
 
         @Override
-        public void insert(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup)
+        public void insert(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup)
         {
         }
 
         @Override
-        public void update(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup)
+        public void update(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup)
         {
         }
 

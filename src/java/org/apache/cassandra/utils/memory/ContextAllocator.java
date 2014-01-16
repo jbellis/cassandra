@@ -2,7 +2,7 @@ package org.apache.cassandra.utils.memory;
 
 import com.google.common.base.*;
 import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.db.ColumnFamilyStore;
 
 import java.nio.ByteBuffer;
@@ -13,11 +13,11 @@ import java.nio.ByteBuffer;
  */
 public final class ContextAllocator extends AbstractAllocator implements Function<Cell, Cell>
 {
-    private final OpOrdering.Group opGroup;
+    private final OpOrder.Group opGroup;
     private final PoolAllocator allocator;
     private final ColumnFamilyStore cfs;
 
-    public ContextAllocator(OpOrdering.Group opGroup, PoolAllocator allocator, ColumnFamilyStore cfs)
+    public ContextAllocator(OpOrder.Group opGroup, PoolAllocator allocator, ColumnFamilyStore cfs)
     {
         this.opGroup = opGroup;
         this.allocator = allocator;

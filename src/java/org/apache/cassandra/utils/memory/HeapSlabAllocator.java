@@ -24,7 +24,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.NonBlockingQueue;
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,7 +67,7 @@ public class HeapSlabAllocator extends PoolAllocator
         return allocate(size, null);
     }
 
-    public ByteBuffer allocate(int size, OpOrdering.Group opGroup)
+    public ByteBuffer allocate(int size, OpOrder.Group opGroup)
     {
         assert size >= 0;
         if (size == 0)

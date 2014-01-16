@@ -27,7 +27,7 @@ import com.google.common.base.Throwables;
 
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.dht.LongToken;
@@ -59,7 +59,7 @@ public class Memtable
     private final AtomicLong currentOperations = new AtomicLong(0);
 
     // the write barrier for directing writes to this memtable during a switch
-    private volatile OpOrdering.Barrier writeBarrier;
+    private volatile OpOrder.Barrier writeBarrier;
     // the last ReplayPosition owned by this Memtable; all ReplayPositions lower are owned by this or an earlier Memtable
     private final AtomicReference<ReplayPosition> lastReplayPosition = new AtomicReference<>();
     // the "first" ReplayPosition owned by this Memtable; this is inaccurate, and only used as a convenience to prevent CLSM flushing wantonly
@@ -80,7 +80,7 @@ public class Memtable
 
     public Memtable(ColumnFamilyStore cfs)
     {
-        this.allocator = POOL.newAllocator(cfs.keyspace.writeOrdering);
+        this.allocator = POOL.newAllocator(cfs.keyspace.writeOrder);
         this.cfs = cfs;
         this.initialComparator = cfs.metadata.comparator;
         this.cfs.scheduleFlush();
@@ -106,7 +106,7 @@ public class Memtable
         return currentOperations.get();
     }
 
-    void setDiscarding(OpOrdering.Barrier writeBarrier, ReplayPosition minLastReplayPosition)
+    void setDiscarding(OpOrder.Barrier writeBarrier, ReplayPosition minLastReplayPosition)
     {
         assert this.writeBarrier == null;
         this.lastReplayPosition.set(minLastReplayPosition);
@@ -119,9 +119,9 @@ public class Memtable
         allocator.setDiscarded();
     }
 
-    public boolean accepts(OpOrdering.Group opGroup)
+    public boolean accepts(OpOrder.Group opGroup)
     {
-        OpOrdering.Barrier barrier = this.writeBarrier;
+        OpOrder.Barrier barrier = this.writeBarrier;
         return barrier == null || barrier.accept(opGroup);
     }
 
@@ -155,7 +155,7 @@ public class Memtable
      *
      * replayPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
-    void put(DecoratedKey key, ColumnFamily cf, SecondaryIndexManager.Updater indexer, OpOrdering.Group opGroup, ReplayPosition replayPosition)
+    void put(DecoratedKey key, ColumnFamily cf, SecondaryIndexManager.Updater indexer, OpOrder.Group opGroup, ReplayPosition replayPosition)
     {
         if (replayPosition != null && writeBarrier != null)
         {
@@ -232,7 +232,7 @@ public class Memtable
     public String toString()
     {
         return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%% of heap limit)",
-                cfs.name, hashCode(), liveDataSize, currentOperations, 100 * allocator.onHeap.ownershipRatio());
+                             cfs.name, hashCode(), liveDataSize, currentOperations, 100 * allocator.onHeap.ownershipRatio());
     }
 
     /**

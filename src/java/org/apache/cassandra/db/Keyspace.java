@@ -27,7 +27,7 @@ import java.util.concurrent.Future;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,7 +65,7 @@ public class Keyspace
     }
 
     public final KSMetaData metadata;
-    public final OpOrdering writeOrdering = new OpOrdering();
+    public final OpOrder writeOrder = new OpOrder();
 
     /* ColumnFamilyStore per column family */
     private final ConcurrentMap<UUID, ColumnFamilyStore> columnFamilyStores = new ConcurrentHashMap<UUID, ColumnFamilyStore>();
@@ -338,7 +338,7 @@ public class Keyspace
      */
     public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        final OpOrdering.Group opGroup = writeOrdering.start();
+        final OpOrder.Group opGroup = writeOrder.start();
         try
         {
             // write the mutation to the commitlog and memtables
@@ -391,7 +391,7 @@ public class Keyspace
         if (logger.isDebugEnabled())
             logger.debug("Indexing row {} ", cfs.metadata.getKeyValidator().getString(key.key));
 
-        final OpOrdering.Group opGroup = cfs.keyspace.writeOrdering.start();
+        final OpOrder.Group opGroup = cfs.keyspace.writeOrder.start();
         try
         {
             Collection<SecondaryIndex> indexes = cfs.indexManager.getIndexesByNames(idxNames);

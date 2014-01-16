@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.utils.memory;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -71,7 +71,7 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
         offHeap.releaseAll();
     }
 
-    public abstract ByteBuffer allocate(int size, OpOrdering.Group opGroup);
+    public abstract ByteBuffer allocate(int size, OpOrder.Group opGroup);
 
     /** Mark the BB as unused, permitting it to be reclaimed */
     public abstract void free(ByteBuffer name);
@@ -84,7 +84,7 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
     /**
      * Allocate a slice of the given length.
      */
-    public ByteBuffer clone(ByteBuffer buffer, OpOrdering.Group opGroup)
+    public ByteBuffer clone(ByteBuffer buffer, OpOrder.Group opGroup)
     {
         assert buffer != null;
         if (buffer.remaining() == 0)
@@ -97,7 +97,7 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
         return cloned;
     }
 
-    public ContextAllocator wrap(OpOrdering.Group opGroup, ColumnFamilyStore cfs)
+    public ContextAllocator wrap(OpOrder.Group opGroup, ColumnFamilyStore cfs)
     {
         return new ContextAllocator(opGroup, this, cfs);
     }

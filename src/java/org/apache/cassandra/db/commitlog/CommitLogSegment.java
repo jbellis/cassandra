@@ -34,7 +34,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,8 +68,8 @@ public class CommitLogSegment
     // The commit log (chained) sync marker/header size in bytes (int: length + long: checksum [segmentId, position])
     static final int SYNC_MARKER_SIZE = 4 + 8;
 
-    // The OpOrdering used to order appends wrt sync
-    private final OpOrdering appendOrdering = new OpOrdering();
+    // The OpOrder used to order appends wrt sync
+    private final OpOrder appendOrder = new OpOrder();
 
     private final AtomicInteger allocatePosition = new AtomicInteger();
 
@@ -169,7 +170,7 @@ public class CommitLogSegment
      */
     boolean allocate(Mutation mutation, int size, Allocation alloc)
     {
-        final OpOrdering.Group commandOrder = appendOrdering.start();
+        final OpOrder.Group commandOrder = appendOrder.start();
         try
         {
             int position = allocate(size);
@@ -258,7 +259,7 @@ public class CommitLogSegment
             }
 
             // issue a barrier and wait for it
-            OpOrdering.Barrier barrier = appendOrdering.newBarrier();
+            OpOrder.Barrier barrier = appendOrder.newBarrier();
             barrier.issue();
             barrier.await();
 
@@ -537,7 +538,7 @@ public class CommitLogSegment
     {
 
         private CommitLogSegment segment;
-        private OpOrdering.Group appendOp;
+        private OpOrder.Group appendOp;
         private int position;
         private ByteBuffer buffer;
 

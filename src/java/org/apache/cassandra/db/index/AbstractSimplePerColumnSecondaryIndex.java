@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.Future;
 
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
@@ -101,7 +101,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         throw new IllegalStateException();
     }
 
-    public void delete(ByteBuffer rowKey, Cell cell, OpOrdering.Group opGroup)
+    public void delete(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
     {
         if (cell.isMarkedForDelete(System.currentTimeMillis()))
             return;
@@ -115,7 +115,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
             logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
     }
 
-    public void insert(ByteBuffer rowKey, Cell cell, OpOrdering.Group opGroup)
+    public void insert(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, cell));
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
@@ -135,7 +135,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
     }
 
-    public void update(ByteBuffer rowKey, Cell col, OpOrdering.Group opGroup)
+    public void update(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup)
     {
         insert(rowKey, col, opGroup);
     }

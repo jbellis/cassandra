@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Set;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemoryOwner;
 import org.junit.Before;
 import org.junit.Test;
@@ -139,7 +139,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         }
 
         @Override
-        public void delete(DecoratedKey key, OpOrdering.Group opGroup)
+        public void delete(DecoratedKey key, OpOrder.Group opGroup)
         {
         }
 
