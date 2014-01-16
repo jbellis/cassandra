@@ -925,7 +925,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 memtables.add(mt);
             }
 
-            writeBarrier.issue();
+            writeBarrier.seal();
             postFlush = new PostFlush(!truncate, writeBarrier);
         }
 

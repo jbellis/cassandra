@@ -31,9 +31,9 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
             state.doSomethingToPrepareForBarrier();
 
             state.barrier = order.newBarrier();
-            // issue() MUST be called after newBarrier() else barrier.accept()
+            // seal() MUST be called after newBarrier() else barrier.accept()
             // will always return true, and barrier.await() will fail
-            state.barrier.issue();
+            state.barrier.seal();
 
             // wait for all producer work started prior to the barrier to complete
             state.barrier.await();
@@ -94,7 +94,7 @@ public class OpOrder
     }
 
     /**
-     * Creates a new barrier. The barrier is only a placeholder until barrier.issue() is called on it,
+     * Creates a new barrier. The barrier is only a placeholder until barrier.seal() is called on it,
      * after which all new operations will start against a new Group that will not be accepted
      * by barrier.accept(), and barrier.await() will return only once all operations started prior to the issue
      * have completed.
@@ -309,7 +309,7 @@ public class OpOrder
         // this Barrier was issued after all Group operations started against orderOnOrBefore
         private volatile Group orderOnOrBefore;
 
-        // if the barrier has been exposed to all operations prior to .issue() being called, then
+        // if the barrier has been exposed to all operations prior to .seal() being called, then
         // accept() will return true only for (and for all) those operations started prior to the issue of the barrier
         public boolean accept(Group group)
         {
@@ -322,10 +322,10 @@ public class OpOrder
         }
 
         /**
-         * Issues the barrier; must be called after exposing the barrier to any operations it may affect,
-         * but before it is used, so that the accept() method is properly synchronised.
+         * Seals the barrier, meaning no new operations may be issued against it.  Must be called before
+         * await() for accept() to be properly synchronised.
          */
-        public void issue()
+        public void seal()
         {
             if (orderOnOrBefore != null)
                 throw new IllegalStateException("Can only call issue() once on each Barrier");

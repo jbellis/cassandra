@@ -260,7 +260,7 @@ public class CommitLogSegment
 
             // issue a barrier and wait for it
             OpOrder.Barrier barrier = appendOrder.newBarrier();
-            barrier.issue();
+            barrier.seal();
             barrier.await();
 
             // write previous sync marker to point to next sync marker

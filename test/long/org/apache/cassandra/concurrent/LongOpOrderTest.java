@@ -89,7 +89,7 @@ public class LongOpOrderTest
                 final State s = state;
                 s.barrier = order.newBarrier();
                 s.replacement = new State();
-                s.barrier.issue();
+                s.barrier.seal();
                 s.barrier.await();
                 s.check();
                 opCount += s.totalCount();
