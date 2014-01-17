@@ -210,18 +210,42 @@ public class CommitLogSegment
     // ensures no more of this segment is writeable, by allocating any unused section at the end and marking it discarded
     void discardUnusedTail()
     {
-        while (true)
+        // we guard this with the OpOrdering instead of synchronised due to potential dead-lock with CLSM.advanceAllocatingFrom()
+        // this actually isn't strictly necessary, as currently all calls to discardUnusedTail occur within a block
+        // already protected by this OpOrdering, but to prevent future potential mistakes, we duplicate the protection here
+        // so that the contract between discardUnusedTail() and sync() is more explicit.
+        OpOrder.Group group = appendOrder.start();
+        try
         {
-            int prev = allocatePosition.get();
-            int next = buffer.capacity();
-            if (prev == next)
-                return;
-            if (allocatePosition.compareAndSet(prev, next))
+            while (true)
             {
-                discardedTailFrom = prev;
-                return;
+                int prev = allocatePosition.get();
+                // we set allocatePosition past buffer.capacity() to make sure we always set discardedTailFrom
+                int next = buffer.capacity() + 1;
+                if (prev == next)
+                    return;
+                if (allocatePosition.compareAndSet(prev, next))
+                {
+                    discardedTailFrom = prev;
+                    return;
+                }
             }
         }
+        finally
+        {
+            group.finishOne();
+        }
+    }
+
+    /**
+     * Wait for any appends or discardUnusedTail() operations started before this method was called
+     */
+    private synchronized void waitForModifications()
+    {
+        // issue a barrier and wait for it
+        OpOrder.Barrier barrier = appendOrder.newBarrier();
+        barrier.seal();
+        barrier.await();
     }
 
     /**
@@ -246,6 +270,9 @@ public class CommitLogSegment
                 discardUnusedTail();
                 close = true;
 
+                // wait for modifications guards both discardedTailFrom, and any outstanding appends
+                waitForModifications();
+
                 if (discardedTailFrom < buffer.capacity() - SYNC_MARKER_SIZE)
                 {
                     // if there's room in the discard section to write an empty header, use that as the nextMarker
@@ -257,11 +284,12 @@ public class CommitLogSegment
                     nextMarker = buffer.capacity();
                 }
             }
+            else
+            {
+                waitForModifications();
+            }
 
-            // issue a barrier and wait for it
-            OpOrder.Barrier barrier = appendOrder.newBarrier();
-            barrier.seal();
-            barrier.await();
+            assert nextMarker > lastSyncedOffset;
 
             // write previous sync marker to point to next sync marker
             // we don't chain the crcs here to ensure this method is idempotent if it fails
