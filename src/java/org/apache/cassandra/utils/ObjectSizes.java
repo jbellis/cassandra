@@ -122,8 +122,8 @@ public class ObjectSizes
             return BUFFER_EMPTY_SIZE;
         // if we're only referencing a sub-portion of the ByteBuffer, don't count the array overhead (assume it's slab
         // allocated, so amortized over all the allocations the overhead is negligible and better ti undercount than over)
-//        if (buffer.capacity() > buffer.remaining())
-//            return BUFFER_HEAP_SIZE + buffer.remaining();
+        if (buffer.capacity() > buffer.remaining())
+            return BUFFER_EMPTY_SIZE + buffer.remaining();
         return BUFFER_EMPTY_SIZE + sizeOfArray(buffer.capacity(), 1);
     }
 
