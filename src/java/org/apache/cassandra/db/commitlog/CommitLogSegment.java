@@ -244,7 +244,7 @@ public class CommitLogSegment
     {
         // issue a barrier and wait for it
         OpOrder.Barrier barrier = appendOrder.newBarrier();
-        barrier.seal();
+        barrier.issue();
         barrier.await();
     }
 

@@ -89,7 +89,7 @@ public class LongOpOrderTest
                 final State s = state;
                 s.barrier = order.newBarrier();
                 s.replacement = new State();
-                s.barrier.seal();
+                s.barrier.issue();
                 s.barrier.await();
                 s.check();
                 opCount += s.totalCount();
@@ -116,7 +116,7 @@ public class LongOpOrderTest
 
             boolean accept(OpOrder.Group opGroup)
             {
-                if (barrier != null && !barrier.includes(opGroup))
+                if (barrier != null && !barrier.isAfter(opGroup))
                     return false;
                 AtomicInteger c;
                 if (null == (c = count.get(opGroup)))
