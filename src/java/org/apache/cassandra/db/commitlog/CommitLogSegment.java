@@ -219,7 +219,8 @@ public class CommitLogSegment
             while (true)
             {
                 int prev = allocatePosition.get();
-                int next = buffer.capacity();
+                // we set allocatePosition past buffer.capacity() to make sure we always set discardedTailFrom
+                int next = buffer.capacity() + 1;
                 if (prev == next)
                     return;
                 if (allocatePosition.compareAndSet(prev, next))
@@ -286,6 +287,8 @@ public class CommitLogSegment
             {
                 waitForModifications();
             }
+
+            assert nextMarker > lastSyncedOffset;
 
             // write previous sync marker to point to next sync marker
             // we don't chain the crcs here to ensure this method is idempotent if it fails
