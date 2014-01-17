@@ -1,6 +1,6 @@
 package org.apache.cassandra.utils.memory;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
@@ -50,7 +50,7 @@ public final class MemoryOwner
     }
 
     // allocate memory in the tracker, and mark ourselves as owning it
-    public void allocate(int size, OpOrdering.Group opGroup)
+    public void allocate(int size, OpOrder.Group opGroup)
     {
         while (true)
         {

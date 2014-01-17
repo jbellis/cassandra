@@ -1,6 +1,6 @@
 package org.apache.cassandra.utils.memory;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class HeapSlabPool extends Pool
 {
@@ -9,7 +9,7 @@ public class HeapSlabPool extends Pool
         super(maxOnHeapMemory, maxOffHeapMemory, cleanupThreshold, cleaner);
     }
 
-    public HeapSlabAllocator newAllocator(OpOrdering writes)
+    public HeapSlabAllocator newAllocator(OpOrder writes)
     {
         return new HeapSlabAllocator(this);
     }

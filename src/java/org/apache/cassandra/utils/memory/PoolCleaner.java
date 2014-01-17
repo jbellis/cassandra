@@ -1,6 +1,5 @@
 package org.apache.cassandra.utils.memory;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 class PoolCleaner<P extends Pool> implements Runnable

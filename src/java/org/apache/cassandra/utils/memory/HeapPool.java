@@ -1,6 +1,6 @@
 package org.apache.cassandra.utils.memory;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class HeapPool extends Pool
 {
@@ -10,7 +10,7 @@ public class HeapPool extends Pool
     }
 
     @Override
-    public HeapPoolAllocator newAllocator(OpOrdering writes)
+    public HeapPoolAllocator newAllocator(OpOrder writes)
     {
         return new HeapPoolAllocator(this);
     }

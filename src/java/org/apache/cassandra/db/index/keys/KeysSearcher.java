@@ -24,7 +24,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -187,7 +188,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         {
                             // delete the index entry w/ its own timestamp
                             Cell dummyCell = new Cell(primaryColumn, indexKey.key, cell.timestamp());
-                            OpOrdering.Group opGroup = baseCfs.keyspace.writeOrdering.start();
+                            OpOrder.Group opGroup = baseCfs.keyspace.writeOrder.start();
                             try
                             {
                                 ((PerColumnSecondaryIndex)index).delete(dk.key, dummyCell, opGroup);

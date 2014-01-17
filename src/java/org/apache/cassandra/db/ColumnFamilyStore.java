@@ -32,7 +32,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
@@ -827,11 +827,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private final class PostFlush implements Runnable
     {
         final boolean flushSecondaryIndexes;
-        final OpOrdering.Barrier writeBarrier;
+        final OpOrder.Barrier writeBarrier;
         final CountDownLatch latch = new CountDownLatch(1);
         volatile ReplayPosition lastReplayPosition;
 
-        private PostFlush(boolean flushSecondaryIndexes, OpOrdering.Barrier writeBarrier)
+        private PostFlush(boolean flushSecondaryIndexes, OpOrder.Barrier writeBarrier)
         {
             this.writeBarrier = writeBarrier;
             this.flushSecondaryIndexes = flushSecondaryIndexes;
@@ -890,7 +890,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     private final class Flush implements Runnable
     {
-        final OpOrdering.Barrier writeBarrier;
+        final OpOrder.Barrier writeBarrier;
         final List<Memtable> memtables;
         final PostFlush postFlush;
         final boolean truncate;
@@ -910,7 +910,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
              * In doing so it also tells the write operations to update the lastReplayPosition of the memtable, so
              * that we know the CL position we are dirty to, which can be marked clean when we complete.
              */
-            writeBarrier = keyspace.writeOrdering.newBarrier();
+            writeBarrier = keyspace.writeOrder.newBarrier();
             memtables = new ArrayList<>();
 
             // submit flushes for the memtable for any indexed sub-cfses, and our own
@@ -1036,7 +1036,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ key - key for update/insert
      * param @ columnFamily - columnFamily changes
      */
-    public void apply(DecoratedKey key, ColumnFamily columnFamily, SecondaryIndexManager.Updater indexer, OpOrdering.Group opGroup, ReplayPosition replayPosition)
+    public void apply(DecoratedKey key, ColumnFamily columnFamily, SecondaryIndexManager.Updater indexer, OpOrder.Group opGroup, ReplayPosition replayPosition)
     {
         long start = System.nanoTime();
 

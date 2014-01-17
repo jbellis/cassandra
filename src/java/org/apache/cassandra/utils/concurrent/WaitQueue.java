@@ -6,6 +6,8 @@ import org.slf4j.*;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
 
@@ -63,7 +65,7 @@ public final class WaitQueue
     private static final AtomicIntegerFieldUpdater signalledUpdater = AtomicIntegerFieldUpdater.newUpdater(RegisteredSignal.class, "state");
 
     // the waiting signals
-    private final NonBlockingQueue<RegisteredSignal> queue = new NonBlockingQueue<>();
+    private final ConcurrentLinkedDeque<RegisteredSignal> queue = new ConcurrentLinkedDeque<>();
 
     /**
      * The calling thread MUST be the thread that uses the signal
@@ -72,7 +74,7 @@ public final class WaitQueue
     public Signal register()
     {
         RegisteredSignal signal = new RegisteredSignal();
-        queue.append(signal);
+        queue.add(signal);
         return signal;
     }
 
@@ -86,7 +88,7 @@ public final class WaitQueue
     {
         assert context != null;
         RegisteredSignal signal = new TimedSignal(context);
-        queue.append(signal);
+        queue.add(signal);
         return signal;
     }
 
@@ -118,12 +120,24 @@ public final class WaitQueue
         long start = System.nanoTime();
         // we wake up only a snapshot of the queue, to avoid a race where the condition is not met and the woken thread
         // immediately waits on the queue again
-        for (RegisteredSignal s : queue.snap())
+        RegisteredSignal last = queue.getLast();
+        Iterator<RegisteredSignal> iter = queue.iterator();
+        while (iter.hasNext())
         {
-            if (s.signal() && woke != null)
-                woke.add(s.thread);
-            // move the queue forwards
-            queue.advanceHeadIf(s);
+            RegisteredSignal signal = iter.next();
+            if (logger.isTraceEnabled())
+            {
+                Thread thread = signal.thread;
+                if (signal.signal())
+                    woke.add(thread);
+            }
+            else
+                signal.signal();
+
+            iter.remove();
+
+            if (signal == last)
+                break;
         }
         long end = System.nanoTime();
         if (woke != null)
@@ -132,23 +146,8 @@ public final class WaitQueue
 
     private void cleanUpCancelled()
     {
-        // attempt to remove the cancelled from the beginning only;
-        boolean cleaned = false;
-        while (true)
-        {
-            RegisteredSignal s = queue.peek();
-            if (s == null || !s.isCancelled())
-                break;
-            cleaned = true;
-            queue.advanceHeadIf(s);
-        }
-        // if we succeed in doing so, assume we've removed all cancelled items; since we're only doing this to avoid
-        // the queue growing unboundedly, this is safe, as otherwise we must cancel again after cleaning the front
-        if (cleaned)
-            return;
-        // otherwise, attempt 'unsafe' (maybe unsuccessful) removal from the rest of the queue; since we will perform
-        // this repeatedly we should tend towards a small/empty set of cancelled items remaining on the queue, even
-        // if some interleaved deletes are lost
+        // attempt to remove the cancelled from the beginning only, but if we fail to remove any proceed to cover
+        // the whole list
         Iterator<RegisteredSignal> iter = queue.iterator();
         while (iter.hasNext())
         {

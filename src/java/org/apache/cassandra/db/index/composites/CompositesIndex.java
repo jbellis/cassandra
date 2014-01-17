@@ -22,7 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
@@ -128,7 +128,7 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
     public void delete(IndexedEntry entry)
     {
         // start a mini-transaction for this delete, to ensure safe memtable updates
-        OpOrdering.Group opGroup = baseCfs.keyspace.writeOrdering.start();
+        OpOrder.Group opGroup = baseCfs.keyspace.writeOrder.start();
         try
         {
             int localDeletionTime = (int) (System.currentTimeMillis() / 1000);

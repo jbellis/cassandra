@@ -1,7 +1,7 @@
 package org.apache.cassandra.utils.memory;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,5 +24,5 @@ public abstract class Pool
         cleanerExec.execute(this.cleaner);
     }
 
-    public abstract PoolAllocator newAllocator(OpOrdering writes);
+    public abstract PoolAllocator newAllocator(OpOrder writes);
 }

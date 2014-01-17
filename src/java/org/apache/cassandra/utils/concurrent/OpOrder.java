@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
  * <pre>
      public final class ExampleShared
      {
-        final OpOrdering ordering = new OpOrdering();
+        final OpOrder order = new OpOrder();
         volatile SharedState state;
 
         static class SharedState
@@ -30,8 +30,8 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
             state.setReplacement(new State())
             state.doSomethingToPrepareForBarrier();
 
-            state.barrier = ordering.newBarrier();
-            // issue() MUST be called after newBarrier() else barrier.accept()
+            state.barrier = order.newBarrier();
+            // seal() MUST be called after newBarrier() else barrier.isAfter()
             // will always return true, and barrier.await() will fail
             state.barrier.issue();
 
@@ -46,11 +46,11 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
         public void produce()
         {
-            Group opGroup = ordering.start();
+            Group opGroup = order.start();
             try
             {
                 SharedState s = state;
-                while (s.barrier != null && !s.barrier.accept(opGroup))
+                while (s.barrier != null && !s.barrier.isAfter(opGroup))
                     s = s.getReplacement();
                 s.doProduceWork();
             }
@@ -62,7 +62,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
     }
  * </pre>
  */
-public class OpOrdering
+public class OpOrder
 {
     /**
      * Constant that when an Ordered.running is equal to, indicates the Ordered is complete
@@ -78,10 +78,10 @@ public class OpOrdering
     private volatile Group current = new Group();
 
     /**
-     * Start an operation against this OpOrdering.
+     * Start an operation against this OpOrder.
      * Once the operation is completed Ordered.finishOne() MUST be called EXACTLY once for this operation.
      *
-     * @return the Ordered instance that manages this OpOrdering
+     * @return the Ordered instance that manages this OpOrder
      */
     public Group start()
     {
@@ -95,8 +95,8 @@ public class OpOrdering
 
     /**
      * Creates a new barrier. The barrier is only a placeholder until barrier.issue() is called on it,
-     * after which all new operations will start against a new Ordered instance that will not be accepted
-     * by barrier.accept(), and barrier.await() will return only once all operations started prior to the issue
+     * after which all new operations will start against a new Group that will not be accepted
+     * by barrier.isAfter(), and barrier.await() will return only once all operations started prior to the issue
      * have completed.
      *
      * @return
@@ -298,20 +298,25 @@ public class OpOrdering
 
     /**
      * This class represents a synchronisation point providing ordering guarantees on operations started
-     * against the enclosing OpOrdering. When issue() is called upon it (may only happen once per Barrier), the
-     * Barrier atomically partitions new operations from those already running, and activates its accept() method
+     * against the enclosing OpOrder.  When issue() is called upon it (may only happen once per Barrier), the
+     * Barrier atomically partitions new operations from those already running (by expiring the current Group),
+     * and activates its isAfter() method
      * which indicates if an operation was started before or after this partition. It offers methods to
      * determine, or block until, all prior operations have finished, and a means to indicate to those operations
-     * that they are blocking forward progress. See {@link OpOrdering} for idiomatic usage.
+     * that they are blocking forward progress. See {@link OpOrder} for idiomatic usage.
      */
     public final class Barrier
     {
         // this Barrier was issued after all Group operations started against orderOnOrBefore
         private volatile Group orderOnOrBefore;
 
-        // if the barrier has been exposed to all operations prior to .issue() being called, then
-        // accept() will return true only for (and for all) those operations started prior to the issue of the barrier
-        public boolean accept(Group group)
+        /**
+         * @return true if @param group was started prior to the issuing of the barrier.
+         *
+         * (Until issue is called, always returns true, but if you rely on this behavior you are probably
+         * Doing It Wrong.)
+         */
+        public boolean isAfter(Group group)
         {
             if (orderOnOrBefore == null)
                 return true;
@@ -322,8 +327,8 @@ public class OpOrdering
         }
 
         /**
-         * Issues the barrier; must be called after exposing the barrier to any operations it may affect,
-         * but before it is used, so that the accept() method is properly synchronised.
+         * Issues (seals) the barrier, meaning no new operations may be issued against it, and expires the current
+         * Group.  Must be called before await() for isAfter() to be properly synchronised.
          */
         public void issue()
         {
@@ -331,11 +336,11 @@ public class OpOrdering
                 throw new IllegalStateException("Can only call issue() once on each Barrier");
 
             final Group current;
-            synchronized (OpOrdering.this)
+            synchronized (OpOrder.this)
             {
-                current = OpOrdering.this.current;
+                current = OpOrder.this.current;
                 orderOnOrBefore = current;
-                OpOrdering.this.current = current.next = new Group(current);
+                OpOrder.this.current = current.next = new Group(current);
             }
             current.expire();
         }

@@ -18,13 +18,14 @@
 package org.apache.cassandra.utils.memory;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.concurrent.NonBlockingQueue;
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +51,7 @@ public class HeapSlabAllocator extends PoolAllocator
     private final static int MAX_CLONED_SIZE = 128 * 1024; // bigger than this don't go in the region
 
     // globally stash any Regions we allocate but are beaten to using, and use these up before allocating any more
-    private static final NonBlockingQueue<Region> RACE_ALLOCATED = new NonBlockingQueue<>();
+    private static final ConcurrentLinkedQueue<Region> RACE_ALLOCATED = new ConcurrentLinkedQueue<>();
 
     private final AtomicReference<Region> currentRegion = new AtomicReference<Region>();
     private final AtomicInteger regionCount = new AtomicInteger(0);
@@ -66,7 +67,7 @@ public class HeapSlabAllocator extends PoolAllocator
         return allocate(size, null);
     }
 
-    public ByteBuffer allocate(int size, OpOrdering.Group opGroup)
+    public ByteBuffer allocate(int size, OpOrder.Group opGroup)
     {
         assert size >= 0;
         if (size == 0)
@@ -126,7 +127,7 @@ public class HeapSlabAllocator extends PoolAllocator
 
             // someone else won race - that's fine, we'll try to grab theirs
             // in the next iteration of the loop.
-            RACE_ALLOCATED.append(region);
+            RACE_ALLOCATED.add(region);
         }
     }
 

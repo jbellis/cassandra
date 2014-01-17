@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.utils.memory.HeapSlabAllocator;
@@ -65,7 +65,7 @@ public class CounterContextTest
     private AbstractAllocator bumpedSlab()
     {
         // we don't bother reclaiming the memory, as the process is short lived and waste is low
-        HeapSlabAllocator allocator = POOL.newAllocator(new OpOrdering());
+        HeapSlabAllocator allocator = POOL.newAllocator(new OpOrder());
         allocator.allocate(1);
         return allocator;
     }

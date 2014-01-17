@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.utils.memory;
 
-import org.apache.cassandra.utils.concurrent.OpOrdering;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import java.nio.ByteBuffer;
 
@@ -33,7 +33,7 @@ public final class HeapPoolAllocator extends PoolAllocator
         return allocate(size, null);
     }
 
-    public ByteBuffer allocate(int size, OpOrdering.Group opGroup)
+    public ByteBuffer allocate(int size, OpOrder.Group opGroup)
     {
         onHeap.allocate(size, opGroup);
         // must loop trying to acquire
