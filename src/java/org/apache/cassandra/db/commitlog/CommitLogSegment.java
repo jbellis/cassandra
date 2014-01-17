@@ -209,18 +209,38 @@ public class CommitLogSegment
     // ensures no more of this segment is writeable, by allocating any unused section at the end and marking it discarded
     void discardUnusedTail()
     {
-        while (true)
+        // we guard this with the OpOrdering instead of synchronised due to potential dead-lock with CLSM.advanceAllocatingFrom()
+        OpOrdering.Group group = appendOrdering.start();
+        try
         {
-            int prev = allocatePosition.get();
-            int next = buffer.capacity();
-            if (prev == next)
-                return;
-            if (allocatePosition.compareAndSet(prev, next))
+            while (true)
             {
-                discardedTailFrom = prev;
-                return;
+                int prev = allocatePosition.get();
+                int next = buffer.capacity();
+                if (prev == next)
+                    return;
+                if (allocatePosition.compareAndSet(prev, next))
+                {
+                    discardedTailFrom = prev;
+                    return;
+                }
             }
         }
+        finally
+        {
+            group.finishOne();
+        }
+    }
+
+    /**
+     * Wait for any appends or discardUnusedTail() operations started before this method was called
+     */
+    private synchronized void waitForModifications()
+    {
+        // issue a barrier and wait for it
+        OpOrdering.Barrier barrier = appendOrdering.newBarrier();
+        barrier.issue();
+        barrier.await();
     }
 
     /**
@@ -245,6 +265,9 @@ public class CommitLogSegment
                 discardUnusedTail();
                 close = true;
 
+                // wait for modifications guards both discardedTailFrom, and any outstanding appends
+                waitForModifications();
+
                 if (discardedTailFrom < buffer.capacity() - SYNC_MARKER_SIZE)
                 {
                     // if there's room in the discard section to write an empty header, use that as the nextMarker
@@ -256,11 +279,10 @@ public class CommitLogSegment
                     nextMarker = buffer.capacity();
                 }
             }
-
-            // issue a barrier and wait for it
-            OpOrdering.Barrier barrier = appendOrdering.newBarrier();
-            barrier.issue();
-            barrier.await();
+            else
+            {
+                waitForModifications();
+            }
 
             // write previous sync marker to point to next sync marker
             // we don't chain the crcs here to ensure this method is idempotent if it fails
