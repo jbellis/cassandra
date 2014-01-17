@@ -210,6 +210,9 @@ public class CommitLogSegment
     void discardUnusedTail()
     {
         // we guard this with the OpOrdering instead of synchronised due to potential dead-lock with CLSM.advanceAllocatingFrom()
+        // this actually isn't strictly necessary, as currently all calls to discardUnusedTail occur within a block
+        // already protected by this OpOrdering, but to prevent future potential mistakes, we duplicate the protection here
+        // so that the contract between discardUnusedTail() and sync() is more explicit.
         OpOrdering.Group group = appendOrdering.start();
         try
         {
