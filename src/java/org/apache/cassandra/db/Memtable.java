@@ -122,7 +122,7 @@ public class Memtable
     public boolean accepts(OpOrder.Group opGroup)
     {
         OpOrder.Barrier barrier = this.writeBarrier;
-        return barrier == null || barrier.accept(opGroup);
+        return barrier == null || barrier.includes(opGroup);
     }
 
     public boolean isLive()

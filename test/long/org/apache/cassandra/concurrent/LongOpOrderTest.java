@@ -116,7 +116,7 @@ public class LongOpOrderTest
 
             boolean accept(OpOrder.Group opGroup)
             {
-                if (barrier != null && !barrier.accept(opGroup))
+                if (barrier != null && !barrier.includes(opGroup))
                     return false;
                 AtomicInteger c;
                 if (null == (c = count.get(opGroup)))

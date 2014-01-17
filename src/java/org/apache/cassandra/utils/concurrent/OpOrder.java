@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
             state.doSomethingToPrepareForBarrier();
 
             state.barrier = order.newBarrier();
-            // seal() MUST be called after newBarrier() else barrier.accept()
+            // seal() MUST be called after newBarrier() else barrier.includes()
             // will always return true, and barrier.await() will fail
             state.barrier.seal();
 
@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
             try
             {
                 SharedState s = state;
-                while (s.barrier != null && !s.barrier.accept(opGroup))
+                while (s.barrier != null && !s.barrier.includes(opGroup))
                     s = s.getReplacement();
                 s.doProduceWork();
             }
@@ -96,7 +96,7 @@ public class OpOrder
     /**
      * Creates a new barrier. The barrier is only a placeholder until barrier.seal() is called on it,
      * after which all new operations will start against a new Group that will not be accepted
-     * by barrier.accept(), and barrier.await() will return only once all operations started prior to the issue
+     * by barrier.includes(), and barrier.await() will return only once all operations started prior to the issue
      * have completed.
      *
      * @return
@@ -298,8 +298,9 @@ public class OpOrder
 
     /**
      * This class represents a synchronisation point providing ordering guarantees on operations started
-     * against the enclosing OpOrdering. When issue() is called upon it (may only happen once per Barrier), the
-     * Barrier atomically partitions new operations from those already running, and activates its accept() method
+     * against the enclosing OpOrder.  When seal() is called upon it (may only happen once per Barrier), the
+     * Barrier atomically partitions new operations from those already running (by expiring the current Group),
+     * and activates its includes() method
      * which indicates if an operation was started before or after this partition. It offers methods to
      * determine, or block until, all prior operations have finished, and a means to indicate to those operations
      * that they are blocking forward progress. See {@link OpOrder} for idiomatic usage.
@@ -309,9 +310,13 @@ public class OpOrder
         // this Barrier was issued after all Group operations started against orderOnOrBefore
         private volatile Group orderOnOrBefore;
 
-        // if the barrier has been exposed to all operations prior to .seal() being called, then
-        // accept() will return true only for (and for all) those operations started prior to the issue of the barrier
-        public boolean accept(Group group)
+        /**
+         * @return true if @param group was started prior to the sealing of the barrier.
+         *
+         * (Until seal is called, always returns true, but if you rely on this behavior you are probably
+         * Doing It Wrong.)
+         */
+        public boolean includes(Group group)
         {
             if (orderOnOrBefore == null)
                 return true;
@@ -322,8 +327,8 @@ public class OpOrder
         }
 
         /**
-         * Seals the barrier, meaning no new operations may be issued against it.  Must be called before
-         * await() for accept() to be properly synchronised.
+         * Seals the barrier, meaning no new operations may be issued against it, and expires the current
+         * Group.  Must be called before await() for includes() to be properly synchronised.
          */
         public void seal()
         {
