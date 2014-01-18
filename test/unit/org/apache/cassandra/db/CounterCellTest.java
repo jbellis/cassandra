@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -199,7 +201,7 @@ public class CounterCellTest extends SchemaLoader
     @Test
     public void testDiff()
     {
-        Allocator allocator = HeapAllocator.instance;
+        AbstractAllocator allocator = HeapAllocator.instance;
         ContextState left;
         ContextState right;
 
@@ -270,7 +272,7 @@ public class CounterCellTest extends SchemaLoader
     @Test
     public void testSerializeDeserialize() throws IOException
     {
-        Allocator allocator = HeapAllocator.instance;
+        AbstractAllocator allocator = HeapAllocator.instance;
         CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 2, allocator);
         state.writeElement(CounterId.fromInt(1), 4L, 4L);
         state.writeElement(CounterId.fromInt(2), 4L, 4L, true);
@@ -302,7 +304,7 @@ public class CounterCellTest extends SchemaLoader
     @Test
     public void testUpdateDigest() throws Exception
     {
-        Allocator allocator = HeapAllocator.instance;
+        AbstractAllocator allocator = HeapAllocator.instance;
         MessageDigest digest1 = MessageDigest.getInstance("md5");
         MessageDigest digest2 = MessageDigest.getInstance("md5");
 

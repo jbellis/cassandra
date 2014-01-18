@@ -248,8 +248,12 @@ concurrent_writes: 32
 
 # Total memory to use for memtables.  Cassandra will flush the largest
 # memtable when this much memory is used.
-# If omitted, Cassandra will set it to 1/3 of the heap.
+# If omitted, Cassandra will set it to 1/4 of the heap.
 # memtable_total_space_in_mb: 2048
+
+# Ratio of occupied non-flushing memtable size to total permitted size
+# that will trigger a flush of the largest memtable.
+memtable_cleanup_threshold: 0.4
 
 # Total space to use for commitlogs.  Since commitlog segments are
 # mmapped, and hence use up address space, the default size is 32
@@ -267,11 +271,6 @@ concurrent_writes: 32
 # you can increase this value for better flush performance.
 # By default this will be set to the amount of data directories defined.
 #memtable_flush_writers: 1
-
-# the number of full memtables to allow pending flush, that is,
-# waiting for a writer thread.  At a minimum, this should be set to
-# the maximum number of secondary indexes created on a single CF.
-memtable_flush_queue_size: 4
 
 # A fixed memory pool size in MB for for SSTable index summaries. If left
 # empty, this will default to 5% of the heap size. If the memory usage of

@@ -15,11 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.utils;
+package org.apache.cassandra.utils.memory;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 
-public abstract class Allocator
+public abstract class AbstractAllocator
 {
     /**
      * Allocate a slice of the given length.
@@ -27,6 +29,8 @@ public abstract class Allocator
     public ByteBuffer clone(ByteBuffer buffer)
     {
         assert buffer != null;
+        if (buffer.remaining() == 0)
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
         ByteBuffer cloned = allocate(buffer.remaining());
 
         cloned.mark();
@@ -36,6 +40,4 @@ public abstract class Allocator
     }
 
     public abstract ByteBuffer allocate(int size);
-
-    public abstract long getMinimumSize();
 }

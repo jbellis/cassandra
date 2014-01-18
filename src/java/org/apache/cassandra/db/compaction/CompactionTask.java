@@ -22,8 +22,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Throwables;
-import com.google.common.collect.Sets;
+import com.google.common.base.*;
+import com.google.common.collect.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +39,8 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.CloseableIterator;
+
+import javax.annotation.Nullable;
 
 public class CompactionTask extends AbstractCompactionTask
 {
@@ -107,8 +109,14 @@ public class CompactionTask extends AbstractCompactionTask
             cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.name);
 
         // sanity check: all sstables must belong to the same cfs
-        for (SSTableReader sstable : toCompact)
-            assert sstable.descriptor.cfname.equals(cfs.name);
+        assert !Iterables.any(toCompact, new Predicate<SSTableReader>()
+        {
+            @Override
+            public boolean apply(SSTableReader sstable)
+            {
+                return !sstable.descriptor.cfname.equals(cfs.name);
+            }
+        });
 
         UUID taskId = SystemKeyspace.startCompaction(cfs, toCompact);
 

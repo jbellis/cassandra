@@ -27,6 +27,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
+import org.apache.cassandra.utils.memory.HeapSlabAllocator;
+import org.apache.cassandra.utils.memory.HeapSlabPool;
 import org.junit.Test;
 import org.apache.cassandra.Util;
 
@@ -46,6 +51,8 @@ public class CounterContextTest
 
     private static final int stepLength;
 
+    private static final HeapSlabPool POOL = new HeapSlabPool(Integer.MAX_VALUE, Integer.MAX_VALUE, 1.1f, null);
+
     static
     {
         idLength       = CounterId.LENGTH; // size of int
@@ -55,9 +62,10 @@ public class CounterContextTest
     }
 
     /** Allocates 1 byte from a new SlabAllocator and returns it. */
-    private Allocator bumpedSlab()
+    private AbstractAllocator bumpedSlab()
     {
-        SlabAllocator allocator = new SlabAllocator();
+        // we don't bother reclaiming the memory, as the process is short lived and waste is low
+        HeapSlabAllocator allocator = POOL.newAllocator(new OpOrder());
         allocator.allocate(1);
         return allocator;
     }
@@ -69,7 +77,7 @@ public class CounterContextTest
         runCreate(bumpedSlab());
     }
 
-    private void runCreate(Allocator allocator)
+    private void runCreate(AbstractAllocator allocator)
     {
         ByteBuffer bytes = cc.create(4, allocator);
         assertEquals(stepLength + 4, bytes.remaining());
@@ -82,7 +90,7 @@ public class CounterContextTest
         runDiff(bumpedSlab());
     }
 
-    private void runDiff(Allocator allocator)
+    private void runDiff(AbstractAllocator allocator)
     {
         ContextState left = ContextState.allocate(3, 0, allocator);
         ContextState right;
@@ -275,7 +283,7 @@ public class CounterContextTest
         runMerge(bumpedSlab());
     }
 
-    private void runMerge(Allocator allocator)
+    private void runMerge(AbstractAllocator allocator)
     {
         // note: local counts aggregated; remote counts are reconciled (i.e. take max)
         ContextState left = ContextState.allocate(4, 1, allocator);
@@ -323,7 +331,7 @@ public class CounterContextTest
         runTotal(bumpedSlab());
     }
 
-    private void runTotal(Allocator allocator)
+    private void runTotal(AbstractAllocator allocator)
     {
         ContextState left = ContextState.allocate(4, 1, allocator);
         left.writeElement(CounterId.fromInt(1), 1L, 1L);
@@ -354,7 +362,7 @@ public class CounterContextTest
         runMergeOldShards(bumpedSlab());
     }
 
-    private void runMergeOldShards(Allocator allocator)
+    private void runMergeOldShards(AbstractAllocator allocator)
     {
         long now = System.currentTimeMillis();
         CounterId id1 = CounterId.fromInt(1);
@@ -398,7 +406,7 @@ public class CounterContextTest
         runRemoveOldShards(bumpedSlab());
     }
 
-    private void runRemoveOldShards(Allocator allocator)
+    private void runRemoveOldShards(AbstractAllocator allocator)
     {
         CounterId id1 = CounterId.fromInt(1);
         CounterId id3 = CounterId.fromInt(3);
@@ -432,7 +440,7 @@ public class CounterContextTest
         runRemoveOldShardsNotAllExpiring(bumpedSlab());
     }
 
-    private void runRemoveOldShardsNotAllExpiring(Allocator allocator)
+    private void runRemoveOldShardsNotAllExpiring(AbstractAllocator allocator)
     {
         CounterId id1 = CounterId.fromInt(1);
         CounterId id3 = CounterId.fromInt(3);
@@ -482,7 +490,7 @@ public class CounterContextTest
         runRemoveNotDeltaOldShards(bumpedSlab());
     }
 
-    private void runRemoveNotDeltaOldShards(Allocator allocator)
+    private void runRemoveNotDeltaOldShards(AbstractAllocator allocator)
     {
         ContextState ctx = ContextState.allocate(4, 1, allocator);
         ctx.writeElement(CounterId.fromInt(1), 1L, 1L, true);

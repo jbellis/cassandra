@@ -247,9 +247,9 @@ public class FBUtilities
 
     public static BigInteger hashToBigInteger(ByteBuffer data)
     {
-        byte[] result = hash(data);
-        BigInteger hash = new BigInteger(result);
-        return hash.abs();
+        // want a positive number, so provide signum = 1 to constructor
+        // this is, by the definition of the constructors, the same as new BigInteger(hash(data)).abs()
+        return new BigInteger(1, hash(data));
     }
 
     public static byte[] hash(ByteBuffer... data)
