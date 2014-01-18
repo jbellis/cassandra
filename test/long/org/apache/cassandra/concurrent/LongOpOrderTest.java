@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LongOpOrderTest
 {
 
-    private static final Logger logger = LoggerFactory.getLogger(LongNonBlockingQueueTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(LongOpOrderTest.class);
 
     static final int CONSUMERS = 4;
     static final int PRODUCERS = 32;
