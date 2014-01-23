@@ -45,7 +45,7 @@ public final class MemoryOwner
     // currently no corroboration/enforcement of this is performed.
     void releaseAll()
     {
-        tracker.adjustAcquired(-ownsUpdater.getAndSet(this, 0), false);
+        tracker.release(ownsUpdater.getAndSet(this, 0));
         tracker.adjustReclaiming(-reclaiming);
     }
 
@@ -75,23 +75,23 @@ public final class MemoryOwner
         }
     }
 
-    // retroactively mark an amount allocated amd acquired in the tracker, and owned by us
+    // retroactively mark (by-passes any constraints) an amount allocated in the tracker, and owned by us.
     void allocated(int size)
     {
-        tracker.adjustAcquired(size, true);
+        tracker.adjustAllocated(size);
         ownsUpdater.addAndGet(this, size);
     }
 
-    // retroactively mark an amount acquired in the tracker, and owned by us
+    // retroactively mark (by-passes any constraints) an amount owned by us
     void acquired(int size)
     {
-        tracker.adjustAcquired(size, false);
         ownsUpdater.addAndGet(this, size);
     }
 
+    // release an amount of memory from our ownership, and deallocate it in the tracker
     void release(int size)
     {
-        tracker.adjustAcquired(-size, false);
+        tracker.release(size);
         ownsUpdater.addAndGet(this, -size);
     }
 

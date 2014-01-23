@@ -71,7 +71,10 @@ public class MemoryTracker
             if ((cur = allocated) + size > limit)
                 return false;
             if (allocatedUpdater.compareAndSet(this, cur, cur + size))
+            {
+                maybeClean();
                 return true;
+            }
         }
     }
 
@@ -87,27 +90,20 @@ public class MemoryTracker
         {
             long cur = allocated;
             if (allocatedUpdater.compareAndSet(this, cur, cur + size))
+            {
+                if (size > 0)
+                {
+                    maybeClean();
+                }
                 return;
+            }
         }
     }
 
-    // 'acquires' an amount of memory, and maybe also marks it allocated. This method is meant to be overridden
-    // by implementations with a separate concept of acquired/allocated. As this method stands, an acquire
-    // without an allocate is a no-op (acquisition is achieved through allocation), however a release (where size < 0)
-    // is always processed and accounted for in allocated.
-    void adjustAcquired(long size, boolean alsoAllocated)
+    void release(long size)
     {
-        if (size > 0 || alsoAllocated)
-        {
-            if (alsoAllocated)
-                adjustAllocated(size);
-            maybeClean();
-        }
-        else if (size < 0)
-        {
-            adjustAllocated(size);
-            hasRoom.signalAll();
-        }
+        adjustAllocated(-size);
+        hasRoom.signalAll();
     }
 
     // space reclaimed should be released prior to calling this, to avoid triggering unnecessary cleans
@@ -118,11 +114,6 @@ public class MemoryTracker
         reclaimingUpdater.addAndGet(this, reclaiming);
         if (reclaiming < 0 && updateNextClean() && cleaner != null)
             cleaner.trigger();
-    }
-
-    public boolean isExceeded()
-    {
-        return allocated > limit;
     }
 
     public long allocated()
