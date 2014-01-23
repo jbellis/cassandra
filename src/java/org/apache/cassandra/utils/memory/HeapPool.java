@@ -9,7 +9,6 @@ public class HeapPool extends Pool
         super(maxOnHeapMemory, maxOffHeapMemory, cleanupThreshold, cleaner);
     }
 
-    @Override
     public HeapPoolAllocator newAllocator(OpOrder writes)
     {
         return new HeapPoolAllocator(this);
