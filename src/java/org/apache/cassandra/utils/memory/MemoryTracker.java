@@ -31,9 +31,9 @@ public class MemoryTracker
 
     // a cache of the calculation determining at what allocation threshold we should next clean, and the cleaner we trigger
     private volatile long nextClean;
-    private final PoolCleaner<?> cleaner;
+    private final PoolCleanerThread<?> cleaner;
 
-    public MemoryTracker(long limit, float cleanThreshold, PoolCleaner<?> cleaner)
+    public MemoryTracker(long limit, float cleanThreshold, PoolCleanerThread<?> cleaner)
     {
         this.limit = limit;
         this.cleanThreshold = cleanThreshold;

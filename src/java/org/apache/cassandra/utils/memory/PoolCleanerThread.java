@@ -2,22 +2,26 @@ package org.apache.cassandra.utils.memory;
 
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
-class PoolCleaner<P extends Pool> implements Runnable
+/**
+ * A thread that reclaims memor from a Pool on demand.  The actual reclaiming work is delegated to the
+ * cleaner Runnable, e.g., FlushLargestColumnFamily
+ */
+class PoolCleanerThread<P extends Pool> extends Thread
 {
-
     /** The pool we're cleaning */
     final P pool;
 
     /** should ensure that at least some memory has been marked reclaiming after completion */
-    final Runnable clean;
+    final Runnable cleaner;
 
     /** signalled whenever needsCleaning() may return true */
     final WaitQueue wait = new WaitQueue();
 
-    PoolCleaner(P pool, Runnable clean)
+    PoolCleanerThread(P pool, Runnable cleaner)
     {
+        super(pool.getClass().getSimpleName() + "Cleaner");
         this.pool = pool;
-        this.clean = clean;
+        this.cleaner = cleaner;
     }
 
     boolean needsCleaning()
@@ -29,11 +33,6 @@ class PoolCleaner<P extends Pool> implements Runnable
     void trigger()
     {
         wait.signal();
-    }
-
-    void clean()
-    {
-        clean.run();
     }
 
     @Override
@@ -49,8 +48,8 @@ class PoolCleaner<P extends Pool> implements Runnable
                 else
                     signal.cancel();
             }
-            clean();
+
+            cleaner.run();
         }
     }
-
 }
