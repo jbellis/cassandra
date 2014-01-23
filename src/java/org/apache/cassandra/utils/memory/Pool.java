@@ -20,8 +20,7 @@ public abstract class Pool
         this.onHeap = new MemoryTracker(maxOnHeapMemory, cleanupThreshold, this.cleaner);
         this.offHeap = new MemoryTracker(maxOffHeapMemory, cleanupThreshold, this.cleaner);
         // start a thread to run the cleaner
-        ExecutorService cleanerExec = Executors.newFixedThreadPool(1, new NamedThreadFactory(this.getClass().getSimpleName() + "Cleaner"));
-        cleanerExec.execute(this.cleaner);
+        new NamedThreadFactory(this.getClass().getSimpleName() + "Cleaner").newThread(this.cleaner).start();
     }
 
     public abstract PoolAllocator newAllocator(OpOrder writes);
