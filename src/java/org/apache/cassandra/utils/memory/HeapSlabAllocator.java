@@ -73,7 +73,7 @@ public class HeapSlabAllocator extends PoolAllocator
         if (size == 0)
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
-        onHeap.allocate(size, opGroup);
+        markAllocated(size, opGroup);
         // satisfy large allocations directly from JVM since they don't cause fragmentation
         // as badly, and fill up our regions quickly
         if (size > MAX_CLONED_SIZE)

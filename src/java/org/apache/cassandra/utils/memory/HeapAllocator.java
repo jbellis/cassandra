@@ -19,6 +19,8 @@ package org.apache.cassandra.utils.memory;
 
 import java.nio.ByteBuffer;
 
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+
 public final class HeapAllocator extends AbstractAllocator
 {
     public static final HeapAllocator instance = new HeapAllocator();

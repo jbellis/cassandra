@@ -35,13 +35,13 @@ public final class HeapPoolAllocator extends PoolAllocator
 
     public ByteBuffer allocate(int size, OpOrder.Group opGroup)
     {
-        onHeap.allocate(size, opGroup);
+        markAllocated(size, opGroup);
         // must loop trying to acquire
         return ByteBuffer.allocate(size);
     }
 
     public void free(ByteBuffer name)
     {
-        onHeap.release(name.remaining());
+        release(name.remaining());
     }
 }

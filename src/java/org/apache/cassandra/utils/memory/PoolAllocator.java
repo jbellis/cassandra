@@ -20,14 +20,14 @@ package org.apache.cassandra.utils.memory;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
 {
     public final P pool;
-    public final MemoryOwner onHeap;
-    public final MemoryOwner offHeap;
     volatile LifeCycle state = LifeCycle.LIVE;
 
     static enum LifeCycle
@@ -40,11 +40,15 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
         }
     }
 
+    // the amount of memory/resource owned by this object
+    private AtomicLong owns = new AtomicLong();
+    // the amount of memory we are reporting to collect; this may be inaccurate, but is close
+    // and is used only to ensure that once we have reclaimed we mark the tracker with the same amount
+    private AtomicLong reclaiming = new AtomicLong();
+
     PoolAllocator(P pool)
     {
         this.pool = pool;
-        this.onHeap = pool.onHeap.newOwner();
-        this.offHeap = pool.offHeap.newOwner();
     }
 
     /**
@@ -55,8 +59,10 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
     {
         state = state.transition(LifeCycle.DISCARDING);
         // mark the memory owned by this allocator as reclaiming
-        onHeap.markAllReclaiming();
-        offHeap.markAllReclaiming();
+        long prev = reclaiming.get();
+        long cur = owns.get();
+        reclaiming.set(cur);
+        pool.adjustReclaiming(cur - prev);
     }
 
     /**
@@ -67,14 +73,61 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
     {
         state = state.transition(LifeCycle.DISCARDED);
         // release any memory owned by this allocator; automatically signals waiters
-        onHeap.releaseAll();
-        offHeap.releaseAll();
+        pool.release(owns.getAndSet(0));
+        pool.adjustReclaiming(-reclaiming.get());
     }
 
     public abstract ByteBuffer allocate(int size, OpOrder.Group opGroup);
 
     /** Mark the BB as unused, permitting it to be reclaimed */
     public abstract void free(ByteBuffer name);
+
+    // mark ourselves as owning memory from the tracker.  meant to be called by subclass
+    // allocate method that actually allocates and returns a ByteBuffer
+    protected void markAllocated(int size, OpOrder.Group opGroup)
+    {
+        while (true)
+        {
+            if (pool.tryAllocate(size))
+            {
+                acquired(size);
+                return;
+            }
+            WaitQueue.Signal signal = opGroup.isBlockingSignal(pool.hasRoom.register());
+            boolean allocated = pool.tryAllocate(size);
+            if (allocated || opGroup.isBlocking())
+            {
+                signal.cancel();
+                if (allocated) // if we allocated, take ownership
+                    acquired(size);
+                else // otherwise we're blocking so we're permitted to overshoot our constraints, to just allocate without blocking
+                    allocated(size);
+                return;
+            }
+            else
+                signal.awaitUninterruptibly();
+        }
+    }
+
+    // retroactively mark (by-passes any constraints) an amount allocated in the tracker, and owned by us.
+    private void allocated(int size)
+    {
+        pool.adjustAllocated(size);
+        owns.addAndGet(size);
+    }
+
+    // retroactively mark (by-passes any constraints) an amount owned by us
+    private void acquired(int size)
+    {
+        owns.addAndGet(size);
+    }
+
+    // release an amount of memory from our ownership, and deallocate it in the tracker
+    void release(int size)
+    {
+        pool.release(size);
+        owns.addAndGet(-size);
+    }
 
     public boolean isLive()
     {
@@ -100,5 +153,23 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
     public ContextAllocator wrap(OpOrder.Group opGroup, ColumnFamilyStore cfs)
     {
         return new ContextAllocator(opGroup, this, cfs);
+    }
+
+    @Override
+    public long owns()
+    {
+        return owns.get();
+    }
+
+    @Override
+    public float ownershipRatio()
+    {
+        return owns.get() / (float) pool.limit;
+    }
+
+    @Override
+    public long reclaiming()
+    {
+        return reclaiming.get();
     }
 }

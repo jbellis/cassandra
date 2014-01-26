@@ -39,4 +39,21 @@ public final class ContextAllocator extends AbstractAllocator implements Functio
     {
         return column.localCopy(cfs, this);
     }
+
+    public long owns()
+    {
+        return allocator.owns();
+    }
+
+    @Override
+    public float ownershipRatio()
+    {
+        return allocator.ownershipRatio();
+    }
+
+    @Override
+    public long reclaiming()
+    {
+        return allocator.reclaiming();
+    }
 }

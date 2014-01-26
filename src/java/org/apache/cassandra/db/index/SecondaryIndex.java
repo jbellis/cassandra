@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 
-import org.apache.cassandra.utils.memory.MemoryOwner;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -145,12 +145,7 @@ public abstract class SecondaryIndex
     /**
      * Get current amount of memory this index is consuming (in bytes)
      */
-    public abstract MemoryOwner getOnHeapSize();
-
-    /**
-     * Get current amount of memory this index is consuming (in bytes)
-     */
-    public abstract MemoryOwner getOffHeapSize();
+    public abstract AbstractAllocator getOnHeapAllocator();
 
     /**
      * Allow access to the underlying column family store if there is one

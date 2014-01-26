@@ -994,31 +994,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 // find the total ownership ratio for the memtable and all SecondaryIndexes owned by this CF,
                 // both on- and off-heap, and select the largest of the two ratios to weight this CF
-                float onHeap = 0f, offHeap = 0f;
-                onHeap += current.getOnHeap().ownershipRatio();
-                offHeap += current.getOffHeap().ownershipRatio();
+                float onHeap = 0f;
+                onHeap += current.getAllocator().ownershipRatio();
 
                 for (SecondaryIndex index : cfs.indexManager.getIndexes())
                 {
-                    if (index.getOnHeapSize() != null)
-                        onHeap += index.getOnHeapSize().ownershipRatio();
-                    if (index.getOffHeapSize() != null)
-                        offHeap += index.getOffHeapSize().ownershipRatio();
+                    if (index.getOnHeapAllocator() != null)
+                        onHeap += index.getOnHeapAllocator().ownershipRatio();
                 }
 
-                float ratio = Math.max(onHeap, offHeap);
-
-                if (ratio > largestRatio)
+                if (onHeap > largestRatio)
                 {
                     largest = current;
-                    largestRatio = ratio;
+                    largestRatio = onHeap;
                 }
             }
 
             if (largest != null)
             {
                 largest.cfs.switchMemtableIfCurrent(largest);
-                logger.info("Reclaiming {} of {} retained memtable bytes", Memtable.POOL.onHeap.reclaiming(), Memtable.POOL.onHeap.used());
+                logger.info("Reclaiming {} of {} retained memtable bytes", largest.getAllocator().reclaiming(), Memtable.memoryPool.used());
             }
         }
     }

@@ -124,7 +124,7 @@ public class ColumnFamilyMetrics
         {
             public Long value()
             {
-                return cfs.getDataTracker().getView().getCurrentMemtable().getOnHeap().owns();
+                return cfs.getDataTracker().getView().getCurrentMemtable().getAllocator().owns();
             }
         });
         memtableLiveDataSize = Metrics.newGauge(factory.createMetricName("MemtableLiveDataSize"), new Gauge<Long>()
@@ -140,7 +140,7 @@ public class ColumnFamilyMetrics
             {
                 long size = 0;
                 for (ColumnFamilyStore cfs2 : cfs.concatWithIndexes())
-                    size += cfs2.getDataTracker().getView().getCurrentMemtable().getOnHeap().owns();
+                    size += cfs2.getDataTracker().getView().getCurrentMemtable().getAllocator().owns();
                 return size;
             }
         });

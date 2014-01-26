@@ -51,7 +51,7 @@ public class CounterContextTest
 
     private static final int stepLength;
 
-    private static final HeapSlabPool POOL = new HeapSlabPool(Integer.MAX_VALUE, Integer.MAX_VALUE, 1.1f, null);
+    private static final HeapSlabPool POOL = new HeapSlabPool(Integer.MAX_VALUE, 1.1f, null);
 
     static
     {

@@ -33,10 +33,10 @@ import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.dht.LongToken;
 import org.apache.cassandra.io.util.DiskAwareRunnable;
 
-import org.apache.cassandra.utils.memory.MemoryOwner;
-import org.apache.cassandra.utils.memory.Pool;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.memory.ContextAllocator;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.Pool;
 import org.apache.cassandra.utils.memory.PoolAllocator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,7 +51,7 @@ public class Memtable
 {
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
-    static final Pool POOL = DatabaseDescriptor.getMemtableAllocatorPool();
+    static final Pool memoryPool = DatabaseDescriptor.getMemtableAllocatorPool();
     private static final int ROW_OVERHEAD_HEAP_SIZE;
 
     private final PoolAllocator allocator;
@@ -80,20 +80,15 @@ public class Memtable
 
     public Memtable(ColumnFamilyStore cfs)
     {
-        this.allocator = POOL.newAllocator(cfs.keyspace.writeOrder);
         this.cfs = cfs;
+        this.allocator = memoryPool.newAllocator(cfs.keyspace.writeOrder);
         this.initialComparator = cfs.metadata.comparator;
         this.cfs.scheduleFlush();
     }
 
-    public MemoryOwner getOffHeap()
+    public AbstractAllocator getAllocator()
     {
-        return allocator.offHeap;
-    }
-
-    public MemoryOwner getOnHeap()
-    {
-        return allocator.onHeap;
+        return allocator;
     }
 
     public long getLiveDataSize()
@@ -187,7 +182,7 @@ public class Memtable
                 // allocate the row overhead after the fact; this saves over allocating and having to free after, but
                 // means we can overshoot our declared limit.
                 int overhead = (int) (cfs.partitioner.getHeapSizeOf(key.token) + ROW_OVERHEAD_HEAP_SIZE);
-                allocator.onHeap.allocate(overhead, opGroup);
+                allocator.allocate(overhead, opGroup);
             }
             else
             {
@@ -208,7 +203,7 @@ public class Memtable
             cell.name.free(allocator);
             allocator.free(cell.value);
         }
-        allocator.onHeap.allocate((int) delta.excessHeapSize(), opGroup);
+        allocator.allocate((int) delta.excessHeapSize(), opGroup);
     }
 
     // for debugging
@@ -232,7 +227,7 @@ public class Memtable
     public String toString()
     {
         return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%% of heap limit)",
-                             cfs.name, hashCode(), liveDataSize, currentOperations, 100 * allocator.onHeap.ownershipRatio());
+                             cfs.name, hashCode(), liveDataSize, currentOperations, 100 * allocator.ownershipRatio());
     }
 
     /**

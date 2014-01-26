@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.MemoryOwner;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
@@ -413,13 +413,7 @@ public class RangeTombstoneTest extends SchemaLoader
         public void forceBlockingFlush(){}
 
         @Override
-        public MemoryOwner getOnHeapSize()
-        {
-            return null;
-        }
-
-        @Override
-        public MemoryOwner getOffHeapSize()
+        public AbstractAllocator getOnHeapAllocator()
         {
             return null;
         }

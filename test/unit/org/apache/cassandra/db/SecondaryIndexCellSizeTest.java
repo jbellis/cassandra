@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Set;
 
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.MemoryOwner;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.junit.Test;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -92,12 +92,7 @@ public class SecondaryIndexCellSizeTest
         {
         }
 
-        public MemoryOwner getOnHeapSize()
-        {
-            return null;
-        }
-
-        public MemoryOwner getOffHeapSize()
+        public AbstractAllocator getOnHeapAllocator()
         {
             return null;
         }
@@ -177,13 +172,7 @@ public class SecondaryIndexCellSizeTest
         }
 
         @Override
-        public MemoryOwner getOnHeapSize()
-        {
-            return null;
-        }
-
-        @Override
-        public MemoryOwner getOffHeapSize()
+        public AbstractAllocator getOnHeapAllocator()
         {
             return null;
         }

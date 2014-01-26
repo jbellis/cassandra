@@ -26,7 +26,6 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Longs;
-import org.apache.cassandra.utils.memory.Pool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +51,7 @@ import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.memory.Pool;
 
 public class DatabaseDescriptor
 {
@@ -1326,8 +1326,8 @@ public class DatabaseDescriptor
         try
         {
             return memtablePool
-                   .getConstructor(long.class, long.class, float.class, Runnable.class)
-                   .newInstance(conf.memtable_total_space_in_mb << 20, Long.MAX_VALUE, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
+                   .getConstructor(long.class, float.class, Runnable.class)
+                   .newInstance(conf.memtable_total_space_in_mb << 20, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
         }
         catch (Exception e)
         {
