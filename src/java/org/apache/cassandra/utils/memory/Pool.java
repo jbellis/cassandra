@@ -3,6 +3,7 @@ package org.apache.cassandra.utils.memory;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 
@@ -25,8 +26,8 @@ public abstract class Pool
     public final float cleanThreshold;
 
     // total bytes allocated and reclaiming
-    private volatile long allocated;
-    private volatile long reclaiming;
+    private AtomicLong allocated = new AtomicLong();
+    private AtomicLong reclaiming = new AtomicLong();
 
     final WaitQueue hasRoom = new WaitQueue();
 
@@ -59,7 +60,7 @@ public abstract class Pool
 
     private boolean updateNextClean()
     {
-        long reclaiming = this.reclaiming;
+        long reclaiming = this.reclaiming.get();
         return used() >= (nextClean = reclaiming
                 + (long) (this.limit * cleanThreshold));
     }
@@ -71,9 +72,9 @@ public abstract class Pool
         while (true)
         {
             long cur;
-            if ((cur = allocated) + size > limit)
+            if ((cur = allocated.get()) + size > limit)
                 return false;
-            if (allocatedUpdater.compareAndSet(this, cur, cur + size))
+            if (allocated.compareAndSet(cur, cur + size))
             {
                 maybeClean();
                 return true;
@@ -91,8 +92,8 @@ public abstract class Pool
             return;
         while (true)
         {
-            long cur = allocated;
-            if (allocatedUpdater.compareAndSet(this, cur, cur + size))
+            long cur = allocated.get();
+            if (allocated.compareAndSet(cur, cur + size))
             {
                 if (size > 0)
                 {
@@ -114,28 +115,25 @@ public abstract class Pool
     {
         if (reclaiming == 0)
             return;
-        reclaimingUpdater.addAndGet(this, reclaiming);
+        this.reclaiming.addAndGet(reclaiming);
         if (reclaiming < 0 && updateNextClean() && cleanerThread != null)
             cleanerThread.trigger();
     }
 
     public long allocated()
     {
-        return allocated;
+        return allocated.get();
     }
 
     public long used()
     {
-        return allocated;
+        return allocated.get();
     }
 
     public long reclaiming()
     {
-        return reclaiming;
+        return reclaiming.get();
     }
-
-    private static final AtomicLongFieldUpdater<Pool> allocatedUpdater = AtomicLongFieldUpdater.newUpdater(Pool.class, "allocated");
-    private static final AtomicLongFieldUpdater<Pool> reclaimingUpdater = AtomicLongFieldUpdater.newUpdater(Pool.class, "reclaiming");
 
     public abstract PoolAllocator newAllocator(OpOrder writes);
 }
