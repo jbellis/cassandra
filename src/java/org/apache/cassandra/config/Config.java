@@ -123,6 +123,7 @@ public class Config
     public volatile Integer stream_throughput_outbound_megabits_per_sec = 200;
 
     public String[] data_file_directories;
+    public String flush_directory;
 
     public String saved_caches_directory;
 

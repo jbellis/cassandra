@@ -271,7 +271,9 @@ public class DatabaseDescriptor
         }
         else if (conf.memtable_flush_writers == null)
         {
-            conf.memtable_flush_writers = conf.data_file_directories.length;
+            // we don't want a lot of contention, but we also don't want to starve all other tables
+            // if a big one flushes.  OS buffering should be able to minimize contention with 2 threads.
+            conf.memtable_flush_writers = 2;
         }
 
         /* Local IP or hostname to bind services to */
@@ -404,6 +406,9 @@ public class DatabaseDescriptor
         /* data file and commit log directories. they get created later, when they're needed. */
         if (conf.commitlog_directory != null && conf.data_file_directories != null && conf.saved_caches_directory != null)
         {
+            if (conf.flush_directory == null)
+                conf.flush_directory = conf.data_file_directories[0];
+
             for (String datadir : conf.data_file_directories)
             {
                 if (datadir.equals(conf.commitlog_directory))
@@ -613,6 +618,8 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("saved_caches_directory must be specified");
 
             FileUtils.createDirectory(conf.saved_caches_directory);
+
+            FileUtils.createDirectory(conf.flush_directory);
         }
         catch (ConfigurationException e)
         {
@@ -1403,5 +1410,10 @@ public class DatabaseDescriptor
         }
         String arch = System.getProperty("os.arch");
         return arch.contains("64") || arch.contains("sparcv9");
+    }
+
+    public static String getFlushLocation()
+    {
+        return conf.flush_directory;
     }
 }
