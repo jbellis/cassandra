@@ -183,7 +183,7 @@ public class DirectoriesTest
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.best_effort);
             
-            for (DataDirectory dd : Directories.dataFileLocations)
+            for (DataDirectory dd : Directories.dataDirectories)
             {
                 dd.location.setExecutable(false);
                 dd.location.setWritable(false);
@@ -199,7 +199,7 @@ public class DirectoriesTest
         } 
         finally 
         {
-            for (DataDirectory dd : Directories.dataFileLocations)
+            for (DataDirectory dd : Directories.dataDirectories)
             {
                 dd.location.setExecutable(true);
                 dd.location.setWritable(true);

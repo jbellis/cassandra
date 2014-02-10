@@ -86,13 +86,13 @@ public class Directories
     public static final String SNAPSHOT_SUBDIR = "snapshots";
     public static final String SECONDARY_INDEX_NAME_SEPARATOR = ".";
 
-    public static final DataDirectory[] dataFileLocations;
+    public static final DataDirectory[] dataDirectories;
     static
     {
         String[] locations = DatabaseDescriptor.getAllDataFileLocations();
-        dataFileLocations = new DataDirectory[locations.length];
+        dataDirectories = new DataDirectory[locations.length];
         for (int i = 0; i < locations.length; ++i)
-            dataFileLocations[i] = new DataDirectory(new File(locations[i]));
+            dataDirectories[i] = new DataDirectory(new File(locations[i]));
     }
 
 
@@ -170,7 +170,7 @@ public class Directories
     }
 
     private final CFMetaData metadata;
-    private final File[] sstableDirectories;
+    private final File[] dataPaths;
 
     /**
      * Create Directories of given ColumnFamily.
@@ -181,16 +181,16 @@ public class Directories
     public Directories(CFMetaData metadata)
     {
         this.metadata = metadata;
-        this.sstableDirectories = new File[dataFileLocations.length];
+        this.dataPaths = new File[dataDirectories.length];
 
         // Determine SSTable directories
         // If upgraded from version less than 2.1, use directories already exist.
-        for (int i = 0; i < dataFileLocations.length; ++i)
+        for (int i = 0; i < dataDirectories.length; ++i)
         {
             // check if old SSTable directory exists
-            sstableDirectories[i] = new File(dataFileLocations[i].location, join(metadata.ksName, metadata.cfName));
+            dataPaths[i] = new File(dataDirectories[i].location, join(metadata.ksName, metadata.cfName));
         }
-        boolean olderDirectoryExists = Iterables.any(Arrays.asList(sstableDirectories), new Predicate<File>()
+        boolean olderDirectoryExists = Iterables.any(Arrays.asList(dataPaths), new Predicate<File>()
         {
             public boolean apply(File file)
             {
@@ -210,12 +210,12 @@ public class Directories
         else
             directoryName = metadata.cfName + "-" + cfId;
 
-        for (int i = 0; i < dataFileLocations.length; ++i)
-            sstableDirectories[i] = new File(dataFileLocations[i].location, join(metadata.ksName, directoryName));
+        for (int i = 0; i < dataDirectories.length; ++i)
+            dataPaths[i] = new File(dataDirectories[i].location, join(metadata.ksName, directoryName));
 
         if (!StorageService.instance.isClientMode())
         {
-            for (File dir : sstableDirectories)
+            for (File dir : dataPaths)
             {
                 try
                 {
@@ -239,7 +239,7 @@ public class Directories
      */
     public File getLocationForDisk(DataDirectory dataDirectory)
     {
-        for (File dir : sstableDirectories)
+        for (File dir : dataPaths)
         {
             if (dir.getAbsolutePath().startsWith(dataDirectory.location.getAbsolutePath()))
                 return dir;
@@ -249,7 +249,7 @@ public class Directories
 
     public Descriptor find(String filename)
     {
-        for (File dir : sstableDirectories)
+        for (File dir : dataPaths)
         {
             if (new File(dir, filename).exists())
                 return Descriptor.fromFilename(dir, filename).left;
@@ -293,7 +293,7 @@ public class Directories
         List<DataDirectory> candidates = new ArrayList<>();
 
         // pick directories with enough space and so that resulting sstable dirs aren't blacklisted for writes.
-        for (DataDirectory dataDir : dataFileLocations)
+        for (DataDirectory dataDir : dataDirectories)
         {
             if (BlacklistedDirectories.isUnwritable(getLocationForDisk(dataDir)))
                 continue;
@@ -430,7 +430,7 @@ public class Directories
             if (filtered)
                 return;
 
-            for (File location : sstableDirectories)
+            for (File location : dataPaths)
             {
                 if (BlacklistedDirectories.isUnreadable(location))
                     continue;
@@ -492,7 +492,7 @@ public class Directories
     public Map<String, Pair<Long, Long>> getSnapshotDetails()
     {
         final Map<String, Pair<Long, Long>> snapshotSpaceMap = new HashMap<>();
-        for (final File dir : sstableDirectories)
+        for (final File dir : dataPaths)
         {
             final File snapshotDir = new File(dir,SNAPSHOT_SUBDIR);
             if (snapshotDir.exists() && snapshotDir.isDirectory())
@@ -522,7 +522,7 @@ public class Directories
     }
     public boolean snapshotExists(String snapshotName)
     {
-        for (File dir : sstableDirectories)
+        for (File dir : dataPaths)
         {
             File snapshotDir = new File(dir, join(SNAPSHOT_SUBDIR, snapshotName));
             if (snapshotDir.exists())
@@ -550,7 +550,7 @@ public class Directories
     // The snapshot must exist
     public long snapshotCreationTime(String snapshotName)
     {
-        for (File dir : sstableDirectories)
+        for (File dir : dataPaths)
         {
             File snapshotDir = new File(dir, join(SNAPSHOT_SUBDIR, snapshotName));
             if (snapshotDir.exists())
@@ -562,7 +562,7 @@ public class Directories
     public long trueSnapshotsSize()
     {
         long result = 0L;
-        for (File dir : sstableDirectories)
+        for (File dir : dataPaths)
             result += getTrueAllocatedSizeIn(new File(dir, join(SNAPSHOT_SUBDIR)));
         return result;
     }
@@ -594,7 +594,7 @@ public class Directories
     public static List<File> getKSChildDirectories(String ksName)
     {
         List<File> result = new ArrayList<>();
-        for (DataDirectory dataDirectory : dataFileLocations)
+        for (DataDirectory dataDirectory : dataDirectories)
         {
             File ksDir = new File(dataDirectory.location, ksName);
             File[] cfDirs = ksDir.listFiles();
@@ -612,7 +612,7 @@ public class Directories
     public List<File> getCFDirectories()
     {
         List<File> result = new ArrayList<>();
-        for (File dataDirectory : sstableDirectories)
+        for (File dataDirectory : dataPaths)
         {
             if (dataDirectory.isDirectory())
                 result.add(dataDirectory);
@@ -643,8 +643,8 @@ public class Directories
     // Hack for tests, don't use otherwise
     static void overrideDataDirectoriesForTest(String loc)
     {
-        for (int i = 0; i < dataFileLocations.length; ++i)
-            dataFileLocations[i] = new DataDirectory(new File(loc));
+        for (int i = 0; i < dataDirectories.length; ++i)
+            dataDirectories[i] = new DataDirectory(new File(loc));
     }
 
     // Hack for tests, don't use otherwise
@@ -652,7 +652,7 @@ public class Directories
     {
         String[] locations = DatabaseDescriptor.getAllDataFileLocations();
         for (int i = 0; i < locations.length; ++i)
-            dataFileLocations[i] = new DataDirectory(new File(locations[i]));
+            dataDirectories[i] = new DataDirectory(new File(locations[i]));
     }
     
     private class TrueFilesSizeVisitor extends SimpleFileVisitor<Path>
