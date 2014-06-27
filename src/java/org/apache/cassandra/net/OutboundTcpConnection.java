@@ -215,9 +215,7 @@ public class OutboundTcpConnection extends Thread
                 {
                     byte[] traceTypeBytes = qm.message.parameters.get(Tracing.TRACE_TYPE);
                     Tracing.TraceType traceType = traceTypeBytes == null ? Tracing.TraceType.QUERY : Tracing.TraceType.deserialize(traceTypeBytes[0]);
-                    byte[] ttlBytes = qm.message.parameters.get(Tracing.TRACE_TTL);
-                    int ttl = ttlBytes == null ? traceType.getTTL() : ByteBuffer.wrap(ttlBytes).getInt();
-                    TraceState.trace(ByteBuffer.wrap(sessionBytes), message, -1, ttl, null);
+                    TraceState.trace(ByteBuffer.wrap(sessionBytes), message, -1, traceType.getTTL(), null);
                 }
                 else
                 {

@@ -67,11 +67,6 @@ public class TraceState
 
     public TraceState(InetAddress coordinator, UUID sessionId, Tracing.TraceType traceType)
     {
-        this(coordinator, sessionId, traceType, traceType.getTTL());
-    }
-
-    public TraceState(InetAddress coordinator, UUID sessionId, Tracing.TraceType traceType, int ttl)
-    {
         assert coordinator != null;
         assert sessionId != null;
 
@@ -79,7 +74,7 @@ public class TraceState
         this.sessionId = sessionId;
         sessionIdBytes = ByteBufferUtil.bytes(sessionId);
         this.traceType = traceType;
-        this.ttl = ttl;
+        this.ttl = traceType.getTTL();
         watch = Stopwatch.createStarted();
     }
 

@@ -298,18 +298,14 @@ public class Tracing
         if ((tmpBytes = message.parameters.get(TRACE_TYPE)) != null)
             traceType = TraceType.deserialize(tmpBytes[0]);
 
-        int ttl = traceType.getTTL();
-        if ((tmpBytes = message.parameters.get(TRACE_TTL)) != null)
-            ttl = ByteBuffer.wrap(tmpBytes).getInt();
-
         if (message.verb == MessagingService.Verb.REQUEST_RESPONSE)
         {
             // received a message for a session we've already closed out.  see CASSANDRA-5668
-            return new ExpiredTraceState(sessionId, traceType, ttl);
+            return new ExpiredTraceState(sessionId, traceType);
         }
         else
         {
-            ts = new TraceState(message.from, sessionId, traceType, ttl);
+            ts = new TraceState(message.from, sessionId, traceType);
             sessions.put(sessionId, ts);
             return ts;
         }
