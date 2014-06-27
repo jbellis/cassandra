@@ -64,19 +64,33 @@ public class Tracing
 
     private static final int MIN_SHIFT = 4;
 
-    public static final long TRACETYPE_QUERY = 1L << (MIN_SHIFT + 0);
+    public enum TraceType
+    {
+        QUERY,
+        REPAIR;
+
+        private static final TraceType[] ALL_VALUES = values();
+
+        public static TraceType deserialize(byte b)
+        {
+            return ALL_VALUES[b];
+        }
+
+        public static byte serialize(TraceType value)
+        {
+            return (byte) value.ordinal();
+        }
+
+        private static final int[] TTLS = { DatabaseDescriptor.getTracetypeQueryTTL(),
+                                            DatabaseDescriptor.getTracetypeRepairTTL() };
+
+        public int getTTL()
+        {
+            return TTLS[ordinal()];
+        }
+    }
+
     public static final long TRACETYPE_REPAIR = 1L << (MIN_SHIFT + 1);
-    public static final long TRACETYPE_DEFAULT = TRACETYPE_QUERY;
-
-    private static final String[] COMMAND_NAMES = {
-        "QUERY",
-        "REPAIR"
-    };
-
-    private static final int[] TTLS = {
-        DatabaseDescriptor.getTracetypeQueryTTL(),
-        DatabaseDescriptor.getTracetypeRepairTTL()
-    };
 
     private static final Logger logger = LoggerFactory.getLogger(Tracing.class);
 
@@ -87,40 +101,6 @@ public class Tracing
     private final ConcurrentMap<UUID, TraceState> sessions = new ConcurrentHashMap<UUID, TraceState>();
 
     public static final Tracing instance = new Tracing();
-
-    /**
-     * returns (bits needed to represent n) - 1
-     */
-    private static int log2(long x)
-    {
-        int n = 32, y = (int) (x >>> 32);
-        if (y == 0) { n = 0; y = (int) x; }
-        if ((y & (-1L << 16)) != 0) { n += 16; y >>>= 16; }
-        if ((y & (-1L <<  8)) != 0) { n +=  8; y >>>=  8; }
-        if ((y & (-1L <<  4)) != 0) { n +=  4; y >>>=  4; }
-        if ((y & (-1L <<  2)) != 0) { n +=  2; y >>>=  2; }
-        return n + (y & 2) / 2;
-    }
-
-    public static boolean isValidTraceType(long traceType)
-    {
-        // traceType must be a power of two and not a reserved value.
-        return ((traceType - 1) & traceType) == 0 && (traceType & (-1L << MIN_SHIFT)) != 0;
-    }
-
-    public static int getTTL(long traceType)
-    {
-        assert isValidTraceType(traceType);
-        int i = log2(traceType >>> MIN_SHIFT);
-        return i < TTLS.length ? TTLS[i] : 0;
-    }
-
-    public static String getCommandName(long traceType)
-    {
-        assert isValidTraceType(traceType);
-        int i = log2(traceType >>> MIN_SHIFT);
-        return i < COMMAND_NAMES.length ? COMMAND_NAMES[i] : "UNKNOWN";
-    }
 
     public static void addColumn(ColumnFamily cf, CellName name, InetAddress address, int ttl)
     {
@@ -167,7 +147,7 @@ public class Tracing
         return state.get().sessionId;
     }
 
-    public long getTraceType()
+    public TraceType getTraceType()
     {
         assert isTracing();
         return state.get().traceType;
@@ -177,18 +157,6 @@ public class Tracing
     {
         assert isTracing();
         return state.get().ttl;
-    }
-
-    public void setNotifyTypes(long notifyTypes)
-    {
-        assert isTracing();
-        state.get().notifyTypes = notifyTypes;
-    }
-
-    public void setUserData(Object userData)
-    {
-        assert isTracing();
-        state.get().userData = userData;
     }
 
     /**
@@ -201,20 +169,20 @@ public class Tracing
 
     public UUID newSession()
     {
-        return newSession(Tracing.TRACETYPE_DEFAULT);
+        return newSession(TraceType.QUERY);
     }
 
-    public UUID newSession(long traceType)
+    public UUID newSession(TraceType traceType)
     {
         return newSession(TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes())), traceType);
     }
 
     public UUID newSession(UUID sessionId)
     {
-        return newSession(sessionId, Tracing.TRACETYPE_DEFAULT);
+        return newSession(sessionId, TraceType.QUERY);
     }
 
-    public UUID newSession(UUID sessionId, long traceType)
+    public UUID newSession(UUID sessionId, TraceType traceType)
     {
         assert state.get() == null;
 
@@ -278,14 +246,14 @@ public class Tracing
         state.set(tls);
     }
 
-    public void begin(final String request, final Map<String, String> parameters)
+    public TraceState begin(final String request, final Map<String, String> parameters)
     {
         assert isTracing();
 
         final TraceState state = this.state.get();
         final long started_at = System.currentTimeMillis();
         final ByteBuffer sessionIdBytes = state.sessionIdBytes;
-        final String command = getCommandName(state.traceType);
+        final String command = state.traceType.toString();
         final int ttl = state.ttl;
 
         StageManager.getStage(Stage.TRACING).execute(new Runnable()
@@ -303,6 +271,8 @@ public class Tracing
                 mutateWithCatch(new Mutation(TRACE_KS, sessionIdBytes, cf));
             }
         });
+
+        return state;
     }
 
     /**
@@ -324,11 +294,11 @@ public class Tracing
             return ts;
 
         byte[] tmpBytes;
-        long traceType = TRACETYPE_DEFAULT;
+        TraceType traceType = TraceType.QUERY;
         if ((tmpBytes = message.parameters.get(TRACE_TYPE)) != null)
-            traceType = ByteBuffer.wrap(tmpBytes).getLong();
+            traceType = TraceType.deserialize(tmpBytes[0]);
 
-        int ttl = getTTL(TRACETYPE_DEFAULT);
+        int ttl = traceType.getTTL();
         if ((tmpBytes = message.parameters.get(TRACE_TTL)) != null)
             ttl = ByteBuffer.wrap(tmpBytes).getInt();
 
@@ -345,15 +315,18 @@ public class Tracing
         }
     }
 
-    public static void trace(long traceType, String message)
+
+    // repair just gets a varargs method since it's so heavyweight anyway
+    public static void traceRepair(String format, Object... args)
     {
         final TraceState state = instance.get();
         if (state == null) // inline isTracing to avoid implicit two calls to state.get()
             return;
 
-        state.trace(traceType, message);
+        state.trace(format, args);
     }
 
+    // normal traces get zero-, one-, and two-argument overloads so common case doesn't need to create varargs array
     public static void trace(String message)
     {
         final TraceState state = instance.get();

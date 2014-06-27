@@ -66,7 +66,7 @@ public class Differencer implements Runnable
         if (differences.isEmpty())
         {
             logger.info("[repair #{}] {}", desc.sessionId, String.format(format, "are consistent"));
-            Tracing.trace(Tracing.TRACETYPE_REPAIR, String.format("Endpoint %s is consistent with %s for %s", r1.endpoint, r2.endpoint, desc.columnFamily));
+            Tracing.traceRepair("Endpoint {} is consistent with {} for {}", r1.endpoint, r2.endpoint, desc.columnFamily);
             // send back sync complete message
             MessagingService.instance().sendOneWay(new SyncComplete(desc, r1.endpoint, r2.endpoint, true).createMessage(), FBUtilities.getLocalAddress());
             return;
@@ -74,7 +74,7 @@ public class Differencer implements Runnable
 
         // non-0 difference: perform streaming repair
         logger.info("[repair #{}] {}", desc.sessionId, String.format(format, "have " + differences.size() + " range(s) out of sync"));
-        Tracing.trace(Tracing.TRACETYPE_REPAIR, String.format("Endpoint %s has %d range(s) out of sync with %s for %s", r1.endpoint, differences.size(), r2.endpoint, desc.columnFamily));
+        Tracing.traceRepair("Endpoint {} has {} range(s) out of sync with {} for {}", r1.endpoint, differences.size(), r2.endpoint, desc.columnFamily);
         performStreamingRepair();
     }
 

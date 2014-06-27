@@ -145,7 +145,7 @@ public class RepairJob
 
         String message = String.format("Requesting merkle trees for %s from %s", desc.columnFamily, endpoints);
         logger.info("[repair #{}] {}", desc.sessionId, message);
-        Tracing.trace(Tracing.TRACETYPE_REPAIR | 1, message);
+        Tracing.traceRepair(message);
         treeRequests.start();
         requestsSent.signalAll();
     }

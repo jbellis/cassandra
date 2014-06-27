@@ -170,7 +170,7 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
 
         String message;
         logger.info("[repair #{}] {}", getId(), message = String.format("Received merkle tree for %s from %s", desc.columnFamily, endpoint));
-        Tracing.trace(Tracing.TRACETYPE_REPAIR | 1, message);
+        Tracing.traceRepair(message);
 
         assert job.desc.equals(desc);
         if (job.addTree(endpoint, tree) == 0)
@@ -261,13 +261,13 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
     {
         String message;
         logger.info(String.format("[repair #%s] new session: will sync %s on range %s for %s.%s", getId(), repairedNodes(), range, keyspace, Arrays.toString(cfnames)));
-        Tracing.trace(Tracing.TRACETYPE_REPAIR, String.format("Syncing range %s", range));
+        Tracing.traceRepair("Syncing range {}", range);
 
         if (endpoints.isEmpty())
         {
             differencingDone.signalAll();
             logger.info("[repair #{}] {}", getId(), message = String.format("No neighbors to repair with on range %s: session completed", range));
-            Tracing.trace(Tracing.TRACETYPE_REPAIR, message);
+            Tracing.traceRepair(message);
             return;
         }
 
@@ -302,12 +302,12 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
             if (exception == null)
             {
                 logger.info("[repair #{}] {}", getId(), "Session completed successfully");
-                Tracing.trace(Tracing.TRACETYPE_REPAIR, String.format("Completed sync of range %s", range));
+                Tracing.traceRepair("Completed sync of range {}", range);
             }
             else
             {
                 logger.error(String.format("[repair #%s] Session completed with the following error", getId()), exception);
-                Tracing.trace(Tracing.TRACETYPE_REPAIR, String.format("Session completed with the following error: %s", exception));
+                Tracing.traceRepair("Session completed with the following error: {}", exception);
                 throw exception;
             }
         }

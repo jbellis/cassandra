@@ -2726,11 +2726,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 String message = String.format("Starting repair command #%d, repairing %d ranges for %s (seq=%b, full=%b)", cmd, ranges.size(), cfNames, isSequential, fullRepair);
                 final UUID sessionId;
                 Thread queryThread;
+                TraceState traceState = null;
                 if (trace)
                 {
-                    sessionId = Tracing.instance.newSession(Tracing.TRACETYPE_REPAIR);
-                    Tracing.instance.begin("repair", ImmutableMap.of("keyspace", keyspace, "columnFamilies", cfNames));
-                    Tracing.instance.setNotifyTypes(1);
+                    sessionId = Tracing.instance.newSession(Tracing.TraceType.REPAIR);
+                    traceState = Tracing.instance.begin("repair", ImmutableMap.of("keyspace", keyspace, "columnFamilies", cfNames));
+                    traceState.enableNotifications();
                     queryThread = new Thread(new WrappedRunnable()
                     {
                         // Query events within a time interval that overlaps the last by one second. Ignore duplicates. Ignore local traces.
@@ -2781,12 +2782,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     queryThread.setName("RepairTracePolling");
                     queryThread.start();
                 }
-                Tracing.trace(Tracing.TRACETYPE_REPAIR, message);
+                Tracing.traceRepair(message);
                 logger.info(message);
                 sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.STARTED.ordinal()});
 
-                if (trace)
-                    Tracing.instance.setUserData(new int[]{cmd, ActiveRepairService.Status.RUNNING.ordinal()});
+                if (traceState != null)
+                    traceState.setNotificationHandle(new int[]{ cmd, ActiveRepairService.Status.RUNNING.ordinal() });
 
                 if (isSequential && !fullRepair)
                 {
@@ -2893,9 +2894,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (!fullRepair)
                     ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors);
                 sendNotification("repair", message = String.format("Repair command #%d finished", cmd), new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
-                if (trace)
-                    Tracing.instance.setUserData(null);
-                Tracing.trace(Tracing.TRACETYPE_REPAIR, message);
+                if (traceState != null)
+                    traceState.setNotificationHandle(null);
+                Tracing.traceRepair(message);
                 if (trace)
                     Tracing.instance.stopSession();
             }

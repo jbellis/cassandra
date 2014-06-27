@@ -23,7 +23,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Stopwatch;
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.concurrent.Stage;
@@ -48,11 +47,11 @@ public class TraceState
     public final InetAddress coordinator;
     public final Stopwatch watch;
     public final ByteBuffer sessionIdBytes;
-    public final long traceType;
+    public final Tracing.TraceType traceType;
     public final int ttl;
 
-    public Object userData;
-    public long notifyTypes;
+    private boolean notify;
+    private Object notificationHandle;
 
     private boolean done;
     private boolean hasNotifications;
@@ -63,19 +62,18 @@ public class TraceState
 
     public TraceState(InetAddress coordinator, UUID sessionId)
     {
-        this(coordinator, sessionId, Tracing.TRACETYPE_DEFAULT);
+        this(coordinator, sessionId, Tracing.TraceType.QUERY);
     }
 
-    public TraceState(InetAddress coordinator, UUID sessionId, long traceType)
+    public TraceState(InetAddress coordinator, UUID sessionId, Tracing.TraceType traceType)
     {
-        this(coordinator, sessionId, traceType, Tracing.getTTL(traceType));
+        this(coordinator, sessionId, traceType, traceType.getTTL());
     }
 
-    public TraceState(InetAddress coordinator, UUID sessionId, long traceType, int ttl)
+    public TraceState(InetAddress coordinator, UUID sessionId, Tracing.TraceType traceType, int ttl)
     {
         assert coordinator != null;
         assert sessionId != null;
-        assert Tracing.isValidTraceType(traceType);
 
         this.coordinator = coordinator;
         this.sessionId = sessionId;
@@ -83,6 +81,18 @@ public class TraceState
         this.traceType = traceType;
         this.ttl = ttl;
         watch = Stopwatch.createStarted();
+    }
+
+    public void enableNotifications()
+    {
+        assert traceType == Tracing.TraceType.REPAIR;
+        notify = true;
+    }
+
+    public void setNotificationHandle(Object handle)
+    {
+        assert traceType == Tracing.TraceType.REPAIR;
+        notificationHandle = handle;
     }
 
     public int elapsed()
@@ -155,27 +165,19 @@ public class TraceState
 
     public void trace(String message)
     {
-        trace(Tracing.TRACETYPE_DEFAULT, message);
-    }
-
-    public void trace(long traceType, String message)
-    {
-        if ((this.traceType & traceType) == 0)
-            return;
-        if ((this.notifyTypes & traceType) != 0)
+        if (notify)
             notifyActivity();
 
-        TraceState.trace(sessionIdBytes, message, elapsed(), this.traceType, ttl, userData);
+        TraceState.trace(sessionIdBytes, message, elapsed(), ttl, notificationHandle);
     }
 
-    public static void trace(final ByteBuffer sessionIdBytes, final String message, final int elapsed, final long traceType, final int ttl, final Object userData)
+    public static void trace(final ByteBuffer sessionIdBytes, final String message, final int elapsed, final int ttl, final Object notificationHandle)
     {
         final ByteBuffer eventId = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
         final String threadName = Thread.currentThread().getName();
-        final String command = Tracing.getCommandName(traceType);
 
-        if (userData != null && traceType == Tracing.TRACETYPE_REPAIR)
-            StorageService.instance.sendNotification("repair", message, userData);
+        if (notificationHandle != null)
+            StorageService.instance.sendNotification("repair", message, notificationHandle);
 
         StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
         {

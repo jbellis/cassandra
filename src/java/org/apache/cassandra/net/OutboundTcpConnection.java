@@ -214,10 +214,10 @@ public class OutboundTcpConnection extends Thread
                 if (state == null)
                 {
                     byte[] traceTypeBytes = qm.message.parameters.get(Tracing.TRACE_TYPE);
-                    long traceType = traceTypeBytes == null ? Tracing.TRACETYPE_DEFAULT : ByteBuffer.wrap(traceTypeBytes).getLong();
+                    Tracing.TraceType traceType = traceTypeBytes == null ? Tracing.TraceType.QUERY : Tracing.TraceType.deserialize(traceTypeBytes[0]);
                     byte[] ttlBytes = qm.message.parameters.get(Tracing.TRACE_TTL);
-                    int ttl = ttlBytes == null ? Tracing.getTTL(traceType) : ByteBuffer.wrap(ttlBytes).getInt();
-                    TraceState.trace(ByteBuffer.wrap(sessionBytes), message, -1, traceType, ttl, null);
+                    int ttl = ttlBytes == null ? traceType.getTTL() : ByteBuffer.wrap(ttlBytes).getInt();
+                    TraceState.trace(ByteBuffer.wrap(sessionBytes), message, -1, ttl, null);
                 }
                 else
                 {

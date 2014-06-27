@@ -67,7 +67,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
 
         String message;
         logger.info("[streaming task #{}] {}", desc.sessionId, message = String.format("Performing streaming repair of %d ranges with %s", request.ranges.size(), request.dst));
-        Tracing.trace(Tracing.TRACETYPE_REPAIR, message);
+        Tracing.traceRepair(message);
         StreamResultFuture op = new StreamPlan("Repair", repairedAt, 1)
                                     .flushBeforeTransfer(true)
                                     // request ranges from the remote node
@@ -82,7 +82,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     {
         String message;
         logger.info("[repair #{}] {}", desc.sessionId, message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst));
-        Tracing.trace(Tracing.TRACETYPE_REPAIR, message);
+        Tracing.traceRepair(message);
         MessagingService.instance().sendOneWay(request.createMessage(), request.src);
     }
 
@@ -94,21 +94,21 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
         {
             case STREAM_PREPARED:
                 StreamEvent.SessionPreparedEvent spe = (StreamEvent.SessionPreparedEvent) event;
-                state.trace(Tracing.TRACETYPE_REPAIR, String.format("Streaming session with %s prepared.", spe.session.peer));
+                state.trace("Streaming session with {} prepared", spe.session.peer);
                 break;
             case STREAM_COMPLETE:
                 StreamEvent.SessionCompleteEvent sce = (StreamEvent.SessionCompleteEvent) event;
-                state.trace(Tracing.TRACETYPE_REPAIR, String.format("Streaming session with %s %s.", sce.peer, sce.success ? "completed successfully" : "failed"));
+                state.trace("Streaming session with {} {}", sce.peer, sce.success ? "completed successfully" : "failed");
                 break;
             case FILE_PROGRESS:
                 ProgressInfo pi = ((StreamEvent.ProgressEvent) event).progress;
-                state.trace(Tracing.TRACETYPE_REPAIR, String.format("%d/%d bytes (%d%%) %s idx:%d%s",
-                                                                    pi.currentBytes,
-                                                                    pi.totalBytes,
-                                                                    pi.currentBytes * 100 / pi.totalBytes,
-                                                                    pi.direction == ProgressInfo.Direction.OUT ? "sent to" : "received from",
-                                                                    pi.sessionIndex,
-                                                                    pi.peer));
+                state.trace("{}/{} bytes ({}%%) {} idx:{}{}",
+                            new Object[] { pi.currentBytes,
+                                           pi.totalBytes,
+                                           pi.currentBytes * 100 / pi.totalBytes,
+                                           pi.direction == ProgressInfo.Direction.OUT ? "sent to" : "received from",
+                                           pi.sessionIndex,
+                                           pi.peer });
         }
     }
 
@@ -119,7 +119,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     {
         String message;
         logger.info("[repair #{}] {}", desc.sessionId, message = String.format("Streaming task succeeded, returning response to %s", request.initiator));
-        Tracing.trace(Tracing.TRACETYPE_REPAIR, message);
+        Tracing.traceRepair(message);
         MessagingService.instance().sendOneWay(new SyncComplete(desc, request.src, request.dst, true).createMessage(), request.initiator);
     }
 

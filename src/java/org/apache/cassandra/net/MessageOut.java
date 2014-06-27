@@ -66,7 +66,7 @@ public class MessageOut<T>
     private static Map<String, byte[]> traceParameters()
     {
         byte[] sessionIdBytes = UUIDGen.decompose(Tracing.instance.getSessionId());
-        byte[] traceTypeBytes = bytes(Tracing.instance.getTraceType()).array();
+        byte[] traceTypeBytes = new byte[] { Tracing.TraceType.serialize(Tracing.instance.getTraceType()) };
         byte[] ttlBytes = bytes(Tracing.instance.getTTL()).array();
         return ImmutableMap.of(TRACE_HEADER, sessionIdBytes, TRACE_TYPE, traceTypeBytes, TRACE_TTL, ttlBytes);
     }

@@ -253,9 +253,8 @@ public class Validator implements Runnable
         // respond to the request that triggered this validation
         if (!initiator.equals(FBUtilities.getBroadcastAddress()))
         {
-            String message;
-            logger.info(message = String.format("[repair #%s] Sending completed merkle tree to %s for %s.%s", desc.sessionId, initiator, desc.keyspace, desc.columnFamily));
-            Tracing.trace(Tracing.TRACETYPE_REPAIR, String.format("Sending completed merkle tree to %s for %s.%s", initiator, desc.keyspace, desc.columnFamily));
+            logger.info(String.format("[repair #%s] Sending completed merkle tree to %s for %s.%s", desc.sessionId, initiator, desc.keyspace, desc.columnFamily));
+            Tracing.traceRepair("Sending completed merkle tree to %s for %s.%s", initiator, desc.keyspace, desc.columnFamily);
         }
         MessagingService.instance().sendOneWay(new ValidationComplete(desc, tree).createMessage(), initiator);
     }
