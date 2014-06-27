@@ -213,7 +213,11 @@ public class OutboundTcpConnection extends Thread
                 // session may have already finished; see CASSANDRA-5668
                 if (state == null)
                 {
-                    TraceState.trace(ByteBuffer.wrap(sessionBytes), message, -1);
+                    byte[] traceTypeBytes = qm.message.parameters.get(Tracing.TRACE_TYPE);
+                    long traceType = traceTypeBytes == null ? Tracing.TRACETYPE_DEFAULT : ByteBuffer.wrap(traceTypeBytes).getLong();
+                    byte[] ttlBytes = qm.message.parameters.get(Tracing.TRACE_TTL);
+                    int ttl = ttlBytes == null ? Tracing.getTTL(traceType) : ByteBuffer.wrap(ttlBytes).getInt();
+                    TraceState.trace(ByteBuffer.wrap(sessionBytes), message, -1, traceType, ttl, null);
                 }
                 else
                 {

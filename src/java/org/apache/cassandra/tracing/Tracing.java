@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -58,8 +59,24 @@ public class Tracing
     public static final String EVENTS_CF = "events";
     public static final String SESSIONS_CF = "sessions";
     public static final String TRACE_HEADER = "TraceSession";
+    public static final String TRACE_TYPE = "TraceType";
+    public static final String TRACE_TTL = "TraceTTL";
 
-    private static final int TTL = 24 * 3600;
+    private static final int MIN_SHIFT = 4;
+
+    public static final long TRACETYPE_QUERY = 1L << (MIN_SHIFT + 0);
+    public static final long TRACETYPE_REPAIR = 1L << (MIN_SHIFT + 1);
+    public static final long TRACETYPE_DEFAULT = TRACETYPE_QUERY;
+
+    private static final String[] COMMAND_NAMES = {
+        "QUERY",
+        "REPAIR"
+    };
+
+    private static final int[] TTLS = {
+        DatabaseDescriptor.getTracetypeQueryTTL(),
+        DatabaseDescriptor.getTracetypeRepairTTL()
+    };
 
     private static final Logger logger = LoggerFactory.getLogger(Tracing.class);
 
@@ -71,37 +88,71 @@ public class Tracing
 
     public static final Tracing instance = new Tracing();
 
-    public static void addColumn(ColumnFamily cf, CellName name, InetAddress address)
+    /**
+     * returns (bits needed to represent n) - 1
+     */
+    private static int log2(long x)
     {
-        addColumn(cf, name, ByteBufferUtil.bytes(address));
+        int n = 32, y = (int) (x >>> 32);
+        if (y == 0) { n = 0; y = (int) x; }
+        if ((y & (-1L << 16)) != 0) { n += 16; y >>>= 16; }
+        if ((y & (-1L <<  8)) != 0) { n +=  8; y >>>=  8; }
+        if ((y & (-1L <<  4)) != 0) { n +=  4; y >>>=  4; }
+        if ((y & (-1L <<  2)) != 0) { n +=  2; y >>>=  2; }
+        return n + (y & 2) / 2;
     }
 
-    public static void addColumn(ColumnFamily cf, CellName name, int value)
+    public static boolean isValidTraceType(long traceType)
     {
-        addColumn(cf, name, ByteBufferUtil.bytes(value));
+        // traceType must be a power of two and not a reserved value.
+        return ((traceType - 1) & traceType) == 0 && (traceType & (-1L << MIN_SHIFT)) != 0;
     }
 
-    public static void addColumn(ColumnFamily cf, CellName name, long value)
+    public static int getTTL(long traceType)
     {
-        addColumn(cf, name, ByteBufferUtil.bytes(value));
+        assert isValidTraceType(traceType);
+        int i = log2(traceType >>> MIN_SHIFT);
+        return i < TTLS.length ? TTLS[i] : 0;
     }
 
-    public static void addColumn(ColumnFamily cf, CellName name, String value)
+    public static String getCommandName(long traceType)
     {
-        addColumn(cf, name, ByteBufferUtil.bytes(value));
+        assert isValidTraceType(traceType);
+        int i = log2(traceType >>> MIN_SHIFT);
+        return i < COMMAND_NAMES.length ? COMMAND_NAMES[i] : "UNKNOWN";
     }
 
-    private static void addColumn(ColumnFamily cf, CellName name, ByteBuffer value)
+    public static void addColumn(ColumnFamily cf, CellName name, InetAddress address, int ttl)
     {
-        cf.addColumn(new BufferExpiringCell(name, value, System.currentTimeMillis(), TTL));
+        addColumn(cf, name, ByteBufferUtil.bytes(address), ttl);
     }
 
-    public void addParameterColumns(ColumnFamily cf, Map<String, String> rawPayload)
+    public static void addColumn(ColumnFamily cf, CellName name, int value, int ttl)
+    {
+        addColumn(cf, name, ByteBufferUtil.bytes(value), ttl);
+    }
+
+    public static void addColumn(ColumnFamily cf, CellName name, long value, int ttl)
+    {
+        addColumn(cf, name, ByteBufferUtil.bytes(value), ttl);
+    }
+
+    public static void addColumn(ColumnFamily cf, CellName name, String value, int ttl)
+    {
+        addColumn(cf, name, ByteBufferUtil.bytes(value), ttl);
+    }
+
+    private static void addColumn(ColumnFamily cf, CellName name, ByteBuffer value, int ttl)
+    {
+        cf.addColumn(new BufferExpiringCell(name, value, System.currentTimeMillis(), ttl));
+    }
+
+    public void addParameterColumns(ColumnFamily cf, Map<String, String> rawPayload, int ttl)
     {
         for (Map.Entry<String, String> entry : rawPayload.entrySet())
         {
             cf.addColumn(new BufferExpiringCell(buildName(CFMetaData.TraceSessionsCf, "parameters", entry.getKey()),
-                                                bytes(entry.getValue()), System.currentTimeMillis(), TTL));
+                                                bytes(entry.getValue()), System.currentTimeMillis(), ttl));
         }
     }
 
@@ -116,6 +167,30 @@ public class Tracing
         return state.get().sessionId;
     }
 
+    public long getTraceType()
+    {
+        assert isTracing();
+        return state.get().traceType;
+    }
+
+    public int getTTL()
+    {
+        assert isTracing();
+        return state.get().ttl;
+    }
+
+    public void setNotifyTypes(long notifyTypes)
+    {
+        assert isTracing();
+        state.get().notifyTypes = notifyTypes;
+    }
+
+    public void setUserData(Object userData)
+    {
+        assert isTracing();
+        state.get().userData = userData;
+    }
+
     /**
      * Indicates if the current thread's execution is being traced.
      */
@@ -126,14 +201,24 @@ public class Tracing
 
     public UUID newSession()
     {
-        return newSession(TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes())));
+        return newSession(Tracing.TRACETYPE_DEFAULT);
+    }
+
+    public UUID newSession(long traceType)
+    {
+        return newSession(TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes())), traceType);
     }
 
     public UUID newSession(UUID sessionId)
     {
+        return newSession(sessionId, Tracing.TRACETYPE_DEFAULT);
+    }
+
+    public UUID newSession(UUID sessionId, long traceType)
+    {
         assert state.get() == null;
 
-        TraceState ts = new TraceState(localAddress, sessionId);
+        TraceState ts = new TraceState(localAddress, sessionId, traceType);
         state.set(ts);
         sessions.put(sessionId, ts);
 
@@ -159,6 +244,7 @@ public class Tracing
         {
             final int elapsed = state.elapsed();
             final ByteBuffer sessionIdBytes = state.sessionIdBytes;
+            final int ttl = state.ttl;
 
             StageManager.getStage(Stage.TRACING).execute(new Runnable()
             {
@@ -166,11 +252,12 @@ public class Tracing
                 {
                     CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
                     ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
-                    addColumn(cf, buildName(cfMeta, "duration"), elapsed);
+                    addColumn(cf, buildName(cfMeta, "duration"), elapsed, ttl);
                     mutateWithCatch(new Mutation(TRACE_KS, sessionIdBytes, cf));
                 }
             });
 
+            state.stop();
             sessions.remove(state.sessionId);
             this.state.set(null);
         }
@@ -195,8 +282,11 @@ public class Tracing
     {
         assert isTracing();
 
+        final TraceState state = this.state.get();
         final long started_at = System.currentTimeMillis();
-        final ByteBuffer sessionIdBytes = state.get().sessionIdBytes;
+        final ByteBuffer sessionIdBytes = state.sessionIdBytes;
+        final String command = getCommandName(state.traceType);
+        final int ttl = state.ttl;
 
         StageManager.getStage(Stage.TRACING).execute(new Runnable()
         {
@@ -204,11 +294,12 @@ public class Tracing
             {
                 CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
                 ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
-                addColumn(cf, buildName(cfMeta, "coordinator"), FBUtilities.getBroadcastAddress());
-                addParameterColumns(cf, parameters);
-                addColumn(cf, buildName(cfMeta, bytes("request")), request);
-                addColumn(cf, buildName(cfMeta, bytes("started_at")), started_at);
-                addParameterColumns(cf, parameters);
+                addColumn(cf, buildName(cfMeta, "coordinator"), FBUtilities.getBroadcastAddress(), ttl);
+                addParameterColumns(cf, parameters, ttl);
+                addColumn(cf, buildName(cfMeta, bytes("request")), request, ttl);
+                addColumn(cf, buildName(cfMeta, bytes("started_at")), started_at, ttl);
+                addColumn(cf, buildName(cfMeta, bytes("command")), command, ttl);
+                addParameterColumns(cf, parameters, ttl);
                 mutateWithCatch(new Mutation(TRACE_KS, sessionIdBytes, cf));
             }
         });
@@ -221,7 +312,7 @@ public class Tracing
      */
     public TraceState initializeFromMessage(final MessageIn<?> message)
     {
-        final byte[] sessionBytes = message.parameters.get(Tracing.TRACE_HEADER);
+        final byte[] sessionBytes = message.parameters.get(TRACE_HEADER);
 
         if (sessionBytes == null)
             return null;
@@ -232,17 +323,35 @@ public class Tracing
         if (ts != null)
             return ts;
 
+        byte[] tmpBytes;
+        long traceType = TRACETYPE_DEFAULT;
+        if ((tmpBytes = message.parameters.get(TRACE_TYPE)) != null)
+            traceType = ByteBuffer.wrap(tmpBytes).getLong();
+
+        int ttl = getTTL(TRACETYPE_DEFAULT);
+        if ((tmpBytes = message.parameters.get(TRACE_TTL)) != null)
+            ttl = ByteBuffer.wrap(tmpBytes).getInt();
+
         if (message.verb == MessagingService.Verb.REQUEST_RESPONSE)
         {
             // received a message for a session we've already closed out.  see CASSANDRA-5668
-            return new ExpiredTraceState(sessionId);
+            return new ExpiredTraceState(sessionId, traceType, ttl);
         }
         else
         {
-            ts = new TraceState(message.from, sessionId);
+            ts = new TraceState(message.from, sessionId, traceType, ttl);
             sessions.put(sessionId, ts);
             return ts;
         }
+    }
+
+    public static void trace(long traceType, String message)
+    {
+        final TraceState state = instance.get();
+        if (state == null) // inline isTracing to avoid implicit two calls to state.get()
+            return;
+
+        state.trace(traceType, message);
     }
 
     public static void trace(String message)

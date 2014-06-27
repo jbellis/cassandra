@@ -313,10 +313,15 @@ public class NodeTool
 
         protected List<String> parseOptionalKeyspace(List<String> cmdArgs, NodeProbe nodeProbe)
         {
+            return parseOptionalKeyspace(cmdArgs, nodeProbe, false);
+        }
+
+        protected List<String> parseOptionalKeyspace(List<String> cmdArgs, NodeProbe nodeProbe, boolean includeSystemKS)
+        {
             List<String> keyspaces = new ArrayList<>();
 
             if (cmdArgs == null || cmdArgs.isEmpty())
-                keyspaces.addAll(nodeProbe.getKeyspaces());
+                keyspaces.addAll(includeSystemKS ? nodeProbe.getKeyspaces() : nodeProbe.getNonSystemKeyspaces());
             else
                 keyspaces.add(cmdArgs.get(0));
 
@@ -1607,10 +1612,13 @@ public class NodeTool
         @Option(title = "full", name = {"-full", "--full"}, description = "Use -full to issue a full repair.")
         private boolean fullRepair = false;
 
+        @Option(title = "trace_repair", name = {"-tr", "--trace"}, description = "Use -tr to trace repair")
+        private boolean trace = false;
+
         @Override
         public void execute(NodeProbe probe)
         {
-            List<String> keyspaces = parseOptionalKeyspace(args, probe);
+            List<String> keyspaces = parseOptionalKeyspace(args, probe, false);
             String[] cfnames = parseOptionalColumnFamilies(args);
 
             if (primaryRange && (localDC || !specificHosts.isEmpty() || !specificHosts.isEmpty()))
@@ -1629,9 +1637,9 @@ public class NodeTool
                     else if(!specificHosts.isEmpty())
                         hosts = newArrayList(specificHosts);
                     if (!startToken.isEmpty() || !endToken.isEmpty())
-                        probe.forceRepairRangeAsync(System.out, keyspace, sequential, dataCenters,hosts, startToken, endToken, fullRepair);
+                        probe.forceRepairRangeAsync(System.out, keyspace, sequential, dataCenters,hosts, startToken, endToken, fullRepair, trace);
                     else
-                        probe.forceRepairAsync(System.out, keyspace, sequential, dataCenters, hosts, primaryRange, fullRepair, cfnames);
+                        probe.forceRepairAsync(System.out, keyspace, sequential, dataCenters, hosts, primaryRange, fullRepair, trace, cfnames);
                 } catch (Exception e)
                 {
                     throw new RuntimeException("Error occurred during repair", e);

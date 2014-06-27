@@ -63,6 +63,10 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -91,7 +95,9 @@ import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.EndpointDetails;
 import org.apache.cassandra.thrift.TokenRange;
 import org.apache.cassandra.thrift.cassandraConstants;
+import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.*;
 
 import static java.nio.charset.StandardCharsets.ISO_8859_1;
@@ -2555,17 +2561,48 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean primaryRange, boolean fullRepair, String... columnFamilies) throws IOException
     {
+        return forceRepairAsync(keyspace, isSequential, dataCenters, hosts, primaryRange, fullRepair, false, columnFamilies);
+    }
+
+    public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, Collection<Range<Token>> ranges, boolean fullRepair, String... columnFamilies)
+    {
+        return forceRepairAsync(keyspace, isSequential, dataCenters, hosts, ranges, fullRepair, false, columnFamilies);
+    }
+
+    public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, boolean fullRepair, String... columnFamilies)
+    {
+        return forceRepairAsync(keyspace, isSequential, isLocal, primaryRange, fullRepair, false, columnFamilies);
+    }
+
+    public int forceRepairAsync(final String keyspace, final boolean isSequential, final boolean isLocal, final Collection<Range<Token>> ranges, final boolean fullRepair, final String... columnFamilies)
+    {
+        return forceRepairAsync(keyspace, isSequential, isLocal, ranges, fullRepair, false, columnFamilies);
+    }
+
+    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean fullRepair, String... columnFamilies) throws IOException
+    {
+        return forceRepairRangeAsync(beginToken, endToken, keyspaceName, isSequential, dataCenters, hosts, fullRepair, false, columnFamilies);
+    }
+
+    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean fullRepair, String... columnFamilies)
+    {
+        return forceRepairRangeAsync(beginToken, endToken, keyspaceName, isSequential, isLocal, fullRepair, false, columnFamilies);
+    }
+
+    public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean primaryRange, boolean fullRepair, boolean trace, String... columnFamilies) throws IOException
+    {
         // when repairing only primary range, dataCenter nor hosts can be set
         if (primaryRange && (dataCenters != null || hosts != null))
         {
             throw new IllegalArgumentException("You need to run primary range repair on all nodes in the cluster.");
         }
+
         Collection<Range<Token>> ranges = primaryRange ? getLocalPrimaryRanges(keyspace) : getLocalRanges(keyspace);
 
-        return forceRepairAsync(keyspace, isSequential, dataCenters, hosts, ranges, fullRepair, columnFamilies);
+        return forceRepairAsync(keyspace, isSequential, dataCenters, hosts, ranges, fullRepair, trace, columnFamilies);
     }
 
-    public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, Collection<Range<Token>> ranges, boolean fullRepair, String... columnFamilies)
+    public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, Collection<Range<Token>> ranges, boolean fullRepair, boolean trace, String... columnFamilies)
     {
         if (Keyspace.SYSTEM_KS.equals(keyspace) || ranges.isEmpty())
             return 0;
@@ -2573,12 +2610,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         int cmd = nextRepairCommand.incrementAndGet();
         if (ranges.size() > 0)
         {
-            new Thread(createRepairTask(cmd, keyspace, ranges, isSequential, dataCenters, hosts, fullRepair, columnFamilies)).start();
+            new Thread(createRepairTask(cmd, keyspace, ranges, isSequential, dataCenters, hosts, fullRepair, trace, columnFamilies)).start();
         }
         return cmd;
     }
 
-    public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, boolean fullRepair, String... columnFamilies)
+    public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, boolean fullRepair, boolean trace, String... columnFamilies)
     {
         // when repairing only primary range, you cannot repair only on local DC
         if (primaryRange && isLocal)
@@ -2586,29 +2623,29 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new IllegalArgumentException("You need to run primary range repair on all nodes in the cluster.");
         }
         Collection<Range<Token>> ranges = primaryRange ? getLocalPrimaryRanges(keyspace) : getLocalRanges(keyspace);
-        return forceRepairAsync(keyspace, isSequential, isLocal, ranges, fullRepair, columnFamilies);
+        return forceRepairAsync(keyspace, isSequential, isLocal, ranges, fullRepair, trace, columnFamilies);
     }
 
-    public int forceRepairAsync(final String keyspace, final boolean isSequential, final boolean isLocal, final Collection<Range<Token>> ranges, final boolean fullRepair, final String... columnFamilies)
+    public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, Collection<Range<Token>> ranges, boolean fullRepair, boolean trace, String... columnFamilies)
     {
         if (Keyspace.SYSTEM_KS.equals(keyspace) || ranges.isEmpty())
             return 0;
 
         int cmd = nextRepairCommand.incrementAndGet();
-        new Thread(createRepairTask(cmd, keyspace, ranges, isSequential, isLocal, fullRepair, columnFamilies)).start();
+        new Thread(createRepairTask(cmd, keyspace, ranges, isSequential, isLocal, fullRepair, trace, columnFamilies)).start();
         return cmd;
     }
 
-    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean fullRepair, String... columnFamilies) throws IOException
+    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean fullRepair, boolean trace, String... columnFamilies) throws IOException
     {
         Collection<Range<Token>> repairingRange = createRepairRangeFrom(beginToken, endToken);
 
         logger.info("starting user-requested repair of range {} for keyspace {} and column families {}",
                            repairingRange, keyspaceName, columnFamilies);
-        return forceRepairAsync(keyspaceName, isSequential, dataCenters, hosts, repairingRange, fullRepair, columnFamilies);
+        return forceRepairAsync(keyspaceName, isSequential, dataCenters, hosts, repairingRange, fullRepair, trace, columnFamilies);
     }
 
-    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean fullRepair, String... columnFamilies)
+    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean fullRepair, boolean trace, String... columnFamilies)
     {
         Collection<Range<Token>> repairingRange = createRepairRangeFrom(beginToken, endToken);
 
@@ -2651,6 +2688,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                 boolean isSequential,
                                                 boolean isLocal,
                                                 boolean fullRepair,
+                                                boolean trace,
                                                 String... columnFamilies)
     {
         Set<String> dataCenters = null;
@@ -2658,7 +2696,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             dataCenters = Sets.newHashSet(DatabaseDescriptor.getLocalDataCenter());
         }
-        return createRepairTask(cmd, keyspace, ranges, isSequential, dataCenters, null, fullRepair, columnFamilies);
+        return createRepairTask(cmd, keyspace, ranges, isSequential, dataCenters, null, fullRepair, trace, columnFamilies);
     }
 
     private FutureTask<Object> createRepairTask(final int cmd,
@@ -2668,6 +2706,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                 final Collection<String> dataCenters,
                                                 final Collection<String> hosts,
                                                 final boolean fullRepair,
+                                                final boolean trace,
                                                 final String... columnFamilies)
     {
         if (dataCenters != null && !dataCenters.contains(DatabaseDescriptor.getLocalDataCenter()))
@@ -2679,9 +2718,75 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             protected void runMayThrow() throws Exception
             {
-                String message = String.format("Starting repair command #%d, repairing %d ranges for keyspace %s (seq=%b, full=%b)", cmd, ranges.size(), keyspace, isSequential, fullRepair);
+                StringBuilder cfsb = new StringBuilder();
+                for (ColumnFamilyStore cfs : getValidColumnFamilies(false, false, keyspace, columnFamilies))
+                    cfsb.append(", ").append(cfs.keyspace.getName()).append(".").append(cfs.name);
+                String cfNames = cfsb.substring(2);
+
+                String message = String.format("Starting repair command #%d, repairing %d ranges for %s (seq=%b, full=%b)", cmd, ranges.size(), cfNames, isSequential, fullRepair);
+                final UUID sessionId;
+                Thread queryThread;
+                if (trace)
+                {
+                    sessionId = Tracing.instance.newSession(Tracing.TRACETYPE_REPAIR);
+                    Tracing.instance.begin("repair", ImmutableMap.of("keyspace", keyspace, "columnFamilies", cfNames));
+                    Tracing.instance.setNotifyTypes(1);
+                    queryThread = new Thread(new WrappedRunnable()
+                    {
+                        // Query events within a time interval that overlaps the last by one second. Ignore duplicates. Ignore local traces.
+                        // Wake up upon local trace activity. Query when notified of trace activity with a timeout that doubles every two timeouts.
+                        public void runMayThrow() throws Exception
+                        {
+                            TraceState state = Tracing.instance.get(sessionId);
+                            if (state == null)
+                                throw new Exception("no tracestate");
+
+                            String format = "select event_id, source, activity from %s.%s where session_id = ? and event_id > ? and event_id < ?;";
+                            String query = String.format(format, Tracing.TRACE_KS, Tracing.EVENTS_CF);
+                            SelectStatement statement = (SelectStatement) QueryProcessor.parseStatement(query).prepare().statement;
+
+                            ByteBuffer sessionIdBytes = ByteBufferUtil.bytes(sessionId);
+                            InetAddress source = FBUtilities.getBroadcastAddress();
+
+                            HashSet<UUID>[] seen = new HashSet[] { new HashSet<UUID>(), new HashSet<UUID>() };
+                            int si = 0;
+                            UUID uuid;
+
+                            long tlast = System.currentTimeMillis(), tcur;
+                            while (!state.isDone())
+                            {
+                                ByteBuffer tminBytes = ByteBufferUtil.bytes(UUIDGen.minTimeUUID(tlast - 1000));
+                                ByteBuffer tmaxBytes = ByteBufferUtil.bytes(UUIDGen.maxTimeUUID(tcur = System.currentTimeMillis()));
+                                QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.ONE, Lists.newArrayList(sessionIdBytes, tminBytes, tmaxBytes));
+                                ResultMessage.Rows rows = statement.execute(QueryState.forInternalCalls(), options);
+                                UntypedResultSet result = UntypedResultSet.create(rows.result);
+
+                                for (UntypedResultSet.Row r : result)
+                                {
+                                    if (source.equals(r.getInetAddress("source")))
+                                        continue;
+                                    if ((uuid = r.getUUID("event_id")).timestamp() > (tcur - 1000) * 10000)
+                                        seen[si].add(uuid);
+                                    if (seen[si ^ 1].contains(uuid))
+                                        continue;
+                                    String message = String.format("%s: %s", r.getInetAddress("source"), r.getString("activity"));
+                                    sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.RUNNING.ordinal()});
+                                }
+                                tlast = tcur;
+
+                                seen[si ^= 1].clear();
+                            }
+                        }
+                    });
+                    queryThread.setName("RepairTracePolling");
+                    queryThread.start();
+                }
+                Tracing.trace(Tracing.TRACETYPE_REPAIR, message);
                 logger.info(message);
                 sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.STARTED.ordinal()});
+
+                if (trace)
+                    Tracing.instance.setUserData(new int[]{cmd, ActiveRepairService.Status.RUNNING.ordinal()});
 
                 if (isSequential && !fullRepair)
                 {
@@ -2767,24 +2872,32 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         future.get();
                         message = String.format("Repair session %s for range %s finished", future.session.getId(), future.session.getRange().toString());
                         logger.info(message);
-                        sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.SESSION_SUCCESS.ordinal()});
+                        if (!trace)
+                            sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.SESSION_SUCCESS.ordinal()});
                     }
                     catch (ExecutionException e)
                     {
                         message = String.format("Repair session %s for range %s failed with error %s", future.session.getId(), future.session.getRange().toString(), e.getCause().getMessage());
                         logger.error(message, e);
-                        sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.SESSION_FAILED.ordinal()});
+                        if (!trace)
+                            sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.SESSION_FAILED.ordinal()});
                     }
                     catch (Exception e)
                     {
                         message = String.format("Repair session %s for range %s failed with error %s", future.session.getId(), future.session.getRange().toString(), e.getMessage());
                         logger.error(message, e);
-                        sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.SESSION_FAILED.ordinal()});
+                        if (!trace)
+                            sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.SESSION_FAILED.ordinal()});
                     }
                 }
                 if (!fullRepair)
                     ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors);
-                sendNotification("repair", String.format("Repair command #%d finished", cmd), new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
+                sendNotification("repair", message = String.format("Repair command #%d finished", cmd), new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
+                if (trace)
+                    Tracing.instance.setUserData(null);
+                Tracing.trace(Tracing.TRACETYPE_REPAIR, message);
+                if (trace)
+                    Tracing.instance.stopSession();
             }
         }, null);
     }
@@ -3822,6 +3935,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public List<String> getKeyspaces()
     {
         List<String> keyspaceNamesList = new ArrayList<>(Schema.instance.getKeyspaces());
+        return Collections.unmodifiableList(keyspaceNamesList);
+    }
+
+    public List<String> getNonSystemKeyspaces()
+    {
+        List<String> keyspaceNamesList = new ArrayList<>(Schema.instance.getNonSystemKeyspaces());
         return Collections.unmodifiableList(keyspaceNamesList);
     }
 

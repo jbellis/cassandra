@@ -31,6 +31,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.ValidationRequest;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
@@ -142,7 +143,9 @@ public class RepairJob
         for (InetAddress endpoint : endpoints)
             treeRequests.add(endpoint);
 
-        logger.info(String.format("[repair #%s] requesting merkle trees for %s (to %s)", desc.sessionId, desc.columnFamily, endpoints));
+        String message = String.format("Requesting merkle trees for %s from %s", desc.columnFamily, endpoints);
+        logger.info("[repair #{}] {}", desc.sessionId, message);
+        Tracing.trace(Tracing.TRACETYPE_REPAIR | 1, message);
         treeRequests.start();
         requestsSent.signalAll();
     }

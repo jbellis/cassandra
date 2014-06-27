@@ -22,7 +22,6 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 
@@ -31,13 +30,14 @@ import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
@@ -101,7 +101,7 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
     final Map<String, RepairJob> syncingJobs = new ConcurrentHashMap<>();
 
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
-    private final ListeningExecutorService taskExecutor = MoreExecutors.listeningDecorator(Executors.newCachedThreadPool(new NamedThreadFactory("RepairJobTask")));
+    private final ListeningExecutorService taskExecutor = MoreExecutors.listeningDecorator(DebuggableThreadPoolExecutor.createWithCachedTheadpool("RepairJobTask"));
 
     private final SimpleCondition completed = new SimpleCondition();
     public final Condition differencingDone = new SimpleCondition();
@@ -168,7 +168,9 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
             return;
         }
 
-        logger.info(String.format("[repair #%s] Received merkle tree for %s from %s", getId(), desc.columnFamily, endpoint));
+        String message;
+        logger.info("[repair #{}] {}", getId(), message = String.format("Received merkle tree for %s from %s", desc.columnFamily, endpoint));
+        Tracing.trace(Tracing.TRACETYPE_REPAIR | 1, message);
 
         assert job.desc.equals(desc);
         if (job.addTree(endpoint, tree) == 0)
@@ -257,12 +259,15 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
     // we don't care about the return value but care about it throwing exception
     public void runMayThrow() throws Exception
     {
+        String message;
         logger.info(String.format("[repair #%s] new session: will sync %s on range %s for %s.%s", getId(), repairedNodes(), range, keyspace, Arrays.toString(cfnames)));
+        Tracing.trace(Tracing.TRACETYPE_REPAIR, String.format("Syncing range %s", range));
 
         if (endpoints.isEmpty())
         {
             differencingDone.signalAll();
-            logger.info(String.format("[repair #%s] No neighbors to repair with on range %s: session completed", getId(), range));
+            logger.info("[repair #{}] {}", getId(), message = String.format("No neighbors to repair with on range %s: session completed", range));
+            Tracing.trace(Tracing.TRACETYPE_REPAIR, message);
             return;
         }
 
@@ -271,7 +276,7 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
         {
             if (!FailureDetector.instance.isAlive(endpoint))
             {
-                String message = String.format("Cannot proceed on repair because a neighbor (%s) is dead: session failed", endpoint);
+                message = String.format("Cannot proceed on repair because a neighbor (%s) is dead: session failed", endpoint);
                 differencingDone.signalAll();
                 logger.error("[repair #{}] {}", getId(), message);
                 throw new IOException(message);
@@ -296,11 +301,13 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
 
             if (exception == null)
             {
-                logger.info(String.format("[repair #%s] session completed successfully", getId()));
+                logger.info("[repair #{}] {}", getId(), "Session completed successfully");
+                Tracing.trace(Tracing.TRACETYPE_REPAIR, String.format("Completed sync of range %s", range));
             }
             else
             {
-                logger.error(String.format("[repair #%s] session completed with the following error", getId()), exception);
+                logger.error(String.format("[repair #%s] Session completed with the following error", getId()), exception);
+                Tracing.trace(Tracing.TRACETYPE_REPAIR, String.format("Session completed with the following error: %s", exception));
                 throw exception;
             }
         }

@@ -32,6 +32,11 @@ public class ExpiredTraceState extends TraceState
         super(FBUtilities.getBroadcastAddress(), sessionId);
     }
 
+    public ExpiredTraceState(UUID sessionId, long traceType, int ttl)
+    {
+        super(FBUtilities.getBroadcastAddress(), sessionId, traceType, ttl);
+    }
+
     public int elapsed()
     {
         return -1;

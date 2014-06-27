@@ -272,12 +272,14 @@ public interface StorageServiceMBean extends NotificationEmitter
      *
      * @return Repair command number, or 0 if nothing to repair
      */
-    public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts,  boolean primaryRange, boolean repairedAt, String... columnFamilies) throws IOException;
+    public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts,  boolean primaryRange, boolean fullRepair, String... columnFamilies) throws IOException;
+    public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts,  boolean primaryRange, boolean fullRepair, boolean trace, String... columnFamilies) throws IOException;
 
     /**
      * Same as forceRepairAsync, but handles a specified range
      */
-    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean repairedAt, String... columnFamilies) throws IOException;
+    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean fullRepair, String... columnFamilies) throws IOException;
+    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean fullRepair, boolean trace, String... columnFamilies) throws IOException;
 
     /**
      * Invoke repair asynchronously.
@@ -289,11 +291,13 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return Repair command number, or 0 if nothing to repair
      */
     public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, boolean fullRepair, String... columnFamilies);
+    public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, boolean fullRepair, boolean trace, String... columnFamilies);
 
     /**
      * Same as forceRepairAsync, but handles a specified range
      */
-    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean repairedAt, String... columnFamilies);
+    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean fullRepair, String... columnFamilies);
+    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean fullRepair, boolean trace, String... columnFamilies);
 
     public void forceTerminateAllRepairSessions();
 
@@ -386,6 +390,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     public Map<InetAddress, Float> effectiveOwnership(String keyspace) throws IllegalStateException;
 
     public List<String> getKeyspaces();
+
+    public List<String> getNonSystemKeyspaces();
 
     /**
      * Change endpointsnitch class and dynamic-ness (and dynamic attributes) at runtime

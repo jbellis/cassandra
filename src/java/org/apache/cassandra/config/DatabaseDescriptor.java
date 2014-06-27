@@ -1532,4 +1532,14 @@ public class DatabaseDescriptor
         String arch = System.getProperty("os.arch");
         return arch.contains("64") || arch.contains("sparcv9");
     }
+
+    public static int getTracetypeRepairTTL()
+    {
+        return conf.tracetype_repair_ttl;
+    }
+
+    public static int getTracetypeQueryTTL()
+    {
+        return conf.tracetype_query_ttl;
+    }
 }

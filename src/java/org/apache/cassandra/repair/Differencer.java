@@ -30,6 +30,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.SyncComplete;
 import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 
@@ -61,17 +62,19 @@ public class Differencer implements Runnable
         differences.addAll(MerkleTree.difference(r1.tree, r2.tree));
 
         // choose a repair method based on the significance of the difference
-        String format = String.format("[repair #%s] Endpoints %s and %s %%s for %s", desc.sessionId, r1.endpoint, r2.endpoint, desc.columnFamily);
+        String format = String.format("Endpoints %s and %s %%s for %s", r1.endpoint, r2.endpoint, desc.columnFamily);
         if (differences.isEmpty())
         {
-            logger.info(String.format(format, "are consistent"));
+            logger.info("[repair #{}] {}", desc.sessionId, String.format(format, "are consistent"));
+            Tracing.trace(Tracing.TRACETYPE_REPAIR, String.format("Endpoint %s is consistent with %s for %s", r1.endpoint, r2.endpoint, desc.columnFamily));
             // send back sync complete message
             MessagingService.instance().sendOneWay(new SyncComplete(desc, r1.endpoint, r2.endpoint, true).createMessage(), FBUtilities.getLocalAddress());
             return;
         }
 
         // non-0 difference: perform streaming repair
-        logger.info(String.format(format, "have " + differences.size() + " range(s) out of sync"));
+        logger.info("[repair #{}] {}", desc.sessionId, String.format(format, "have " + differences.size() + " range(s) out of sync"));
+        Tracing.trace(Tracing.TRACETYPE_REPAIR, String.format("Endpoint %s has %d range(s) out of sync with %s for %s", r1.endpoint, differences.size(), r2.endpoint, desc.columnFamily));
         performStreamingRepair();
     }
 

@@ -263,6 +263,7 @@ public final class CFMetaData
 
     public static final CFMetaData TraceSessionsCf = compile("CREATE TABLE " + Tracing.SESSIONS_CF + " ("
                                                              + "session_id uuid PRIMARY KEY,"
+                                                             + "command text,"
                                                              + "coordinator inet,"
                                                              + "request text,"
                                                              + "started_at timestamp,"
