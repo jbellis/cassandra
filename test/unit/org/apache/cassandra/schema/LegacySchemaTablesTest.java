@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,47 +18,43 @@
 
 package org.apache.cassandra.schema;
 
-import java.io.File;
 import java.nio.ByteBuffer;
-
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.*;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableDeletingTask;
-import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
-import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.schema.LegacySchemaTables;
-import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-
-import static org.apache.cassandra.Util.cellname;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.IndexType;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.service.MigrationManager;
+
+import static org.junit.Assert.assertEquals;
+
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class LegacySchemaTablesTest
 {
-    private static final String KEYSPACE1 = "Keyspace1";
-    private static final String KEYSPACE3 = "Keyspace3";
-    private static final String KEYSPACE6 = "Keyspace6";
-    private static final String EMPTYKEYSPACE = "DefsTestEmptyKeyspace";
-    private static final String CF_STANDARD1 = "Standard1";
-    private static final String CF_STANDARD2 = "Standard2";
-    private static final String CF_INDEXED = "Indexed1";
+    private static final String KEYSPACE1 = "keyspace1";
+    private static final String KEYSPACE3 = "keyspace3";
+    private static final String KEYSPACE6 = "keyspace6";
+    private static final String EMPTYKEYSPACE = "test_empty_keyspace";
+    private static final String CF_STANDARD1 = "standard1";
+    private static final String CF_STANDARD2 = "standard2";
+    private static final String CF_INDEXED = "indexed1";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -84,10 +80,10 @@ public class LegacySchemaTablesTest
     @Test
     public void testCFMetaDataApply() throws ConfigurationException
     {
-        CFMetaData cfm = new CFMetaData(KEYSPACE1,
-                                        "TestApplyCFM_CF",
-                                        ColumnFamilyType.Standard,
-                                        new SimpleDenseCellNameType(BytesType.instance));
+        CFMetaData cfm = CFMetaData.Builder.create(KEYSPACE1, "TestApplyCFM_CF")
+                                           .addPartitionKey("keys", BytesType.instance)
+                                           .addClusteringColumn("col", BytesType.instance).build();
+
 
         for (int i = 0; i < 5; i++)
         {
@@ -102,7 +98,7 @@ public class LegacySchemaTablesTest
            .maxCompactionThreshold(500);
 
         // we'll be adding this one later. make sure it's not already there.
-        Assert.assertNull(cfm.getColumnDefinition(ByteBuffer.wrap(new byte[] { 5 })));
+        Assert.assertNull(cfm.getColumnDefinition(ByteBuffer.wrap(new byte[]{ 5 })));
 
         CFMetaData cfNew = cfm.copy();
 
@@ -124,6 +120,7 @@ public class LegacySchemaTablesTest
         Assert.assertNotNull(cfm.getColumnDefinition(ByteBuffer.wrap(new byte[] { 5 })));
     }
 
+    /*
     @Test
     public void testInvalidNames()
     {
@@ -134,26 +131,6 @@ public class LegacySchemaTablesTest
         String[] invalid = {"b@t", "dash-y", "", " ", "dot.s", ".hidden"};
         for (String s : invalid)
             Assert.assertFalse(CFMetaData.isNameValid(s));
-    }
-
-    @Ignore
-    @Test
-    public void saveAndRestore()
-    {
-        /*
-        // verify dump and reload.
-        UUID first = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
-        DefsTables.dumpToStorage(first);
-        List<KSMetaData> defs = new ArrayList<KSMetaData>(DefsTables.loadFromStorage(first));
-
-        Assert.assertTrue(defs.size() > 0);
-        Assert.assertEquals(defs.size(), Schema.instance.getNonSystemKeyspaces().size());
-        for (KSMetaData loaded : defs)
-        {
-            KSMetaData defined = Schema.instance.getKeyspaceDefinition(loaded.name);
-            Assert.assertTrue(String.format("%s != %s", loaded, defined), defined.equals(loaded));
-        }
-        */
     }
 
     @Test
@@ -183,40 +160,42 @@ public class LegacySchemaTablesTest
         MigrationManager.announceNewColumnFamily(newCf);
 
         Assert.assertTrue(Schema.instance.getKSMetaData(ks).cfMetaData().containsKey(newCf.cfName));
-        Assert.assertEquals(newCf, Schema.instance.getKSMetaData(ks).cfMetaData().get(newCf.cfName));
+        assertEquals(newCf, Schema.instance.getKSMetaData(ks).cfMetaData().get(newCf.cfName));
     }
-
+*/
     @Test
-    public void addNewCF() throws ConfigurationException
+    public void addNewTable() throws ConfigurationException
     {
-        final String ks = KEYSPACE1;
-        final String cf = "BrandNewCf";
-        KSMetaData original = Schema.instance.getKSMetaData(ks);
+        final String ksName = KEYSPACE1;
+        final String tableName = "anewtable";
+        KSMetaData original = Schema.instance.getKSMetaData(ksName);
 
-        CFMetaData newCf = addTestCF(original.name, cf, "A New Table");
+        CFMetaData newMetadata = addTestTable(original.name, tableName, "A New Table");
 
-        Assert.assertFalse(Schema.instance.getKSMetaData(ks).cfMetaData().containsKey(newCf.cfName));
-        MigrationManager.announceNewColumnFamily(newCf);
+        Assert.assertFalse(Schema.instance.getKSMetaData(ksName).cfMetaData().containsKey(newMetadata.cfName));
+        MigrationManager.announceNewColumnFamily(newMetadata);
 
-        Assert.assertTrue(Schema.instance.getKSMetaData(ks).cfMetaData().containsKey(newCf.cfName));
-        Assert.assertEquals(newCf, Schema.instance.getKSMetaData(ks).cfMetaData().get(newCf.cfName));
+        Assert.assertTrue(Schema.instance.getKSMetaData(ksName).cfMetaData().containsKey(newMetadata.cfName));
+        assertEquals(newCf, Schema.instance.getKSMetaData(ksName).cfMetaData().get(newCf.cfName));
 
         // now read and write to it.
-        CellName col0 = cellname("col0");
-        DecoratedKey dk = Util.dk("key0");
-        Mutation rm = new Mutation(ks, dk.getKey());
-        rm.add(cf, col0, ByteBufferUtil.bytes("value0"), 1L);
-        rm.applyUnsafe();
-        ColumnFamilyStore store = Keyspace.open(ks).getColumnFamilyStore(cf);
-        Assert.assertNotNull(store);
-        store.forceBlockingFlush();
+        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, col, val) VALUES (?, ?, ?)",
+                                                    ksName, tableName),
+                                       "key0", "col0", "val0");
 
-        ColumnFamily cfam = store.getColumnFamily(Util.namesQueryFilter(store, dk, col0));
-        Assert.assertNotNull(cfam.getColumn(col0));
-        Cell col = cfam.getColumn(col0);
-        Assert.assertEquals(ByteBufferUtil.bytes("value0"), col.value());
+        // flush to exercise more than just hitting the memtable
+        ColumnFamilyStore cfs = Keyspace.open(ksName).getColumnFamilyStore(tableName);
+        Assert.assertNotNull(cfs);
+        cfs.forceBlockingFlush();
+
+        // and make sure we get out what we put in
+        UntypedResultSet.Row row = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s", ksName, tableName)).one();
+        assertEquals("key0", row.getString("key"));
+        assertEquals("col0", row.getString("col"));
+        assertEquals("val0", row.getString("val"));
     }
 
+/*
     @Test
     public void dropCf() throws ConfigurationException
     {
@@ -274,7 +253,7 @@ public class LegacySchemaTablesTest
         MigrationManager.announceNewKeyspace(newKs);
 
         Assert.assertNotNull(Schema.instance.getKSMetaData(newCf.ksName));
-        Assert.assertEquals(Schema.instance.getKSMetaData(newCf.ksName), newKs);
+        assertEquals(Schema.instance.getKSMetaData(newCf.ksName), newKs);
 
         // test reads and writes.
         CellName col0 = cellname("col0");
@@ -288,7 +267,7 @@ public class LegacySchemaTablesTest
         ColumnFamily cfam = store.getColumnFamily(Util.namesQueryFilter(store, dk, col0));
         Assert.assertNotNull(cfam.getColumn(col0));
         Cell col = cfam.getColumn(col0);
-        Assert.assertEquals(ByteBufferUtil.bytes("value0"), col.value());
+        assertEquals(ByteBufferUtil.bytes("value0"), col.value());
     }
 
     @Test
@@ -382,7 +361,7 @@ public class LegacySchemaTablesTest
         MigrationManager.announceNewColumnFamily(newCf);
 
         Assert.assertTrue(Schema.instance.getKSMetaData(newKs.name).cfMetaData().containsKey(newCf.cfName));
-        Assert.assertEquals(Schema.instance.getKSMetaData(newKs.name).cfMetaData().get(newCf.cfName), newCf);
+        assertEquals(Schema.instance.getKSMetaData(newKs.name).cfMetaData().get(newCf.cfName), newCf);
 
         // now read and write to it.
         CellName col0 = cellname("col0");
@@ -397,7 +376,7 @@ public class LegacySchemaTablesTest
         ColumnFamily cfam = store.getColumnFamily(Util.namesQueryFilter(store, dk, col0));
         Assert.assertNotNull(cfam.getColumn(col0));
         Cell col = cfam.getColumn(col0);
-        Assert.assertEquals(ByteBufferUtil.bytes("value0"), col.value());
+        assertEquals(ByteBufferUtil.bytes("value0"), col.value());
     }
 
     @Test
@@ -410,7 +389,7 @@ public class LegacySchemaTablesTest
         MigrationManager.announceNewKeyspace(oldKs);
 
         Assert.assertNotNull(Schema.instance.getKSMetaData(cf.ksName));
-        Assert.assertEquals(Schema.instance.getKSMetaData(cf.ksName), oldKs);
+        assertEquals(Schema.instance.getKSMetaData(cf.ksName), oldKs);
 
         // names should match.
         KSMetaData newBadKs2 = KSMetaData.testMetadata(cf.ksName + "trash", SimpleStrategy.class, KSMetaData.optsWithRF(4));
@@ -428,7 +407,7 @@ public class LegacySchemaTablesTest
         MigrationManager.announceKeyspaceUpdate(newKs);
 
         KSMetaData newFetchedKs = Schema.instance.getKSMetaData(newKs.name);
-        Assert.assertEquals(newFetchedKs.strategyClass, newKs.strategyClass);
+        assertEquals(newFetchedKs.strategyClass, newKs.strategyClass);
         Assert.assertFalse(newFetchedKs.strategyClass.equals(oldKs.strategyClass));
     }
 
@@ -441,7 +420,7 @@ public class LegacySchemaTablesTest
         MigrationManager.announceNewKeyspace(ksm);
 
         Assert.assertNotNull(Schema.instance.getKSMetaData(cf.ksName));
-        Assert.assertEquals(Schema.instance.getKSMetaData(cf.ksName), ksm);
+        assertEquals(Schema.instance.getKSMetaData(cf.ksName), ksm);
         Assert.assertNotNull(Schema.instance.getCFMetaData(cf.ksName, cf.cfName));
 
         // updating certain fields should fail.
@@ -472,10 +451,10 @@ public class LegacySchemaTablesTest
         // can't test changing the reconciler because there is only one impl.
 
         // check the cumulative affect.
-        Assert.assertEquals(Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getComment(), newCfm.getComment());
-        Assert.assertEquals(Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getReadRepairChance(), newCfm.getReadRepairChance(), 0.0001);
-        Assert.assertEquals(Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getGcGraceSeconds(), newCfm.getGcGraceSeconds());
-        Assert.assertEquals(UTF8Type.instance, Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getDefaultValidator());
+        assertEquals(Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getComment(), newCfm.getComment());
+        assertEquals(Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getReadRepairChance(), newCfm.getReadRepairChance(), 0.0001);
+        assertEquals(Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getGcGraceSeconds(), newCfm.getGcGraceSeconds());
+        assertEquals(UTF8Type.instance, Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getDefaultValidator());
 
         // Change cfId
         newCfm = new CFMetaData(cf.ksName, cf.cfName, cf.cfType, cf.comparator);
@@ -555,11 +534,15 @@ public class LegacySchemaTablesTest
         Assert.assertTrue(cfs.indexManager.getIndexes().isEmpty());
         SSTableDeletingTask.waitForDeletions();
         Assert.assertFalse(new File(desc.filenameFor(Component.DATA)).exists());
-    }
+    }*/
 
-    private CFMetaData addTestCF(String ks, String cf, String comment)
+    private CFMetaData addTestTable(String ks, String cf, String comment)
     {
-        CFMetaData newCFMD = new CFMetaData(ks, cf, ColumnFamilyType.Standard, new SimpleDenseCellNameType(UTF8Type.instance));
+        CFMetaData newCFMD = CFMetaData.Builder.create(ks, cf)
+                                               .addPartitionKey("key", UTF8Type.instance)
+                                               .addClusteringColumn("col", UTF8Type.instance)
+                                               .addRegularColumn("val", UTF8Type.instance).build();
+
         newCFMD.comment(comment)
                .readRepairChance(0.0);
 
