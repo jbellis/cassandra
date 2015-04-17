@@ -76,10 +76,10 @@ columnspec:
     cluster: uniform(1..4)
 
 insert:
-  partitions: uniform(1..50)       # number of unique partitions to update in a single operation
+  partitions: fixed(1)       # number of unique partitions to update in a single operation
                                   # if batchcount > 1, multiple batches will be used but all partitions will
                                   # occur in all batches (unless they finish early); only the row counts will vary
-  batchtype: LOGGED               # type of batch to use
+  batchtype: UNLOGGED               # type of batch to use
   select: uniform(1..10)/10       # uniform chance any single generated CQL row will be visited in a partition;
                                   # generated for each partition independently, each time we visit it
 
