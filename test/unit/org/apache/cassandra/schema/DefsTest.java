@@ -32,7 +32,6 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.IndexType;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -135,11 +134,10 @@ public class DefsTest
             Assert.assertFalse(CFMetaData.isNameValid(s));
     }
 
-    /*
     @Test
     public void addNewCfToBogusKeyspace()
     {
-        CFMetaData newCf = addTestCF("MadeUpKeyspace", "NewCF", "new cf");
+        CFMetaData newCf = addTestTable("MadeUpKeyspace", "NewCF", "new cf");
         try
         {
             MigrationManager.announceNewColumnFamily(newCf);
@@ -157,7 +155,7 @@ public class DefsTest
         final String cf = "BrandNewCfWithNull";
         KSMetaData original = Schema.instance.getKSMetaData(ks);
 
-        CFMetaData newCf = addTestCF(original.name, cf, null);
+        CFMetaData newCf = addTestTable(original.name, cf, null);
 
         Assert.assertFalse(Schema.instance.getKSMetaData(ks).cfMetaData().containsKey(newCf.cfName));
         MigrationManager.announceNewColumnFamily(newCf);
@@ -165,7 +163,7 @@ public class DefsTest
         Assert.assertTrue(Schema.instance.getKSMetaData(ks).cfMetaData().containsKey(newCf.cfName));
         assertEquals(newCf, Schema.instance.getKSMetaData(ks).cfMetaData().get(newCf.cfName));
     }
-*/
+
     @Test
     public void addNewTable() throws ConfigurationException
     {
