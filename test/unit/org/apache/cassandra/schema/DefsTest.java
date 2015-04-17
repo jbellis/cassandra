@@ -49,7 +49,7 @@ import static org.junit.Assert.assertEquals;
 
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class LegacySchemaTablesTest
+public class DefsTest
 {
     private static final String KEYSPACE1 = "keyspace1";
     private static final String KEYSPACE3 = "keyspace3";
@@ -123,7 +123,6 @@ public class LegacySchemaTablesTest
         Assert.assertNotNull(cfm.getColumnDefinition(ByteBuffer.wrap(new byte[] { 5 })));
     }
 
-    /*
     @Test
     public void testInvalidNames()
     {
@@ -136,6 +135,7 @@ public class LegacySchemaTablesTest
             Assert.assertFalse(CFMetaData.isNameValid(s));
     }
 
+    /*
     @Test
     public void addNewCfToBogusKeyspace()
     {
@@ -193,7 +193,7 @@ public class LegacySchemaTablesTest
 
         // and make sure we get out what we put in
         UntypedResultSet rows = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s", ksName, tableName));
-        assertRows(rows, row("key", "col", "val"));
+        assertRows(rows, row("key0", "col0", "val0"));
     }
 
 /*
