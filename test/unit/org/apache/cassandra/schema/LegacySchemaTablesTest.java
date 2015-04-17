@@ -176,7 +176,7 @@ public class LegacySchemaTablesTest
         MigrationManager.announceNewColumnFamily(newMetadata);
 
         Assert.assertTrue(Schema.instance.getKSMetaData(ksName).cfMetaData().containsKey(newMetadata.cfName));
-        assertEquals(newCf, Schema.instance.getKSMetaData(ksName).cfMetaData().get(newCf.cfName));
+        assertEquals(newMetadata, Schema.instance.getKSMetaData(ksName).cfMetaData().get(newMetadata.cfName));
 
         // now read and write to it.
         QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, col, val) VALUES (?, ?, ?)",
