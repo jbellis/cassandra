@@ -32,6 +32,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.IndexType;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -42,6 +43,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
 
+import static org.apache.cassandra.cql3.CQLTester.assertRows;
+import static org.apache.cassandra.cql3.CQLTester.row;
 import static org.junit.Assert.assertEquals;
 
 
@@ -189,10 +192,8 @@ public class LegacySchemaTablesTest
         cfs.forceBlockingFlush();
 
         // and make sure we get out what we put in
-        UntypedResultSet.Row row = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s", ksName, tableName)).one();
-        assertEquals("key0", row.getString("key"));
-        assertEquals("col0", row.getString("col"));
-        assertEquals("val0", row.getString("val"));
+        UntypedResultSet rows = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s", ksName, tableName));
+        assertRows(rows, row("key", "col", "val"));
     }
 
 /*

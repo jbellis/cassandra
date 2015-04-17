@@ -634,7 +634,7 @@ public abstract class CQLTester
                                         rows.length>i ? "less" : "more", rows.length, i, protocolVersion), i == rows.length);
     }
 
-    protected void assertRows(UntypedResultSet result, Object[]... rows)
+    public static void assertRows(UntypedResultSet result, Object[]... rows)
     {
         if (result == null)
         {
@@ -702,7 +702,7 @@ public abstract class CQLTester
         assertRows(execute("SELECT * FROM %s"), rows);
     }
 
-    protected Object[] row(Object... expected)
+    public static Object[] row(Object... expected)
     {
         return expected;
     }
