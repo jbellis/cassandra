@@ -20,7 +20,10 @@ package org.apache.cassandra.config;
 import java.io.File;
 import java.io.IOException;
 import java.net.*;
+import java.nio.file.FileStore;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
@@ -491,7 +494,7 @@ public class DatabaseDescriptor
             try
             {
                 // use 1/4 of available space.  See discussion on #10013 and #10199
-                minSize = Ints.checkedCast((Files.getFileStore(Paths.get(conf.commitlog_directory)).getTotalSpace() / 1048576) / 4);
+                minSize = Ints.checkedCast((guessFileStore(conf.commitlog_directory).getTotalSpace() / 1048576) / 4);
             }
             catch (IOException e)
             {
@@ -537,7 +540,7 @@ public class DatabaseDescriptor
 
             try
             {
-                dataFreeBytes += Files.getFileStore(Paths.get(datadir)).getUnallocatedSpace();
+                dataFreeBytes += guessFileStore(datadir).getUnallocatedSpace();
             }
             catch (IOException e)
             {
@@ -650,6 +653,25 @@ public class DatabaseDescriptor
         }
         if (seedProvider.getSeeds().size() == 0)
             throw new ConfigurationException("The seed provider lists no seeds.", false);
+    }
+
+    private static FileStore guessFileStore(String dir) throws IOException
+    {
+        Path path = Paths.get(dir);
+        while (true)
+        {
+            try
+            {
+                return Files.getFileStore(path);
+            }
+            catch (IOException e)
+            {
+                if (e instanceof NoSuchFileException)
+                    path = path.getParent();
+                else
+                    throw e;
+            }
+        }
     }
 
     private static IEndpointSnitch createEndpointSnitch(String snitchClassName) throws ConfigurationException
