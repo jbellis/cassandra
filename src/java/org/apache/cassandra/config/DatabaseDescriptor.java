@@ -497,11 +497,12 @@ public class DatabaseDescriptor
             {
                 logger.debug("Error checking disk space", e);
                 throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
-                                                               conf.commitlog_directory));
+                                                               conf.commitlog_directory), e);
             }
             if (minSize < preferredSize)
             {
-                logger.warn("Small commitlog volume detected; setting commitlog_total_space_in_mb to {}.  You can override this in cassandra.yaml");
+                logger.warn("Small commitlog volume detected at {}; setting commitlog_total_space_in_mb to {}.  You can override this in cassandra.yaml",
+                            conf.commitlog_directory, minSize);
                 conf.commitlog_total_space_in_mb = minSize;
             }
             else
@@ -535,11 +536,12 @@ public class DatabaseDescriptor
             {
                 logger.debug("Error checking disk space", e);
                 throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
-                                                               dir));
+                                                               dir), e);
             }
         }
         if (dataFreeBytes < 64L * 1024 * 1048576) // 64 GB
-            logger.warn("Only {} bytes free across all data volumes. Consider adding more capacity to your cluster or removing obsolete snapshots", dataFreeBytes);
+            logger.warn("Only {} MB free across all data volumes. Consider adding more capacity to your cluster or removing obsolete snapshots",
+                        dataFreeBytes / 1048576);
 
         /* data file and commit log directories. they get created later, when they're needed. */
         for (String datadir : conf.data_file_directories)
