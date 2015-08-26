@@ -525,24 +525,8 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("data_file_directories is not missing and -Dcassandra.storagedir is not set", false);
             conf.data_file_directories = new String[]{ defaultDataDir + File.separator + "data" };
         }
-        long dataFreeBytes = 0;
-        for (String dir : conf.data_file_directories)
-        {
-            try
-            {
-                dataFreeBytes += Files.getFileStore(Paths.get(dir)).getUnallocatedSpace();
-            }
-            catch (IOException e)
-            {
-                logger.debug("Error checking disk space", e);
-                throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
-                                                               dir), e);
-            }
-        }
-        if (dataFreeBytes < 64L * 1024 * 1048576) // 64 GB
-            logger.warn("Only {} MB free across all data volumes. Consider adding more capacity to your cluster or removing obsolete snapshots",
-                        dataFreeBytes / 1048576);
 
+        long dataFreeBytes = 0;
         /* data file and commit log directories. they get created later, when they're needed. */
         for (String datadir : conf.data_file_directories)
         {
@@ -550,7 +534,22 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("commitlog_directory must not be the same as any data_file_directories", false);
             if (datadir.equals(conf.saved_caches_directory))
                 throw new ConfigurationException("saved_caches_directory must not be the same as any data_file_directories", false);
+
+            try
+            {
+                dataFreeBytes += Files.getFileStore(Paths.get(datadir)).getUnallocatedSpace();
+            }
+            catch (IOException e)
+            {
+                logger.debug("Error checking disk space", e);
+                throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
+                                                               datadir), e);
+            }
         }
+        if (dataFreeBytes < 64L * 1024 * 1048576) // 64 GB
+            logger.warn("Only {} MB free across all data volumes. Consider adding more capacity to your cluster or removing obsolete snapshots",
+                        dataFreeBytes / 1048576);
+
 
         if (conf.commitlog_directory.equals(conf.saved_caches_directory))
             throw new ConfigurationException("saved_caches_directory must not be the same as the commitlog_directory", false);
