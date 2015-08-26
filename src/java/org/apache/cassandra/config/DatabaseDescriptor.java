@@ -20,10 +20,13 @@ package org.apache.cassandra.config;
 import java.io.File;
 import java.io.IOException;
 import java.net.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 
 import org.slf4j.Logger;
@@ -288,9 +291,6 @@ public class DatabaseDescriptor
             logger.debug("Syncing log with a period of {}", conf.commitlog_sync_period_in_ms);
         }
 
-        if (conf.commitlog_total_space_in_mb == null)
-            conf.commitlog_total_space_in_mb = 8192;
-
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
         if (conf.disk_access_mode == Config.DiskAccessMode.auto)
         {
@@ -483,6 +483,35 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("commitlog_directory is missing and -Dcassandra.storagedir is not set", false);
             conf.commitlog_directory += File.separator + "commitlog";
         }
+
+        if (conf.commitlog_total_space_in_mb == null)
+        {
+            int preferredSize = hasLargeAddressSpace() || getCommitLogCompression() != null
+                                ? 8192
+                                : 32;
+            int minSize = 0;
+            try
+            {
+                // use 1/4 of available space.  See discussion on #10013 and #10199
+                minSize = Ints.checkedCast((Files.getFileStore(Paths.get(conf.commitlog_directory)).getTotalSpace() / 1048576) / 4);
+            }
+            catch (IOException e)
+            {
+                logger.debug("Error checking disk space", e);
+                throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
+                                                               conf.commitlog_directory));
+            }
+            if (minSize < preferredSize)
+            {
+                logger.warn("Small commitlog volume detected; setting commitlog_total_space_in_mb to {}.  You can override this in cassandra.yaml");
+                conf.commitlog_total_space_in_mb = minSize;
+            }
+            else
+            {
+                conf.commitlog_total_space_in_mb = preferredSize;
+            }
+        }
+
         if (conf.saved_caches_directory == null)
         {
             conf.saved_caches_directory = System.getProperty("cassandra.storagedir", null);
@@ -497,6 +526,22 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("data_file_directories is not missing and -Dcassandra.storagedir is not set", false);
             conf.data_file_directories = new String[]{ defaultDataDir + File.separator + "data" };
         }
+        long dataFreeBytes = 0;
+        for (String dir : conf.data_file_directories)
+        {
+            try
+            {
+                dataFreeBytes += Files.getFileStore(Paths.get(dir)).getUnallocatedSpace();
+            }
+            catch (IOException e)
+            {
+                logger.debug("Error checking disk space", e);
+                throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
+                                                               dir));
+            }
+        }
+        if (dataFreeBytes < 64L * 1024 * 1048576) // 64 GB
+            logger.warn("Only {} bytes free across all data volumes. Consider adding more capacity to your cluster or removing obsolete snapshots", dataFreeBytes);
 
         /* data file and commit log directories. they get created later, when they're needed. */
         for (String datadir : conf.data_file_directories)
