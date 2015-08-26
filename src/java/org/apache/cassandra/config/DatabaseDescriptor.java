@@ -486,9 +486,7 @@ public class DatabaseDescriptor
 
         if (conf.commitlog_total_space_in_mb == null)
         {
-            int preferredSize = hasLargeAddressSpace() || getCommitLogCompression() != null
-                                ? 8192
-                                : 32;
+            int preferredSize = 8192;
             int minSize = 0;
             try
             {
