@@ -2042,7 +2042,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             RowCacheKey key = keyIter.next();
             DecoratedKey dk = partitioner.decorateKey(ByteBuffer.wrap(key.key));
             if (key.ksAndCFName.equals(metadata.ksAndCFName) && !Range.isInRanges(dk.getToken(), ranges))
-                invalidateCachedRow(dk);
+                maybeInvalidateCachedRow(dk);
         }
 
         if (metadata.isCounter())
@@ -2525,15 +2525,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void invalidateCachedRow(RowCacheKey key)
     {
         CacheService.instance.rowCache.remove(key);
-    }
-
-    public void invalidateCachedRow(DecoratedKey key)
-    {
-        UUID cfId = Schema.instance.getId(keyspace.getName(), this.name);
-        if (cfId == null)
-            return; // secondary index
-
-        invalidateCachedRow(new RowCacheKey(metadata.ksAndCFName, key));
     }
 
     public ClockAndCount getCachedCounter(ByteBuffer partitionKey, CellName cellName)
