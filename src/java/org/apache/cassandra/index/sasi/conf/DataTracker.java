@@ -105,7 +105,7 @@ public class DataTracker
             if (!sstablesToRebuild.contains(sstable))
                 continue;
 
-            index.markObsolete();
+            index.release();
         }
 
         update(toRemove, Collections.<SSTableReader>emptyList());
@@ -124,7 +124,7 @@ public class DataTracker
             if (sstable.getMaxTimestamp() > truncateUntil)
                 continue;
 
-            index.markObsolete();
+            index.release();
             toRemove.add(sstable);
         }
 

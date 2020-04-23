@@ -47,7 +47,6 @@ public class SSTableIndex
     private final SSTableReader sstable;
     private final OnDiskIndex index;
     private final AtomicInteger references = new AtomicInteger(1);
-    private final AtomicBoolean obsolete = new AtomicBoolean(false);
 
     public SSTableIndex(ColumnIndex index, File indexFile, SSTableReader referent)
     {
@@ -132,20 +131,7 @@ public class SSTableIndex
         {
             FileUtils.closeQuietly(index);
             sstableRef.release();
-            if (obsolete.get() || sstableRef.globalCount() == 0)
-                FileUtils.delete(index.getIndexPath());
         }
-    }
-
-    public void markObsolete()
-    {
-        obsolete.getAndSet(true);
-        release();
-    }
-
-    public boolean isObsolete()
-    {
-        return obsolete.get();
     }
 
     public boolean equals(Object o)
