@@ -1657,6 +1657,40 @@
     </testmacro>
   </target>
 
+<!--    <taskdef resource="net/sf/antcontrib/antcontrib.properties" classpath="${basedir}/buildlib/ant-contrib/ant-contrib-1.0b3.jar"/> -->
+    <taskdef resource="net/sf/antcontrib/antlib.xml">
+        <classpath>
+            <pathelement location="/home/jonathan/Projects/cassandra/buildlib/ant-contrib/ant-contrib-1.0b3.jar"/>
+        </classpath>
+    </taskdef>
+
+    <target name="testmany" depends="build-test" description="Execute multiple unit tests from a file">
+        <!-- Load test names and methods from a file -->
+        <loadfile property="tests.list" srcFile="\${basedir}/\${testlist}"/>
+
+        <!-- Split the loaded content into lines -->
+        <propertyregex property="tests.list.lines" input="\${tests.list}" regexp="(\r?\n)+" replace=","/>
+
+        <!-- Iterate through each line in the file -->
+        <for list="\${tests.list.lines}" param="test.line" delimiter=",">
+            <sequential>
+                <!-- Split the line into test name and methods -->
+                <propertyregex property="test.name" input="@{test.line}" regexp="^([^:]+):" select="\1"/>
+                <propertyregex property="test.methods" input="@{test.line}" regexp=":([^:]+)$" select="\1"/>
+
+                <!-- Execute the test with the given name and methods -->
+                <testmacro inputdir="\${test.unit.src}" timeout="\${test.timeout}">
+                    <test name="\${test.name}" outfile="build/test/output/TEST-\${test.name}"/>
+                    <jvmarg value="-Dlegacy-sstable-root=\${test.data}/legacy-sstables"/>
+                    <jvmarg value="-Dinvalid-legacy-sstable-root=\${test.data}/invalid-legacy-sstables"/>
+                    <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+                    <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+                    <jvmarg value="-Dcassandra.skip_sync=true"/>
+                </testmacro>
+            </sequential>
+        </for>
+    </target>
+
   <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
     ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest
     ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest -Dtest.methods=testLargeCount
