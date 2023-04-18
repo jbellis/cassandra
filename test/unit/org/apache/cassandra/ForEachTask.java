@@ -1,24 +1,4 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-package org.apache.cassandra;
-
-/*
  * Copyright (c) 2001-2004 Ant-Contrib project.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,27 +13,25 @@ package org.apache.cassandra;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.sf.antcontrib.logic;
+
+package org.apache.cassandra;
 
 import java.io.File;
 import java.util.Enumeration;
 import java.util.StringTokenizer;
 import java.util.Vector;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.tools.ant.BuildException;
-import org.apache.tools.ant.Project;
 import org.apache.tools.ant.Task;
 import org.apache.tools.ant.TaskContainer;
-import org.apache.tools.ant.taskdefs.Ant;
 import org.apache.tools.ant.taskdefs.CallTarget;
 import org.apache.tools.ant.taskdefs.Property;
-import org.apache.tools.ant.types.FileSet;
 import org.apache.tools.ant.types.Mapper;
 import org.apache.tools.ant.types.Path;
 import org.apache.tools.ant.util.FileNameMapper;
-
-import net.sf.antcontrib.util.ThreadPool;
-import net.sf.antcontrib.util.ThreadPoolThread;
 
 /***
  * Task definition for the foreach task.  The foreach task iterates
@@ -90,7 +68,7 @@ import net.sf.antcontrib.util.ThreadPoolThread;
  * </pre>
  * @author <a href="mailto:mattinger@yahoo.com">Matthew Inger</a>
  */
-public class ForEach extends Task
+public class ForEachTask extends Task
 {
     private String list;
     private String param;
@@ -98,8 +76,6 @@ public class ForEach extends Task
     private String target;
     private boolean inheritAll;
     private boolean inheritRefs;
-    private Vector params;
-    private Vector references;
     private Path currPath;
     private boolean parallel;
     private boolean trim;
@@ -109,7 +85,7 @@ public class ForEach extends Task
     /***
      * Default Constructor
      */
-    public ForEach()
+    public ForEachTask()
     {
         super();
         this.list = null;
@@ -118,20 +94,17 @@ public class ForEach extends Task
         this.target = null;
         this.inheritAll = false;
         this.inheritRefs = false;
-        this.params = new Vector();
-        this.references = new Vector();
         this.parallel = false;
         this.maxThreads = 5;
     }
 
     private void executeParallel(Vector tasks)
     {
-        ThreadPool pool = new ThreadPool(maxThreads);
+        ExecutorService pool = Executors.newFixedThreadPool(maxThreads);
         Enumeration e = tasks.elements();
         Runnable r = null;
-        Vector threads = new Vector();
 
-        // start each task in it's own thread, using the
+        // start each task in its own thread, using the
         // pool to ensure that we don't exceed the maximum
         // amount of threads
         while (e.hasMoreElements())
@@ -151,10 +124,7 @@ public class ForEach extends Task
             // block until one becomes available
             try
             {
-                ThreadPoolThread tpt = pool.borrowThread();
-                tpt.setRunnable(r);
-                tpt.start();
-                threads.addElement(tpt);
+                pool.submit(r);
             }
             catch (Exception ex)
             {
@@ -165,22 +135,14 @@ public class ForEach extends Task
 
         // Wait for all threads to finish before we
         // are allowed to return.
-        Enumeration te = threads.elements();
-        Thread t= null;
-        while (te.hasMoreElements())
+        pool.shutdown();
+        try
         {
-            t = (Thread)te.nextElement();
-            if (t.isAlive())
-            {
-                try
-                {
-                    t.join();
-                }
-                catch (InterruptedException ex)
-                {
-                    throw new BuildException(ex);
-                }
-            }
+            pool.awaitTermination(1, TimeUnit.HOURS);
+        }
+        catch (InterruptedException ex)
+        {
+            throw new BuildException(ex);
         }
     }
 
@@ -333,33 +295,6 @@ public class ForEach extends Task
     }
 
 
-    /**
-     * Corresponds to <code>&lt;antcall&gt;</code>'s nested
-     * <code>&lt;param&gt;</code> element.
-     */
-    public void addParam(Property p) {
-        params.addElement(p);
-    }
-
-    /**
-     * Corresponds to <code>&lt;antcall&gt;</code>'s nested
-     * <code>&lt;reference&gt;</code> element.
-     */
-    public void addReference(Ant.Reference r) {
-        references.addElement(r);
-    }
-
-    /**
-     * @deprecated Use createPath instead.
-     */
-    public void addFileset(FileSet set)
-    {
-        log("The nested fileset element is deprectated, use a nested path "
-            + "instead",
-            Project.MSG_WARN);
-        createPath().addFileset(set);
-    }
-
     public Path createPath() {
         if (currPath == null) {
             currPath = new Path(getProject());
@@ -380,39 +315,6 @@ public class ForEach extends Task
         ct.setTarget(target);
         ct.setInheritAll(inheritAll);
         ct.setInheritRefs(inheritRefs);
-        Enumeration e = params.elements();
-        while (e.hasMoreElements()) {
-            Property param = (Property) e.nextElement();
-            Property toSet = ct.createParam();
-            toSet.setName(param.getName());
-            if (param.getValue() != null) {
-                toSet.setValue(param.getValue());
-            }
-            if (param.getFile() != null) {
-                toSet.setFile(param.getFile());
-            }
-            if (param.getResource() != null) {
-                toSet.setResource(param.getResource());
-            }
-            if (param.getPrefix() != null) {
-                toSet.setPrefix(param.getPrefix());
-            }
-            if (param.getRefid() != null) {
-                toSet.setRefid(param.getRefid());
-            }
-            if (param.getEnvironment() != null) {
-                toSet.setEnvironment(param.getEnvironment());
-            }
-            if (param.getClasspath() != null) {
-                toSet.setClasspath(param.getClasspath());
-            }
-        }
-
-        e = references.elements();
-        while (e.hasMoreElements()) {
-            ct.addReference((Ant.Reference) e.nextElement());
-        }
-
         return ct;
     }
 
