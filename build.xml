@@ -1421,6 +1421,7 @@
       <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}" showoutput="@{showoutput}">
         <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
         <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
+        <jvmarg value="-Dcassandra.storagedir=${unique.test.dir}/cassandra"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Djava.awt.headless=true"/>
         <!-- Cassandra 3.0+ needs <jvmarg line="... ${additionalagent}" /> here! (not value=) -->
@@ -1482,13 +1483,9 @@
         </batchtest>
       </junit-timeout>
 
-      <delete quiet="true" failonerror="false" dir="${unique.test.dir}/cassandra/commitlog"/>
-      <delete quiet="true" failonerror="false" dir="${unique.test.dir}/cassandra/cdc_raw"/>
-      <delete quiet="true" failonerror="false" dir="${unique.test.dir}/cassandra/data"/>
-      <delete quiet="true" failonerror="false" dir="${unique.test.dir}/cassandra/ssl_upload_tables"/>
-      <delete quiet="true" failonerror="false" dir="${unique.test.dir}/cassandra/system_data"/>
-      <delete quiet="true" failonerror="false" dir="${unique.test.dir}/cassandra/saved_caches"/>
-      <delete quiet="true" failonerror="false" dir="${unique.test.dir}/cassandra/hints"/>
+      <delete quiet="true" failonerror="false">
+          <fileset dir="\${unique.test.dir}/cassandra" includes="commitlog,cdc_raw,data,ssl_upload_tables,system_data,saved_caches,hints"/>
+      </delete>
     </sequential>
   </macrodef>
 
