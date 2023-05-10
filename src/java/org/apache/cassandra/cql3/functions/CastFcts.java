@@ -387,7 +387,7 @@ public final class CastFcts
             if (bb == null)
                 return null;
 
-            return outputType().decompose(inputType().getSerializer().toCQLLiteral(bb));
+            return outputType().decompose(inputType().getSerializer().toCQLLiteralNoQuote(bb));
         }
     }
 
