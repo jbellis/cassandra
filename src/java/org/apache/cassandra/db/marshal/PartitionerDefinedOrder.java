@@ -130,6 +130,12 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
         throw new IllegalStateException("You shouldn't be validating this.");
     }
 
+    @Override
+    public <V> boolean isNull(V buffer, ValueAccessor<V> accessor)
+    {
+        return buffer == null || accessor.isEmpty(buffer);
+    }
+
     public TypeSerializer<ByteBuffer> getSerializer()
     {
         throw new UnsupportedOperationException("You can't do this with a local partitioner.");
