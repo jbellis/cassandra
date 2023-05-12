@@ -2261,6 +2261,11 @@ public abstract class CQLTester
         return Arrays.asList(values);
     }
 
+    protected <T> Vector<T> vector(T... values)
+    {
+        return new Vector<>(values);
+    }
+
     protected Set<Object> set(Object...values)
     {
         return ImmutableSet.copyOf(values);
@@ -2307,6 +2312,28 @@ public abstract class CQLTester
             fail(String.format("Expected a single registered metric for paused client connections, found %s",
                                metrics.size()));
         return metrics.get(metricName);
+    }
+
+    public static class Vector<T> extends AbstractList<T>
+    {
+        private final T[] values;
+
+        public Vector(T[] values)
+        {
+            this.values = values;
+        }
+
+        @Override
+        public T get(int index)
+        {
+            return values[index];
+        }
+
+        @Override
+        public int size()
+        {
+            return values.length;
+        }
     }
 
     // Attempt to find an AbstracType from a value (for serialization/printing sake).
@@ -2360,6 +2387,13 @@ public abstract class CQLTester
 
         if (value instanceof TimeUUID)
             return TimeUUIDType.instance;
+
+        // vector impl list, so have to check first
+        if (value instanceof Vector)
+        {
+            Vector<?> v = (Vector<?>) value;
+            return VectorType.getInstance(typeFor(v.values[0]), v.values.length);
+        }
 
         if (value instanceof List)
         {
