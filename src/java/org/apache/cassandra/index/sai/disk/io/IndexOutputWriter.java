@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sai.disk.io;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.base.MoreObjects;
@@ -117,5 +118,15 @@ public class IndexOutputWriter extends IndexOutput
     public SequentialWriter asSequentialWriter()
     {
         return out;
+    }
+
+    public long position()
+    {
+        return out.position();
+    }
+
+    public void write(ByteBuffer buffer) throws IOException
+    {
+        out.write(buffer);
     }
 }
