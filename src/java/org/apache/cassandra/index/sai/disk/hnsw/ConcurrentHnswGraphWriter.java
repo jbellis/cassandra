@@ -55,7 +55,7 @@ public class ConcurrentHnswGraphWriter
     private long neighborSize(int level, int node)
     {
         // node neighbor count, and node neighbors
-        return 4L * (1 + countNeighbors(hnsw.getNeighbors(level, node)));
+        return 4L * (1 + hnsw.getNeighbors(level, node).size());
     }
 
     public void write(IndexOutputWriter out) throws IOException {
@@ -98,7 +98,7 @@ public class ConcurrentHnswGraphWriter
             {
                 assert out.position() == nodeOffsets.get(node) : String.format("level %s node %s offset mismatch: %s actual vs %s expected", level, node, out.position(), nodeOffsets.get(node));
                 var neighborSet = hnsw.getNeighbors(level, node);
-                out.writeInt(countNeighbors(neighborSet)); // FIXME neighborSet.size() is broken
+                out.writeInt(neighborSet.size());
                 neighborSet.forEach((ordinal, score_) -> {
                     out.writeInt(ordinal);
                 });
@@ -107,22 +107,6 @@ public class ConcurrentHnswGraphWriter
             assert out.position() == expectedPosition : String.format("level %s offset mismatch: %s actual vs %s expected", level, out.position(), expectedPosition);
         }
         assert out.position() == nextLevelOffset : String.format("final level offset mismatch: %s actual vs %s expected", out.position(), nextLevelOffset);
-    }
-
-    private int countNeighbors(ConcurrentNeighborSet neighborSet)
-    {
-        AtomicInteger count = new AtomicInteger();
-        try
-        {
-            neighborSet.forEach((ordinal_, score_) -> {
-                count.incrementAndGet();
-            });
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        return count.get();
     }
 
     private static int[] getSortedNodes(HnswGraph.NodesIterator nodesOnLevel) {
