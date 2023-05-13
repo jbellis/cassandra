@@ -20,8 +20,8 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
 
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.HnswGraph;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -36,7 +36,7 @@ public class OnDiskHnswGraph extends HnswGraph
     private int currentNeighborCount;
     private int currentNeighborsRead;
 
-    public OnDiskHnswGraph(File file) throws IOException {
+    public OnDiskHnswGraph(IndexInput file) throws IOException {
         this.reader = RandomAccessReader.open(file);
 
         size = reader.readInt();

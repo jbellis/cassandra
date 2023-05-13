@@ -30,6 +30,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
@@ -45,9 +46,9 @@ public class CassandraOnDiskHnsw
     public CassandraOnDiskHnsw(IndexDescriptor descriptor, IndexContext context) throws IOException
     {
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
-        vectorValues = new OnDiskVectors(descriptor.fileFor(IndexComponent.VECTOR, context));
-        ordinalsMap = new OnDiskOrdinalsMap(descriptor.fileFor(IndexComponent.POSTING_LISTS, context), vectorValues.dimension());
-        hnsw = new OnDiskHnswGraph(descriptor.fileFor(IndexComponent.TERMS_DATA, context));
+        vectorValues = new OnDiskVectors(descriptor.openPerIndexInput(IndexComponent.VECTOR, context));
+        ordinalsMap = new OnDiskOrdinalsMap(descriptor.openPerIndexInput(IndexComponent.POSTING_LISTS, context), vectorValues.dimension());
+        hnsw = new OnDiskHnswGraph(descriptor.openPerIndexInput(IndexComponent.TERMS_DATA, context));
     }
 
     public long ramBytesUsed()
@@ -121,7 +122,7 @@ public class CassandraOnDiskHnsw
         private final int dimension;
         private final int size;
 
-        public OnDiskOrdinalsMap(File file, int dimension) throws IOException
+        public OnDiskOrdinalsMap(IndexInput file, int dimension) throws IOException
         {
             this.reader = RandomAccessReader.open(file);
             this.size = reader.readInt();
@@ -153,15 +154,15 @@ public class CassandraOnDiskHnsw
 
     private static class OnDiskVectors implements RandomAccessVectorValues<float[]>
     {
-        private final RandomAccessReader reader;
+        private final IndexInput reader;
         private final int dimension;
         private final int size;
 
-        public OnDiskVectors(File file) throws IOException
+        public OnDiskVectors(IndexInput reader) throws IOException
         {
-            this.reader = RandomAccessReader.open(file);
-            this.size = reader.readInt();
-            this.dimension = reader.readInt();
+            this.reader = reader;
+            this.size = this.reader.readInt();
+            this.dimension = this.reader.readInt();
         }
 
         @Override
@@ -181,17 +182,14 @@ public class CassandraOnDiskHnsw
         {
             reader.seek(8L + i * dimension * 4L);
             float[] vector = new float[dimension];
-            for (int j = 0; j < dimension; j++)
-            {
-                vector[j] = reader.readFloat();
-            }
+            reader.readFloats(vector, 0, dimension);
             return vector;
         }
 
         @Override
         public RandomAccessVectorValues<float[]> copy() throws IOException
         {
-            return new OnDiskVectors(new File(reader.getPath()));
+            return new OnDiskVectors(new File(reader.));
         }
 
         public void close()
