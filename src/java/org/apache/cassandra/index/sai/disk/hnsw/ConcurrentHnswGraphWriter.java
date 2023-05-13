@@ -54,7 +54,8 @@ public class ConcurrentHnswGraphWriter
         return 4L * (1 + hnsw.getNeighbors(level, node).size());
     }
 
-    public void write(File file) throws IOException {
+    public void write(File file) throws IOException
+    {
         try (var indexOutputWriter = IndexFileUtils.instance.openOutput(file))
         {
             var out = indexOutputWriter.asSequentialWriter();
