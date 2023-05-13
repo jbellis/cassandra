@@ -83,8 +83,6 @@ public class ConcurrentHnswGraphWriter
             var sortedNodes = getSortedNodes(hnsw.getNodesOnLevel(level));
             out.writeInt(sortedNodes.length);
 
-            // write offsets for each node
-            // TODO use VInt and delta encoding
             long nextNodeOffset = out.position() + (4L + 8L) * sortedNodes.length;
             var nodeOffsets = new HashMap<Integer, Long>(); // TODO remove this once the code is debugged
             for (var node : sortedNodes)
@@ -100,7 +98,6 @@ public class ConcurrentHnswGraphWriter
             {
                 assert out.position() == nodeOffsets.get(node) : String.format("level %s node %s offset mismatch: %s actual vs %s expected", level, node, out.position(), nodeOffsets.get(node));
                 var neighborSet = hnsw.getNeighbors(level, node);
-                // TODO use VInt and delta encoding
                 out.writeInt(countNeighbors(neighborSet)); // FIXME neighborSet.size() is broken
                 neighborSet.forEach((ordinal, score_) -> {
                     out.writeInt(ordinal);
