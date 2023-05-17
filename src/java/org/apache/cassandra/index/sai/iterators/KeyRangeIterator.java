@@ -180,9 +180,9 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
 
         public abstract Builder add(KeyRangeIterator range);
 
-        public Builder add(Supplier<KeyRangeIterator> iteratorSupplier, Expression expression, int limit)
+        public Builder add(KeyRangeIterator iterator, Expression expression, int limit)
         {
-            return add(iteratorSupplier.get());
+            return add(iterator);
         }
 
         public abstract int rangeCount();

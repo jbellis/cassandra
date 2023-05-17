@@ -19,13 +19,13 @@
 package org.apache.cassandra.index.sai.iterators;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator.Builder.Statistics;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
@@ -38,42 +38,31 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
  * and because it's really more of an order by than a where clause; HNSW doesn't
  * "eliminate" any keys, they will all be in the results if you iterate far down enough.
  *
- * HnswIntersectionIterator performs what the Pinterest guys call Post Filtering:
- * we perform the HNSW search, then go through the keys from the other predicates
- * looking for matches.  If we don't get enough matches, we expand the HNSW search
- * window and perform the search over again.
- *
- * To attempt to minimize the passes, we double the HNSW window with each iteration.
+ * HnswIntersectionIterator materializes the resultset of the other predicates to
+ * a BitSet, then uses that to restrict the HNSW ANN search.
  */
 public class HnswIntersectionIterator extends KeyRangeIterator
 {
-    private final Builder builder;
     private final KeyRangeIterator hnswIterator;
-    private HnswOnePassIterator onePassIterator;
-    private final Set<PrimaryKey> hnswMatches = new HashSet<>();
+    private final KeyRangeIterator otherIterator;
+    private final int limit;
+
     private final Set<PrimaryKey> seenMatchingKeys = new HashSet<>();
     private int hnswBatchSize;
 
-    protected HnswIntersectionIterator(Builder builder)
+    public HnswIntersectionIterator(Statistics statistics, KeyRangeIterator hnswIterator, KeyRangeIterator otherIterator, int limit)
     {
-        super(builder.statistics);
-        this.builder = builder;
-        this.hnswIterator = builder.hnswIterator;
-        hnswBatchSize = limit();
-        this.onePassIterator = newOnePassIterator(builder);
-        loadMoreHnswMatches();
-    }
-
-    private HnswOnePassIterator newOnePassIterator(Builder builder)
-    {
-        return new HnswOnePassIterator(builder.limit,
-                                       builder.otherSuppliers.stream().map(Supplier::get).collect(Collectors.toList()));
+        super(statistics);
+        this.hnswIterator = hnswIterator;
+        this.otherIterator = otherIterator;
+        this.limit = limit;
+        this.hnswBatchSize = limit;
     }
 
     @Override
     public PrimaryKey skipTo(PrimaryKey nextKey)
     {
-        return onePassIterator.skipTo(nextKey);
+        return otherIterator.skipTo(nextKey);
     }
 
     @Override
@@ -86,7 +75,7 @@ public class HnswIntersectionIterator extends KeyRangeIterator
     @Override
     public void close() throws IOException
     {
-        onePassIterator.close();
+        otherIterator.close();
     }
 
     // TODO do we need to compute all the rows, and then re-sort by PK?
@@ -180,7 +169,7 @@ public class HnswIntersectionIterator extends KeyRangeIterator
     }
 
     // FIXME
-    private static class PlaceholderStatistics extends KeyRangeIterator.Builder.Statistics
+    private static class PlaceholderStatistics extends Statistics
     {
         @Override
         public void update(KeyRangeIterator range)
@@ -190,14 +179,14 @@ public class HnswIntersectionIterator extends KeyRangeIterator
 
     public static class Builder extends KeyRangeIterator.Builder
     {
-        private List<Supplier<KeyRangeIterator>> otherSuppliers;
+        private KeyRangeIntersectionIterator.Builder otherBuilder;
         private KeyRangeIterator hnswIterator;
         private int limit;
 
-        public Builder(int expressionCount)
+        public Builder(int expressionCount, limit)
         {
             super(new PlaceholderStatistics());
-            otherSuppliers = new ArrayList<>(expressionCount);
+            otherBuilder = KeyRangeIntersectionIterator.builder(expressionCount);
         }
 
         @Override
@@ -207,16 +196,16 @@ public class HnswIntersectionIterator extends KeyRangeIterator
         }
 
         @Override
-        public KeyRangeIterator.Builder add(Supplier<KeyRangeIterator> iteratorSupplier, Expression expression, int limit)
+        public KeyRangeIterator.Builder add(KeyRangeIterator iterator, Expression expression, int limit)
         {
             if (expression.getOp() == Expression.IndexOperator.ANN)
             {
                 this.limit = limit;
-                this.hnswIterator = iteratorSupplier.get();
+                this.hnswIterator = iterator;
             }
             else
             {
-                otherSuppliers.add(iteratorSupplier);
+                otherBuilder.add(iterator);
             }
             return this;
         }
@@ -224,7 +213,7 @@ public class HnswIntersectionIterator extends KeyRangeIterator
         @Override
         public int rangeCount()
         {
-            return otherSuppliers.size();
+            return otherBuilder.size();
         }
 
         @Override
@@ -235,7 +224,7 @@ public class HnswIntersectionIterator extends KeyRangeIterator
         @Override
         protected KeyRangeIterator buildIterator()
         {
-            return new HnswIntersectionIterator(this);
+            return new HnswIntersectionIterator(otherBuilder.statistics, hnswIterator, otherBuilder.build(), limit);
         }
     }
 }
