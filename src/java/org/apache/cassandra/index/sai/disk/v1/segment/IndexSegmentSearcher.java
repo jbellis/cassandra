@@ -20,10 +20,13 @@ package org.apache.cassandra.index.sai.disk.v1.segment;
 import java.io.Closeable;
 import java.io.IOException;
 
+import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
+import org.apache.cassandra.index.sai.disk.v1.VectorIndexSearcher;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingListRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
@@ -57,8 +60,11 @@ public abstract class IndexSegmentSearcher implements Closeable
     public static IndexSegmentSearcher open(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                             PerColumnIndexFiles indexFiles,
                                             SegmentMetadata segmentMetadata,
+                                            IndexDescriptor indexDescriptor,
                                             IndexContext indexContext) throws IOException
     {
+        if (indexContext.getValidator() instanceof DenseFloat32Type)
+            return new VectorIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext);
         return new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
     }
 
