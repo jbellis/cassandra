@@ -936,12 +936,6 @@ public interface CQL3Type
             }
 
             @Override
-            public void forEachUserType(Consumer<UTName> userTypeNameConsumer)
-            {
-                // noop
-            }
-
-            @Override
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
                 return new Vector(dimensions);
