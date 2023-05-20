@@ -29,7 +29,7 @@ import com.google.common.base.Stopwatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
@@ -65,10 +65,10 @@ public class VectorIndexWriter implements PerColumnIndexWriter
     private final IndexContext indexContext;
     private final int nowInSec = FBUtilities.nowInSeconds();
 
-    private Lucene95HnswVectorsWriter writer;
-    private KnnFieldVectorsWriter fieldWriter;
+    private final Lucene95HnswVectorsWriter writer;
+    private final KnnFieldVectorsWriter fieldWriter;
 
-    private int dimension;
+    private final int dimension;
     private byte[] segmentId;
 
     private int maxDocId = -1;
@@ -79,10 +79,38 @@ public class VectorIndexWriter implements PerColumnIndexWriter
 
     public VectorIndexWriter(IndexDescriptor indexDescriptor, IndexContext indexContext)
     {
-        Preconditions.checkState(indexContext.getValidator() instanceof DenseFloat32Type);
+        Preconditions.checkState(indexContext.isVector());
 
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
+        this.dimension = ((VectorType) indexContext.getValidator()).getDimensions();
+
+        try
+        {
+            // full path in SAI naming pattern, e.g. .../<ks>/<cf>/ca-3g5d_1t56_18d8122br2d3mg6twm-bti-SAI+ba+table_00_val_idx+Vector.db
+            File vectorPath = indexDescriptor.fileFor(IndexComponent.VECTOR, indexContext);
+
+            // table directory
+            Directory directory = FSDirectory.open(vectorPath.toPath().getParent());
+            // segment name in SAI naming pattern, e.g. ca-3g5d_1t56_18d8122br2d3mg6twm-bti-SAI+ba+table_00_val_idx+Vector.db
+            String segmentName = vectorPath.name();
+
+            segmentId = StringHelper.randomId();
+            SegmentInfo segmentInfo = new SegmentInfo(directory, Version.LATEST, Version.LATEST, segmentName, -1, false, Lucene95Codec.getDefault(), Collections.emptyMap(), segmentId, Collections.emptyMap(), null);
+            SegmentWriteState state = new SegmentWriteState(InfoStream.getDefault(), directory, segmentInfo, null, null, IOContext.DEFAULT);
+            writer = (Lucene95HnswVectorsWriter) new Lucene95HnswVectorsFormat().fieldsWriter(state);
+
+            FieldInfo fieldInfo = indexContext.createFieldInfoForVector(dimension);
+            // lucene creates 3 vectors files, e.g.:
+            // ca-3g5d_1t56_18d8122br2d3mg6twm-bti-SAI+ba+table_00_val_idx+Vector.db.vex
+            // ca-3g5d_1t56_18d8122br2d3mg6twm-bti-SAI+ba+table_00_val_idx+Vector.db.vec
+            // ca-3g5d_1t56_18d8122br2d3mg6twm-bti-SAI+ba+table_00_val_idx+Vector.db.vem
+            fieldWriter = writer.addField(fieldInfo);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public IndexContext indexContext()
@@ -101,11 +129,9 @@ public class VectorIndexWriter implements PerColumnIndexWriter
         ByteBuffer value = indexContext.getValueOf(key.partitionKey(), row, nowInSec);
         if (value != null)
         {
-            float[] vector = DenseFloat32Type.Serializer.instance.deserialize(value.duplicate());
+            float[] vector = VectorType.Serializer.instance.deserialize(value.duplicate());
             try
             {
-                maybeCreateWriter(vector.length);
-
                 // we should not have more than 2.1B rows in memtable
                 int docId = Math.toIntExact(sstableRowId);
                 fieldWriter.addValue(docId, vector);
@@ -121,33 +147,6 @@ public class VectorIndexWriter implements PerColumnIndexWriter
             {
                 throw new RuntimeException(e);
             }
-        }
-    }
-
-    private void maybeCreateWriter(int dimension)
-    {
-        try
-        {
-            if (fieldWriter != null)
-                return;
-
-            File vectorPath = indexDescriptor.fileFor(IndexComponent.VECTOR, indexContext);
-
-            Directory directory = FSDirectory.open(vectorPath.toPath().getParent());
-            String segmentName = vectorPath.name();
-
-            segmentId = StringHelper.randomId();
-            SegmentInfo segmentInfo = new SegmentInfo(directory, Version.LATEST, Version.LATEST, segmentName, -1, false, Lucene95Codec.getDefault(), Collections.emptyMap(), segmentId, Collections.emptyMap(), null);
-            SegmentWriteState state = new SegmentWriteState(InfoStream.getDefault(), directory, segmentInfo, null, null, IOContext.DEFAULT);
-            writer = (Lucene95HnswVectorsWriter) new Lucene95HnswVectorsFormat().fieldsWriter(state);
-
-            this.dimension = dimension;
-            FieldInfo fieldInfo = indexContext.createFieldInfo(dimension);
-            fieldWriter = writer.addField(fieldInfo);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
         }
     }
 
@@ -206,8 +205,7 @@ public class VectorIndexWriter implements PerColumnIndexWriter
         SegmentMetadata.ComponentMetadataMap metadataMap = new SegmentMetadata.ComponentMetadataMap();
 
         // we don't care about root/offset/length for vector. segmentId is used in searcher
-        Map<String, String> vectorConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(segmentId)),
-                                                   "DIMENSION", String.valueOf(dimension));
+        Map<String, String> vectorConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(segmentId)));
         metadataMap.put(IndexComponent.VECTOR, 0, 0, 0, vectorConfigs);
 
         SegmentMetadata metadata = new SegmentMetadata(0,
