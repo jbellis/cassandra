@@ -224,6 +224,14 @@ public abstract class ReadCommand extends AbstractReadQuery
         return indexQueryPlan;
     }
 
+    /**
+     * @return true given read query is a top-k request
+     */
+    public boolean isTopK()
+    {
+        return indexQueryPlan != null && indexQueryPlan.isTopK();
+    }
+
     @VisibleForTesting
     public Index.Searcher indexSearcher()
     {
@@ -408,6 +416,11 @@ public abstract class ReadCommand extends AbstractReadQuery
              */
             iterator = filter.filter(iterator, nowInSec());
 
+            /*
+             * Allow to post-process the result of the local index query before it is passed to coordinator.
+             */
+            iterator = (null == searcher) ? iterator : indexQueryPlan.postIndexQueryProcessor(this).apply(iterator);
+
             // apply the limits/row counter; this transformation is stopping and would close the iterator as soon
             // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.
             // If tracking repaired data, the counter is needed for overreading repaired data, otherwise we can
@@ -458,7 +471,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public PartitionIterator postReconciliationProcessing(PartitionIterator result)
     {
-        return indexQueryPlan == null ? result : indexQueryPlan.postProcessor().apply(result);
+        return indexQueryPlan == null ? result : indexQueryPlan.postProcessor(this).apply(result);
     }
 
     @Override

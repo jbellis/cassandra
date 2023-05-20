@@ -20,132 +20,105 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
-import java.util.TreeSet;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.memory.FilteringKeyRangeIterator;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
-import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.hnsw.HnswGraphBuilder;
-import org.apache.lucene.util.hnsw.HnswGraphSearcher;
-import org.apache.lucene.util.hnsw.NeighborQueue;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
+import org.apache.lucene.util.SparseFixedBitSet;
 
 public class VectorMemtableIndex implements MemtableIndex
 {
     private final IndexContext indexContext;
-    private final ByteBufferVectorValues vectorValues = new ByteBufferVectorValues();
-    private final ArrayList<PrimaryKey> keys = new ArrayList<>();
-    private final HnswGraphBuilder<float[]> builder;
+    private final CassandraOnHeapHnsw graph;
     private final LongAdder writeCount = new LongAdder();
-
-    private final AtomicInteger cachedDimensions = new AtomicInteger();
 
     private static final Token.KeyBound MIN_KEY_BOUND = DatabaseDescriptor.getPartitioner().getMinimumToken().minKeyBound();
 
+    private PrimaryKey minimumKey;
+    private PrimaryKey maximumKey;
+
     public VectorMemtableIndex(IndexContext indexContext) {
         this.indexContext = indexContext;
-        try
-        {
-            builder = HnswGraphBuilder.create(vectorValues,
-                                              VectorEncoding.FLOAT32,
-                                              indexContext.getIndexWriterConfig().getSimilarityFunction(),
-                                              indexContext.getIndexWriterConfig().getMaximumNodeConnections(),
-                                              indexContext.getIndexWriterConfig().getConstructionBeamWidth(),
-                                              ThreadLocalRandom.current().nextLong());
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        this.graph = new CassandraOnHeapHnsw(indexContext);
     }
 
-    // TODO either we need to create a concurrent graph builder (possible!), or
-    // do sharding in the memtable with brute force search, followed by building the actual graph on flush
+    // FIXME horrible no good hack that compacts in-memory
+    public void index(PrimaryKey key, float[] vector)
+    {
+        graph.put(key, VectorType.Serializer.getByteBuffer(vector));
+    }
+
     @Override
-    public synchronized void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup)
+    public void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup)
     {
         var primaryKey = indexContext.keyFactory().create(key, clustering);
-        keys.add(primaryKey);
-        var vector = vectorValues.add(value);
-        try
-        {
-            builder.addGraphNode(vectorValues.size() - 1, vector);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        index(primaryKey, value);
+    }
+
+    private void index(PrimaryKey primaryKey, ByteBuffer value)
+    {
+        if (minimumKey == null)
+            minimumKey = primaryKey;
+        else if (primaryKey.compareTo(minimumKey) < 0)
+            minimumKey = primaryKey;
+        if (maximumKey == null)
+            maximumKey = primaryKey;
+        else if (primaryKey.compareTo(maximumKey) > 0)
+            maximumKey = primaryKey;
+
+        writeCount.increment();
+        graph.put(primaryKey, value);
     }
 
     @Override
-    public synchronized RangeIterator search(Expression expr, AbstractBounds<PartitionPosition> keyRange, int limit)
+    public RangeIterator search(Expression expr, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
         var buffer = expr.lower.value.raw;
         float[] qv = (float[])indexContext.getValidator().getSerializer().deserialize(buffer);
-        NeighborQueue nn;
-        try
-        {
-            Bits bits = null;
-            // key range doesn't full token ring, we need to filter keys inside ANN search
-            if (!keys.isEmpty() && !coversFullRing(keyRange))
-                bits = new KeyRangeFilteringBits(keyRange);
 
-            nn = HnswGraphSearcher.search(qv,
-                                          limit,
-                                          vectorValues,
-                                          VectorEncoding.FLOAT32,
-                                          indexContext.getIndexWriterConfig().getSimilarityFunction(),
-                                          builder.getGraph(),
-                                          bits,
-                                          Integer.MAX_VALUE);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        TreeSet<PrimaryKey> keys = Arrays.stream(nn.nodes())
-                         .mapToObj(this.keys::get)
-                         .collect(Collectors.toCollection(TreeSet::new));
-
-        return keys.isEmpty() ? RangeIterator.empty() : new FilteringKeyRangeIterator(keys, keyRange);
+        return new BatchKeyRangeIterator(qv, limit, keyRange);
     }
 
-    private static boolean coversFullRing(AbstractBounds<PartitionPosition> keyRange)
+    @Override
+    public long estimatedOffHeapMemoryUsed()
     {
-        return keyRange.left.equals(MIN_KEY_BOUND) && keyRange.right.equals(MIN_KEY_BOUND);
+        return 0;
     }
 
     @Override
     public Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max)
     {
-        throw new UnsupportedOperationException(); // TODO
+        // REVIEWME
+        throw new UnsupportedOperationException();
+    }
+
+    private static boolean coversFullRing(AbstractBounds<PartitionPosition> keyRange)
+    {
+        return keyRange.left.equals(MIN_KEY_BOUND) && keyRange.right.equals(MIN_KEY_BOUND);
     }
 
     @Override
@@ -157,19 +130,13 @@ public class VectorMemtableIndex implements MemtableIndex
     @Override
     public long estimatedOnHeapMemoryUsed()
     {
-        return vectorValues.ramBytesUsed() + builder.getGraph().ramBytesUsed();
-    }
-
-    @Override
-    public long estimatedOffHeapMemoryUsed()
-    {
-        return 0;
+        return graph.ramBytesUsed();
     }
 
     @Override
     public boolean isEmpty()
     {
-        return vectorValues.size() == 0;
+        return graph.isEmpty();
     }
 
     @Nullable
@@ -186,6 +153,11 @@ public class VectorMemtableIndex implements MemtableIndex
         return null;
     }
 
+    public void writeData(IndexDescriptor descriptor, IndexContext context, Map<PrimaryKey, Integer> keyToRowId) throws IOException
+    {
+        graph.write(descriptor, context, keyToRowId);
+    }
+
     private class KeyRangeFilteringBits implements Bits
     {
         private final AbstractBounds<PartitionPosition> keyRange;
@@ -198,62 +170,112 @@ public class VectorMemtableIndex implements MemtableIndex
         @Override
         public boolean get(int index)
         {
-            PrimaryKey key = keys.get(index);
-            return keyRange.contains(key.partitionKey());
+            var keys = graph.keysFromOrdinal(index);
+            return keys.stream().anyMatch(k -> keyRange.contains(k.partitionKey()));
         }
 
         @Override
         public int length()
         {
-            return keys.size();
+            return graph.size();
         }
     }
-    private class ByteBufferVectorValues implements RandomAccessVectorValues<float[]>
+
+    private class BatchKeyRangeIterator extends RangeIterator
     {
-        private final ArrayList<ByteBuffer> buffers = new ArrayList<>();
+        private final float[] queryVector;
+        private final int limit;
 
-        public ByteBufferVectorValues() {}
+        private Bits bits;
+        private final PriorityQueue<PrimaryKey> keyQueue = new PriorityQueue<>();
 
-        @Override
-        public int size()
+        BatchKeyRangeIterator(float[] queryVector, int limit, AbstractBounds<PartitionPosition> keyRange)
         {
-            return buffers.size();
+            super(minimumKey, maximumKey, writeCount.longValue());
+            this.queryVector = queryVector;
+            this.limit = limit;
+            // key range doesn't full token ring, we need to filter keys inside ANN search
+            if (!graph.isEmpty() && !coversFullRing(keyRange))
+                bits = new KeyRangeFilteringBits(keyRange);
         }
 
         @Override
-        public int dimension()
+        protected void performSkipTo(PrimaryKey nextKey)
         {
-            // if cached dimensions is 0, then this is being called for the first time;
-            // compute it from the current vector length
-            int i = cachedDimensions.get();
-            if (i == 0)
+            PrimaryKey key;
+            while ((key = doComputeNext()) != null)
             {
-                i = vectorValue(0).length;
-                cachedDimensions.set(i);
+                if (key.compareTo(nextKey) >= 0)
+                    break;
+                keyQueue.poll();
             }
-            return i;
         }
 
         @Override
-        public float[] vectorValue(int i)
+        public void close()
         {
-            return (float[])indexContext.getValidator().getSerializer().deserialize(buffers.get(i));
-        }
-
-        public float[] add(ByteBuffer buffer) {
-            buffers.add(buffer);
-            return vectorValue(buffers.size() - 1);
         }
 
         @Override
-        public RandomAccessVectorValues<float[]> copy()
+        protected PrimaryKey computeNext()
         {
-            return this;
+            if (doComputeNext() == null) {
+                return endOfData();
+            }
+            return keyQueue.poll();
         }
 
-        public long ramBytesUsed()
+        private PrimaryKey doComputeNext()
         {
-            return ObjectSizes.measure(buffers) + buffers.size() * (4L * dimension());
+            if (keyQueue.isEmpty())
+            {
+                readBatch();
+                if (keyQueue.isEmpty())
+                    return null;
+            }
+            return keyQueue.peek();
+        }
+
+        private void readBatch()
+        {
+            var results = graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
+            if (bits == null || bits instanceof KeyRangeFilteringBits)
+                bits = new InvertedFilteringBits(bits);
+
+            while (results.hasNext())
+            {
+                var r = results.next();
+                ((InvertedFilteringBits)bits).set(r.vectorOrdinal);
+                keyQueue.addAll(r.keys);
+            }
+        }
+    }
+
+    private class InvertedFilteringBits implements Bits
+    {
+        private final BitSet ignoredBits = new SparseFixedBitSet(writeCount.intValue());
+        private final Bits rangeBits;
+
+        InvertedFilteringBits(Bits rangeBits)
+        {
+            this.rangeBits = rangeBits;
+        }
+
+        public void set(int index)
+        {
+            ignoredBits.set(index);
+        }
+
+        @Override
+        public boolean get(int index)
+        {
+            return (rangeBits == null || rangeBits.get(index)) && !ignoredBits.get(index);
+        }
+
+        @Override
+        public int length()
+        {
+            return ignoredBits.length();
         }
     }
 }

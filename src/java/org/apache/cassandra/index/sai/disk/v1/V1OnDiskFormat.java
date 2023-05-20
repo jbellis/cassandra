@@ -42,6 +42,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.disk.format.OnDiskFormat;
+import org.apache.cassandra.index.sai.disk.hnsw.VectorMemtableIndex;
 import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.metrics.AbstractMetrics;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
@@ -177,13 +178,13 @@ public class V1OnDiskFormat implements OnDiskFormat
                         prettyPrintMemory(limiter.currentBytesUsed()));
 
             if (index.getIndexContext().getValidator().isVector())
-                return new VectorIndexWriter(indexDescriptor, index.getIndexContext());
+                return new VectorIndexWriter((VectorMemtableIndex) index.getIndexContext().getPendingMemtableIndex(tracker), indexDescriptor, index.getIndexContext());
 
             return new SSTableIndexWriter(indexDescriptor, index.getIndexContext(), limiter, index.isIndexValid());
         }
 
         if (index.getIndexContext().getValidator().isVector())
-            return new VectorIndexWriter(indexDescriptor, index.getIndexContext());
+            return new VectorIndexWriter((VectorMemtableIndex) index.getIndexContext().getPendingMemtableIndex(tracker), indexDescriptor, index.getIndexContext());
 
         return new MemtableIndexWriter(index.getIndexContext().getPendingMemtableIndex(tracker),
                                        indexDescriptor,

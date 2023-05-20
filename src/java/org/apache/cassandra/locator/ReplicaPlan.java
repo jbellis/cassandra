@@ -68,7 +68,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
     {
         // all nodes we *could* contacts; typically all natural replicas that are believed to be alive
         // we will consult this collection to find uncontacted nodes we might contact if we doubt we will meet consistency level
-        private final E candidates;
+        protected final E candidates;
 
         ForRead(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, E candidates, E contacts)
         {
@@ -141,6 +141,27 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         ForRangeRead withContact(EndpointsForRange newContact)
         {
             return new ForRangeRead(keyspace, replicationStrategy, consistencyLevel, range, candidates(), newContact, vnodeCount);
+        }
+    }
+
+    public static class ForFullRangeRead extends ForRangeRead
+    {
+        public ForFullRangeRead(Keyspace keyspace,
+                                AbstractReplicationStrategy replicationStrategy,
+                                ConsistencyLevel consistencyLevel,
+                                AbstractBounds<PartitionPosition> range,
+                                EndpointsForRange candidates,
+                                EndpointsForRange contact,
+                                int vnodeCount)
+        {
+            super(keyspace, replicationStrategy, consistencyLevel, range, candidates, contact, vnodeCount);
+        }
+
+
+        @Override
+        public int blockFor()
+        {
+            return candidates.size();
         }
     }
 

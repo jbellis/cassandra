@@ -101,6 +101,9 @@ public class RangeCommands
             Tracing.trace("Submitting range requests on {} ranges with a concurrency of {}", replicaPlans.size(), concurrencyFactor);
         }
 
+        if (command.isTopK())
+            return new ScanAllRangesCommandIterator(keyspace, replicaPlans, command, concurrencyFactor, maxConcurrencyFactor, replicaPlans.size(), queryStartNanoTime, readTracker);
+
         ReplicaPlanMerger mergedReplicaPlans = new ReplicaPlanMerger(replicaPlans, keyspace, consistencyLevel);
 
         return RangeCommandIterator.create(mergedReplicaPlans,

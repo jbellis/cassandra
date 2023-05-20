@@ -51,7 +51,7 @@ public abstract class RangeCommandIterator extends AbstractIterator<RowIterator>
     public final ClientRangeRequestMetrics rangeMetrics;
 
     protected final CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans;
-    private final int totalRangeCount;
+    protected final int totalRangeCount;
     protected final PartitionRangeReadCommand command;
     protected final boolean enforceStrictLiveness;
 
