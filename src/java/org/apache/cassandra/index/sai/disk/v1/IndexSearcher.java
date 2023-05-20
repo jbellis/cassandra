@@ -83,7 +83,7 @@ public abstract class IndexSearcher implements Closeable
      *
      * @return {@link RangeIterator} that matches given expression
      */
-    public abstract RangeIterator search(Expression expression, SSTableQueryContext queryContext, boolean defer) throws IOException;
+    public abstract RangeIterator search(Expression expression, SSTableQueryContext queryContext, boolean defer, int limit) throws IOException;
 
     RangeIterator toIterator(PostingList postingList, SSTableQueryContext queryContext, boolean defer) throws IOException
     {

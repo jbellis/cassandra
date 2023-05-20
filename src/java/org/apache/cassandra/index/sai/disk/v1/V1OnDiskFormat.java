@@ -31,6 +31,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
@@ -65,12 +66,16 @@ public class V1OnDiskFormat implements OnDiskFormat
                                                                                  IndexComponent.OFFSETS_VALUES);
     private static final Set<IndexComponent> LITERAL_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
                                                                              IndexComponent.META,
+                                                                             IndexComponent.VECTOR,
                                                                              IndexComponent.TERMS_DATA,
                                                                              IndexComponent.POSTING_LISTS);
     private static final Set<IndexComponent> NUMERIC_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
                                                                              IndexComponent.META,
                                                                              IndexComponent.KD_TREE,
                                                                              IndexComponent.KD_TREE_POSTING_LISTS);
+    private static final Set<IndexComponent> VECTOR_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
+                                                                            IndexComponent.META,
+                                                                            IndexComponent.VECTOR);
 
     /**
      * Global limit on heap consumed by all index segment building that occurs outside the context of Memtable flush.
@@ -172,8 +177,14 @@ public class V1OnDiskFormat implements OnDiskFormat
             logger.info(index.getIndexContext().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
                         prettyPrintMemory(limiter.currentBytesUsed()));
 
+            if (index.getIndexContext().getValidator() instanceof DenseFloat32Type)
+                return new VectorIndexWriter(indexDescriptor, index.getIndexContext());
+
             return new SSTableIndexWriter(indexDescriptor, index.getIndexContext(), limiter, index.isIndexValid());
         }
+
+        if (index.getIndexContext().getValidator() instanceof DenseFloat32Type)
+            return new VectorIndexWriter(indexDescriptor, index.getIndexContext());
 
         return new MemtableIndexWriter(index.getIndexContext().getPendingMemtableIndex(tracker),
                                        indexDescriptor,
@@ -250,6 +261,8 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public Set<IndexComponent> perIndexComponents(IndexContext indexContext)
     {
+        if (indexContext.getValidator() instanceof DenseFloat32Type)
+            return VECTOR_COMPONENTS;
         return TypeUtil.isLiteral(indexContext.getValidator()) ? LITERAL_COMPONENTS : NUMERIC_COMPONENTS;
     }
 

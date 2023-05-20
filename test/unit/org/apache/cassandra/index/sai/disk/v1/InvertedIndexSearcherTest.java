@@ -27,16 +27,19 @@ import org.junit.Test;
 import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.MemtableTermsIterator;
+import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.KDTreeIndexBuilder;
 import org.apache.cassandra.index.sai.disk.v1.trie.InvertedIndexWriter;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.SaiRandomizedTest;
 import org.apache.cassandra.service.StorageService;
@@ -46,9 +49,17 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
 
 public class InvertedIndexSearcherTest extends SaiRandomizedTest
 {
+    public static final int LIMIT = Integer.MAX_VALUE;
+
     @BeforeClass
     public static void setupCQLTester()
     {
@@ -72,7 +83,7 @@ public class InvertedIndexSearcherTest extends SaiRandomizedTest
             for (int t = 0; t < numTerms; ++t)
             {
                 try (RangeIterator results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), SSTableQueryContext.forTest(), false))
+                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), SSTableQueryContext.forTest(), false, Integer.MAX_VALUE))
                 {
                     assertEquals(results.getMinimum(), results.getCurrent());
                     assertTrue(results.hasNext());
@@ -88,7 +99,7 @@ public class InvertedIndexSearcherTest extends SaiRandomizedTest
                 }
 
                 try (RangeIterator results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), SSTableQueryContext.forTest(), false))
+                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), SSTableQueryContext.forTest(), false, Integer.MAX_VALUE))
                 {
                     assertEquals(results.getMinimum(), results.getCurrent());
                     assertTrue(results.hasNext());
@@ -111,12 +122,12 @@ public class InvertedIndexSearcherTest extends SaiRandomizedTest
             // try searching for terms that weren't indexed
             final String tooLongTerm = randomSimpleString(10, 12);
             RangeIterator results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                                                                .add(Operator.EQ, UTF8Type.instance.decompose(tooLongTerm)), SSTableQueryContext.forTest(), false);
+                                                                .add(Operator.EQ, UTF8Type.instance.decompose(tooLongTerm)), SSTableQueryContext.forTest(), false, Integer.MAX_VALUE);
             assertFalse(results.hasNext());
 
             final String tooShortTerm = randomSimpleString(1, 2);
             results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                                                      .add(Operator.EQ, UTF8Type.instance.decompose(tooShortTerm)), SSTableQueryContext.forTest(), false);
+                                                      .add(Operator.EQ, UTF8Type.instance.decompose(tooShortTerm)), SSTableQueryContext.forTest(), false, Integer.MAX_VALUE);
             assertFalse(results.hasNext());
         }
     }
@@ -130,7 +141,7 @@ public class InvertedIndexSearcherTest extends SaiRandomizedTest
         try (IndexSearcher searcher = buildIndexAndOpenSearcher(numTerms, numPostings, termsEnum))
         {
             searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                            .add(Operator.GT, UTF8Type.instance.decompose("a")), SSTableQueryContext.forTest(), false);
+                            .add(Operator.GT, UTF8Type.instance.decompose("a")), SSTableQueryContext.forTest(), false, Integer.MAX_VALUE);
 
             fail("Expect IllegalArgumentException thrown, but didn't");
         }

@@ -131,9 +131,9 @@ public class Segment implements Closeable
      * @param defer create the iterator in a deferred state
      * @return range iterator that matches given expression
      */
-    public RangeIterator search(Expression expression, SSTableQueryContext context, boolean defer) throws IOException
+    public RangeIterator search(Expression expression, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        return index.search(expression, context, defer);
+        return index.search(expression, context, defer, limit);
     }
 
     @Override

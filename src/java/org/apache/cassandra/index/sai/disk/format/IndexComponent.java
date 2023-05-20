@@ -29,6 +29,12 @@ public enum IndexComponent
      * V1
      */
     META("Meta"),
+
+    /**
+     * Lucene creates 3 vector files with ".vex", ".vec" and ".vem" extensions
+     */
+    VECTOR("Vector"),
+
     /**
      * KDTree written by {@code BKDWriter} indexes mappings of term to one ore more segment row IDs
      * (segment row ID = SSTable row ID - segment row ID offset).
