@@ -34,7 +34,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
@@ -49,7 +48,6 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.lucene.index.VectorEncoding;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
@@ -61,7 +59,7 @@ public class VectorMemtableIndex implements MemtableIndex
     private final IndexContext indexContext;
     private final ByteBufferVectorValues vectorValues = new ByteBufferVectorValues();
     private final ArrayList<PrimaryKey> keys = new ArrayList<>();
-    private final HnswGraphBuilder builder;
+    private final HnswGraphBuilder<float[]> builder;
     private final LongAdder writeCount = new LongAdder();
 
     private final AtomicInteger cachedDimensions = new AtomicInteger();
@@ -72,12 +70,11 @@ public class VectorMemtableIndex implements MemtableIndex
         this.indexContext = indexContext;
         try
         {
-            // TODO make similarity and possibly M + ef configurable
             builder = HnswGraphBuilder.create(vectorValues,
                                               VectorEncoding.FLOAT32,
-                                              VectorSimilarityFunction.COSINE,
-                                              16,
-                                              100,
+                                              indexContext.getIndexWriterConfig().getSimilarityFunction(),
+                                              indexContext.getIndexWriterConfig().getMaximumNodeConnections(),
+                                              indexContext.getIndexWriterConfig().getConstructionBeamWidth(),
                                               ThreadLocalRandom.current().nextLong());
         }
         catch (IOException e)
@@ -110,7 +107,7 @@ public class VectorMemtableIndex implements MemtableIndex
         assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
         var buffer = expr.lower.value.raw;
-        var qv = DenseFloat32Type.Serializer.instance.deserialize(buffer);
+        float[] qv = (float[])indexContext.getValidator().getSerializer().deserialize(buffer);
         NeighborQueue nn;
         try
         {
@@ -123,7 +120,7 @@ public class VectorMemtableIndex implements MemtableIndex
                                           limit,
                                           vectorValues,
                                           VectorEncoding.FLOAT32,
-                                          VectorSimilarityFunction.COSINE,
+                                          indexContext.getIndexWriterConfig().getSimilarityFunction(),
                                           builder.getGraph(),
                                           bits,
                                           Integer.MAX_VALUE);
@@ -240,7 +237,7 @@ public class VectorMemtableIndex implements MemtableIndex
         @Override
         public float[] vectorValue(int i)
         {
-            return DenseFloat32Type.Serializer.instance.deserialize(buffers.get(i));
+            return (float[])indexContext.getValidator().getSerializer().deserialize(buffers.get(i));
         }
 
         public float[] add(ByteBuffer buffer) {
@@ -256,7 +253,7 @@ public class VectorMemtableIndex implements MemtableIndex
 
         public long ramBytesUsed()
         {
-            return ObjectSizes.measure(buffers) + buffers.size() * (4 + 4 * dimension());
+            return ObjectSizes.measure(buffers) + buffers.size() * (4L * dimension());
         }
     }
 }

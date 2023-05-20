@@ -64,6 +64,8 @@ public abstract class IndexSearcher implements Closeable
                                      IndexDescriptor indexDescriptor,
                                      IndexContext indexContext) throws IOException
     {
+        if (indexContext.isVector())
+            return new VectorIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext);
         return TypeUtil.isLiteral(indexContext.getValidator())
                ? new InvertedIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext)
                : new KDTreeIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext);

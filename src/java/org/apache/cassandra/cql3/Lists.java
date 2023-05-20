@@ -27,9 +27,9 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.guardrails.Guardrails;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.cql3.functions.Function;
@@ -70,7 +70,7 @@ public abstract class Lists
 
     private static AbstractType<?> elementsType(AbstractType<?> type)
     {
-        if (type instanceof DenseFloat32Type) {
+        if (type instanceof VectorType) {
             return FloatType.instance;
         }
         return ((ListType) unwrap(type)).getElementsType();
@@ -186,7 +186,7 @@ public abstract class Lists
 
                 values.add(t);
             }
-            DelayedValue value = new DelayedValue(values);
+            Term.NonTerminal value = receiver.type.isVector() ? new Vectors.DelayedValue(values) : new DelayedValue(values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
@@ -194,8 +194,11 @@ public abstract class Lists
         {
             AbstractType<?> type = unwrap(receiver.type);
 
-            if (!(type instanceof ListType || type instanceof DenseFloat32Type))
+            if (!(type instanceof ListType || type.isVector()))
                 throw new InvalidRequestException(String.format("Invalid list literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
+
+            if (type.isVector() && elements.size() != ((VectorType)type).dimensions)
+                throw new InvalidRequestException(String.format("Invalid number of dimensions %s in list literal for %s of type %s", elements.size(), receiver.name, receiver.type.asCQL3Type()));
 
             ColumnSpecification valueSpec = Lists.valueSpecOf(receiver);
             for (Term.Raw rt : elements)

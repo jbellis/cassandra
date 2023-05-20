@@ -54,6 +54,11 @@ public interface CQL3Type
         return false;
     }
 
+    default boolean isVector()
+    {
+        return false;
+    }
+
     public AbstractType<?> getType();
 
     /**
@@ -87,8 +92,7 @@ public interface CQL3Type
         TINYINT     (ByteType.instance),
         UUID        (UUIDType.instance),
         VARCHAR     (UTF8Type.instance),
-        VARINT      (IntegerType.instance),
-        DENSE_F32   (DenseFloat32Type.instance);
+        VARINT      (IntegerType.instance);
 
         private final AbstractType<?> type;
 
@@ -501,6 +505,43 @@ public interface CQL3Type
         }
     }
 
+    public static class Vector implements CQL3Type
+    {
+        private final int dimensions;
+
+        public Vector(int dimensions)
+        {
+            this.dimensions = dimensions;
+        }
+
+        @Override
+        public AbstractType<?> getType()
+        {
+            return VectorType.getInstance(dimensions);
+        }
+
+        @Override
+        public String toCQLLiteral(ByteBuffer bytes, ProtocolVersion version)
+        {
+            if (bytes == null)
+                return "null";
+
+            StringBuilder target = new StringBuilder();
+
+            target.append('[');
+            target.append(getType().getSerializer().toCQLLiteral(bytes));
+            target.append(']');
+
+            return target.toString();
+        }
+
+        @Override
+        public String toString()
+        {
+            return "float vector[" + dimensions + ']';
+        }
+    }
+
     // For UserTypes, we need to know the current keyspace to resolve the
     // actual type used, so Raw is a "not yet prepared" CQL3Type.
     public abstract class Raw
@@ -600,6 +641,11 @@ public interface CQL3Type
         public static Raw tuple(List<CQL3Type.Raw> ts)
         {
             return new RawTuple(ts);
+        }
+
+        public static Raw vector(int dimensions)
+        {
+            return new RawVector(dimensions);
         }
 
         private static class RawType extends Raw
@@ -914,6 +960,42 @@ public interface CQL3Type
                 }
                 sb.append('>');
                 return sb.toString();
+            }
+        }
+
+        private static class RawVector extends Raw
+        {
+            private final int dimensions;
+
+            protected RawVector(int dimensions)
+            {
+                super(false);
+                this.dimensions = dimensions;
+            }
+
+            @Override
+            public boolean supportsFreezing()
+            {
+                return false;
+            }
+
+            @Override
+            public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
+            {
+                return new Vector(dimensions);
+            }
+
+            @Override
+            public String toString()
+            {
+                return "float vector[" + dimensions + ']';
+            }
+
+            @Override
+            public void forEachUserType(Consumer<UTName> userTypeNameConsumer)
+            {
+                // REVIEWME
+                throw new UnsupportedOperationException();
             }
         }
     }

@@ -154,6 +154,9 @@ public class StorageAttachedIndex implements Index
                                                                      IndexTarget.CUSTOM_INDEX_OPTION_NAME,
                                                                      IndexWriterConfig.POSTING_LIST_LVL_MIN_LEAVES,
                                                                      IndexWriterConfig.POSTING_LIST_LVL_SKIP_OPTION,
+                                                                     IndexWriterConfig.MAXIMUM_NODE_CONNECTIONS,
+                                                                     IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH,
+                                                                     IndexWriterConfig.SIMILARITY_FUNCTION,
                                                                      LuceneAnalyzer.INDEX_ANALYZER,
                                                                      LuceneAnalyzer.QUERY_ANALYZER);
 
@@ -162,8 +165,7 @@ public class StorageAttachedIndex implements Index
                                                                         CQL3Type.Native.SMALLINT, CQL3Type.Native.TEXT, CQL3Type.Native.TIME,
                                                                         CQL3Type.Native.TIMESTAMP, CQL3Type.Native.TIMEUUID, CQL3Type.Native.TINYINT,
                                                                         CQL3Type.Native.UUID, CQL3Type.Native.VARCHAR, CQL3Type.Native.INET,
-                                                                        CQL3Type.Native.VARINT, CQL3Type.Native.DECIMAL, CQL3Type.Native.BOOLEAN,
-                                                                        CQL3Type.Native.DENSE_F32);
+                                                                        CQL3Type.Native.VARINT, CQL3Type.Native.DECIMAL, CQL3Type.Native.BOOLEAN);
 
     private static final Set<Class<? extends IPartitioner>> ILLEGAL_PARTITIONERS =
             ImmutableSet.of(OrderPreservingPartitioner.class, LocalPartitioner.class, ByteOrderedPartitioner.class, RandomPartitioner.class);
@@ -262,7 +264,7 @@ public class StorageAttachedIndex implements Index
                     throw new InvalidRequestException("Unsupported composite type for SAI: " + subType.asCQL3Type());
             }
         }
-        else if (!SUPPORTED_TYPES.contains(type.asCQL3Type()) && !TypeUtil.isFrozen(type))
+        else if (!type.isVector() && !SUPPORTED_TYPES.contains(type.asCQL3Type()) && !TypeUtil.isFrozen(type))
         {
             throw new InvalidRequestException("Unsupported type for SAI: " + type.asCQL3Type());
         }

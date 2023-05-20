@@ -48,7 +48,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.memtable.Memtable;
@@ -405,7 +404,7 @@ public class IndexContext
         if (op.isLike() || op == Operator.LIKE) return false;
 
         if (op == Operator.ANN)
-            return column.type instanceof DenseFloat32Type;
+            return column.type.isVector();
 
         Expression.Op operator = Expression.Op.valueOf(op);
 
@@ -496,7 +495,7 @@ public class IndexContext
     public boolean isVector()
     {
         //TODO probably move this down to TypeUtils eventually
-        return getValidator() instanceof DenseFloat32Type;
+        return getValidator().isVector();
     }
 
     public boolean equals(Object obj)
@@ -654,7 +653,7 @@ public class IndexContext
         return this.segmentCompactionEnabled;
     }
 
-    public FieldInfo createFieldInfo(int vectorDimension)
+    public FieldInfo createFieldInfoForVector(int vectorDimension)
     {
         String name = this.getIndexName();
         int number = 0;
@@ -669,7 +668,7 @@ public class IndexContext
         int pointIndexDimensionCount = 0;
         int pointNumBytes = 0;
         VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
-        VectorSimilarityFunction vectorSimilarityFunction = VectorSimilarityFunction.COSINE;
+        VectorSimilarityFunction vectorSimilarityFunction = indexWriterConfig.getSimilarityFunction();
         boolean softDeletesField = false;
 
         return new FieldInfo(name, number, storeTermVector, omitNorms, storePayloads, indexOptions, docValues,
