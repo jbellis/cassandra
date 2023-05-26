@@ -21,6 +21,9 @@ package org.apache.cassandra.cql3.validation.operations;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.UntypedResultSet;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class CQLVectorTest extends CQLTester.InMemory
 {
@@ -147,5 +150,14 @@ public class CQLVectorTest extends CQLTester.InMemory
 
         execute("UPDATE %s set VALUE = [1, 1 + (int) ?] WHERE pk = 0", 1);
         test.run();
+    }
+
+    @Test
+    public void selectFloatVectorFunctions()
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
+
+        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1f, 2f));
+        execute("SELECT similarity_cosine(value, ?) FROM %s WHERe pk=0", vector(1f, 2f));
     }
 }
