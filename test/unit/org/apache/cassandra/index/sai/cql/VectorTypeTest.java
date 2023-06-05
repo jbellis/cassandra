@@ -44,8 +44,8 @@ public class VectorTypeTest extends SAITester
         var n = getRandom().nextIntBetween(0, 4);
         var ipb = InvokePointBuilder.newInvokePoint()
                                     .onClass("org.apache.cassandra.index.sai.disk.v1.VectorIndexSearcher")
-                                    .onMethod("<init>")
-                                    .atExit();
+                                    .onMethod("limitToTopResults")
+                                    .atEntry();
         var ab = ActionBuilder.newActionBuilder()
                               .actions()
                               .doAction("maxBruteForceRows = " + n);
