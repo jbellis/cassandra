@@ -35,7 +35,9 @@ public class IndexMetrics extends AbstractMetrics
     public final Gauge memtableOnHeapIndexBytes;
     public final Gauge memtableOffHeapIndexBytes;
     public final Gauge indexFileCacheBytes;
-    
+    public final Gauge hnswNeighborCacheHitRate;
+    public final Gauge vectorCacheHitRate;
+
     public final Counter memtableIndexFlushCount;
     public final Counter compactionCount;
     public final Counter memtableIndexFlushErrors;
@@ -65,5 +67,7 @@ public class IndexMetrics extends AbstractMetrics
         memtableOffHeapIndexBytes = Metrics.register(createMetricName("MemtableOffHeapIndexBytes"), context::estimatedOffHeapMemIndexMemoryUsed);
         diskUsedBytes = Metrics.register(createMetricName("DiskUsedBytes"), context::diskUsage);
         indexFileCacheBytes = Metrics.register(createMetricName("IndexFileCacheBytes"), context::indexFileCacheSize);
+        hnswNeighborCacheHitRate = Metrics.register(createMetricName("HnswNeighborsCacheHitRate"), context::hnswNeighborsCacheHitRate);
+        vectorCacheHitRate = Metrics.register(createMetricName("VectorCacheHitRate"), context::vectorCacheHitRate);
     }
 }

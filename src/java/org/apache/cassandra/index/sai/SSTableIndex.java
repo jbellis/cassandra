@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.disk.SearchableIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.index.sai.metrics.Ratio;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -84,6 +85,16 @@ public class SSTableIndex implements SegmentOrdering
     public long indexFileCacheSize()
     {
         return searchableIndex.indexFileCacheSize();
+    }
+
+    public Ratio hnswNeighborsCacheHitRate()
+    {
+        return searchableIndex.hnswNeighborsCacheHitRate();
+    }
+
+    public Ratio vectorCacheHitRate()
+    {
+        return searchableIndex.vectorCacheHitRate();
     }
 
     /**

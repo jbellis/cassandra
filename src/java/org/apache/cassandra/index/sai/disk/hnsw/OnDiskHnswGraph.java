@@ -20,7 +20,9 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.concurrent.atomic.LongAdder;
 
+import org.apache.cassandra.index.sai.metrics.Ratio;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.lucene.util.hnsw.HnswGraph;
@@ -41,6 +43,9 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
     @VisibleForTesting
     final CachedLevel[] cachedLevels;
     private final int cacheSizeInBytes;
+
+    private final LongAdder neighborsCacheHits = new LongAdder();
+    private final LongAdder neighborsCacheQueries = new LongAdder();
 
     public OnDiskHnswGraph(FileHandle fh, long segmentOffset, long segmentLength, int cacheRamBudget) throws IOException {
         this.fh = fh;
@@ -168,6 +173,11 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
         return new OnDiskView(fh.createReader());
     }
 
+    public Ratio neighborsCacheHitRate()
+    {
+        return Ratio.of(neighborsCacheHits.sum(), neighborsCacheQueries.sum());
+    }
+
     public class OnDiskView extends HnswGraph implements AutoCloseable
     {
         private final RandomAccessReader reader;
@@ -196,6 +206,7 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
             currentNeighborsRead = 0;
             long neighborsOffset;
 
+            neighborsCacheQueries.increment();
             var cachedLevel = cachedLevels[level];
             if (cachedLevel != null)
             {
@@ -204,6 +215,7 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
                     currentCachedNeighbors = cachedLevel.neighborsFor(target);
                     currentCachedLevelNode = levelNodeOf(level, target);
                     currentNeighborCount = currentCachedNeighbors.length;
+                    neighborsCacheHits.increment();
                     return;
                 }
 

@@ -22,8 +22,10 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.atomic.LongAdder;
 
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw.OnDiskVectors;
+import org.apache.cassandra.index.sai.metrics.Ratio;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.jctools.maps.NonBlockingHashMapLong;
 
@@ -46,6 +48,8 @@ public abstract class VectorCache
 
     public abstract long ramBytesUsed();
 
+    public abstract Ratio hitRate();
+
     private static final class EmptyVectorCache extends VectorCache
     {
         @Override
@@ -59,12 +63,21 @@ public abstract class VectorCache
         {
             return 0;
         }
+
+        @Override
+        public Ratio hitRate()
+        {
+            return Ratio.of(0, 0);
+        }
     }
 
     private static final class NBHMVectorCache extends VectorCache
     {
         private final NonBlockingHashMapLong<float[]> cache = new NonBlockingHashMapLong<>();
         private final int dimension;
+
+        private final LongAdder hits = new LongAdder();
+        private final LongAdder queries = new LongAdder();
 
         public NBHMVectorCache(HnswGraph hnsw, OnDiskVectors vectors, int capacityRemaining) throws IOException
         {
@@ -138,7 +151,11 @@ public abstract class VectorCache
         @Override
         public float[] get(int ordinal)
         {
-            return cache.get(ordinal);
+            queries.increment();
+            var v = cache.get(ordinal);
+            if (v != null)
+                hits.increment();
+            return v;
         }
 
         @Override
@@ -147,6 +164,12 @@ public abstract class VectorCache
             return RamEstimation.concurrentHashMapRamUsed(cache.size())
                            + (long) cache.size() * Float.BYTES * dimension;
 
+        }
+
+        @Override
+        public Ratio hitRate()
+        {
+            return Ratio.of(hits.sum(), queries.sum());
         }
     }
 }
