@@ -18,18 +18,44 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.inject.ActionBuilder;
+import org.apache.cassandra.inject.Expression;
+import org.apache.cassandra.inject.Injection;
+import org.apache.cassandra.inject.Injections;
+import org.apache.cassandra.inject.InvokePointBuilder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class VectorTypeTest extends SAITester
 {
+    @Before
+    public void setup() throws Throwable
+    {
+        // override maxBruteForceRows to a random number between 0 and 4 so that we make sure
+        // the non-brute-force path gets called during tests (which mostly involve small numbers of rows)
+        var n = getRandom().nextIntBetween(0, 4);
+        var ipb = InvokePointBuilder.newInvokePoint()
+                                    .onClass("org.apache.cassandra.index.sai.disk.v1.VectorIndexSearcher")
+                                    .onMethod("<init>")
+                                    .atExit();
+        var ab = ActionBuilder.newActionBuilder()
+                              .actions()
+                              .doAction("maxBruteForceRows = " + n);
+        var changeBruteForceThreshold = Injections.newCustom("force_non_bruteforce_queries")
+                                                  .add(ipb)
+                                                  .add(ab)
+                                                  .build();
+        Injections.inject(changeBruteForceThreshold);
+    }
+
     @Test
     public void endToEndTest() throws Throwable
     {
