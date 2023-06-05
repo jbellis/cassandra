@@ -34,7 +34,6 @@ import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
 import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
-import org.apache.cassandra.index.sai.metrics.Ratio;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -71,18 +70,6 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     public long indexFileCacheSize()
     {
         return graph.ramBytesUsed();
-    }
-
-    @Override
-    public Ratio hnswNeighborsCacheHitRate()
-    {
-        return graph.hnswNeighborsCacheHitRate();
-    }
-
-    @Override
-    public Ratio vectorCacheHitRate()
-    {
-        return graph.vectorCacheHitRate();
     }
 
     @Override

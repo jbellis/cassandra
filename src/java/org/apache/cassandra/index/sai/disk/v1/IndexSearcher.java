@@ -31,7 +31,6 @@ import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.SSTableRowIdPostingList;
 import org.apache.cassandra.index.sai.disk.SSTableRowIdsRangeIterator;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.metrics.Ratio;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -82,22 +81,6 @@ public abstract class IndexSearcher implements Closeable, SegmentOrdering
      * @return memory usage of underlying on-disk data structure
      */
     public abstract long indexFileCacheSize();
-
-    /**
-     * return cache hit rate of hnsw ordinals
-     */
-    public Ratio hnswNeighborsCacheHitRate()
-    {
-        return null;
-    }
-
-    /**
-     * return cache hit rate of vector values
-     */
-    public Ratio vectorCacheHitRate()
-    {
-        return null;
-    }
 
     /**
      * Search on-disk index synchronously.

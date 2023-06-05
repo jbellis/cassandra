@@ -39,7 +39,6 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.RatioGauge;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ClusteringComparator;
@@ -64,7 +63,6 @@ import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.IndexMetrics;
-import org.apache.cassandra.index.sai.metrics.Ratio;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -77,8 +75,6 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-
-import static java.lang.Double.NaN;
 
 /**
  * Manage metadata for each column index.
@@ -644,26 +640,6 @@ public class IndexContext
                         .stream()
                         .mapToLong(SSTableIndex::indexFileCacheSize)
                         .sum();
-    }
-
-    public double hnswNeighborsCacheHitRate()
-    {
-        return getView().getIndexes()
-                        .stream()
-                        .map(SSTableIndex::hnswNeighborsCacheHitRate)
-                        .reduce((r1, r2) -> Ratio.of(r1.numerator + r2.numerator, r1.denominator + r2.denominator))
-                        .map(Ratio::getValue)
-                        .orElse(NaN);
-    }
-
-    public double vectorCacheHitRate()
-    {
-        return getView().getIndexes()
-                        .stream()
-                        .map(SSTableIndex::vectorCacheHitRate)
-                        .reduce((r1, r2) -> Ratio.of(r1.numerator + r2.numerator, r1.denominator + r2.denominator))
-                        .map(Ratio::getValue)
-                        .orElse(NaN);
     }
 
     public IndexFeatureSet indexFeatureSet()

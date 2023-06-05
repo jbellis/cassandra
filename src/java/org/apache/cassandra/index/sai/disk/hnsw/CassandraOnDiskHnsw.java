@@ -31,7 +31,6 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
-import org.apache.cassandra.index.sai.metrics.Ratio;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.lucene.index.VectorEncoding;
@@ -67,16 +66,6 @@ public class CassandraOnDiskHnsw
             vectorDimension = vectors.dimension;
             vectorCache = VectorCache.load(hnsw.getView(), vectors, CassandraRelevantProperties.SAI_HNSW_VECTOR_CACHE_BYTES.getInt());
         }
-    }
-
-    public Ratio hnswNeighborsCacheHitRate()
-    {
-        return hnsw.neighborsCacheHitRate();
-    }
-
-    public Ratio vectorCacheHitRate()
-    {
-        return vectorCache.hitRate();
     }
 
     public long ramBytesUsed()

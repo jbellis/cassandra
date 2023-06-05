@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 import com.google.common.collect.ImmutableList;
 
@@ -35,7 +34,6 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.SearchableIndex;
-import org.apache.cassandra.index.sai.metrics.Ratio;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -118,26 +116,6 @@ public class V1SearchableIndex implements SearchableIndex
     public long indexFileCacheSize()
     {
         return segments.stream().mapToLong(Segment::indexFileCacheSize).sum();
-    }
-
-    @Override
-    public Ratio hnswNeighborsCacheHitRate()
-    {
-        return segments.stream()
-                       .map(Segment::hnswNeighborsCacheHitRate)
-                       .filter(Objects::nonNull)
-                       .reduce((r1, r2) -> Ratio.of(r1.numerator + r2.numerator, r1.denominator + r2.denominator))
-                       .orElse(null);
-    }
-
-    @Override
-    public Ratio vectorCacheHitRate()
-    {
-        return segments.stream()
-                       .map(Segment::vectorCacheHitRate)
-                       .filter(Objects::nonNull)
-                       .reduce((r1, r2) -> Ratio.of(r1.numerator + r2.numerator, r1.denominator + r2.denominator))
-                       .orElse(null);
     }
 
     @Override

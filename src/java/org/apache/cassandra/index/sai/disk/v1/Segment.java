@@ -32,7 +32,6 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
-import org.apache.cassandra.index.sai.metrics.Ratio;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -124,16 +123,6 @@ public class Segment implements Closeable, SegmentOrdering
     public long indexFileCacheSize()
     {
         return index == null ? 0 : index.indexFileCacheSize();
-    }
-
-    public Ratio hnswNeighborsCacheHitRate()
-    {
-        return index == null ? null : index.hnswNeighborsCacheHitRate();
-    }
-
-    public Ratio vectorCacheHitRate()
-    {
-        return index == null ? null : index.vectorCacheHitRate();
     }
 
     /**
