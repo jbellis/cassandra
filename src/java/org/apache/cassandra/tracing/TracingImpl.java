@@ -37,6 +37,8 @@ import org.apache.cassandra.utils.WrappedRunnable;
  */
 class TracingImpl extends Tracing
 {
+    boolean rangeQuery = false;
+
     public void stopSessionImpl()
     {
         final TraceStateImpl state = getStateImpl();
@@ -115,5 +117,19 @@ class TracingImpl extends Tracing
                 TraceStateImpl.mutateWithCatch(clientState, mutation);
             }
         });
+    }
+
+    @Override
+    public boolean isRangeQuery()
+    {
+        assert isTracing();
+        return rangeQuery;
+    }
+
+    @Override
+    public void setRangeQuery(boolean rangeQuery)
+    {
+        assert isTracing();
+        this.rangeQuery = rangeQuery;
     }
 }

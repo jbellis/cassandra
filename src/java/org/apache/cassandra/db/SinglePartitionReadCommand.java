@@ -603,7 +603,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             return queryMemtableAndSSTablesInTimestampOrder(cfs, (ClusteringIndexNamesFilter)clusteringIndexFilter(), controller, startTimeNanos);
         }
 
-        Tracing.trace("Acquiring sstable references");
+        if (Tracing.)
+            Tracing.trace("Acquiring sstable references");
+
         ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
         view.sstables.sort(SSTableReader.maxTimestampDescending);
         ClusteringIndexFilter filter = clusteringIndexFilter();
@@ -826,12 +828,16 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      */
     private UnfilteredRowIterator queryMemtableAndSSTablesInTimestampOrder(ColumnFamilyStore cfs, ClusteringIndexNamesFilter filter, ReadExecutionController controller, long startTimeNanos)
     {
-        Tracing.trace("Acquiring sstable references");
+        if (!controller.isRangeCommand())
+            Tracing.trace("Acquiring sstable references");
+
         ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
 
         ImmutableBTreePartition result = null;
 
-        Tracing.trace("Merging memtable contents");
+        if (!controller.isRangeCommand())
+            Tracing.trace("Merging memtable contents");
+
         for (Memtable memtable : view.memtables)
         {
             Partition partition = memtable.getPartition(partitionKey());

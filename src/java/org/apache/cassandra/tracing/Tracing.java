@@ -155,6 +155,17 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
         return state.get().ttl;
     }
 
+    public boolean isRangeQuery()
+    {
+        assert isTracing();
+        return false;
+    }
+
+    public void setRangeQuery(boolean rangeQuery)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * set traced keyspace into trace state which is later used to for billing to track source tenant at replicas.
      */
