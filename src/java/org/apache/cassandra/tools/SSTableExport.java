@@ -80,10 +80,10 @@ public class SSTableExport
             System.exit(1);
         }
 
-//        Arrays.stream(ssTableDirectory.toJavaIOFile().listFiles((dir, name) -> name.endsWith("-Data.db")))
-//              .parallel().forEach(SSTableExport::processSSTable);
-        Arrays.stream(ssTableDirectory.listFiles((dir, name) -> name.endsWith("+Vector.db")))
-              .parallel().forEach(SSTableExport::processVectors);
+        Arrays.stream(ssTableDirectory.listFiles((dir, name) -> name.endsWith("-Data.db")))
+              .parallel().forEach(SSTableExport::processSSTable);
+//        Arrays.stream(ssTableDirectory.listFiles((dir, name) -> name.endsWith("+Vector.db")))
+//              .parallel().forEach(SSTableExport::processVectors);
         System.exit(0);
     }
 
@@ -139,30 +139,27 @@ public class SSTableExport
             AtomicLong position = new AtomicLong();
             AtomicInteger rowId = new AtomicInteger();
             AtomicInteger segmentIndex = new AtomicInteger();
+            AtomicInteger badVectorCount = new AtomicInteger();
+            AtomicInteger invalidDataVectorCount = new AtomicInteger();
             partitions.forEach(partition ->
             {
                 position.set(currentScanner.getCurrentPosition());
                 partition.forEachRemaining(row ->
                 {
+                    if (vectors.get() == null)
+                        return;
+
                     for (var cd : (AbstractRow) row) {
                         var type = cd.column().type;
                         var cell = (Cell<?>) cd;
                         if (type instanceof VectorType)
                         {
-                            if (rowId.get() > ordinalSegments.get(segmentIndex.get()).lastRowId) {
-                                vectorsOffset.addAndGet(8L + ordinalSegments.get(segmentIndex.get()).vectorCount * 4L * vectors.get().dimension());
-                                vectors.set(new OnDiskVectors(vectorsHandle, vectorsOffset.get()));
-                                segmentIndex.incrementAndGet();
-                                var sStart = ordinalSegments.get(segmentIndex.get()).offset;
-                                if (sStart < 0) {
-                                    throw new RuntimeException("Row " + rowId.get() + " out of bounds but no more segments");
-                                }
-                                var sLength = ordinalSegments.get(segmentIndex.get() + 1).offset - sStart;
-                                ordinals.set(new OnDiskOrdinalsMap(ordinalsHandle, sStart, sLength).getOrdinalsView());
-                                rowId.set(0);
-                            }
-
                             float[] v1 = ((VectorType<?>) type).composeAsFloat(cell.buffer());
+                            try {
+                                CassandraOnHeapHnsw.checkInBounds(v1);
+                            } catch (IllegalArgumentException e) {
+                                invalidDataVectorCount.incrementAndGet();
+                            }
                             float[] v2;
                             try
                             {
@@ -173,20 +170,25 @@ public class SSTableExport
                                 throw new RuntimeException(e);
                             }
                             if (!Arrays.equals(v1, v2)) {
-                                System.out.printf("Row %d mismatch%n", rowId.get());
+                                badVectorCount.incrementAndGet();
                             }
                             break;
                         }
                     }
+
                     rowId.incrementAndGet();
+                    if (rowId.get() > ordinalSegments.get(segmentIndex.get()).lastRowId) {
+                        // TODO get multiple segments working
+                        vectors.set(null);
+                    }
                 });
             });
-            System.out.println("Scanned " + rowId.get() + " rows");
+            System.out.printf("%d bad index vectors, %d invalid in source across %d rows scanned for file %s%n", badVectorCount.get(), invalidDataVectorCount.get(), rowId.get(), ssTableFileName);
         }
-        catch (IOException e)
+        catch (Throwable e)
         {
             // throwing exception outside main with broken pipe causes windows cmd to hang
-            e.printStackTrace(System.err);
+            System.err.println("Error reading " + ssTableFileName);
         }
     }
 }
