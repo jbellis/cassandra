@@ -21,7 +21,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -36,18 +38,26 @@ import org.apache.commons.cli.PosixParser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.marshal.VectorType;
+import org.apache.cassandra.db.rows.AbstractRow;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.sai.disk.hnsw.OnDiskOrdinalsMap;
+import org.apache.cassandra.index.sai.disk.hnsw.OnDiskVectors;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -143,78 +153,71 @@ public class SSTableExport
             System.err.println("Cannot find file " + ssTableFileName);
             System.exit(1);
         }
+        System.out.println("Opening " + ssTableFileName);
         Descriptor desc = Descriptor.fromFilename(ssTableFileName);
         try
         {
             TableMetadata metadata = Util.metadataFromSSTable(desc);
             SSTableReader sstable = desc.getFormat().getReaderFactory().openNoValidation(desc, TableMetadataRef.forOfflineTools(metadata));
-            IPartitioner partitioner = sstable.getPartitioner();
-            if (cmd.hasOption(ENUMERATE_KEYS_OPTION))
-            {
-                try (KeyIterator iter = KeyIterator.forSSTable(sstable))
-                {
-                    JsonTransformer.keysToJson(null, Util.iterToStream(iter),
-                                               cmd.hasOption(RAW_TIMESTAMPS),
-                                               metadata,
-                                               System.out);
-                }
-            }
-            else
-            {
-                final ISSTableScanner currentScanner;
-                if ((keys != null) && (keys.length > 0))
-                {
-                    List<AbstractBounds<PartitionPosition>> bounds = Arrays.stream(keys)
-                            .filter(key -> !excludes.contains(key))
-                            .map(metadata.partitionKeyType::fromString)
-                            .map(partitioner::decorateKey)
-                            .sorted()
-                            .map(DecoratedKey::getToken)
-                            .map(token -> new Bounds<>(token.minKeyBound(), token.maxKeyBound())).collect(Collectors.toList());
-                    currentScanner = sstable.getScanner(bounds.iterator());
-                }
-                else
-                {
-                    currentScanner = sstable.getScanner();
-                }
-                Stream<UnfilteredRowIterator> partitions = Util.iterToStream(currentScanner).filter(i ->
-                    excludes.isEmpty() || !excludes.contains(metadata.partitionKeyType.getString(i.partitionKey().getKey()))
-                );
-                if (cmd.hasOption(DEBUG_OUTPUT_OPTION))
-                {
-                    AtomicLong position = new AtomicLong();
-                    partitions.forEach(partition ->
-                    {
-                        position.set(currentScanner.getCurrentPosition());
 
-                        if (!partition.partitionLevelDeletion().isLive())
-                        {
-                            System.out.println("[" + metadata.partitionKeyType.getString(partition.partitionKey().getKey()) + "]@" +
-                                               position.get() + " " + partition.partitionLevelDeletion());
-                        }
-                        if (!partition.staticRow().isEmpty())
-                        {
-                            System.out.println("[" + metadata.partitionKeyType.getString(partition.partitionKey().getKey()) + "]@" +
-                                               position.get() + " " + partition.staticRow().toString(metadata, true));
-                        }
-                        partition.forEachRemaining(row ->
-                        {
-                            System.out.println(
-                            "[" + metadata.partitionKeyType.getString(partition.partitionKey().getKey()) + "]@"
-                            + position.get() + " " + row.toString(metadata, false, true));
-                            position.set(currentScanner.getCurrentPosition());
-                        });
-                    });
-                }
-                else if (cmd.hasOption(PARTITION_JSON_LINES))
+            var vectorFile = new File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+Vector.db");
+            var offsetsFile = new File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+PostingLists.db");
+            FileHandle vectorsHandle = new FileHandle.Builder(vectorFile).mmapped(true).complete();
+            var ordinalSegmentOffsets = new OrdinalsMapOffsetReconstructor(offsetsFile.toJavaIOFile());
+            AtomicLong vectorsOffset = new AtomicLong();
+            var vectors = new AtomicReference<>(new OnDiskVectors(vectorsHandle, vectorsOffset.get()));
+            FileHandle ordinalsHandle = new FileHandle.Builder(offsetsFile).mmapped(true).complete();
+            List<Long> segmentOffsets = ordinalSegmentOffsets.getSegmentOffsets();
+            var ordinals = new AtomicReference<>(new OnDiskOrdinalsMap(ordinalsHandle, 0, segmentOffsets.get(1)).getOrdinalsView());
+//            assert ordinalSegmentOffsets.getVectorCount() == vectors.get().size() : "Vector count mismatch " + ordinalSegmentOffsets.getVectorCount() + " != " + vectors.get().size();
+
+            final ISSTableScanner currentScanner;
+            currentScanner = sstable.getScanner();
+            Stream<UnfilteredRowIterator> partitions = Util.iterToStream(currentScanner).filter(i ->
+                excludes.isEmpty() || !excludes.contains(metadata.partitionKeyType.getString(i.partitionKey().getKey()))
+            );
+            AtomicLong position = new AtomicLong();
+            AtomicInteger rowId = new AtomicInteger();
+            AtomicInteger segment = new AtomicInteger();
+            partitions.forEach(partition ->
+            {
+                position.set(currentScanner.getCurrentPosition());
+                partition.forEachRemaining(row ->
                 {
-                    JsonTransformer.toJsonLines(currentScanner, partitions, cmd.hasOption(RAW_TIMESTAMPS), metadata, System.out);
-                }
-                else
-                {
-                    JsonTransformer.toJson(currentScanner, partitions, cmd.hasOption(RAW_TIMESTAMPS), metadata, System.out);
-                }
-            }
+                    for (var cd : (AbstractRow) row) {
+                        var type = cd.column().type;
+                        var cell = (Cell<?>) cd;
+                        if (type instanceof VectorType)
+                        {
+                            float[] v1 = ((VectorType<?>) type).composeAsFloat(cell.buffer());
+                            float[] v2;
+                            try
+                            {
+                                v2 = vectors.get().vectorValue(ordinals.get().getOrdinalForRowId(rowId.get()));
+                            }
+                            catch (IOException e)
+                            {
+                                throw new RuntimeException(e);
+                            }
+                            if (!Arrays.equals(v1, v2)) {
+                                System.out.printf("Row %d mismatch%n", rowId.get());
+                            }
+                            if (rowId.get() >= ordinalSegmentOffsets.getLastRowId()) {
+                                vectorsOffset.addAndGet(8L + ordinalSegmentOffsets.getVectorCount() * 4L * v1.length);
+                                vectors.set(new OnDiskVectors(vectorsHandle, vectorsOffset.get()));
+                                segment.incrementAndGet();
+                                var sStart = segmentOffsets.get(segment.get());
+                                var sLength = segmentOffsets.get(segment.get() + 1) - sStart;
+                                ordinals.set(new OnDiskOrdinalsMap(ordinalsHandle, sStart, sLength).getOrdinalsView());
+                                rowId.set(0);
+                            }
+                            break;
+                        }
+                    }
+                    rowId.incrementAndGet();
+                });
+            });
+            System.out.println("Scanned " + rowId.get() + " rows");
         }
         catch (IOException e)
         {

@@ -42,6 +42,7 @@ public class OnDiskVectors implements RandomAccessVectorValues<float[]>, AutoClo
 
             this.size = reader.readInt();
             this.dimension = reader.readInt();
+            assert dimension < 100000; // sanity check
             this.vector = new float[dimension];
         }
         catch (Exception e)
