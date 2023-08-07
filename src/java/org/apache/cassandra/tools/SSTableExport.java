@@ -19,20 +19,15 @@ package org.apache.cassandra.tools;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.VectorType;
@@ -40,6 +35,7 @@ import org.apache.cassandra.db.rows.AbstractRow;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnHeapHnsw;
 import org.apache.cassandra.index.sai.disk.hnsw.OnDiskOrdinalsMap;
 import org.apache.cassandra.index.sai.disk.hnsw.OnDiskVectors;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -61,41 +57,9 @@ public class SSTableExport
         FBUtilities.preventIllegalAccessWarnings();
     }
 
-    private static final String KEY_OPTION = "k";
-    private static final String DEBUG_OUTPUT_OPTION = "d";
-    private static final String EXCLUDE_KEY_OPTION = "x";
-    private static final String ENUMERATE_KEYS_OPTION = "e";
-    private static final String RAW_TIMESTAMPS = "t";
-    private static final String PARTITION_JSON_LINES = "l";
-
-    private static final Options options = new Options();
-    private static CommandLine cmd;
-
     static
     {
         DatabaseDescriptor.clientInitialization();
-
-        Option optKey = new Option(KEY_OPTION, true, "List of included partition keys");
-        // Number of times -k <key> can be passed on the command line.
-        optKey.setArgs(500);
-        options.addOption(optKey);
-
-        Option excludeKey = new Option(EXCLUDE_KEY_OPTION, true, "List of excluded partition keys");
-        // Number of times -x <key> can be passed on the command line.
-        excludeKey.setArgs(500);
-        options.addOption(excludeKey);
-
-        Option optEnumerate = new Option(ENUMERATE_KEYS_OPTION, false, "enumerate partition keys only");
-        options.addOption(optEnumerate);
-
-        Option debugOutput = new Option(DEBUG_OUTPUT_OPTION, false, "CQL row per line internal representation");
-        options.addOption(debugOutput);
-
-        Option rawTimestamps = new Option(RAW_TIMESTAMPS, false, "Print raw timestamps instead of iso8601 date strings");
-        options.addOption(rawTimestamps);
-
-        Option partitionJsonLines= new Option(PARTITION_JSON_LINES, false, "Output json lines, by partition");
-        options.addOption(partitionJsonLines);
     }
 
     /**
@@ -109,43 +73,51 @@ public class SSTableExport
     @SuppressWarnings("resource")
     public static void main(String[] args) throws ConfigurationException
     {
-        CommandLineParser parser = new PosixParser();
-        try
+        java.io.File ssTableDirectory = new java.io.File(new File(args[0]).absolutePath());
+        if (!ssTableDirectory.isDirectory())
         {
-            cmd = parser.parse(options, args);
-        }
-        catch (ParseException e1)
-        {
-            System.err.println(e1.getMessage());
-            printUsage();
+            System.err.println("Path is not a directory");
             System.exit(1);
         }
 
-        String[] keys = cmd.getOptionValues(KEY_OPTION);
-        HashSet<String> excludes = new HashSet<>(Arrays.asList(
-                cmd.getOptionValues(EXCLUDE_KEY_OPTION) == null
-                        ? new String[0]
-                        : cmd.getOptionValues(EXCLUDE_KEY_OPTION)));
+//        Arrays.stream(ssTableDirectory.toJavaIOFile().listFiles((dir, name) -> name.endsWith("-Data.db")))
+//              .parallel().forEach(SSTableExport::processSSTable);
+        Arrays.stream(ssTableDirectory.listFiles((dir, name) -> name.endsWith("+Vector.db")))
+              .parallel().forEach(SSTableExport::processVectors);
+        System.exit(0);
+    }
 
-        if (cmd.getArgs().length != 1)
+    private static void processVectors(java.io.File vectorsFileName)
+    {
+        var vectorFile = new File(vectorsFileName);
+        try (FileHandle vectorsHandle = new FileHandle.Builder(vectorFile).mmapped(true).complete())
         {
-            String msg = "You must supply exactly one sstable";
-            if (cmd.getArgs().length == 0 && (keys != null && keys.length > 0 || !excludes.isEmpty()))
-                msg += ", which should be before the -k/-x options so it's not interpreted as a partition key.";
-
-            System.err.println(msg);
-            printUsage();
-            System.exit(1);
+            long vectorsOffset = 0;
+            var vectors = new OnDiskVectors(vectorsHandle, vectorsOffset);
+            int bad = 0;
+            while (vectorsOffset < vectorFile.length())
+            {
+                for (int i = 0; i < vectors.size(); i++)
+                {
+                    float[] v = vectors.vectorValue(i);
+                    try
+                    {
+                        CassandraOnHeapHnsw.checkInBounds(v);
+                    } catch (IllegalArgumentException e) {
+                        bad++;
+                    }
+                }
+                vectorsOffset += 8L + vectors.size() * 4L * vectors.dimension();
+            }
+            System.out.printf("%d bad vectors in %s%n", bad, vectorsFileName);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-        String ssTableFileName = new File(cmd.getArgs()[0]).absolutePath();
+    }
 
-        if (!new File(ssTableFileName).exists())
-        {
-            System.err.println("Cannot find file " + ssTableFileName);
-            System.exit(1);
-        }
-        System.out.println("Opening " + ssTableFileName);
-        Descriptor desc = Descriptor.fromFilename(ssTableFileName);
+    private static void processSSTable(java.io.File ssTableFileName)
+    {
+        Descriptor desc = Descriptor.fromFilename(new File(ssTableFileName));
         try
         {
             TableMetadata metadata = Util.metadataFromSSTable(desc);
@@ -163,9 +135,7 @@ public class SSTableExport
 
             final ISSTableScanner currentScanner;
             currentScanner = sstable.getScanner();
-            Stream<UnfilteredRowIterator> partitions = Util.iterToStream(currentScanner).filter(i ->
-                excludes.isEmpty() || !excludes.contains(metadata.partitionKeyType.getString(i.partitionKey().getKey()))
-            );
+            Stream<UnfilteredRowIterator> partitions = Util.iterToStream(currentScanner);
             AtomicLong position = new AtomicLong();
             AtomicInteger rowId = new AtomicInteger();
             AtomicInteger segmentIndex = new AtomicInteger();
@@ -218,14 +188,5 @@ public class SSTableExport
             // throwing exception outside main with broken pipe causes windows cmd to hang
             e.printStackTrace(System.err);
         }
-
-        System.exit(0);
-    }
-
-    private static void printUsage()
-    {
-        String usage = String.format("sstabledump <sstable file path> <options>%n");
-        String header = "Dump contents of given SSTable to standard output in JSON format.";
-        new HelpFormatter().printHelp(usage, header, options, "");
     }
 }
