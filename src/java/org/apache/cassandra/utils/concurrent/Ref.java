@@ -245,7 +245,7 @@ public final class Ref<T> implements RefCounted<T>
         private void reportLeak()
         {
             String id = this.toString();
-            logger.error("LEAK DETECTED: a reference ({}) to {} was not released before the reference was garbage collected", id, globalState);
+            // logger.error("LEAK DETECTED: a reference ({}) to {} was not released before the reference was garbage collected", id, globalState);
             if (DEBUG_ENABLED)
                 debug.log(id);
         }
