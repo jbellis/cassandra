@@ -33,7 +33,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.memtable.TrieMemtable;
+import org.hsqldb.Database;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -52,6 +54,7 @@ public class LongVectorTest extends SAITester
         // we don't get loaded until after TM, so we can't affect the very first memtable,
         // but this will affect all subsequent ones
         TrieMemtable.SHARD_COUNT = 4 * threadCount;
+        logger.info("Writing to " + DatabaseDescriptor.getAllDataFileLocations()[0]);
     }
 
     @FunctionalInterface
@@ -128,10 +131,13 @@ public class LongVectorTest extends SAITester
         testConcurrentOps(i -> {
             var R = ThreadLocalRandom.current();
             var v = sequentiallyDuplicateVector(i, dimension);
-            if (R.nextDouble() < 0.8 || keysInserted.isEmpty())
+            if (R.nextDouble() < 0.7 || keysInserted.isEmpty())
             {
                 execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
                 keysInserted.add(i);
+            } else if (R.nextDouble() < 0.2) {
+                // insert with no vector
+                execute("INSERT INTO %s (key) VALUES (?)", i);
             } else if (R.nextDouble() < 0.1) {
                 var key = keysInserted.getRandom();
                 execute("DELETE FROM %s WHERE key = ?", key);

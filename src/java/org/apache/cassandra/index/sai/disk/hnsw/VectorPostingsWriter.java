@@ -25,11 +25,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.Pair;
 
 public class VectorPostingsWriter<T>
 {
+    private static final Logger logger = LoggerFactory.getLogger(VectorPostingsWriter.class);
+
     public long writePostings(SequentialWriter writer,
                               RamAwareVectorValues vectorValues,
                               Map<float[], VectorPostings<T>> postingsMap,
@@ -46,6 +51,7 @@ public class VectorPostingsWriter<T>
     {
         writer.writeInt(deletedOrdinals.size());
         for (var ordinal : deletedOrdinals) {
+            logger.debug("Ordinal {} is deleted", ordinal);
             writer.writeInt(ordinal);
         }
     }
@@ -78,6 +84,7 @@ public class VectorPostingsWriter<T>
             writer.writeInt(rowIds.size());
             for (int r = 0; r < rowIds.size(); r++)
                 writer.writeInt(rowIds.getInt(r));
+            logger.debug("Ordinal {} -> {}", i, rowIds);
         }
         assert writer.position() == nextOffset;
     }
@@ -103,6 +110,7 @@ public class VectorPostingsWriter<T>
         for (var pair : pairs) {
             writer.writeInt(pair.left);
             writer.writeInt(pair.right);
+            logger.debug("RowId {} -> {}", pair.left, pair.right);
         }
 
         // write the position of the beginning of rowid -> ordinals mappings to the end

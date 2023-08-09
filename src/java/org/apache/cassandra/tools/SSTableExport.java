@@ -80,12 +80,12 @@ public class SSTableExport
             System.exit(1);
         }
 
-        processVectors(new java.io.File("/home/jonathan/Projects/cassandra/data/data/wikipedia/pages-750c3f2032cf11eeae989d948bdd7066/cb-11-bti-SAI+ba+ann_index+Vector.db"));
-        processSSTable(new java.io.File("/home/jonathan/Projects/cassandra/data/data/wikipedia/pages-750c3f2032cf11eeae989d948bdd7066/cb-11-bti-Data.db"));
+//        processVectors(new java.io.File("/home/jonathan/Projects/cassandra/data/data/wikipedia/pages-750c3f2032cf11eeae989d948bdd7066/cb-11-bti-SAI+ba+ann_index+Vector.db"));
+//        processSSTable(new java.io.File("/home/jonathan/Projects/cassandra/data/data/wikipedia/pages-750c3f2032cf11eeae989d948bdd7066/cb-11-bti-Data.db"));
 //        Arrays.stream(ssTableDirectory.listFiles((dir, name) -> name.endsWith("-Data.db")))
 //              .parallel().forEach(SSTableExport::processSSTable);
-//        Arrays.stream(ssTableDirectory.listFiles((dir, name) -> name.endsWith("+Vector.db")))
-//              .parallel().forEach(SSTableExport::processVectors);
+        Arrays.stream(ssTableDirectory.listFiles((dir, name) -> name.endsWith("+Vector.db")))
+              .parallel().forEach(SSTableExport::processVectors);
         System.exit(0);
     }
 
@@ -94,12 +94,13 @@ public class SSTableExport
         var vectorFile = new File(vectorsFileName);
         try (FileHandle vectorsHandle = new FileHandle.Builder(vectorFile).mmapped(true).complete())
         {
+            int segment = 0;
             long vectorsOffset = 0;
-            var vectors = new OnDiskVectors(vectorsHandle, vectorsOffset);
-            int invalid = 0;
-            int firstInvalid = -1;
             while (vectorsOffset < vectorFile.length())
             {
+                var vectors = new OnDiskVectors(vectorsHandle, vectorsOffset);
+                int invalid = 0;
+                int firstInvalid = -1;
                 for (int i = 0; i < vectors.size(); i++)
                 {
                     float[] v = vectors.vectorValue(i);
@@ -112,9 +113,15 @@ public class SSTableExport
                         invalid++;
                     }
                 }
+                if (invalid > 0) {
+                    System.out.printf("[segment %d] %d invalid vectors of %d, first at ordinal %d in %s%n", segment, invalid, vectors.size(), firstInvalid, vectorsFileName);
+                } else {
+                    System.out.printf("[segment %d] %d invalid vectors of %d in %s%n", segment, invalid, vectors.size(), vectorsFileName);
+                }
                 vectorsOffset += 8L + vectors.size() * 4L * vectors.dimension();
+                segment++;
             }
-            System.out.printf("%d invalid vectors, first at ordinal %d in %s%n", invalid, firstInvalid, vectorsFileName);
+//            assert vectorsOffset == vectorFile.length() : "File length mismatch " + vectorsOffset + " != " + vectorFile.length();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

@@ -166,10 +166,12 @@ public class CassandraOnHeapHnsw<T>
             newVector.set(true);
             var vp = new VectorPostings<T>(ordinal);
             postingsByOrdinal.put(ordinal, vp);
+            logger.debug("Added vector {} to graph at ordinal {}", Arrays.toString(v), ordinal);
             return vp;
         });
         if (postings.add(key))
         {
+            logger.debug("Added ordinal -> key mapping {} -> {}", postings.getOrdinal(), key);
             bytesUsed.addAndGet(VectorPostings.bytesPerPosting());
             if (newVector.get()) {
                 try
