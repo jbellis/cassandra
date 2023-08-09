@@ -67,6 +67,7 @@ public class OrdinalsMapOffsetReconstructor
     public void reconstructSegmentOffsets() throws IOException {
         long offset = 0;
         while (offset < reader.length()) {
+            long segmentOffset = offset;
             // Read the deleted count and calculate the offset after deleted ordinals
             reader.seek(offset);
             int deletedCount = reader.readInt();
@@ -89,7 +90,7 @@ public class OrdinalsMapOffsetReconstructor
             assert rowNodeOffset == checkedRowOffset : "RowNodeOffset " + rowNodeOffset + " does not match the last entry in the row-to-node mapping " + reader.readLong();
 
             offset = reader.getFilePointer();
-            segments.add(new Segment(offset, nVectors, lastRow));
+            segments.add(new Segment(segmentOffset, nVectors, lastRow));
         }
 
         segments.add(new Segment(reader.length(), -1, -1)); // simplifies scanning logic
