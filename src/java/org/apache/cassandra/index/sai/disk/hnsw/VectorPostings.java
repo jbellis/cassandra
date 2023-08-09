@@ -24,11 +24,16 @@ import java.util.function.Function;
 
 import com.google.common.base.Preconditions;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.agrona.collections.IntArrayList;
 import org.apache.lucene.util.RamUsageEstimator;
 
 public class VectorPostings<T>
 {
+    private static final Logger logger = LoggerFactory.getLogger(VectorPostings.class);
+
     private final List<T> postings;
     private final int ordinal;
 
@@ -74,7 +79,12 @@ public class VectorPostings<T>
             int rowId = postingTransformer.apply(key);
             // partition deletion and range deletion won't trigger index update. There is no row id for given key during flush
             if (rowId >= 0)
+            {
                 ids.add(rowId);
+                logger.debug("Mapping key {} -> rowId {}", key, rowId);
+            } else {
+                logger.debug("Omitting deleted key {}", key);
+            }
         }
 
         rowIds = ids;
