@@ -80,8 +80,10 @@ public class SSTableExport
             System.exit(1);
         }
 
-        Arrays.stream(ssTableDirectory.listFiles((dir, name) -> name.endsWith("-Data.db")))
-              .parallel().forEach(SSTableExport::processSSTable);
+        processVectors(new java.io.File("/home/jonathan/Projects/cassandra/data/data/wikipedia/pages-750c3f2032cf11eeae989d948bdd7066/cb-11-bti-SAI+ba+ann_index+Vector.db"));
+        processSSTable(new java.io.File("/home/jonathan/Projects/cassandra/data/data/wikipedia/pages-750c3f2032cf11eeae989d948bdd7066/cb-11-bti-Data.db"));
+//        Arrays.stream(ssTableDirectory.listFiles((dir, name) -> name.endsWith("-Data.db")))
+//              .parallel().forEach(SSTableExport::processSSTable);
 //        Arrays.stream(ssTableDirectory.listFiles((dir, name) -> name.endsWith("+Vector.db")))
 //              .parallel().forEach(SSTableExport::processVectors);
         System.exit(0);
@@ -94,7 +96,8 @@ public class SSTableExport
         {
             long vectorsOffset = 0;
             var vectors = new OnDiskVectors(vectorsHandle, vectorsOffset);
-            int bad = 0;
+            int invalid = 0;
+            int firstInvalid = -1;
             while (vectorsOffset < vectorFile.length())
             {
                 for (int i = 0; i < vectors.size(); i++)
@@ -104,12 +107,14 @@ public class SSTableExport
                     {
                         CassandraOnHeapHnsw.checkInBounds(v);
                     } catch (IllegalArgumentException e) {
-                        bad++;
+                        if (firstInvalid < 0)
+                            firstInvalid = i;
+                        invalid++;
                     }
                 }
                 vectorsOffset += 8L + vectors.size() * 4L * vectors.dimension();
             }
-            System.out.printf("%d bad vectors in %s%n", bad, vectorsFileName);
+            System.out.printf("%d invalid vectors, first at ordinal %d in %s%n", invalid, firstInvalid, vectorsFileName);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -139,7 +144,7 @@ public class SSTableExport
             AtomicLong position = new AtomicLong();
             AtomicInteger rowId = new AtomicInteger();
             AtomicInteger segmentIndex = new AtomicInteger();
-            AtomicInteger badVectorCount = new AtomicInteger();
+            AtomicInteger mimatchedVectorCount = new AtomicInteger();
             AtomicInteger invalidDataVectorCount = new AtomicInteger();
             partitions.forEach(partition ->
             {
@@ -163,14 +168,19 @@ public class SSTableExport
                             float[] v2;
                             try
                             {
-                                v2 = vectors.get().vectorValue(ordinals.get().getOrdinalForRowId(rowId.get()));
+                                int ordinal = ordinals.get().getOrdinalForRowId(rowId.get());
+                                if (ordinal < 0) {
+                                    throw new IllegalStateException(String.format("Invalid ordinal %d for row %d = key %s at position %d in file %s",
+                                                                                  ordinal, rowId.get(), partition.partitionKey(), position.get(), ssTableFileName));
+                                }
+                                v2 = vectors.get().vectorValue(ordinal);
                             }
                             catch (IOException e)
                             {
                                 throw new RuntimeException(e);
                             }
                             if (!Arrays.equals(v1, v2)) {
-                                badVectorCount.incrementAndGet();
+                                mimatchedVectorCount.incrementAndGet();
                             }
                             break;
                         }
@@ -183,12 +193,13 @@ public class SSTableExport
                     }
                 });
             });
-            System.out.printf("%d bad index vectors, %d invalid in source across %d rows scanned for file %s%n", badVectorCount.get(), invalidDataVectorCount.get(), rowId.get(), ssTableFileName);
+            System.out.printf("%d mismatched index vectors, %d invalid in source across %d rows scanned for file %s%n", mimatchedVectorCount.get(), invalidDataVectorCount.get(), rowId.get(), ssTableFileName);
         }
         catch (Throwable e)
         {
             // throwing exception outside main with broken pipe causes windows cmd to hang
-            System.err.println("Error reading " + ssTableFileName);
+//            System.err.println("Error reading " + ssTableFileName);
+            throw new RuntimeException(e);
         }
     }
 }
