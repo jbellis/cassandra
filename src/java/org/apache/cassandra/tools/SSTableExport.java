@@ -19,27 +19,14 @@ package org.apache.cassandra.tools;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
-
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.VectorType;
-import org.apache.cassandra.db.rows.AbstractRow;
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnHeapHnsw;
-import org.apache.cassandra.index.sai.disk.hnsw.OnDiskOrdinalsMap;
 import org.apache.cassandra.index.sai.disk.hnsw.OnDiskVectors;
+import org.apache.cassandra.index.sai.disk.hnsw.pq.ProductQuantization;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
@@ -73,140 +60,66 @@ public class SSTableExport
     @SuppressWarnings("resource")
     public static void main(String[] args) throws ConfigurationException
     {
-        java.io.File ssTableDirectory = new java.io.File(new File(args[0]).absolutePath());
-        if (!ssTableDirectory.isDirectory())
-        {
-            System.err.println("Path is not a directory");
-            System.exit(1);
-        }
-
-//        processVectors(new java.io.File("/home/jonathan/Projects/cassandra/data/data/wikipedia/pages-750c3f2032cf11eeae989d948bdd7066/cb-11-bti-SAI+ba+ann_index+Vector.db"));
-//        processSSTable(new java.io.File("/home/jonathan/Projects/cassandra/data/data/wikipedia/pages-750c3f2032cf11eeae989d948bdd7066/cb-11-bti-Data.db"));
-//        Arrays.stream(ssTableDirectory.listFiles((dir, name) -> name.endsWith("-Data.db")))
-//              .parallel().forEach(SSTableExport::processSSTable);
+        java.io.File ssTableDirectory = new java.io.File(new File("/home/jonathan/Projects/cassandra/data/data/wikipedia/pages-750c3f2032cf11eeae989d948bdd7066").absolutePath());
         Arrays.stream(ssTableDirectory.listFiles((dir, name) -> name.endsWith("+Vector.db")))
-              .parallel().forEach(SSTableExport::processVectors);
-        System.exit(0);
+              .forEach(SSTableExport::addPQ);
     }
 
-    private static void processVectors(java.io.File vectorsFileName)
-    {
-        var vectorFile = new File(vectorsFileName);
-        try (FileHandle vectorsHandle = new FileHandle.Builder(vectorFile).mmapped(true).complete())
-        {
-            int segment = 0;
-            long vectorsOffset = 0;
-            while (vectorsOffset < vectorFile.length())
-            {
-                var vectors = new OnDiskVectors(vectorsHandle, vectorsOffset);
-                int invalid = 0;
-                int firstInvalid = -1;
-                for (int i = 0; i < vectors.size(); i++)
-                {
-                    float[] v = vectors.vectorValue(i);
-                    try
-                    {
-                        CassandraOnHeapHnsw.checkInBounds(v);
-                    } catch (IllegalArgumentException e) {
-                        if (firstInvalid < 0)
-                            firstInvalid = i;
-                        invalid++;
-                    }
-                }
-                if (invalid > 0) {
-                    System.out.printf("[segment %d] %d invalid vectors of %d, first at ordinal %d in %s%n", segment, invalid, vectors.size(), firstInvalid, vectorsFileName);
-                } else {
-                    System.out.printf("[segment %d] %d invalid vectors of %d in %s%n", segment, invalid, vectors.size(), vectorsFileName);
-                }
-                vectorsOffset += 8L + vectors.size() * 4L * vectors.dimension();
-                segment++;
-            }
-//            assert vectorsOffset == vectorFile.length() : "File length mismatch " + vectorsOffset + " != " + vectorFile.length();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static void processSSTable(java.io.File ssTableFileName)
+    /** writes the first segment of vectors in fvec format */
+    private static void addPQ(java.io.File ssTableFileName)
     {
         Descriptor desc = Descriptor.fromFilename(new File(ssTableFileName));
         try
         {
-            TableMetadata metadata = Util.metadataFromSSTable(desc);
-            SSTableReader sstable = desc.getFormat().getReaderFactory().openNoValidation(desc, TableMetadataRef.forOfflineTools(metadata));
-
-            var vectorFile = new File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+Vector.db");
-            var offsetsFile = new File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+PostingLists.db");
-            FileHandle vectorsHandle = new FileHandle.Builder(vectorFile).mmapped(true).complete();
-            var ordinalSegments = new OrdinalsMapOffsetReconstructor(offsetsFile.toJavaIOFile()).segments;
-            AtomicLong vectorsOffset = new AtomicLong();
-            var vectors = new AtomicReference<>(new OnDiskVectors(vectorsHandle, vectorsOffset.get()));
-            FileHandle ordinalsHandle = new FileHandle.Builder(offsetsFile).mmapped(true).complete();
-            var ordinals = new AtomicReference<>(new OnDiskOrdinalsMap(ordinalsHandle, 0, ordinalSegments.get(1).offset).getOrdinalsView());
-            assert ordinalSegments.get(0).vectorCount == vectors.get().size() : "Vector count mismatch " + ordinalSegments.get(0).vectorCount + " != " + vectors.get().size();
-
-            final ISSTableScanner currentScanner;
-            currentScanner = sstable.getScanner();
-            Stream<UnfilteredRowIterator> partitions = Util.iterToStream(currentScanner);
-            AtomicLong position = new AtomicLong();
-            AtomicInteger rowId = new AtomicInteger();
-            AtomicInteger segmentIndex = new AtomicInteger();
-            AtomicInteger mimatchedVectorCount = new AtomicInteger();
-            AtomicInteger invalidDataVectorCount = new AtomicInteger();
-            partitions.forEach(partition ->
-            {
-                position.set(currentScanner.getCurrentPosition());
-                partition.forEachRemaining(row ->
-                {
-                    if (vectors.get() == null)
-                        return;
-
-                    for (var cd : (AbstractRow) row) {
-                        var type = cd.column().type;
-                        var cell = (Cell<?>) cd;
-                        if (type instanceof VectorType)
-                        {
-                            float[] v1 = ((VectorType<?>) type).composeAsFloat(cell.buffer());
-                            try {
-                                CassandraOnHeapHnsw.checkInBounds(v1);
-                            } catch (IllegalArgumentException e) {
-                                invalidDataVectorCount.incrementAndGet();
-                            }
-                            float[] v2;
-                            try
-                            {
-                                int ordinal = ordinals.get().getOrdinalForRowId(rowId.get());
-                                if (ordinal < 0) {
-                                    throw new IllegalStateException(String.format("Invalid ordinal %d for row %d = key %s at position %d in file %s",
-                                                                                  ordinal, rowId.get(), partition.partitionKey(), position.get(), ssTableFileName));
-                                }
-                                v2 = vectors.get().vectorValue(ordinal);
-                            }
-                            catch (IOException e)
-                            {
-                                throw new RuntimeException(e);
-                            }
-                            if (!Arrays.equals(v1, v2)) {
-                                mimatchedVectorCount.incrementAndGet();
-                            }
-                            break;
-                        }
-                    }
-
-                    rowId.incrementAndGet();
-                    if (rowId.get() > ordinalSegments.get(segmentIndex.get()).lastRowId) {
-                        // TODO get multiple segments working
-                        vectors.set(null);
-                    }
-                });
-            });
-            System.out.printf("%d mismatched index vectors, %d invalid in source across %d rows scanned for file %s%n", mimatchedVectorCount.get(), invalidDataVectorCount.get(), rowId.get(), ssTableFileName);
+            inner(desc);
         }
         catch (Throwable e)
         {
             // throwing exception outside main with broken pipe causes windows cmd to hang
 //            System.err.println("Error reading " + ssTableFileName);
             throw new RuntimeException(e);
+        }
+    }
+
+    private static void inner(Descriptor desc) throws IOException
+    {
+        TableMetadata metadata = Util.metadataFromSSTable(desc);
+        SSTableReader sstable = desc.getFormat().getReaderFactory().openNoValidation(desc, TableMetadataRef.forOfflineTools(metadata));
+
+        var vectorFile = new File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+Vector.db");
+        FileHandle vectorsHandle = new FileHandle.Builder(vectorFile).mmapped(true).complete();
+        int offset = 0;
+        while (true) {
+            var odv = new OnDiskVectors(vectorsHandle, offset);
+            var vectors = IntStream.range(0, odv.size()).mapToObj(i -> {
+                try
+                {
+                    var v = new float[odv.dimension()];
+                    System.arraycopy(odv.vectorValue(i), 0, v, 0, odv.dimension());
+                    return v;
+                }
+                catch (Throwable e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }).collect(Collectors.toList());
+
+            // train PQ
+            int M = odv.dimension() / 2;
+            var pq = new ProductQuantization(vectors, M, false);
+            var vectorsOut = new java.io.File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+PQ.db");
+            var encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
+            try (var vectorsWriter = new java.io.BufferedOutputStream(new java.io.FileOutputStream(vectorsOut)))
+            {
+                vectorsWriter.write(encoded.size());
+                vectorsWriter.write(encoded.get(0).length);
+                for (var a: encoded) {
+                    vectorsWriter.write(a);
+                }
+            }
+
+            // two ints, plus all the vectors we read
+            offset += 4 + 4 + (4 * vectors.size() * odv.dimension());
         }
     }
 }
