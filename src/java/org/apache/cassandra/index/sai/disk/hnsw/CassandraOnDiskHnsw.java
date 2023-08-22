@@ -73,24 +73,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
         vectorsSupplier = (qc) -> new VectorsWithCache(new OnDiskVectors(indexFiles.vectors(), vectorsSegmentOffset));
 
         long pqSegmentOffset = componentMetadatas.get(IndexComponent.PQ).offset;
-        var pqFh = indexFiles.pq();
-        ProductQuantization pq;
-        List<byte[]> compressedVectors;
-        try (var in = pqFh.createReader()) {
-            in.seek(pqSegmentOffset);
-            pq = ProductQuantization.load(in);
-
-            // read the vectors
-            int size = in.readInt();
-            compressedVectors = new ArrayList<>(size);
-            int compressedDimension = in.readInt();
-            for (int i = 0; i < size; i++)
-            {
-                byte[] vector = new byte[compressedDimension];
-                in.readFully(vector);
-                compressedVectors.add(vector);
-            }
-        }
+        compressedVectors = new CompressedVectors(indexFiles.pq(), pqSegmentOffset);
 
 
         SegmentMetadata.ComponentMetadata postingListsMetadata = componentMetadatas.get(IndexComponent.POSTING_LISTS);
