@@ -68,6 +68,7 @@ public class SSTableExport
     /** writes the first segment of vectors in fvec format */
     private static void addPQ(java.io.File ssTableFileName)
     {
+        System.out.println("Processing " + ssTableFileName);
         Descriptor desc = Descriptor.fromFilename(new File(ssTableFileName));
         try
         {
@@ -89,13 +90,52 @@ public class SSTableExport
         var vectorFile = new File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+Vector.db");
         FileHandle vectorsHandle = new FileHandle.Builder(vectorFile).mmapped(true).complete();
         int offset = 0;
-        while (true) {
-            var odv = new OnDiskVectors(vectorsHandle, offset);
-            var vectors = IntStream.range(0, odv.size()).mapToObj(i -> {
+        var odv = new OnDiskVectors(vectorsHandle, offset);
+        OnDiskVectors finalOdv = odv;
+        var vectors = IntStream.range(0, odv.size()).mapToObj(i -> {
+            try
+            {
+                var v = new float[finalOdv.dimension()];
+                System.arraycopy(finalOdv.vectorValue(i), 0, v, 0, finalOdv.dimension());
+                return v;
+            }
+            catch (Throwable e)
+            {
+                throw new RuntimeException(e);
+            }
+        }).collect(Collectors.toList());
+
+        int M = odv.dimension() / 2;
+        if (vectors.size() < 2 * M) {
+            System.out.printf("  Not enough vectors to train PQ: %d%n", vectors.size());
+            return;
+        }
+
+        // train PQ
+        var pq = new ProductQuantization(vectors, M, false);
+        var vectorsOut = new java.io.File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+PQ.db");
+        var encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
+        try (var vectorsWriter = new java.io.BufferedOutputStream(new java.io.FileOutputStream(vectorsOut)))
+        {
+            vectorsWriter.write(encoded.size());
+            vectorsWriter.write(encoded.get(0).length);
+            for (var a : encoded)
+            {
+                vectorsWriter.write(a);
+            }
+        }
+
+        // write the compressed vectors
+        int n = 0;
+        while (offset < vectorsHandle.onDiskLength)
+        {
+            odv = new OnDiskVectors(vectorsHandle, offset);
+            OnDiskVectors finalOdv1 = odv;
+            vectors = IntStream.range(0, odv.size()).mapToObj(i -> {
                 try
                 {
-                    var v = new float[odv.dimension()];
-                    System.arraycopy(odv.vectorValue(i), 0, v, 0, odv.dimension());
+                    var v = new float[finalOdv1.dimension()];
+                    System.arraycopy(finalOdv1.vectorValue(i), 0, v, 0, finalOdv1.dimension());
                     return v;
                 }
                 catch (Throwable e)
@@ -105,19 +145,21 @@ public class SSTableExport
             }).collect(Collectors.toList());
 
             // train PQ
-            int M = odv.dimension() / 2;
-            var pq = new ProductQuantization(vectors, M, false);
-            var vectorsOut = new java.io.File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+PQ.db");
-            var encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
+            M = odv.dimension() / 2;
+            pq = new ProductQuantization(vectors, M, false);
+            vectorsOut = new java.io.File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+PQ.db");
+            encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
             try (var vectorsWriter = new java.io.BufferedOutputStream(new java.io.FileOutputStream(vectorsOut)))
             {
                 vectorsWriter.write(encoded.size());
                 vectorsWriter.write(encoded.get(0).length);
-                for (var a: encoded) {
+                for (var a : encoded)
+                {
                     vectorsWriter.write(a);
                 }
             }
 
+            System.out.printf("  %s segment %d complete with %d vectors%n", sstable.getDescriptor().baseFilename(), n++, vectors.size());
             // two ints, plus all the vectors we read
             offset += 4 + 4 + (4 * vectors.size() * odv.dimension());
         }
