@@ -97,67 +97,42 @@ public class SSTableExport
 
         var vectorFile = new File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+Vector.db");
         FileHandle vectorsHandle = new FileHandle.Builder(vectorFile).mmapped(true).complete();
-        long offset = 0;
-        var odv = new OnDiskVectors(vectorsHandle, offset);
-        OnDiskVectors finalOdv = odv;
-        var vectors = IntStream.range(0, odv.size()).mapToObj(i -> {
-            try
-            {
-                var v = new float[finalOdv.dimension()];
-                System.arraycopy(finalOdv.vectorValue(i), 0, v, 0, finalOdv.dimension());
-                return v;
-            }
-            catch (Throwable e)
-            {
-                throw new RuntimeException(e);
-            }
-        }).collect(Collectors.toList());
 
-        int M = odv.dimension() / 2;
-        if (vectors.size() < 2 * M) {
-            System.out.printf("  Not enough vectors to train PQ: %d%n", vectors.size());
-            return;
-        }
-
-        // train PQ
-        var pq = new ProductQuantization(vectors, M, false);
-        var encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
-        try (var vectorsWriter = new java.io.BufferedOutputStream(new java.io.FileOutputStream(pqOut)))
-        {
-            vectorsWriter.write(encoded.size());
-            vectorsWriter.write(encoded.get(0).length);
-            for (var a : encoded)
-            {
-                vectorsWriter.write(a);
-            }
-        }
-
-        // write the compressed vectors
+        // loop through the segments
         int n = 0;
-        while (offset < vectorsHandle.onDiskLength)
+        long offset = 0;
+        try (var out = new java.io.BufferedOutputStream(new java.io.FileOutputStream(pqOut)))
         {
-            odv = new OnDiskVectors(vectorsHandle, offset);
-            OnDiskVectors finalOdv1 = odv;
-            vectors = IntStream.range(0, odv.size()).mapToObj(i -> {
-                try
-                {
-                    var v = new float[finalOdv1.dimension()];
-                    System.arraycopy(finalOdv1.vectorValue(i), 0, v, 0, finalOdv1.dimension());
-                    return v;
-                }
-                catch (Throwable e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }).collect(Collectors.toList());
-
-            // train PQ
-            M = odv.dimension() / 2;
-            pq = new ProductQuantization(vectors, M, false);
-            pqOut = new java.io.File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+PQ.db");
-            encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
-            try (var out = new java.io.BufferedOutputStream(new java.io.FileOutputStream(pqOut)))
+            while (offset < vectorsHandle.onDiskLength)
             {
+                // copy vectors into memory
+                var odv = new OnDiskVectors(vectorsHandle, offset);
+                var vectors = IntStream.range(0, odv.size()).mapToObj(i -> {
+                    try
+                    {
+                        var v = new float[odv.dimension()];
+                        System.arraycopy(odv.vectorValue(i), 0, v, 0, odv.dimension());
+                        return v;
+                    }
+                    catch (Throwable e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }).collect(Collectors.toList());
+                // two ints, plus all the vectors we read
+                offset += 4 + 4 + (4L * vectors.size() * odv.dimension());
+
+                // don't bother with PQ if there are fewer than 2M vectors
+                int M = odv.dimension() / 2;
+                out.write(vectors.size() >= 2 * M ? 1 : 0);
+                if (vectors.size() < 2 * M) {
+                    System.out.printf("  Not enough vectors to train PQ: %d%n", vectors.size());
+                    continue;
+                }
+
+                // train PQ, encode, save
+                var pq = new ProductQuantization(vectors, M, false);
+                var encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
                 pq.save(out);
                 out.write(encoded.size());
                 out.write(encoded.get(0).length);
@@ -165,11 +140,9 @@ public class SSTableExport
                 {
                     out.write(a);
                 }
-            }
 
-            System.out.printf("  %s segment %d complete with %d vectors%n", sstable.getDescriptor().baseFilename(), n++, vectors.size());
-            // two ints, plus all the vectors we read
-            offset += 4 + 4 + (4L * vectors.size() * odv.dimension());
+                System.out.printf("  %s segment %d complete with %d vectors%n", sstable.getDescriptor().baseFilename(), n++, vectors.size());
+            }
         }
     }
 }
