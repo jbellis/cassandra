@@ -19,7 +19,10 @@
 package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 import java.util.function.Function;
@@ -27,10 +30,15 @@ import java.util.stream.IntStream;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.util.concurrent.MoreExecutors;
+
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.hnsw.pq.ProductQuantization;
 import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
@@ -47,7 +55,13 @@ public class CassandraOnDiskHnsw implements AutoCloseable
     private final OnDiskOrdinalsMap ordinalsMap;
     private final OnDiskHnswGraph hnsw;
     private final VectorSimilarityFunction similarityFunction;
-    private final VectorCache vectorCache;
+
+    // VSTODO wire up cache to metrics
+    private final Cache<Integer, float[]> vectorCache = Caffeine.newBuilder()
+                                                                .maximumWeight(CassandraRelevantProperties.SAI_HNSW_VECTOR_CACHE_BYTES.getInt())
+                                                                .weigher((Integer k, float[] v) -> 36 + v.length * 4)
+                                                                .executor(MoreExecutors.directExecutor())
+                                                                .build();
 
     private static final int OFFSET_CACHE_MIN_BYTES = 100_000;
 
@@ -56,23 +70,22 @@ public class CassandraOnDiskHnsw implements AutoCloseable
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
 
         long vectorsSegmentOffset = componentMetadatas.get(IndexComponent.VECTOR).offset;
-        vectorsSupplier = (qc) -> new VectorsWithCache(new OnDiskVectors(indexFiles.vectors(), vectorsSegmentOffset), qc);
+        vectorsSupplier = (qc) -> new VectorsWithCache(new OnDiskVectors(indexFiles.vectors(), vectorsSegmentOffset));
+
+        long pqSegmentOffset = componentMetadatas.get(IndexComponent.PQ).offset;
+        compressedVectors = new CompressedVectors(indexFiles.pq(), pqSegmentOffset);
+
 
         SegmentMetadata.ComponentMetadata postingListsMetadata = componentMetadatas.get(IndexComponent.POSTING_LISTS);
         ordinalsMap = new OnDiskOrdinalsMap(indexFiles.postingLists(), postingListsMetadata.offset, postingListsMetadata.length);
 
         SegmentMetadata.ComponentMetadata termsMetadata = componentMetadatas.get(IndexComponent.TERMS_DATA);
         hnsw = new OnDiskHnswGraph(indexFiles.termsData(), termsMetadata.offset, termsMetadata.length, OFFSET_CACHE_MIN_BYTES);
-        var mockContext = new QueryContext();
-        try (var vectors = new OnDiskVectors(indexFiles.vectors(), vectorsSegmentOffset))
-        {
-            vectorCache = VectorCache.load(hnsw.getView(mockContext), vectors, CassandraRelevantProperties.SAI_HNSW_VECTOR_CACHE_BYTES.getInt());
-        }
     }
 
     public long ramBytesUsed()
     {
-        return hnsw.getCacheSizeInBytes() + vectorCache.ramBytesUsed();
+        return hnsw.getCacheSizeInBytes() + vectorCache.estimatedSize();
     }
 
     public int size()
@@ -173,12 +186,10 @@ public class CassandraOnDiskHnsw implements AutoCloseable
     class VectorsWithCache implements RandomAccessVectorValues<float[]>, AutoCloseable
     {
         private final OnDiskVectors vectors;
-        private final QueryContext queryContext;
 
-        public VectorsWithCache(OnDiskVectors vectors, QueryContext queryContext)
+        public VectorsWithCache(OnDiskVectors vectors)
         {
             this.vectors = vectors;
-            this.queryContext = queryContext;
         }
 
         @Override
@@ -196,15 +207,16 @@ public class CassandraOnDiskHnsw implements AutoCloseable
         @Override
         public float[] vectorValue(int i) throws IOException
         {
-            queryContext.hnswVectorsAccessed++;
-            var cached = vectorCache.get(i);
-            if (cached != null)
-            {
-                queryContext.hnswVectorCacheHits++;
-                return cached;
-            }
-
-            return vectors.vectorValue(i);
+            return vectorCache.get(i, (j) -> {
+                try
+                {
+                    return vectors.vectorValue(j);
+                }
+                catch (IOException e)
+                {
+                    throw new UncheckedIOException(e);
+                }
+            });
         }
 
         @Override
