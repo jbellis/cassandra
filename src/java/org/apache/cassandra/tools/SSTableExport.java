@@ -17,8 +17,12 @@
  */
 package org.apache.cassandra.tools;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -101,7 +105,9 @@ public class SSTableExport
         // loop through the segments
         int n = 0;
         long offset = 0;
-        try (var out = new java.io.BufferedOutputStream(new java.io.FileOutputStream(pqOut)))
+        List<Long> outOffsets = new ArrayList<>();
+        try (var raf = new RandomAccessFile(pqOut, "rw");
+             var out = new java.io.BufferedOutputStream(new FileOutputStream(raf.getFD())))
         {
             while (offset < vectorsHandle.onDiskLength)
             {
@@ -140,9 +146,17 @@ public class SSTableExport
                 {
                     out.write(a);
                 }
+                out.flush();
 
+                outOffsets.add(raf.getFilePointer());
                 System.out.printf("  %s segment %d complete with %d vectors%n", sstable.getDescriptor().baseFilename(), n++, vectors.size());
             }
+
+            // add a TOC at the end
+            for (var outOffset : outOffsets) {
+                raf.writeLong(outOffset);
+            }
+            out.write(outOffsets.size());
         }
     }
 }
