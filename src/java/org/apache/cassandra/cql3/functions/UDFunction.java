@@ -271,7 +271,7 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
             case "java":
                 return new JavaBasedUDFunction(name, argNames, argTypes, returnType, calledOnNullInput, body);
             default:
-                return new ScriptBasedUDFunction(name, argNames, argTypes, returnType, calledOnNullInput, language, body);
+                throw new InvalidRequestException(String.format("Unknown language '%s' for function '%s'", language, name));
         }
     }
 
