@@ -38,7 +38,7 @@ public class KMeansPlusPlusClusterer {
             throw new IllegalArgumentException("Number of clusters must be positive.");
         }
         if (k > points.size()) {
-            throw new IllegalArgumentException("Number of clusters cannot exceed number of points.");
+            throw new IllegalArgumentException("Number of clusters %d cannot exceed number of points %d".formatted(k, points.size()));
         }
 
         this.points = points;
