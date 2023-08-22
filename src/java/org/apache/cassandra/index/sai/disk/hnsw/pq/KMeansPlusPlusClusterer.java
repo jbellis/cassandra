@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.BiFunction;
 
-import static org.example.util.SimdOps.simdDivInPlace;
-import static org.example.util.SimdOps.simdSum;
+import static org.apache.cassandra.index.sai.disk.hnsw.pq.SimdOps.simdDivInPlace;
+import static org.apache.cassandra.index.sai.disk.hnsw.pq.SimdOps.simdSum;
 
 /**
  * A KMeans++ implementation for float vectors.  Optimizes to use SIMD vector
