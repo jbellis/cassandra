@@ -44,6 +44,7 @@ public class PerIndexFiles implements Closeable
             files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, temporary));
             files.put(IndexComponent.TERMS_DATA, indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, temporary));
             files.put(IndexComponent.VECTOR, indexDescriptor.createPerIndexFileHandle(IndexComponent.VECTOR, indexContext, temporary));
+            files.put(IndexComponent.PQ, indexDescriptor.createPerIndexFileHandle(IndexComponent.VECTOR, indexContext, temporary));
         }
         else if (TypeUtil.isLiteral(indexContext.getValidator()))
         {
