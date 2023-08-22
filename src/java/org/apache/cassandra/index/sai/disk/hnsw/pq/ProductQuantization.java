@@ -21,7 +21,7 @@ import static org.apache.cassandra.index.sai.disk.hnsw.pq.SimdOps.simdSum;
 
 public class ProductQuantization {
     private static final int CLUSTERS = 256; // number of clusters per subspace = one byte's worth
-    private static final int K_MEANS_ITERATIONS = 15;
+    private static final int K_MEANS_ITERATIONS = 15; // VSTODO try 20 as well
 
     private final List<List<float[]>> codebooks;
     private final int M;
