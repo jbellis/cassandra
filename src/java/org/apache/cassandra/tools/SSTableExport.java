@@ -68,7 +68,6 @@ public class SSTableExport
     /** writes the first segment of vectors in fvec format */
     private static void addPQ(java.io.File ssTableFileName)
     {
-        System.out.println("Processing " + ssTableFileName);
         Descriptor desc = Descriptor.fromFilename(new File(ssTableFileName));
         try
         {
@@ -84,12 +83,21 @@ public class SSTableExport
 
     private static void inner(Descriptor desc) throws IOException
     {
+        System.out.println("Processing " + desc.baseFilename());
+
         TableMetadata metadata = Util.metadataFromSSTable(desc);
         SSTableReader sstable = desc.getFormat().getReaderFactory().openNoValidation(desc, TableMetadataRef.forOfflineTools(metadata));
 
+        var pqOut = new java.io.File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+PQ.db");
+        if (pqOut.exists())
+        {
+            System.out.printf("  PQ already exists%n", sstable.getDescriptor().baseFilename());
+            return;
+        }
+
         var vectorFile = new File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+Vector.db");
         FileHandle vectorsHandle = new FileHandle.Builder(vectorFile).mmapped(true).complete();
-        int offset = 0;
+        long offset = 0;
         var odv = new OnDiskVectors(vectorsHandle, offset);
         OnDiskVectors finalOdv = odv;
         var vectors = IntStream.range(0, odv.size()).mapToObj(i -> {
@@ -113,9 +121,8 @@ public class SSTableExport
 
         // train PQ
         var pq = new ProductQuantization(vectors, M, false);
-        var vectorsOut = new java.io.File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+PQ.db");
         var encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
-        try (var vectorsWriter = new java.io.BufferedOutputStream(new java.io.FileOutputStream(vectorsOut)))
+        try (var vectorsWriter = new java.io.BufferedOutputStream(new java.io.FileOutputStream(pqOut)))
         {
             vectorsWriter.write(encoded.size());
             vectorsWriter.write(encoded.get(0).length);
@@ -147,9 +154,9 @@ public class SSTableExport
             // train PQ
             M = odv.dimension() / 2;
             pq = new ProductQuantization(vectors, M, false);
-            vectorsOut = new java.io.File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+PQ.db");
+            pqOut = new java.io.File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+PQ.db");
             encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
-            try (var vectorsWriter = new java.io.BufferedOutputStream(new java.io.FileOutputStream(vectorsOut)))
+            try (var vectorsWriter = new java.io.BufferedOutputStream(new java.io.FileOutputStream(pqOut)))
             {
                 vectorsWriter.write(encoded.size());
                 vectorsWriter.write(encoded.get(0).length);
