@@ -156,19 +156,20 @@ public class SSTableExport
             pq = new ProductQuantization(vectors, M, false);
             pqOut = new java.io.File(sstable.getDescriptor().baseFilename() + "-SAI+ba+ann_index+PQ.db");
             encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
-            try (var vectorsWriter = new java.io.BufferedOutputStream(new java.io.FileOutputStream(pqOut)))
+            try (var out = new java.io.BufferedOutputStream(new java.io.FileOutputStream(pqOut)))
             {
-                vectorsWriter.write(encoded.size());
-                vectorsWriter.write(encoded.get(0).length);
+                pq.save(out);
+                out.write(encoded.size());
+                out.write(encoded.get(0).length);
                 for (var a : encoded)
                 {
-                    vectorsWriter.write(a);
+                    out.write(a);
                 }
             }
 
             System.out.printf("  %s segment %d complete with %d vectors%n", sstable.getDescriptor().baseFilename(), n++, vectors.size());
             // two ints, plus all the vectors we read
-            offset += 4 + 4 + (4 * vectors.size() * odv.dimension());
+            offset += 4 + 4 + (4L * vectors.size() * odv.dimension());
         }
     }
 }
