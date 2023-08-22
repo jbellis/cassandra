@@ -1,5 +1,8 @@
 package org.apache.cassandra.index.sai.disk.hnsw.pq;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,6 +53,19 @@ public class ProductQuantization {
         }
         codebooks = createCodebooks(vectors, M, subvectorSizes);
         dotScratch = ThreadLocal.withInitial(() -> new float[this.M]);
+    }
+
+    public ProductQuantization(List<List<float[]>> codebooks, float[] globalCentroid)
+    {
+        this.codebooks = codebooks;
+        this.globalCentroid = globalCentroid;
+        this.M = codebooks.size();
+        this.subvectorSizes = new int[M];
+        for (int i = 0; i < M; i++) {
+            this.subvectorSizes[i] = codebooks.get(i).get(0).length;
+        }
+        this.originalDimension = Arrays.stream(subvectorSizes).sum();
+        this.dotScratch = ThreadLocal.withInitial(() -> new float[this.M]);
     }
 
     /**
@@ -216,5 +232,75 @@ public class ProductQuantization {
             sizes[i] = baseSize + (i < remainder ? 1 : 0);
         }
         return sizes;
+    }
+
+    public void save(OutputStream out) throws IOException
+    {
+        if (globalCentroid == null) {
+            out.write(0);
+        } else {
+            out.write(globalCentroid.length);
+            writeFloats(out, globalCentroid);
+        }
+
+        out.write(M);
+        assert Arrays.stream(subvectorSizes).sum() == originalDimension;
+        assert M == subvectorSizes.length;
+        for (var a : subvectorSizes) {
+            out.write(a);
+        }
+
+        assert codebooks.size() == M;
+        assert codebooks.get(0).size() == CLUSTERS;
+        out.write(codebooks.get(0).size());
+        for (var codebook : codebooks) {
+            for (var centroid : codebook) {
+                writeFloats(out, centroid);
+            }
+        }
+    }
+
+    private void writeFloats(OutputStream out, float[] v) throws IOException
+    {
+        for (var a : v) {
+            out.write(Float.floatToRawIntBits(a));
+        }
+    }
+
+    public static ProductQuantization load(InputStream in) throws IOException {
+        int globalCentroidLength = in.read();
+        float[] globalCentroid = null;
+        if (globalCentroidLength > 0) {
+            globalCentroid = readFloats(in, globalCentroidLength);
+        }
+
+        int M = in.read();
+        int[] subvectorSizes = new int[M];
+        for (int i = 0; i < M; i++) {
+            subvectorSizes[i] = in.read();
+        }
+
+        int clusters = in.read();
+        List<List<float[]>> codebooks = new ArrayList<>();
+        for (int m = 0; m < M; m++) {
+            List<float[]> codebook = new ArrayList<>();
+            for (int i = 0; i < clusters; i++) {
+                int n = subvectorSizes[m];
+                float[] centroid = readFloats(in, n);
+                codebook.add(centroid);
+            }
+            codebooks.add(codebook);
+        }
+
+        return new ProductQuantization(codebooks, globalCentroid);
+    }
+
+    private static float[] readFloats(InputStream in, int size) throws IOException
+    {
+        var v = new float[size];
+        for (int i = 0; i < size; i++) {
+            v[i] = Float.intBitsToFloat(in.read());
+        }
+        return v;
     }
 }
