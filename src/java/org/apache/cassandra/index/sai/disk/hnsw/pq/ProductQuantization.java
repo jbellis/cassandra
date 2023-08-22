@@ -10,7 +10,11 @@ import java.util.stream.IntStream;
 
 import org.apache.lucene.util.VectorUtil;
 
-import static org.example.util.SimdOps.*;
+import static org.apache.cassandra.index.sai.disk.hnsw.pq.SimdOps.dot64;
+import static org.apache.cassandra.index.sai.disk.hnsw.pq.SimdOps.simdAddInPlace;
+import static org.apache.cassandra.index.sai.disk.hnsw.pq.SimdOps.simdSub;
+import static org.apache.cassandra.index.sai.disk.hnsw.pq.SimdOps.simdSum;
+
 
 public class ProductQuantization {
     private static final int CLUSTERS = 256; // number of clusters per subspace = one byte's worth
