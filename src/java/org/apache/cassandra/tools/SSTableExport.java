@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.tools;
 
+import java.io.DataOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -107,7 +108,7 @@ public class SSTableExport
         long offset = 0;
         List<Long> outOffsets = new ArrayList<>();
         try (var raf = new RandomAccessFile(pqOut, "rw");
-             var out = new java.io.BufferedOutputStream(new FileOutputStream(raf.getFD())))
+             var out = new DataOutputStream(new java.io.BufferedOutputStream(new FileOutputStream(raf.getFD()))))
         {
             while (offset < vectorsHandle.onDiskLength)
             {
@@ -128,10 +129,10 @@ public class SSTableExport
                 // two ints, plus all the vectors we read
                 offset += 4 + 4 + (4L * vectors.size() * odv.dimension());
 
-                // don't bother with PQ if there are fewer than 2M vectors
+                // don't bother with PQ if there are fewer than 1K vectors
                 int M = odv.dimension() / 2;
-                out.write(vectors.size() >= 2 * M ? 1 : 0);
-                if (vectors.size() < 2 * M) {
+                out.write(vectors.size() >= 1024 ? 1 : 0);
+                if (vectors.size() < 1024) {
                     System.out.printf("  Not enough vectors to train PQ: %d%n", vectors.size());
                     continue;
                 }
@@ -140,8 +141,8 @@ public class SSTableExport
                 var pq = new ProductQuantization(vectors, M, false);
                 var encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
                 pq.save(out);
-                out.write(encoded.size());
-                out.write(encoded.get(0).length);
+                out.writeInt(encoded.size());
+                out.writeInt(encoded.get(0).length);
                 for (var a : encoded)
                 {
                     out.write(a);
