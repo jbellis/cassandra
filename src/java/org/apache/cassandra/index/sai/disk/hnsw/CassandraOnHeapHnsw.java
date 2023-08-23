@@ -30,6 +30,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.slf4j.Logger;
@@ -41,9 +43,11 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.hnsw.pq.ProductQuantization;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
+import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.lucene.index.VectorEncoding;
@@ -297,12 +301,18 @@ public class CassandraOnHeapHnsw<T>
 
         try (var vectorsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.VECTOR, indexContext), true);
              var postingsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.POSTING_LISTS, indexContext), true);
-             var indexOutputWriter = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.TERMS_DATA, indexContext), true))
+             var indexOutputWriter = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.TERMS_DATA, indexContext), true);
+             var pqOutputWriter = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.PQ, indexContext), true))
         {
             // write vectors
             long vectorOffset = vectorsOutput.getFilePointer();
             long vectorPosition = vectorValues.write(vectorsOutput.asSequentialWriter());
             long vectorLength = vectorPosition - vectorOffset;
+
+            // write PQ
+            long pqOffset = pqOutputWriter.getFilePointer();
+            long pqPosition = writePQ(pqOutputWriter.asSequentialWriter());
+            long pqLength = pqPosition - pqOffset;
 
             var deletedOrdinals = new HashSet<Integer>();
             postingsMap.values().stream().filter(VectorPostings::isEmpty).forEach(vectorPostings -> deletedOrdinals.add(vectorPostings.getOrdinal()));
@@ -328,9 +338,32 @@ public class CassandraOnHeapHnsw<T>
             metadataMap.put(IndexComponent.TERMS_DATA, -1, termsOffset, termsLength, Map.of());
             metadataMap.put(IndexComponent.POSTING_LISTS, -1, postingsOffset, postingsLength, Map.of());
             Map<String, String> vectorConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(StringHelper.randomId())));
+            Map<String, String> pqConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(StringHelper.randomId())));
             metadataMap.put(IndexComponent.VECTOR, -1, vectorOffset, vectorLength, vectorConfigs);
+            metadataMap.put(IndexComponent.PQ, -1, pqOffset, pqLength, pqConfigs);
             return metadataMap;
         }
+    }
+
+    private long writePQ(SequentialWriter writer) throws IOException
+    {
+        // don't bother with PQ if there are fewer than 1K vectors
+        int M = vectorValues.dimension() / 2;
+        writer.write(vectorValues.size() >= 1024 ? 1 : 0);
+        if (vectorValues.size() < 1024)
+            return writer.position();
+
+        // collect vectors into a list
+        var vectors = IntStream.range(0, vectorValues.size()).mapToObj(vectorValues::vectorValue).collect(Collectors.toList());
+        // train PQ, encode, save
+        var pq = new ProductQuantization(vectors, M, false);
+        var encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
+        pq.save(writer);
+        writer.writeInt(encoded.size());
+        writer.writeInt(encoded.get(0).length);
+        for (var a : encoded)
+            writer.write(a);
+        return writer.position();
     }
 
     public long ramBytesUsed()

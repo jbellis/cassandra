@@ -72,8 +72,10 @@ public class CompressedVectors
             case DOT_PRODUCT:
                 return (1 + pq.decodedDotProduct(compressedVectors.get(ordinal), v)) / 2;
             default:
-                // FIXME
-                throw new IllegalArgumentException("Unsupported similarity function: " + similarityFunction);
+                // VSTODO implement other similarity functions efficiently
+                var decoded = new float[pq.vectorDimension()];
+                pq.decode(compressedVectors.get(ordinal), decoded);
+                return similarityFunction.compare(decoded, v);
         }
     }
 }

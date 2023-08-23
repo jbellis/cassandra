@@ -1,5 +1,7 @@
 package org.apache.cassandra.index.sai.disk.hnsw.pq;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -133,7 +135,6 @@ public class ProductQuantization {
         return simdSum(a);
     }
 
-
     /**
      * Decodes the quantized representation (byte array) to its approximate original vector.
      */
@@ -234,25 +235,28 @@ public class ProductQuantization {
         return sizes;
     }
 
-    public void save(OutputStream out) throws IOException
+    public void save(OutputStream raw) throws IOException
     {
+        // we don't close `out` because caller is responsible for closing `raw`
+        var out = new DataOutputStream(raw);
+
         if (globalCentroid == null) {
-            out.write(0);
+            out.writeInt(0);
         } else {
-            out.write(globalCentroid.length);
+            out.writeInt(globalCentroid.length);
             writeFloats(out, globalCentroid);
         }
 
-        out.write(M);
+        out.writeInt(M);
         assert Arrays.stream(subvectorSizes).sum() == originalDimension;
         assert M == subvectorSizes.length;
         for (var a : subvectorSizes) {
-            out.write(a);
+            out.writeInt(a);
         }
 
         assert codebooks.size() == M;
         assert codebooks.get(0).size() == CLUSTERS;
-        out.write(codebooks.get(0).size());
+        out.writeInt(codebooks.get(0).size());
         for (var codebook : codebooks) {
             for (var centroid : codebook) {
                 writeFloats(out, centroid);
@@ -260,27 +264,30 @@ public class ProductQuantization {
         }
     }
 
-    private void writeFloats(OutputStream out, float[] v) throws IOException
+    private void writeFloats(DataOutputStream out, float[] v) throws IOException
     {
         for (var a : v) {
-            out.write(Float.floatToRawIntBits(a));
+            out.writeFloat(a);
         }
     }
 
-    public static ProductQuantization load(InputStream in) throws IOException {
-        int globalCentroidLength = in.read();
+    public static ProductQuantization load(InputStream raw) throws IOException {
+        // we don't close `in` because caller is responsible for closing `raw`
+        var in = new DataInputStream(raw);
+
+        int globalCentroidLength = in.readInt();
         float[] globalCentroid = null;
         if (globalCentroidLength > 0) {
             globalCentroid = readFloats(in, globalCentroidLength);
         }
 
-        int M = in.read();
+        int M = in.readInt();
         int[] subvectorSizes = new int[M];
         for (int i = 0; i < M; i++) {
-            subvectorSizes[i] = in.read();
+            subvectorSizes[i] = in.readInt();
         }
 
-        int clusters = in.read();
+        int clusters = in.readInt();
         List<List<float[]>> codebooks = new ArrayList<>();
         for (int m = 0; m < M; m++) {
             List<float[]> codebook = new ArrayList<>();
@@ -295,11 +302,11 @@ public class ProductQuantization {
         return new ProductQuantization(codebooks, globalCentroid);
     }
 
-    private static float[] readFloats(InputStream in, int size) throws IOException
+    private static float[] readFloats(DataInputStream in, int size) throws IOException
     {
         var v = new float[size];
         for (int i = 0; i < size; i++) {
-            v[i] = Float.intBitsToFloat(in.read());
+            v[i] = in.readFloat();
         }
         return v;
     }

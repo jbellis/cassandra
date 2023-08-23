@@ -74,21 +74,26 @@ public class CassandraOnDiskHnsw implements AutoCloseable
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
 
         // FIXME this reads the offset from the TOC instead of the metadata
-//        long pqSegmentOffset = componentMetadatas.get(IndexComponent.PQ).offset;
         long pqSegmentOffset;
-        try (var in = indexFiles.pq().createReader()) {
+        if (true)
+        {
+            pqSegmentOffset = componentMetadatas.get(IndexComponent.PQ).offset;
+        }
+        else {
+            try (var in = indexFiles.pq().createReader()) {
 
-            var ai = offsetsHack.computeIfAbsent(indexFiles.pq().createReader().getFile().absolutePath(),
-                                                 (k) -> new AtomicInteger());
-            in.seek(in.length() - 4);
-            int count = in.readInt() + 1; // we don't write offset 0 to TOC
-            int n = ai.getAndIncrement();
-            if (n == 0) {
-                pqSegmentOffset = 0;
-            } else
-            {
-                in.seek(in.length() - 4 - (8L * (count - n)));
-                pqSegmentOffset = in.readInt();
+                var ai = offsetsHack.computeIfAbsent(indexFiles.pq().createReader().getFile().absolutePath(),
+                                                     (k) -> new AtomicInteger());
+                in.seek(in.length() - 4);
+                int count = in.readInt() + 1; // we don't write offset 0 to TOC
+                int n = ai.getAndIncrement();
+                if (n == 0) {
+                    pqSegmentOffset = 0;
+                } else
+                {
+                    in.seek(in.length() - 4 - (8L * (count - n)));
+                    pqSegmentOffset = in.readInt();
+                }
             }
         }
         var compressedVectors = CompressedVectors.load(indexFiles.pq(), pqSegmentOffset);
@@ -130,7 +135,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
                                                    vectors.originalVectors,
                                                    (i) -> vectors.approximateSimilarity(i, queryVector, similarityFunction))
                         .build()
-                        .search(topK * 2, ordinalsMap.ignoringDeleted(acceptBits), vistLimit);
+                        .search(topK, ordinalsMap.ignoringDeleted(acceptBits), vistLimit);
             return annRowIdsToPostings(queryVector, queue, vectors, topK);
         }
         catch (IOException e)
@@ -189,7 +194,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
         for (int i = 0; i < nodesWithScore.length; i++)
         {
             var n = queue.pop();
-            var score = similarityFunction.compare(queryVector, vectors.originalVectors.vectorValue(i));
+            var score = similarityFunction.compare(queryVector, vectors.originalVectors.vectorValue(n));
             nodesWithScore[i] = Pair.create(n, score);
         }
         // sort both nodes and scores by their respective scores
@@ -198,7 +203,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
 
         try (var iterator = new RowIdIterator(nodes))
         {
-            return new ReorderingPostingList(iterator, nodesWithScore.length);
+            return new ReorderingPostingList(iterator, topK);
         }
     }
 
