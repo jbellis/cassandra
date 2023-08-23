@@ -170,12 +170,12 @@ public class CassandraOnHeapHnsw<T>
             newVector.set(true);
             var vp = new VectorPostings<T>(ordinal);
             postingsByOrdinal.put(ordinal, vp);
-            logger.debug("Added vector {} to graph at ordinal {}", Arrays.toString(v), ordinal);
+            logger.trace("Added vector {} to graph at ordinal {}", Arrays.toString(v), ordinal);
             return vp;
         });
         if (postings.add(key))
         {
-            logger.debug("Added ordinal -> key mapping {} -> {}", postings.getOrdinal(), key);
+            logger.trace("Added ordinal -> key mapping {} -> {}", postings.getOrdinal(), key);
             bytesUsed.addAndGet(VectorPostings.bytesPerPosting());
             if (newVector.get()) {
                 try
@@ -353,17 +353,21 @@ public class CassandraOnHeapHnsw<T>
         if (vectorValues.size() < 1024)
             return writer.position();
 
-        // collect vectors into a list
-        var vectors = IntStream.range(0, vectorValues.size()).mapToObj(vectorValues::vectorValue).collect(Collectors.toList());
-        // train PQ, encode, save
-        var pq = new ProductQuantization(vectors, M, false);
-        var encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
-        pq.save(writer);
-        writer.writeInt(encoded.size());
-        writer.writeInt(encoded.get(0).length);
-        for (var a : encoded)
-            writer.write(a);
-        return writer.position();
+        // FIXME hack to only to this one at a time since we're reading a ton of vectors into memory
+        synchronized (logger)
+        {
+            // collect vectors into a list
+            var vectors = IntStream.range(0, vectorValues.size()).mapToObj(vectorValues::vectorValue).collect(Collectors.toList());
+            // train PQ, encode, save
+            var pq = new ProductQuantization(vectors, M, false);
+            var encoded = vectors.stream().parallel().map(pq::encode).collect(Collectors.toList());
+            pq.save(writer);
+            writer.writeInt(encoded.size());
+            writer.writeInt(encoded.get(0).length);
+            for (var a : encoded)
+                writer.write(a);
+            return writer.position();
+        }
     }
 
     public long ramBytesUsed()
