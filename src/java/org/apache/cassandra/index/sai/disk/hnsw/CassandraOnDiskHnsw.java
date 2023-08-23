@@ -81,10 +81,15 @@ public class CassandraOnDiskHnsw implements AutoCloseable
             var ai = offsetsHack.computeIfAbsent(indexFiles.pq().createReader().getFile().absolutePath(),
                                                  (k) -> new AtomicInteger());
             in.seek(in.length() - 4);
-            int count = in.readInt();
+            int count = in.readInt() + 1; // we don't write offset 0 to TOC
             int n = ai.getAndIncrement();
-            in.seek(in.length() - 4 - (8L * (count - n)));
-            pqSegmentOffset = in.readInt();
+            if (n == 0) {
+                pqSegmentOffset = 0;
+            } else
+            {
+                in.seek(in.length() - 4 - (8L * (count - n)));
+                pqSegmentOffset = in.readInt();
+            }
         }
         var compressedVectors = CompressedVectors.load(indexFiles.pq(), pqSegmentOffset);
 
