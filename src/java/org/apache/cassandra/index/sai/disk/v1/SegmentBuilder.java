@@ -221,6 +221,7 @@ public abstract class SegmentBuilder
         }
 
         SegmentMetadata.ComponentMetadataMap indexMetas = flushInternal(indexDescriptor, indexContext);
+        logger.debug("flushInternal complete");
 
         return new SegmentMetadata(segmentRowIdOffset, rowCount, minSSTableRowId, maxSSTableRowId, minKey, maxKey, minTerm, maxTerm, indexMetas);
     }
