@@ -189,7 +189,8 @@ public abstract class SegmentBuilder
         @Override
         protected long addInternal(ByteBuffer term, int segmentRowId)
         {
-            return graphIndex.add(term, segmentRowId, IGNORE);
+            graphIndex.add(term, segmentRowId, IGNORE);
+            return 0;
         }
 
         @Override
