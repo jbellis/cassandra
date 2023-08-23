@@ -51,7 +51,7 @@ public class VectorPostingsWriter<T>
     {
         writer.writeInt(deletedOrdinals.size());
         for (var ordinal : deletedOrdinals) {
-            logger.debug("Ordinal {} is deleted", ordinal);
+            logger.trace("Ordinal {} is deleted", ordinal);
             writer.writeInt(ordinal);
         }
     }
@@ -84,7 +84,7 @@ public class VectorPostingsWriter<T>
             writer.writeInt(rowIds.size());
             for (int r = 0; r < rowIds.size(); r++)
                 writer.writeInt(rowIds.getInt(r));
-            logger.debug("Ordinal {} -> {}", i, rowIds);
+            logger.trace("Ordinal {} -> {}", i, rowIds);
         }
         assert writer.position() == nextOffset;
     }
@@ -110,7 +110,7 @@ public class VectorPostingsWriter<T>
         for (var pair : pairs) {
             writer.writeInt(pair.left);
             writer.writeInt(pair.right);
-            logger.debug("RowId {} -> {}", pair.left, pair.right);
+            logger.trace("RowId {} -> {}", pair.left, pair.right);
         }
 
         // write the position of the beginning of rowid -> ordinals mappings to the end

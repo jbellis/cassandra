@@ -81,9 +81,9 @@ public class VectorPostings<T>
             if (rowId >= 0)
             {
                 ids.add(rowId);
-                logger.debug("Mapping key {} -> rowId {}", key, rowId);
+                logger.trace("Mapping key {} -> rowId {}", key, rowId);
             } else {
-                logger.debug("Omitting deleted key {}", key);
+                logger.trace("Omitting deleted key {}", key);
             }
         }
 
