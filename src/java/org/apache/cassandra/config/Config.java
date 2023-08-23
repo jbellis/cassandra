@@ -241,7 +241,8 @@ public class Config
      */
     @Deprecated
     public Integer unlogged_batch_across_partitions_warn_threshold = 0;
-    public volatile Integer concurrent_compactors;
+    public volatile Integer
+    concurrent_compactors;
     public volatile int compaction_throughput_mb_per_sec = 64;
     /**
      * @deprecated Migrated to 'guardrails.compaction_large_partition_warning_threshold_mb'
