@@ -156,7 +156,7 @@ public class SSTableExport
             for (var outOffset : outOffsets) {
                 raf.writeLong(outOffset);
             }
-            out.write(outOffsets.size());
+            raf.writeInt(outOffsets.size());
         }
     }
 }
