@@ -353,6 +353,7 @@ public class CassandraOnHeapHnsw<T>
         if (vectorValues.size() < 1024)
             return writer.position();
 
+        logger.debug("Computing PQ for {} vectors", vectorValues.size());
         // FIXME hack to only to this one at a time since we're reading a ton of vectors into memory
         synchronized (logger)
         {
