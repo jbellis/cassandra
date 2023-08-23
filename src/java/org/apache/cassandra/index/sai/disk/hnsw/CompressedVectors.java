@@ -31,16 +31,28 @@ public class CompressedVectors
     private final ProductQuantization pq;
     private List<byte[]> compressedVectors;
 
-    public CompressedVectors(FileHandle fh, long offset) throws IOException
+    private CompressedVectors(ProductQuantization pq, List<byte[]> compressedVectors) throws IOException
+    {
+        this.pq = pq;
+        this.compressedVectors = compressedVectors;
+    }
+
+    public static CompressedVectors load(FileHandle fh, long offset) throws IOException
     {
         try (var in = fh.createReader())
         {
             in.seek(offset);
-            pq = ProductQuantization.load(in);
+            if (in.read() == 0) {
+                // there were too few vectors to bother compressiong
+                return null;
+            }
+
+            // pq codebooks
+            var pq = ProductQuantization.load(in);
 
             // read the vectors
             int size = in.readInt();
-            compressedVectors = new ArrayList<>(size);
+            var compressedVectors = new ArrayList<byte[]>(size);
             int compressedDimension = in.readInt();
             for (int i = 0; i < size; i++)
             {
@@ -48,6 +60,8 @@ public class CompressedVectors
                 in.readFully(vector);
                 compressedVectors.add(vector);
             }
+
+            return new CompressedVectors(pq, compressedVectors);
         }
     }
 

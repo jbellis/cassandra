@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -67,10 +68,17 @@ public class OnDiskVectors implements RandomAccessVectorValues<float[]>, AutoClo
     }
 
     @Override
-    public float[] vectorValue(int i) throws IOException
+    public float[] vectorValue(int i)
     {
-        readVector(i, vector);
-        return vector;
+        try
+        {
+            readVector(i, vector);
+            return vector;
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
     }
 
     void readVector(int i, float[] v) throws IOException
