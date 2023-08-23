@@ -19,15 +19,18 @@
 package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.logging.Logger;
 import java.util.stream.IntStream;
-
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.util.concurrent.MoreExecutors;
@@ -38,19 +41,19 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.hnsw.pq.ProductQuantization;
 import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
-import org.apache.lucene.index.VectorEncoding;
+import org.apache.cassandra.utils.Pair;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.hnsw.HnswGraphSearcher;
+import org.apache.lucene.util.hnsw.HnswSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
 public class CassandraOnDiskHnsw implements AutoCloseable
 {
+    private static final Logger logger = Logger.getLogger(CassandraOnDiskHnsw.class.getName());
+
     private final Function<QueryContext, VectorsWithCache> vectorsSupplier;
     private final OnDiskOrdinalsMap ordinalsMap;
     private final OnDiskHnswGraph hnsw;
@@ -65,16 +68,31 @@ public class CassandraOnDiskHnsw implements AutoCloseable
 
     private static final int OFFSET_CACHE_MIN_BYTES = 100_000;
 
+    private static Map<String, AtomicInteger> offsetsHack = new ConcurrentHashMap<>();
     public CassandraOnDiskHnsw(SegmentMetadata.ComponentMetadataMap componentMetadatas, PerIndexFiles indexFiles, IndexContext context) throws IOException
     {
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
 
+        // FIXME this reads the offset from the TOC instead of the metadata
+//        long pqSegmentOffset = componentMetadatas.get(IndexComponent.PQ).offset;
+        long pqSegmentOffset;
+        try (var in = indexFiles.pq().createReader()) {
+
+            var ai = offsetsHack.computeIfAbsent(indexFiles.pq().createReader().getFile().absolutePath(),
+                                                 (k) -> new AtomicInteger());
+            in.seek(in.length() - 4);
+            int count = in.readInt();
+            int n = ai.getAndIncrement();
+            in.seek(in.length() - 4 - (8L * (count - n)));
+            pqSegmentOffset = in.readInt();
+        }
+        var compressedVectors = CompressedVectors.load(indexFiles.pq(), pqSegmentOffset);
+
         long vectorsSegmentOffset = componentMetadatas.get(IndexComponent.VECTOR).offset;
-        vectorsSupplier = (qc) -> new VectorsWithCache(new OnDiskVectors(indexFiles.vectors(), vectorsSegmentOffset));
-
-        long pqSegmentOffset = componentMetadatas.get(IndexComponent.PQ).offset;
-        compressedVectors = new CompressedVectors(indexFiles.pq(), pqSegmentOffset);
-
+        vectorsSupplier = (qc) -> {
+            OnDiskVectors odv = new OnDiskVectors(indexFiles.vectors(), vectorsSegmentOffset);
+            return new VectorsWithCache(odv, compressedVectors);
+        };
 
         SegmentMetadata.ComponentMetadata postingListsMetadata = componentMetadatas.get(IndexComponent.POSTING_LISTS);
         ordinalsMap = new OnDiskOrdinalsMap(indexFiles.postingLists(), postingListsMetadata.offset, postingListsMetadata.length);
@@ -101,18 +119,14 @@ public class CassandraOnDiskHnsw implements AutoCloseable
     {
         CassandraOnHeapHnsw.validateIndexable(queryVector, similarityFunction);
 
-        NeighborQueue queue;
         try (var vectors = vectorsSupplier.apply(context); var view = hnsw.getView(context))
         {
-            queue = HnswGraphSearcher.search(queryVector,
-                                             topK,
-                                             vectors,
-                                             VectorEncoding.FLOAT32,
-                                             similarityFunction,
-                                             view,
-                                             ordinalsMap.ignoringDeleted(acceptBits),
-                                             vistLimit);
-            return annRowIdsToPostings(queue);
+            var queue = new HnswSearcher.Builder<>(view,
+                                                   vectors.originalVectors,
+                                                   (i) -> vectors.approximateSimilarity(i, queryVector, similarityFunction))
+                        .build()
+                        .search(topK * 2, ordinalsMap.ignoringDeleted(acceptBits), vistLimit);
+            return annRowIdsToPostings(queryVector, queue, vectors, topK);
         }
         catch (IOException e)
         {
@@ -122,22 +136,22 @@ public class CassandraOnDiskHnsw implements AutoCloseable
 
     private class RowIdIterator implements PrimitiveIterator.OfInt, AutoCloseable
     {
-        private final NeighborQueue queue;
+        private final OfInt ordinals;
         private final OnDiskOrdinalsMap.RowIdsView rowIdsView = ordinalsMap.getRowIdsView();
 
         private PrimitiveIterator.OfInt segmentRowIdIterator = IntStream.empty().iterator();
 
-        public RowIdIterator(NeighborQueue queue)
+        public RowIdIterator(OfInt ordinals)
         {
-            this.queue = queue;
+            this.ordinals = ordinals;
         }
 
         @Override
         public boolean hasNext() {
-            while (!segmentRowIdIterator.hasNext() && queue.size() > 0) {
+            while (!segmentRowIdIterator.hasNext() && ordinals.hasNext()) {
                 try
                 {
-                    var ordinal = queue.pop();
+                    var ordinal = ordinals.next();
                     segmentRowIdIterator = Arrays.stream(rowIdsView.getSegmentRowIdsMatching(ordinal)).iterator();
                 }
                 catch (IOException e)
@@ -162,12 +176,24 @@ public class CassandraOnDiskHnsw implements AutoCloseable
         }
     }
 
-    private ReorderingPostingList annRowIdsToPostings(NeighborQueue queue) throws IOException
+    private ReorderingPostingList annRowIdsToPostings(float[] queryVector, NeighborQueue queue, VectorsWithCache vectors, int topK) throws IOException
     {
-        int originalSize = queue.size();
-        try (var iterator = new RowIdIterator(queue))
+        // order the top K results by their true similarity
+        // VSTODO is the boxing here material?
+        Pair<Integer, Float>[] nodesWithScore = new Pair[queue.size()];
+        for (int i = 0; i < nodesWithScore.length; i++)
         {
-            return new ReorderingPostingList(iterator, originalSize);
+            var n = queue.pop();
+            var score = similarityFunction.compare(queryVector, vectors.originalVectors.vectorValue(i));
+            nodesWithScore[i] = Pair.create(n, score);
+        }
+        // sort both nodes and scores by their respective scores
+        Arrays.sort(nodesWithScore, Comparator.comparingDouble((Pair<Integer, Float> p) -> p.right).reversed());
+        var nodes = Arrays.stream(nodesWithScore).limit(topK).mapToInt(p -> p.left).iterator();
+
+        try (var iterator = new RowIdIterator(nodes))
+        {
+            return new ReorderingPostingList(iterator, nodesWithScore.length);
         }
     }
 
@@ -183,51 +209,57 @@ public class CassandraOnDiskHnsw implements AutoCloseable
     }
 
     @NotThreadSafe
-    class VectorsWithCache implements RandomAccessVectorValues<float[]>, AutoCloseable
+    class VectorsWithCache implements AutoCloseable
     {
-        private final OnDiskVectors vectors;
+        private final OnDiskVectors originalVectors;
+        private final CompressedVectors compressedVectors;
+        private final List<float[]> inMemoryOriginals;
 
-        public VectorsWithCache(OnDiskVectors vectors)
+        public VectorsWithCache(OnDiskVectors originalVectors, CompressedVectors compressedVectors)
         {
-            this.vectors = vectors;
+            this.originalVectors = originalVectors;
+            this.compressedVectors = compressedVectors;
+            if (compressedVectors == null)
+            {
+                // FIXME this will run for every query
+                inMemoryOriginals = new ArrayList<>(originalVectors.size());
+                for (int i = 0; i < originalVectors.size(); i++)
+                {
+                    inMemoryOriginals.add(originalVectors.vectorValue(i));
+                }
+            }
+            else
+            {
+                inMemoryOriginals = null;
+            }
         }
 
-        @Override
         public int size()
         {
-            return vectors.size();
+            return originalVectors.size();
         }
 
-        @Override
         public int dimension()
         {
-            return vectors.dimension();
+            return originalVectors.dimension();
         }
 
-        @Override
-        public float[] vectorValue(int i) throws IOException
+        public float[] originalVector(int i)
         {
-            return vectorCache.get(i, (j) -> {
-                try
-                {
-                    return vectors.vectorValue(j);
-                }
-                catch (IOException e)
-                {
-                    throw new UncheckedIOException(e);
-                }
-            });
+            return vectorCache.get(i, originalVectors::vectorValue);
         }
 
-        @Override
-        public RandomAccessVectorValues<float[]> copy()
+        public float approximateSimilarity(int ordinal, float[] other, VectorSimilarityFunction similarityFunction)
         {
-            throw new UnsupportedOperationException();
+            if (compressedVectors == null) {
+                return similarityFunction.compare(inMemoryOriginals.get(ordinal), other);
+            }
+            return compressedVectors.decodedSimilarity(ordinal, other, similarityFunction);
         }
 
         public void close()
         {
-            vectors.close();
+            originalVectors.close();
         }
     }
 }
