@@ -19,7 +19,8 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Map;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -27,11 +28,12 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.RAMStringIndexer;
-import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnHeapHnsw;
 import org.apache.cassandra.index.sai.disk.io.BytesRefUtil;
@@ -41,10 +43,8 @@ import org.apache.cassandra.index.sai.disk.v1.trie.InvertedIndexWriter;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.StringHelper;
 
 import static org.apache.cassandra.index.sai.disk.hnsw.CassandraOnHeapHnsw.InvalidVectorBehavior.IGNORE;
 
@@ -173,11 +173,17 @@ public abstract class SegmentBuilder
     public static class VectorSegmentBuilder extends SegmentBuilder
     {
         private final CassandraOnHeapHnsw<Integer> graphIndex;
+        private final DebuggableThreadPoolExecutor tp;
 
         public VectorSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter, IndexWriterConfig indexWriterConfig)
         {
             super(termComparator, limiter);
-            graphIndex = new CassandraOnHeapHnsw<>(termComparator, indexWriterConfig, false);
+            graphIndex = new CassandraOnHeapHnsw<>(termComparator, indexWriterConfig, true);
+            tp = new DebuggableThreadPoolExecutor(8,
+                                                  Integer.MAX_VALUE,
+                                                  TimeUnit.SECONDS,
+                                                  new LinkedBlockingQueue<>(1024),
+                                                  new NamedThreadFactory("Vector-index-build"));
         }
 
         @Override
@@ -189,13 +195,24 @@ public abstract class SegmentBuilder
         @Override
         protected long addInternal(ByteBuffer term, int segmentRowId)
         {
-            graphIndex.add(term, segmentRowId, IGNORE);
-            return 0;
+            tp.submit(() -> graphIndex.add(term, segmentRowId, IGNORE));
+            return 32; // FIXME estimate this better
         }
 
         @Override
         protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
         {
+            // block for all in-flight graph adds to complete
+            tp.shutdown();
+            try
+            {
+                tp.awaitTermination(1, TimeUnit.DAYS);
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
+
             return graphIndex.writeData(indexDescriptor, indexContext, p -> p);
         }
     }
@@ -221,7 +238,6 @@ public abstract class SegmentBuilder
         }
 
         SegmentMetadata.ComponentMetadataMap indexMetas = flushInternal(indexDescriptor, indexContext);
-        logger.debug("flushInternal complete");
 
         return new SegmentMetadata(segmentRowIdOffset, rowCount, minSSTableRowId, maxSSTableRowId, minKey, maxKey, minTerm, maxTerm, indexMetas);
     }
