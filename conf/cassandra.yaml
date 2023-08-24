@@ -850,7 +850,7 @@ column_index_cache_size_in_kb: 2
 # 
 # If your data directories are backed by SSD, you should increase this
 # to the number of cores.
-concurrent_compactors: 16
+concurrent_compactors: 3
 
 # Number of simultaneous repair validations to allow. If not set or set to
 # a value less than 1, it defaults to the value of concurrent_compactors.
