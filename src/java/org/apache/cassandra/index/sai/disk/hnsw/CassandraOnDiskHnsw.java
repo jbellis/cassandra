@@ -49,6 +49,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.HnswSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
+import org.apache.lucene.util.hnsw.NeighborSimilarity;
 
 public class CassandraOnDiskHnsw implements AutoCloseable
 {
@@ -73,29 +74,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
     {
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
 
-        // FIXME this reads the offset from the TOC instead of the metadata
-        long pqSegmentOffset;
-        if (true)
-        {
-            pqSegmentOffset = componentMetadatas.get(IndexComponent.PQ).offset;
-        }
-        else {
-            try (var in = indexFiles.pq().createReader()) {
-
-                var ai = offsetsHack.computeIfAbsent(indexFiles.pq().createReader().getFile().absolutePath(),
-                                                     (k) -> new AtomicInteger());
-                in.seek(in.length() - 4);
-                int count = in.readInt() + 1; // we don't write offset 0 to TOC
-                int n = ai.getAndIncrement();
-                if (n == 0) {
-                    pqSegmentOffset = 0;
-                } else
-                {
-                    in.seek(in.length() - 4 - (8L * (count - n)));
-                    pqSegmentOffset = in.readInt();
-                }
-            }
-        }
+        long pqSegmentOffset = componentMetadatas.get(IndexComponent.PQ).offset;
         var compressedVectors = CompressedVectors.load(indexFiles.pq(), pqSegmentOffset);
 
         long vectorsSegmentOffset = componentMetadatas.get(IndexComponent.VECTOR).offset;
@@ -131,9 +110,21 @@ public class CassandraOnDiskHnsw implements AutoCloseable
 
         try (var vectors = vectorsSupplier.apply(context); var view = hnsw.getView(context))
         {
+            NeighborSimilarity.ScoreFunction sf;
+            if (CompressedVectors.DISABLE_INMEMORY_VECTORS)
+            {
+                sf = (i) -> {
+                    var other = vectors.originalVector(i);
+                    return similarityFunction.compare(queryVector, other);
+                };
+            }
+            else
+            {
+                sf = (i) -> vectors.approximateSimilarity(i, queryVector, similarityFunction);
+            }
             var queue = new HnswSearcher.Builder<>(view,
                                                    vectors.originalVectors,
-                                                   (i) -> vectors.approximateSimilarity(i, queryVector, similarityFunction))
+                                                   sf)
                         .build()
                         .search(topK, ordinalsMap.ignoringDeleted(acceptBits), vistLimit);
             return annRowIdsToPostings(queryVector, queue, vectors, topK);
@@ -194,7 +185,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
         for (int i = 0; i < nodesWithScore.length; i++)
         {
             var n = queue.pop();
-            var score = similarityFunction.compare(queryVector, vectors.originalVectors.vectorValue(n));
+            var score = similarityFunction.compare(queryVector, vectors.originalVector(n));
             nodesWithScore[i] = Pair.create(n, score);
         }
         // sort both nodes and scores by their respective scores
@@ -229,7 +220,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
         {
             this.originalVectors = originalVectors;
             this.compressedVectors = compressedVectors;
-            if (compressedVectors == null)
+            if (compressedVectors == null && !CompressedVectors.DISABLE_INMEMORY_VECTORS)
             {
                 // FIXME this will run for every query
                 inMemoryOriginals = new ArrayList<>(originalVectors.size());

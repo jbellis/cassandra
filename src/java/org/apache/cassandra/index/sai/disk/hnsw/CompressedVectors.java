@@ -28,6 +28,8 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 
 public class CompressedVectors
 {
+    public static final boolean DISABLE_INMEMORY_VECTORS = Boolean.parseBoolean(System.getProperty("cassandra.index.sai.vector_search.disable_inmemory_vectors", "false"));
+
     private final ProductQuantization pq;
     private List<byte[]> compressedVectors;
 
@@ -42,7 +44,7 @@ public class CompressedVectors
         try (var in = fh.createReader())
         {
             in.seek(offset);
-            if (in.read() == 0) {
+            if (in.read() == 0 || DISABLE_INMEMORY_VECTORS) {
                 // there were too few vectors to bother compressiong
                 return null;
             }
