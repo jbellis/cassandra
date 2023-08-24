@@ -23,11 +23,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.logging.Logger;
 import java.util.stream.IntStream;
@@ -69,7 +66,6 @@ public class CassandraOnDiskHnsw implements AutoCloseable
 
     private static final int OFFSET_CACHE_MIN_BYTES = 100_000;
 
-    private static Map<String, AtomicInteger> offsetsHack = new ConcurrentHashMap<>();
     public CassandraOnDiskHnsw(SegmentMetadata.ComponentMetadataMap componentMetadatas, PerIndexFiles indexFiles, IndexContext context) throws IOException
     {
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
@@ -78,9 +74,14 @@ public class CassandraOnDiskHnsw implements AutoCloseable
         var compressedVectors = CompressedVectors.load(indexFiles.pq(), pqSegmentOffset);
 
         long vectorsSegmentOffset = componentMetadatas.get(IndexComponent.VECTOR).offset;
+        List<float[]> inMemoryOriginals;
+        if (compressedVectors == null && !CompressedVectors.DISABLE_INMEMORY_VECTORS)
+            inMemoryOriginals = cacheOriginalVectors(indexFiles, vectorsSegmentOffset);
+        else
+            inMemoryOriginals = null;
         vectorsSupplier = (qc) -> {
             OnDiskVectors odv = new OnDiskVectors(indexFiles.vectors(), vectorsSegmentOffset);
-            return new VectorsWithCache(odv, compressedVectors);
+            return new VectorsWithCache(odv, compressedVectors, inMemoryOriginals);
         };
 
         SegmentMetadata.ComponentMetadata postingListsMetadata = componentMetadatas.get(IndexComponent.POSTING_LISTS);
@@ -88,6 +89,17 @@ public class CassandraOnDiskHnsw implements AutoCloseable
 
         SegmentMetadata.ComponentMetadata termsMetadata = componentMetadatas.get(IndexComponent.TERMS_DATA);
         hnsw = new OnDiskHnswGraph(indexFiles.termsData(), termsMetadata.offset, termsMetadata.length, OFFSET_CACHE_MIN_BYTES);
+    }
+
+    private static List<float[]> cacheOriginalVectors(PerIndexFiles indexFiles, long vectorsSegmentOffset)
+    {
+        try (var odv = new OnDiskVectors(indexFiles.vectors(), vectorsSegmentOffset))
+        {
+            List<float[]> vectors = new ArrayList<>(odv.size());
+            for (int i = 0; i < odv.size(); i++)
+                vectors.add(odv.vectorValue(i));
+            return vectors;
+        }
     }
 
     public long ramBytesUsed()
@@ -216,23 +228,11 @@ public class CassandraOnDiskHnsw implements AutoCloseable
         private final CompressedVectors compressedVectors;
         private final List<float[]> inMemoryOriginals;
 
-        public VectorsWithCache(OnDiskVectors originalVectors, CompressedVectors compressedVectors)
+        public VectorsWithCache(OnDiskVectors originalVectors, CompressedVectors compressedVectors, List<float[]> inMemoryOriginals)
         {
             this.originalVectors = originalVectors;
             this.compressedVectors = compressedVectors;
-            if (compressedVectors == null && !CompressedVectors.DISABLE_INMEMORY_VECTORS)
-            {
-                // FIXME this will run for every query
-                inMemoryOriginals = new ArrayList<>(originalVectors.size());
-                for (int i = 0; i < originalVectors.size(); i++)
-                {
-                    inMemoryOriginals.add(originalVectors.vectorValue(i));
-                }
-            }
-            else
-            {
-                inMemoryOriginals = null;
-            }
+            this.inMemoryOriginals = inMemoryOriginals;
         }
 
         public int size()
