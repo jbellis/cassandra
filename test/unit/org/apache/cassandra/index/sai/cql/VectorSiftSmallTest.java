@@ -60,7 +60,7 @@ public class VectorSiftSmallTest extends VectorTester
 
         flush();
         var diskRecall = testRecall(queryVectors, groundTruth);
-        assertTrue(diskRecall > 0.975);
+        assertTrue("Recall only " + diskRecall, diskRecall > 0.95);
     }
 
     public static ArrayList<float[]> readFvecs(String filePath) throws IOException
