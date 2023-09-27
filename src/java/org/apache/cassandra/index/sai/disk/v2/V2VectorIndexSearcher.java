@@ -240,7 +240,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
 
     private int expectedNodesVisited(int limit, int nPermittedOrdinals, int graphSize)
     {
-        var observedRatio = actualExpectedRatio.getUpdateCount() > 10 ? actualExpectedRatio.get() : 1.0;
+        var observedRatio = actualExpectedRatio.getUpdateCount() >= 10 ? actualExpectedRatio.get() : 1.0;
         return (int) (observedRatio * VectorMemtableIndex.expectedNodesVisited(limit, nPermittedOrdinals, graphSize));
     }
 
@@ -248,7 +248,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
     {
         assert expectedNodesVisited >= 0 : expectedNodesVisited;
         assert actualNodesVisited >= 0 : actualNodesVisited;
-        if (actualNodesVisited > 2 * expectedNodesVisited || expectedNodesVisited > 2 * actualNodesVisited)
+        if (actualNodesVisited >= 1000 && actualNodesVisited > 2 * expectedNodesVisited || expectedNodesVisited > 2 * actualNodesVisited)
             logger.warn("Predicted visiting {} nodes, but actually visited {}", expectedNodesVisited, actualNodesVisited);
         actualExpectedRatio.updateAndGet(actualNodesVisited, expectedNodesVisited);
     }
@@ -310,7 +310,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             float[] queryVector = exp.lower.value.vector;
             var results = graph.search(queryVector, topK, limit, bits, context,
                                        context.getScoreRecorder(sstableId, metadata.segmentRowIdOffset));
-            updateExpectedNodes(results.getVisitedCount(), VectorMemtableIndex.expectedNodesVisited(limit, maxSegmentRowId, graph.size()));
+            updateExpectedNodes(results.getVisitedCount(), expectedNodesVisited(topK, maxSegmentRowId, graph.size()));
             return toPrimaryKeyIterator(results, context, false);
         }
     }
