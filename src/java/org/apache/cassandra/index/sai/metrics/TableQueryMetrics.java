@@ -20,6 +20,8 @@ package org.apache.cassandra.index.sai.metrics;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 
+import org.slf4j.Logger;
+
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
@@ -33,6 +35,8 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class TableQueryMetrics extends AbstractMetrics
 {
+    private static final Logger logger = org.slf4j.LoggerFactory.getLogger(TableQueryMetrics.class);
+
     public static final String TABLE_QUERY_METRIC_TYPE = "TableQueryMetrics";
 
     private final PerQueryMetrics perQueryMetrics;
@@ -210,6 +214,11 @@ public class TableQueryMetrics extends AbstractMetrics
                               pluralize(rowsFiltered, "row", "s"), pluralize(partitionsRead, "partition", "s"),
                               queryLatencyMicros);
             }
+            logger.debug("Index query accessed memtable indexes, {}, and {}, post-filtered {} in {}, and took {} microseconds.",
+                         pluralize(ssTablesHit, "SSTable index", "es"), pluralize(segmentsHit, "segment", "s"),
+                         pluralize(rowsFiltered, "row", "s"), pluralize(partitionsRead, "partition", "s"),
+                         queryLatencyMicros);
+
 
             if (queryContext.trieSegmentsHit > 0)
             {
