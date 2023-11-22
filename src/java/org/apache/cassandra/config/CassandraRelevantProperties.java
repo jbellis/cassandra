@@ -336,7 +336,7 @@ public enum CassandraRelevantProperties
      * Controls the maximum number of PrimaryKeys that will be read into memory at one time when ordering/limiting
      * the results of an ANN query constrained by non-ANN predicates.
      */
-    SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE("cassandra.sai.vector_search.order_chunk_size", "100000"),
+    SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE("cassandra.sai.vector_search.order_chunk_size", "1000000"),
 
     /** Controls the hnsw vector cache size, in bytes, per index segment. 0 to disable */
     SAI_HNSW_VECTOR_CACHE_BYTES("cassandra.sai.vector_search.vector_cache_bytes", String.valueOf(4 * 1024 * 1024)),
