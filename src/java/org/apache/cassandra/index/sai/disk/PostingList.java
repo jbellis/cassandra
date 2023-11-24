@@ -19,10 +19,7 @@ package org.apache.cassandra.index.sai.disk;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.function.Supplier;
 import javax.annotation.concurrent.NotThreadSafe;
-
-import org.apache.cassandra.utils.Throwables;
 
 /**
  * Interface for advancing on and consuming a posting list.
@@ -75,6 +72,7 @@ public interface PostingList extends Closeable
         private final PostingList wrapped;
 
         private boolean peeked = false;
+        private boolean completed = false;
         private long next;
 
         public PeekablePostingList(PostingList wrapped)
@@ -84,31 +82,50 @@ public interface PostingList extends Closeable
 
         public long peek()
         {
+            if (completed)
+                return END_OF_STREAM;
+
             if (peeked)
                 return next;
 
+            peeked = true;
             try
             {
-                peeked = true;
-                return next = wrapped.nextPosting();
+                return next = innerNextPosting();
             }
             catch (IOException e)
             {
-                throw Throwables.cleaned(e);
+                throw new RuntimeException(e);
             }
+        }
+
+        private long innerNextPosting() throws IOException
+        {
+            long l = wrapped.nextPosting();
+            if (l == END_OF_STREAM)
+                completed = true;
+            return l;
         }
 
         public long advanceWithoutConsuming(long targetRowID) throws IOException
         {
-            if (peek() == END_OF_STREAM)
+            if (completed)
                 return END_OF_STREAM;
 
-            if (peek() >= targetRowID)
-                return peek();
+            if (peeked && next >= targetRowID)
+                return next;
 
             peeked = true;
-            next = wrapped.advance(targetRowID);
+            next = innerAdvance(targetRowID);
             return next;
+        }
+
+        private long innerAdvance(long targetRowID) throws IOException
+        {
+            var l = wrapped.advance(targetRowID);
+            if (l == END_OF_STREAM)
+                completed = true;
+            return l;
         }
 
         @Override
@@ -119,7 +136,7 @@ public interface PostingList extends Closeable
                 peeked = false;
                 return next;
             }
-            return wrapped.nextPosting();
+            return innerNextPosting();
         }
 
         @Override
@@ -138,7 +155,7 @@ public interface PostingList extends Closeable
             }
 
             peeked = false;
-            return wrapped.advance(targetRowID);
+            return innerAdvance(targetRowID);
         }
 
         @Override
