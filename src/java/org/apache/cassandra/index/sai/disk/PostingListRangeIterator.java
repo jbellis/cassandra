@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.disk.v1.postings.AdvanceAwarePostingsList;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -59,7 +60,7 @@ public class PostingListRangeIterator extends RangeIterator
     private final Stopwatch timeToExhaust = Stopwatch.createStarted();
     private final QueryContext queryContext;
 
-    private final PostingList postingList;
+    private final AdvanceAwarePostingsList postingList;
     private final IndexContext indexContext;
     private final PrimaryKeyMap primaryKeyMap;
     private final IndexSearcherContext searcherContext;
@@ -97,6 +98,33 @@ public class PostingListRangeIterator extends RangeIterator
         needsSkipping = true;
     }
 
+    private static class Ratio
+    {
+        private long numerator;
+        private long denominator;
+
+        public void update(long time, long ops)
+        {
+            this.numerator += time;
+            this.denominator += ops;
+        }
+
+        public double get()
+        {
+            if (denominator <= 0)
+                return 0.0;
+            return (double) numerator / (double) denominator;
+        }
+
+        public long getDenominator()
+        {
+            return denominator;
+        }
+    }
+    private final Ratio advanceCostPerRow = new Ratio();
+    private final Ratio rowsAdvancedPerCall = new Ratio();
+    private final Ratio nextPostingCost = new Ratio();
+    private final Ratio keyLookupCost = new Ratio();
     @Override
     protected PrimaryKey computeNext()
     {
@@ -112,7 +140,10 @@ public class PostingListRangeIterator extends RangeIterator
             if (rowId == PostingList.END_OF_STREAM)
                 return endOfData();
 
-            return primaryKeyMap.primaryKeyFromRowId(rowId);
+            long start = System.nanoTime();
+            var pk = primaryKeyMap.primaryKeyFromRowId(rowId);
+            keyLookupCost.update(System.nanoTime() - start, 1);
+            return pk;
         }
         catch (Throwable t)
         {
@@ -158,19 +189,44 @@ public class PostingListRangeIterator extends RangeIterator
         long segmentRowId;
         if (needsSkipping)
         {
-            long targetRowID = primaryKeyMap.ceiling(skipToToken);
-            // skipToToken is larger than max token in token file
-            if (targetRowID < 0)
+            if (advanceCostPerRow.getDenominator() >= 10 && keyLookupCost.getDenominator() >= 10
+                && nextPostingCost.get() + keyLookupCost.get() < advanceCostPerRow.get())
             {
-                return PostingList.END_OF_STREAM;
+                int nSkipped = 0;
+                long start = System.nanoTime();
+                while (true)
+                {
+                    segmentRowId = postingList.nextPosting();
+                    if (segmentRowId == PostingList.END_OF_STREAM)
+                        return PostingList.END_OF_STREAM;
+                    long rowId = segmentRowId + searcherContext.segmentRowIdOffset;
+                    if (primaryKeyMap.primaryKeyFromRowId(rowId).compareTo(skipToToken) >= 0)
+                        break;
+                    nSkipped++;
+                }
+                // TODO update key lookup cost and next posting cost
             }
+            else
+            {
+                long start = System.nanoTime();
+                long targetRowID = primaryKeyMap.ceiling(skipToToken);
+                // skipToToken is larger than max token in token file
+                if (targetRowID < 0)
+                {
+                    return PostingList.END_OF_STREAM;
+                }
 
-            segmentRowId = postingList.advance(targetRowID - searcherContext.segmentRowIdOffset);
-            needsSkipping = false;
+                segmentRowId = postingList.advance(targetRowID - searcherContext.segmentRowIdOffset);
+                needsSkipping = false;
+                advanceCostPerRow.update(System.nanoTime() - start, postingList.lastAdvancedCount());
+                rowsAdvancedPerCall.update(postingList.lastAdvancedCount(), 1);
+            }
         }
         else
         {
+            long start = System.nanoTime();
             segmentRowId = postingList.nextPosting();
+            nextPostingCost.update(System.nanoTime() - start, 1);
         }
 
         return segmentRowId != PostingList.END_OF_STREAM

@@ -29,7 +29,7 @@ import org.apache.lucene.util.FixedBitSet;
  * A wrapper that iterates over a delegate {@link PostingList}, filtering out postings at
  * positions that are not present in a provided filter.
  */
-public class FilteringPostingList implements PostingList
+public class FilteringPostingList implements OrdinalPostingList
 {
     private final FixedBitSet filter;
     private final OrdinalPostingList delegate;
@@ -102,5 +102,11 @@ public class FilteringPostingList implements PostingList
 
         // ...but if the ID doesn't satisfy the filter, get the next match.
         return nextPosting();
+    }
+
+    @Override
+    public long getOrdinal()
+    {
+        return delegate.getOrdinal();
     }
 }

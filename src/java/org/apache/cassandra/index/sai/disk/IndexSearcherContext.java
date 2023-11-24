@@ -21,12 +21,13 @@ package org.apache.cassandra.index.sai.disk;
 import java.io.IOException;
 
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.disk.v1.postings.AdvanceAwarePostingsList;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 public class IndexSearcherContext
 {
     final QueryContext context;
-    final PostingList.PeekablePostingList postingList;
+    final AdvanceAwarePostingsList postingList;
 
     final PrimaryKey minimumKey;
     final PrimaryKey maximumKey;
