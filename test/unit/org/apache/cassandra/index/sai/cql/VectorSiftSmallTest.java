@@ -42,7 +42,7 @@ public class VectorSiftSmallTest extends VectorTester
     @Test
     public void testSiftSmall() throws Throwable
     {
-        var siftName = "siftsmall";
+        var siftName = "sift";
         var baseVectors = readFvecs(String.format("test/data/%s/%s_base.fvecs", siftName, siftName));
         var queryVectors = readFvecs(String.format("test/data/%s/%s_query.fvecs", siftName, siftName));
         var groundTruth = readIvecs(String.format("test/data/%s/%s_groundtruth.ivecs", siftName, siftName));
@@ -54,10 +54,12 @@ public class VectorSiftSmallTest extends VectorTester
 
         insertVectors(baseVectors);
         double memoryRecall = testRecall(queryVectors, groundTruth);
+        System.out.println("Memory recall is " + memoryRecall);
         assertTrue("Memory recall is " + memoryRecall, memoryRecall > 0.975);
 
         flush();
         var diskRecall = testRecall(queryVectors, groundTruth);
+        System.out.println("Disk recall is " + diskRecall);
         assertTrue("Disk recall is " + diskRecall, diskRecall > 0.975);
     }
 
