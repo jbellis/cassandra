@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai;
 import java.util.NavigableSet;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -66,7 +67,7 @@ public class QueryContext
     private final LongAdder tokenSkippingCacheHits = new LongAdder();
     private final LongAdder tokenSkippingLookups = new LongAdder();
 
-    private final LongAdder queryTimeouts = new LongAdder();
+    private final AtomicBoolean queryTimedOut = new AtomicBoolean();
 
     private final LongAdder hnswVectorsAccessed = new LongAdder();
     private final LongAdder hnswVectorCacheHits = new LongAdder();
@@ -145,9 +146,9 @@ public class QueryContext
     {
         tokenSkippingLookups.add(val);
     }
-    public void addQueryTimeouts(long val)
+    public void setQueryTimedOut()
     {
-        queryTimeouts.add(val);
+        queryTimedOut.set(true);
     }
     public void addHnswVectorsAccessed(long val)
     {
@@ -219,9 +220,9 @@ public class QueryContext
     {
         return tokenSkippingLookups.longValue();
     }
-    public long queryTimeouts()
+    public boolean queryTimedOut()
     {
-        return queryTimeouts.longValue();
+        return queryTimedOut.get();
     }
     public long hnswVectorsAccessed()
     {
@@ -240,7 +241,7 @@ public class QueryContext
     {
         if (totalQueryTimeNs() >= executionQuotaNano && !DISABLE_TIMEOUT)
         {
-            addQueryTimeouts(1);
+            setQueryTimedOut();
             throw new AbortedOperationException();
         }
     }

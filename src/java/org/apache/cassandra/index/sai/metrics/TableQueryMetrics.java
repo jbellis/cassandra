@@ -26,7 +26,6 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.RatioGauge;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.index.sai.QueryContext;
-import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
 
@@ -63,12 +62,8 @@ public class TableQueryMetrics extends AbstractMetrics
 
     public void record(QueryContext queryContext)
     {
-        if (queryContext.queryTimeouts() > 0)
-        {
-            assert queryContext.queryTimeouts() == 1;
-
+        if (queryContext.queryTimedOut())
             totalQueryTimeouts.inc();
-        }
 
         long skippingLookups = queryContext.tokenSkippingLookups();
         long skippingCacheHits = queryContext.tokenSkippingCacheHits();
