@@ -66,8 +66,7 @@ public class QueryContext
 
     private final AtomicBoolean queryTimedOut = new AtomicBoolean();
 
-    private final LongAdder hnswVectorsAccessed = new LongAdder();
-    private final LongAdder hnswVectorCacheHits = new LongAdder();
+    private final LongAdder annNodesVisited = new LongAdder();
 
     private final LongAdder shadowedKeysLoopCount = new LongAdder();
     private final NavigableSet<PrimaryKey> shadowedPrimaryKeys = new ConcurrentSkipListSet<>();
@@ -139,13 +138,9 @@ public class QueryContext
     {
         queryTimedOut.set(true);
     }
-    public void addHnswVectorsAccessed(long val)
+    public void addAnnNodesVisited(long val)
     {
-        hnswVectorsAccessed.add(val);
-    }
-    public void addHnswVectorCacheHits(long val)
-    {
-        hnswVectorCacheHits.add(val);
+        annNodesVisited.add(val);
     }
     public void updateMinimumAnnScore(float val)
     {
@@ -205,13 +200,9 @@ public class QueryContext
     {
         return queryTimedOut.get();
     }
-    public long hnswVectorsAccessed()
+    public long annNodesVisited()
     {
-        return hnswVectorsAccessed.longValue();
-    }
-    public long hnswVectorCacheHits()
-    {
-        return hnswVectorCacheHits.longValue();
+        return annNodesVisited.longValue();
     }
     public float minimumAnnScore()
     {
