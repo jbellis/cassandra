@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.index.sai;
 
-import java.io.IOException;
-import java.util.HashSet;
 import java.util.NavigableSet;
-import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
@@ -32,11 +29,11 @@ import com.google.common.annotations.VisibleForTesting;
 import io.github.jbellis.jvector.util.Bits;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
-import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.vector.CassandraOnHeapGraph;
-import org.apache.cassandra.index.sai.disk.vector.JVectorLuceneOnDiskGraph;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+
+import static java.lang.Math.max;
 
 /**
  * Tracks state relevant to the execution of a single query, including metrics and timeout monitoring.
@@ -76,6 +73,8 @@ public class QueryContext
 
     private final LongAdder shadowedKeysLoopCount = new LongAdder();
     private final NavigableSet<PrimaryKey> shadowedPrimaryKeys = new ConcurrentSkipListSet<>();
+
+    private float minimumAnnScore = Float.MIN_VALUE;
 
     @VisibleForTesting
     public QueryContext()
@@ -158,7 +157,10 @@ public class QueryContext
     {
         hnswVectorCacheHits.add(val);
     }
-
+    public void updateMinimumAnnScore(float val)
+    {
+        minimumAnnScore = max(minimumAnnScore, val);
+    }
     public void addShadowedKeysLoopCount(long val)
     {
         shadowedKeysLoopCount.add(val);
@@ -228,6 +230,10 @@ public class QueryContext
     public long hnswVectorCacheHits()
     {
         return hnswVectorCacheHits.longValue();
+    }
+    public float minimumAnnScore()
+    {
+        return minimumAnnScore;
     }
 
     public void checkpoint()
