@@ -34,6 +34,8 @@ import java.util.stream.IntStream;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 
 import static org.junit.Assert.assertTrue;
 
@@ -61,6 +63,10 @@ public class VectorSiftSmallTest extends VectorTester
         var diskRecall = testRecall(queryVectors, groundTruth);
         System.out.println("Disk recall is " + diskRecall);
         assertTrue("Disk recall is " + diskRecall, diskRecall > 0.975);
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        var tqm = StorageAttachedIndexGroup.getIndexGroup(cfs).getQueryMetrics();
+        System.out.println("Total nodes visited: " + tqm.getPerQueryMetrics().getAnnNodesVisited());
     }
 
     public static ArrayList<float[]> readFvecs(String filePath) throws IOException

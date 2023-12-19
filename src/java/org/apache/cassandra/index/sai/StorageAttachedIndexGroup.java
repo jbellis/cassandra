@@ -105,6 +105,11 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         return (StorageAttachedIndexGroup) cfs.indexManager.getIndexGroup(GROUP_KEY);
     }
 
+    public TableQueryMetrics getQueryMetrics()
+    {
+        return queryMetrics;
+    }
+
     @Override
     public Set<Index> getIndexes()
     {

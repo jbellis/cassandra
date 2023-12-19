@@ -66,6 +66,11 @@ public class TableQueryMetrics extends AbstractMetrics
         perQueryMetrics.release();
     }
 
+    public PerQueryMetrics getPerQueryMetrics()
+    {
+        return perQueryMetrics;
+    }
+
     public class PerQueryMetrics extends AbstractMetrics
     {
         private final Timer queryLatency;
@@ -182,6 +187,11 @@ public class TableQueryMetrics extends AbstractMetrics
             shadowedKeysScannedHistogram.update(queryContext.getShadowedPrimaryKeys().size());
 
             totalQueriesCompleted.inc();
+        }
+
+        public long getAnnNodesVisited()
+        {
+            return annNodesVisited.longValue();
         }
     }
 
