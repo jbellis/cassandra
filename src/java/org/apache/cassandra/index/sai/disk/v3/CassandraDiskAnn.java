@@ -138,7 +138,7 @@ public class CassandraDiskAnn extends JVectorLuceneOnDiskGraph
         var view = graph.getView();
         var searcher = new GraphSearcher.Builder<>(view).build();
         NodeSimilarity.ScoreFunction scoreFunction;
-        NodeSimilarity.ReRanker reRanker;
+        NodeSimilarity.ReRanker<float[]> reRanker;
         if (compressedVectors == null)
         {
             scoreFunction = (NodeSimilarity.ExactScoreFunction)
@@ -148,13 +148,13 @@ public class CassandraDiskAnn extends JVectorLuceneOnDiskGraph
         else
         {
             scoreFunction = compressedVectors.approximateScoreFunctionFor(queryVector, similarityFunction);
-            reRanker = (i) -> similarityFunction.compare(queryVector, view.getVector(i));
+            reRanker = (i, map) -> similarityFunction.compare(queryVector, map.get(i));
         }
         var result = searcher.search(scoreFunction,
                                      reRanker,
                                      topK,
                                      threshold,
-                                     context.minimumAnnScore(),
+//                                     context.minimumAnnScore(),
                                      ordinalsMap.ignoringDeleted(acceptBits));
         context.updateMinimumAnnScore(result.getNodes()[result.getNodes().length - 1].score);
         context.addAnnNodesVisited(result.getVisitedCount());
