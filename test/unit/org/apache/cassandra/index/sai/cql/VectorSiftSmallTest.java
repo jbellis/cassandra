@@ -41,10 +41,12 @@ import static org.junit.Assert.assertTrue;
 
 public class VectorSiftSmallTest extends VectorTester
 {
+    private static final int topK = 100;
+
     @Test
     public void testSiftSmall() throws Throwable
     {
-        var siftName = "sift";
+        var siftName = "siftsmall";
         var baseVectors = readFvecs(String.format("test/data/%s/%s_base.fvecs", siftName, siftName));
         var queryVectors = readFvecs(String.format("test/data/%s/%s_query.fvecs", siftName, siftName));
         var groundTruth = readIvecs(String.format("test/data/%s/%s_groundtruth.ivecs", siftName, siftName));
@@ -105,7 +107,8 @@ public class VectorSiftSmallTest extends VectorTester
                 for (var i = 0; i < numNeighbors; i++)
                 {
                     var neighbor = Integer.reverseBytes(dis.readInt());
-                    neighbors.add(neighbor);
+                    if (i < topK)
+                        neighbors.add(neighbor);
                 }
 
                 groundTruthTopK.add(neighbors);
@@ -122,7 +125,6 @@ public class VectorSiftSmallTest extends VectorTester
     public double testRecall(List<float[]> queryVectors, List<HashSet<Integer>> groundTruth)
     {
         AtomicInteger topKfound = new AtomicInteger(0);
-        int topK = 100;
 
         // Perform query and compute recall
         var stream = IntStream.range(0, queryVectors.size()).parallel();
@@ -146,14 +148,22 @@ public class VectorSiftSmallTest extends VectorTester
 
     private void insertVectors(List<float[]> baseVectors)
     {
-        IntStream.range(0, baseVectors.size()).parallel().forEach(i -> {
-            float[] arrayVector = baseVectors.get(i);
-            String vectorAsString = Arrays.toString(arrayVector);
-            try {
-                execute("INSERT INTO %s " + String.format("(pk, val) VALUES (%d, %s)", i, vectorAsString));
-            } catch (Throwable throwable) {
-                throw new RuntimeException(throwable);
-            }
-        });
+        int chunks = 10;
+        int chunkSize = baseVectors.size() / chunks;
+        for (int ii = 0; ii < chunks; ii++)
+        {
+            int f = ii;
+            IntStream.range(0, chunkSize).parallel().forEach(i -> {
+                int vIndex = f * chunkSize + i;
+                float[] arrayVector = baseVectors.get(vIndex);
+                String vectorAsString = Arrays.toString(arrayVector);
+                try {
+                    execute("INSERT INTO %s " + String.format("(pk, val) VALUES (%d, %s)", vIndex, vectorAsString));
+                } catch (Throwable throwable) {
+                    throw new RuntimeException(throwable);
+                }
+            });
+            flush();
+        }
     }
 }
