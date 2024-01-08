@@ -156,7 +156,8 @@ public class CassandraDiskAnn extends JVectorLuceneOnDiskGraph
                                      threshold,
                                      context.minimumAnnScore(),
                                      ordinalsMap.ignoringDeleted(acceptBits));
-        context.updateMinimumAnnScore(result.getNodes()[result.getNodes().length - 1].score);
+        if (result.getNodes().length == 0)
+            context.updateMinimumAnnScore(result.getNodes()[result.getNodes().length - 1].score);
         context.addAnnNodesVisited(result.getVisitedCount());
         Tracing.trace("DiskANN search visited {} nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
         return annRowIdsToPostings(result, limit);

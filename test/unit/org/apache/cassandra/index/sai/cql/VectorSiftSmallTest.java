@@ -33,6 +33,8 @@ import java.util.stream.IntStream;
 
 import org.junit.Test;
 
+import org.slf4j.Logger;
+
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
@@ -41,6 +43,8 @@ import static org.junit.Assert.assertTrue;
 
 public class VectorSiftSmallTest extends VectorTester
 {
+    private static final Logger logger = org.slf4j.LoggerFactory.getLogger(VectorSiftSmallTest.class);
+
     private static final int topK = 100;
 
     @Test
@@ -57,16 +61,14 @@ public class VectorSiftSmallTest extends VectorTester
         waitForIndexQueryable();
 
         insertVectors(baseVectors);
-        double memoryRecall = testRecall(queryVectors, groundTruth);
-        System.out.println("Memory recall is " + memoryRecall);
-
         flush();
+        logger.debug("Begin");
         var diskRecall = testRecall(queryVectors, groundTruth);
-        System.out.println("Disk recall is " + diskRecall);
+        logger.debug("Disk recall is " + diskRecall);
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         var tqm = StorageAttachedIndexGroup.getIndexGroup(cfs).getQueryMetrics();
-        System.out.println("Total nodes visited: " + tqm.getPerQueryMetrics().getAnnNodesVisited());
+        logger.debug("Total nodes visited: " + tqm.getPerQueryMetrics().getAnnNodesVisited());
     }
 
     public static ArrayList<float[]> readFvecs(String filePath) throws IOException
