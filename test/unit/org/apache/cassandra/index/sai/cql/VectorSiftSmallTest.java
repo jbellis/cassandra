@@ -45,7 +45,7 @@ public class VectorSiftSmallTest extends VectorTester
 {
     private static final Logger logger = org.slf4j.LoggerFactory.getLogger(VectorSiftSmallTest.class);
 
-    private static final int topK = 100;
+    private static final int topK = 10;
 
     @Test
     public void testSiftSmall() throws Throwable
