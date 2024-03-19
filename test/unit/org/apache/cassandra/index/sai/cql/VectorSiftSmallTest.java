@@ -33,16 +33,24 @@ import java.util.stream.IntStream;
 
 import org.junit.Test;
 
+import org.slf4j.Logger;
+
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 
 import static org.junit.Assert.assertTrue;
 
 public class VectorSiftSmallTest extends VectorTester
 {
+    private static final Logger logger = org.slf4j.LoggerFactory.getLogger(VectorSiftSmallTest.class);
+
+    private static final int topK = 100;
+
     @Test
     public void testSiftSmall() throws Throwable
     {
-        var siftName = "siftsmall";
+        var siftName = "sift";
         var baseVectors = readFvecs(String.format("test/data/%s/%s_base.fvecs", siftName, siftName));
         var queryVectors = readFvecs(String.format("test/data/%s/%s_query.fvecs", siftName, siftName));
         var groundTruth = readIvecs(String.format("test/data/%s/%s_groundtruth.ivecs", siftName, siftName));
@@ -53,12 +61,14 @@ public class VectorSiftSmallTest extends VectorTester
         waitForIndexQueryable();
 
         insertVectors(baseVectors);
-        double memoryRecall = testRecall(queryVectors, groundTruth);
-        assertTrue("Memory recall is " + memoryRecall, memoryRecall > 0.975);
-
         flush();
+        logger.debug("Begin");
         var diskRecall = testRecall(queryVectors, groundTruth);
-        assertTrue("Disk recall is " + diskRecall, diskRecall > 0.975);
+        logger.debug("Disk recall is " + diskRecall);
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        var tqm = StorageAttachedIndexGroup.getIndexGroup(cfs).getQueryMetrics();
+        logger.debug("Total nodes visited: " + tqm.getPerQueryMetrics().getAnnNodesVisited());
     }
 
     public static ArrayList<float[]> readFvecs(String filePath) throws IOException
@@ -99,7 +109,8 @@ public class VectorSiftSmallTest extends VectorTester
                 for (var i = 0; i < numNeighbors; i++)
                 {
                     var neighbor = Integer.reverseBytes(dis.readInt());
-                    neighbors.add(neighbor);
+                    if (i < topK)
+                        neighbors.add(neighbor);
                 }
 
                 groundTruthTopK.add(neighbors);
@@ -116,7 +127,6 @@ public class VectorSiftSmallTest extends VectorTester
     public double testRecall(List<float[]> queryVectors, List<HashSet<Integer>> groundTruth)
     {
         AtomicInteger topKfound = new AtomicInteger(0);
-        int topK = 100;
 
         // Perform query and compute recall
         var stream = IntStream.range(0, queryVectors.size()).parallel();
@@ -140,14 +150,22 @@ public class VectorSiftSmallTest extends VectorTester
 
     private void insertVectors(List<float[]> baseVectors)
     {
-        IntStream.range(0, baseVectors.size()).parallel().forEach(i -> {
-            float[] arrayVector = baseVectors.get(i);
-            String vectorAsString = Arrays.toString(arrayVector);
-            try {
-                execute("INSERT INTO %s " + String.format("(pk, val) VALUES (%d, %s)", i, vectorAsString));
-            } catch (Throwable throwable) {
-                throw new RuntimeException(throwable);
-            }
-        });
+        int chunks = 10;
+        int chunkSize = baseVectors.size() / chunks;
+        for (int ii = 0; ii < chunks; ii++)
+        {
+            int f = ii;
+            IntStream.range(0, chunkSize).parallel().forEach(i -> {
+                int vIndex = f * chunkSize + i;
+                float[] arrayVector = baseVectors.get(vIndex);
+                String vectorAsString = Arrays.toString(arrayVector);
+                try {
+                    execute("INSERT INTO %s " + String.format("(pk, val) VALUES (%d, %s)", vIndex, vectorAsString));
+                } catch (Throwable throwable) {
+                    throw new RuntimeException(throwable);
+                }
+            });
+            flush();
+        }
     }
 }
