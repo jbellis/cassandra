@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -26,6 +27,8 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
+
+import static java.lang.Math.max;
 
 /**
  * Tracks state relevant to the execution of a single query, including metrics and timeout monitoring.
@@ -55,7 +58,7 @@ public class QueryContext
     private final LongAdder triePostingsSkips = new LongAdder();
     private final LongAdder triePostingsDecodes = new LongAdder();
 
-    private final LongAdder queryTimeouts = new LongAdder();
+    private final AtomicBoolean queryTimedOut = new AtomicBoolean();
 
     private final LongAdder annNodesVisited = new LongAdder();
 
@@ -70,6 +73,8 @@ public class QueryContext
 
     // Estimates the probability of a row picked by the index to be accepted by the post filter.
     private float postFilterSelectivityEstimate = 1.0f;
+
+    private float minimumAnnScore = Float.MIN_VALUE;
 
     @VisibleForTesting
     public QueryContext()
@@ -136,15 +141,18 @@ public class QueryContext
     {
         triePostingsDecodes.add(val);
     }
-    public void addQueryTimeouts(long val)
+    public void setQueryTimedOut()
     {
-        queryTimeouts.add(val);
+        queryTimedOut.set(true);
     }
     public void addAnnNodesVisited(long val)
     {
         annNodesVisited.add(val);
     }
-
+    public void updateMinimumAnnScore(float val)
+    {
+        minimumAnnScore = max(minimumAnnScore, val);
+    }
     public void setTotalAvailableRows(long totalAvailableRows)
     {
         this.totalAvailableRows = totalAvailableRows;
@@ -209,9 +217,9 @@ public class QueryContext
     {
         return triePostingsDecodes.longValue();
     }
-    public long queryTimeouts()
+    public boolean queryTimedOut()
     {
-        return queryTimeouts.longValue();
+        return queryTimedOut.get();
     }
     public long annNodesVisited()
     {
@@ -237,7 +245,7 @@ public class QueryContext
     {
         if (totalQueryTimeNs() >= executionQuotaNano && !DISABLE_TIMEOUT)
         {
-            addQueryTimeouts(1);
+            setQueryTimedOut();
             throw new AbortedOperationException();
         }
     }
@@ -253,6 +261,11 @@ public class QueryContext
     public long getShadowedPrimaryKeyCount()
     {
         return shadowedPrimaryKeyCount.longValue();
+    }
+
+    public float minimumAnnScore()
+    {
+        return minimumAnnScore;
     }
 
     /**

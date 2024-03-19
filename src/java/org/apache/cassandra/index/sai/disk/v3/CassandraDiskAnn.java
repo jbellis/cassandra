@@ -43,9 +43,9 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.vector.AutoResumingNodeScoreIterator;
-import org.apache.cassandra.index.sai.disk.vector.NodeScoreToScoredRowIdIterator;
 import org.apache.cassandra.index.sai.disk.vector.CassandraOnHeapGraph;
 import org.apache.cassandra.index.sai.disk.vector.JVectorLuceneOnDiskGraph;
+import org.apache.cassandra.index.sai.disk.vector.NodeScoreToScoredRowIdIterator;
 import org.apache.cassandra.index.sai.disk.vector.OnDiskOrdinalsMap;
 import org.apache.cassandra.index.sai.disk.vector.OrdinalsView;
 import org.apache.cassandra.index.sai.disk.vector.ScoredRowId;
@@ -55,6 +55,9 @@ import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CloseableIterator;
+
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 
 public class CassandraDiskAnn extends JVectorLuceneOnDiskGraph
 {
@@ -152,7 +155,14 @@ public class CassandraDiskAnn extends JVectorLuceneOnDiskGraph
                 reranker = i -> similarityFunction.compare(queryVector, view.getVector(i));
             }
             var searcher = new GraphSearcher.Builder<>(view).build();
-            var result = searcher.search(scoreFunction, reranker, topK, threshold, ordinalsMap.ignoringDeleted(acceptBits));
+            var result = searcher.search(scoreFunction,
+                                         reranker,
+                                         topK,
+                                         max(threshold, context.minimumAnnScore()),
+                                         context.minimumAnnScore(),
+                                         ordinalsMap.ignoringDeleted(acceptBits));
+            if (result.getNodes().length > 0)
+                context.updateMinimumAnnScore(result.getNodes()[result.getNodes().length - 1].score);
             Tracing.trace("DiskANN search visited {} nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
             // Threshold based searches are comprehensive and do not need to resume the search.
             if (threshold > 0)
@@ -212,7 +222,7 @@ public class CassandraDiskAnn extends JVectorLuceneOnDiskGraph
                     if (graph instanceof CachingGraphIndex)
                         return;
                     // target 1% of the vectors with a max distance of 3
-                    int distance = Math.min(logBaseX(0.01d * graph.size(), graph.maxDegree()), 3);
+                    int distance = min(logBaseX(0.01d * graph.size(), graph.maxDegree()), 3);
                     logger.debug("Caching {}@{} to distance {}", this, graphHandle.path(), distance);
                     graph = new CachingGraphIndex((OnDiskGraphIndex<float[]>) graph, distance);
                 }

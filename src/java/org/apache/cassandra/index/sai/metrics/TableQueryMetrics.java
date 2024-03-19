@@ -61,10 +61,8 @@ public class TableQueryMetrics extends AbstractMetrics
 
     public void record(QueryContext queryContext)
     {
-        if (queryContext.queryTimeouts() > 0)
+        if (queryContext.queryTimedOut())
         {
-            assert queryContext.queryTimeouts() == 1;
-
             totalQueryTimeouts.inc();
         }
 
