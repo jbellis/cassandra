@@ -44,7 +44,6 @@ import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.github.jbellis.jvector.graph.GraphIndex;
 import io.github.jbellis.jvector.graph.GraphIndexBuilder;
 import io.github.jbellis.jvector.graph.GraphSearcher;
 import io.github.jbellis.jvector.graph.SearchResult;
@@ -110,6 +109,9 @@ public class CassandraOnHeapGraph<T>
     private final VectorSourceModel sourceModel;
     private volatile boolean hasDeletions;
 
+    // we don't need to explicitly close these since only on-heap resources are involved
+    private final ThreadLocal<GraphSearcher> searchers;
+
     /**
      * @param termComparator the vector type -- passed as AbstractType for caller's convenience
      * @param indexConfig
@@ -137,6 +139,7 @@ public class CassandraOnHeapGraph<T>
                                         indexConfig.getConstructionBeamWidth(),
                                         1.2f,
                                         1.2f);
+        searchers = ThreadLocal.withInitial(() -> new GraphSearcher(builder.getGraph()));
     }
 
     public int size()
@@ -332,9 +335,7 @@ public class CassandraOnHeapGraph<T>
             return CloseableIterator.emptyIterator();
 
         Bits bits = hasDeletions ? BitsUtil.bitsIgnoringDeleted(toAccept, postingsByOrdinal) : toAccept;
-        // VSTODO re-use searcher objects
-        GraphIndex graph = builder.getGraph();
-        var searcher = new GraphSearcher(graph.getView());
+        var searcher = searchers.get();
         var ssf = SearchScoreProvider.exact(queryVector, similarityFunction, vectorValues);
         var topK = sourceModel.topKFor(limit, null);
         var result = searcher.search(ssf, topK, threshold, bits);
@@ -342,7 +343,7 @@ public class CassandraOnHeapGraph<T>
         context.addAnnNodesVisited(result.getVisitedCount());
         // Threshold based searches do not support resuming the search.
         return threshold > 0 ? CloseableIterator.wrap(Arrays.stream(result.getNodes()).iterator())
-                             : new AutoResumingNodeScoreIterator(searcher, result, context::addAnnNodesVisited, topK, true, null);
+                             : new AutoResumingNodeScoreIterator(searcher, result, context::addAnnNodesVisited, topK, true);
     }
 
     public Set<Integer> computeDeletedOrdinals(Function<T, Integer> postingTransformer)
