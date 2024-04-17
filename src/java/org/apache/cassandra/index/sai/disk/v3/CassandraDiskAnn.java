@@ -47,12 +47,12 @@ import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.vector.AutoResumingNodeScoreIterator;
 import org.apache.cassandra.index.sai.disk.vector.NodeScoreToScoredRowIdIterator;
-import org.apache.cassandra.index.sai.disk.vector.CassandraOnHeapGraph;
 import org.apache.cassandra.index.sai.disk.vector.JVectorLuceneOnDiskGraph;
 import org.apache.cassandra.index.sai.disk.vector.OnDiskOrdinalsMap;
 import org.apache.cassandra.index.sai.disk.vector.OrdinalsView;
 import org.apache.cassandra.index.sai.disk.vector.ScoredRowId;
 import org.apache.cassandra.index.sai.disk.vector.VectorCompression;
+import org.apache.cassandra.index.sai.disk.vector.VectorValidation;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tracing.Tracing;
@@ -149,7 +149,7 @@ public class CassandraDiskAnn extends JVectorLuceneOnDiskGraph
                                                  QueryContext context,
                                                  IntConsumer nodesVisitedConsumer)
     {
-        CassandraOnHeapGraph.validateIndexable(queryVector, similarityFunction);
+        VectorValidation.validateIndexable(queryVector, similarityFunction);
 
         // We cannot use try-with-resources here because AutoResumingNodeScoreIterator might need to resume the search,
         // which relies on the graph view.
