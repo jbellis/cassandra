@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai.disk.vector;
 
+import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -81,6 +82,7 @@ import org.apache.cassandra.index.sai.disk.v1.Segment;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v2.V2VectorIndexSearcher;
 import org.apache.cassandra.index.sai.disk.v3.CassandraDiskAnn;
+import org.apache.cassandra.index.sai.disk.vector.VectorCompression.CompressionType;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.index.sai.utils.ScoredPrimaryKey;
@@ -459,14 +461,14 @@ public class CassandraOnHeapGraph<T>
         synchronized (CassandraOnHeapGraph.class)
         {
             // build encoder (expensive for PQ, cheaper for BQ)
-            if (preferredCompression.type == VectorCompression.CompressionType.PRODUCT_QUANTIZATION)
+            if (preferredCompression.type == CompressionType.PRODUCT_QUANTIZATION)
             {
                 var previousCV = getCompressedVectorsIfPresent(indexContext, preferredCompression, false);
                 compressor = computeOrRefineFrom(previousCV, preferredCompression);
             }
             else
             {
-                assert preferredCompression.type == VectorCompression.CompressionType.BINARY_QUANTIZATION : preferredCompression.type;
+                assert preferredCompression.type == CompressionType.BINARY_QUANTIZATION : preferredCompression.type;
                 compressor = BinaryQuantization.compute(vectorValues);
             }
             assert !vectorValues.isValueShared();
@@ -480,15 +482,9 @@ public class CassandraOnHeapGraph<T>
                                            .allMatch(v -> Math.abs(VectorUtil.dotProduct(v, v) - 1.0f) < 0.01);
         }
 
-        // version and optional fields
-        writer.writeInt(CassandraDiskAnn.PQ_MAGIC);
-        writer.writeInt(1); // version
-        writer.writeBoolean(containsUnitVectors);
-
-        // write the compression type
-        var actualType = compressor == null ? VectorCompression.CompressionType.NONE : preferredCompression.type;
-        writer.writeByte(actualType.ordinal());
-        if (actualType == VectorCompression.CompressionType.NONE)
+        var actualType = compressor == null ? CompressionType.NONE : preferredCompression.type;
+        writePqHeader(writer, containsUnitVectors, actualType);
+        if (actualType == CompressionType.NONE)
             return writer.position();
 
         // save (outside the synchronized block, this is io-bound not CPU)
@@ -499,6 +495,18 @@ public class CassandraOnHeapGraph<T>
             cv = new PQVectors((ProductQuantization) compressor, (ByteSequence<?>[]) encoded);
         cv.write(writer);
         return writer.position();
+    }
+
+    static void writePqHeader(DataOutput writer, boolean unitVectors, CompressionType type)
+    throws IOException
+    {
+        // version and optional fields
+        writer.writeInt(CassandraDiskAnn.PQ_MAGIC);
+        writer.writeInt(1); // version
+        writer.writeBoolean(unitVectors);
+
+        // write the compression type
+        writer.writeByte(type.ordinal());
     }
 
     VectorCompressor<?> computeOrRefineFrom(CompressedVectors previousCV, VectorCompression preferredCompression)

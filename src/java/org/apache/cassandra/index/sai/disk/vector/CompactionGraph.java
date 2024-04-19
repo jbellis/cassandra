@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntUnaryOperator;
 import java.util.stream.IntStream;
 
@@ -37,13 +36,16 @@ import io.github.jbellis.jvector.graph.GraphIndexBuilder;
 import io.github.jbellis.jvector.graph.disk.Feature;
 import io.github.jbellis.jvector.graph.disk.FeatureId;
 import io.github.jbellis.jvector.graph.disk.InlineVectors;
+import io.github.jbellis.jvector.graph.disk.LVQ;
 import io.github.jbellis.jvector.graph.disk.OnDiskGraphIndexWriter;
 import io.github.jbellis.jvector.pq.BQVectors;
 import io.github.jbellis.jvector.pq.BinaryQuantization;
 import io.github.jbellis.jvector.pq.CompressedVectors;
+import io.github.jbellis.jvector.pq.LocallyAdaptiveVectorQuantization;
 import io.github.jbellis.jvector.pq.PQVectors;
 import io.github.jbellis.jvector.pq.ProductQuantization;
-import io.github.jbellis.jvector.pq.VectorCompressor;
+import io.github.jbellis.jvector.util.RamUsageEstimator;
+import io.github.jbellis.jvector.vector.ArrayByteSequence;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import io.github.jbellis.jvector.vector.VectorUtil;
 import io.github.jbellis.jvector.vector.VectorizationProvider;
@@ -57,10 +59,8 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
-import org.apache.cassandra.index.sai.disk.v3.CassandraDiskAnn;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -74,32 +74,32 @@ public class CompactionGraph implements Closeable
     private static final Logger logger = LoggerFactory.getLogger(CompactionGraph.class);
     private static final VectorTypeSupport vts = VectorizationProvider.getInstance().getVectorTypeSupport();
 
-    private final ConcurrentVectorValues vectorValues;
     private final GraphIndexBuilder builder;
     private final VectorType.VectorSerializer serializer;
     private final VectorSimilarityFunction similarityFunction;
     private final ChronicleMap<VectorFloat<?>, VectorPostings<Integer>> postingsMap;
-    private final IndexOutputWriter pqOutput;
+    private final SequentialWriter pqOutput;
+    private final long pqOffset;
     private volatile boolean postingsOneToOne;
     private volatile int nextOrdinal = 0;
     private final VectorSourceModel sourceModel;
-    private final VectorCompressor<?> compressor;
+    private final ProductQuantization compressor;
     private final BufferedRandomAccessWriter indexOutput;
     private final OnDiskGraphIndexWriter writer;
     private long termsOffset;
 
-    public CompactionGraph(IndexDescriptor descriptor, IndexContext context, IndexWriterConfig indexConfig, ProductQuantization compressor, int size) throws IOException
+    public CompactionGraph(IndexDescriptor descriptor, IndexContext context, IndexWriterConfig indexConfig, ProductQuantization compressor, int estimatedSize) throws IOException
     {
         var termComparator = context.getValidator();
+        int dimension = ((VectorType<?>) termComparator).dimension;
         serializer = (VectorType.VectorSerializer) termComparator.getSerializer();
-        vectorValues = new ConcurrentVectorValues(((VectorType<?>) termComparator).dimension);
         similarityFunction = indexConfig.getSimilarityFunction();
         sourceModel = indexConfig.getSourceModel();
         var tmpMapFile = File.createTempFile("postingsMap", null);
         postingsMap = ChronicleMapBuilder.of((Class<VectorFloat<?>>) (Class) VectorFloat.class, (Class<VectorPostings<Integer>>) (Class) VectorPostings.class)
-                                         .entries(indexConfig.getMaximumNodeConnections())
-                                         .averageKeySize(vectorValues.dimension() * Float.BYTES)
-                                         .averageValueSize(VectorPostings.emptyBytesUsed() + VectorPostings.bytesPerPosting())
+                                         .entries(estimatedSize)
+                                         .averageKeySize(dimension * Float.BYTES)
+                                         .averageValueSize(VectorPostings.emptyBytesUsed() + RamUsageEstimator.NUM_BYTES_OBJECT_REF + Integer.BYTES)
                                          .createPersistedTo(tmpMapFile);
         postingsOneToOne = true;
         builder = new GraphIndexBuilder(vectorValues,
@@ -111,10 +111,15 @@ public class CompactionGraph implements Closeable
         this.compressor = compressor;
         indexOutput = IndexFileUtils.instance.openRandomAccessOutput(descriptor.fileFor(IndexComponent.TERMS_DATA, context), true);
         termsOffset = indexOutput.getFilePointer();
-        writer = new OnDiskGraphIndexWriter.Builder(builder.getGraph(), indexOutput, getIdentityMapper())
-                 .with(new InlineVectors(vectorValues.dimension()))
+        LocallyAdaptiveVectorQuantization lvq = null; // FIXME
+        writer = new OnDiskGraphIndexWriter.Builder(builder.getGraph(), indexOutput, identityMapper())
+                 .with(new LVQ(lvq))
                  .build();
-        pqOutput = IndexFileUtils.instance.openOutput(descriptor.fileFor(IndexComponent.PQ, context), true);
+        pqOutput = IndexFileUtils.instance.openOutput(descriptor.fileFor(IndexComponent.PQ, context), true).asSequentialWriter();
+        pqOffset = pqOutput.position();
+        CassandraOnHeapGraph.writePqHeader(pqOutput, true, VectorCompression.CompressionType.PRODUCT_QUANTIZATION);
+        pqOutput.writeInt(-1); // size field placeholder
+        // FIXME update the size field
     }
 
     @Override
@@ -184,10 +189,8 @@ public class CompactionGraph implements Closeable
                     bytesUsed += builder.addGraphNode(ordinal, vector);
 
                     writer.writeInline(ordinal, Feature.singleState(FeatureId.INLINE_VECTORS, new InlineVectors.State(vector)));
-                    Object compressed = compressor.encode(vector);
-                    if (compressed instanceof byte[]) {
-                        pqOutput.writeByte(compressed);
-                    }
+                    var bytes = ((ArrayByteSequence) compressor.encode(vector)).get();
+                    pqOutput.write(bytes);
                 }
 
                 return bytesUsed;
@@ -211,8 +214,8 @@ public class CompactionGraph implements Closeable
     {
         int nInProgress = builder.insertsInProgress();
         assert nInProgress == 0 : String.format("Attempting to write graph while %d inserts are in progress", nInProgress);
-        assert nextOrdinal.get() == builder.getGraph().size() : String.format("nextOrdinal %d != graph size %d -- ordinals should be sequential",
-                                                                              nextOrdinal.get(), builder.getGraph().size());
+        assert nextOrdinal == builder.getGraph().size() : String.format("nextOrdinal %d != graph size %d -- ordinals should be sequential",
+                                                                        nextOrdinal, builder.getGraph().size());
         assert vectorValues.size() == builder.getGraph().size() : String.format("vector count %d != graph size %d",
                                                                                 vectorValues.size(), builder.getGraph().size());
         assert postingsMap.keySet().size() == vectorValues.size() : String.format("postings map entry count %d != vector count %d",
@@ -282,17 +285,6 @@ public class CompactionGraph implements Closeable
                                            .allMatch(v -> Math.abs(VectorUtil.dotProduct(v, v) - 1.0f) < 0.01);
         }
 
-        // version and optional fields
-        writer.writeInt(CassandraDiskAnn.PQ_MAGIC);
-        writer.writeInt(1); // version
-        writer.writeBoolean(containsUnitVectors);
-
-        // write the compression type
-        var actualType = compressor == null ? VectorCompression.CompressionType.NONE : preferredCompression.type;
-        writer.writeByte(actualType.ordinal());
-        if (actualType == VectorCompression.CompressionType.NONE)
-            return writer.position();
-
         // save (outside the synchronized block, this is io-bound not CPU)
         CompressedVectors cv;
         if (compressor instanceof BinaryQuantization)
@@ -318,7 +310,7 @@ public class CompactionGraph implements Closeable
         return ObjectSizes.measureDeep(this);
     }
 
-    private static OnDiskGraphIndexWriter.OrdinalMapper getIdentityMapper()
+    private static OnDiskGraphIndexWriter.OrdinalMapper identityMapper()
     {
         return new OnDiskGraphIndexWriter.OrdinalMapper()
         {
