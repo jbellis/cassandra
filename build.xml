@@ -702,6 +702,7 @@
           <dependency groupId="org.apache.lucene" artifactId="lucene-analysis-common" version="9.8.0-5ea8bb4f21" />
           <dependency groupId="org.apache.lucene" artifactId="lucene-backward-codecs" version="9.8.0-5ea8bb4f21" />
           <dependency groupId="io.github.jbellis" artifactId="jvector" version="3.0.0-beta.3-SNAPSHOT" />
+          <dependency groupId="net.openhft" artifactId="chronicle-map" version="3.25ea6" />
           <dependency groupId="com.bpodgursky" artifactId="jbool_expressions" version="1.14" scope="test"/>
 
           <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" version="2.1.2" scope="test">
@@ -791,6 +792,7 @@
         <dependency groupId="org.apache.lucene" artifactId="lucene-analysis-common"/>
         <dependency groupId="org.apache.lucene" artifactId="lucene-backward-codecs"/>
         <dependency groupId="io.github.jbellis" artifactId="jvector"/>
+        <dependency groupId="net.openhft" artifactId="chronicle-map"/>
       </artifact:pom>
 
       <!-- now the pom's for artifacts being deployed to Maven Central -->
@@ -882,6 +884,7 @@
         <dependency groupId="org.apache.lucene" artifactId="lucene-analysis-common"/>
         <dependency groupId="org.apache.lucene" artifactId="lucene-backward-codecs"/>
         <dependency groupId="io.github.jbellis" artifactId="jvector"/>
+        <dependency groupId="net.openhft" artifactId="chronicle-map"/>
         <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" scope="test"/>
         <dependency groupId="org.hamcrest" artifactId="hamcrest" scope="test"/>
         <dependency groupId="com.esri.geometry" artifactId="esri-geometry-api"/>

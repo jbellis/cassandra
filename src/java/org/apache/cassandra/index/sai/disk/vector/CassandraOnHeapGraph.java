@@ -67,7 +67,6 @@ import io.github.jbellis.jvector.vector.VectorizationProvider;
 import io.github.jbellis.jvector.vector.types.ByteSequence;
 import io.github.jbellis.jvector.vector.types.VectorFloat;
 import io.github.jbellis.jvector.vector.types.VectorTypeSupport;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.VectorType;
@@ -336,11 +335,7 @@ public class CassandraOnHeapGraph<T>
             // map of existing ordinal to rowId (aka new ordinal if remapping is possible)
             // null if remapping is not possible
             final BiMap <Integer, Integer> ordinalMap = deletedOrdinals.isEmpty() ? buildOrdinalMap() : null;
-
-            boolean canFastFindRows = ordinalMap != null && CassandraRelevantProperties.VSEARCH_11_9_UPGRADES.getBoolean();
-            IntUnaryOperator ordinalMapper = canFastFindRows
-                                                ? x -> ordinalMap.getOrDefault(x, x)
-                                                : x -> x;
+            boolean canFastFindRows = ordinalMap != null;
             IntUnaryOperator reverseOrdinalMapper = canFastFindRows
                                                         ? x -> ordinalMap.inverse().getOrDefault(x, x)
                                                         : x -> x;
@@ -388,9 +383,9 @@ public class CassandraOnHeapGraph<T>
         }
     }
 
-    private static CompressedVectors getCompressedVectorsIfPresent(IndexContext indexContext, VectorCompression preferredCompression)
+    static CompressedVectors getCompressedVectorsIfPresent(IndexContext indexContext, VectorCompression preferredCompression, boolean allowNonPreferred)
     {
-        // Retrieve the first compressed vectors for a segment with more than MAX_PQ_TRAINING_SET_SIZE rows
+        // Retrieve the first compressed vectors for a segment with at least MAX_PQ_TRAINING_SET_SIZE rows
         // or the one with the most rows if none are larger than MAX_PQ_TRAINING_SET_SIZE
         var indexes = new ArrayList<>(indexContext.getView().getIndexes());
         indexes.sort(Comparator.comparing(SSTableIndex::getSSTable, CompactionSSTable.maxTimestampDescending));
@@ -407,10 +402,10 @@ public class CassandraOnHeapGraph<T>
                 var searcher = segment.getIndexSearcher();
                 assert searcher instanceof V2VectorIndexSearcher;
                 var cv = ((V2VectorIndexSearcher) searcher).getCompressedVectors();
-                if (preferredCompression.matches(cv))
+                if (preferredCompression.matches(cv) || allowNonPreferred)
                 {
                     // We can exit now because we won't find a better candidate
-                    if (segment.metadata.numRows > ProductQuantization.MAX_PQ_TRAINING_SET_SIZE)
+                    if (segment.metadata.numRows >= ProductQuantization.MAX_PQ_TRAINING_SET_SIZE && preferredCompression.matches(cv))
                         return cv;
 
                     compressedVectors = cv;
@@ -466,7 +461,7 @@ public class CassandraOnHeapGraph<T>
             // build encoder (expensive for PQ, cheaper for BQ)
             if (preferredCompression.type == VectorCompression.CompressionType.PRODUCT_QUANTIZATION)
             {
-                var previousCV = getCompressedVectorsIfPresent(indexContext, preferredCompression);
+                var previousCV = getCompressedVectorsIfPresent(indexContext, preferredCompression, false);
                 compressor = computeOrRefineFrom(previousCV, preferredCompression);
             }
             else
@@ -506,7 +501,7 @@ public class CassandraOnHeapGraph<T>
         return writer.position();
     }
 
-    private VectorCompressor<?> computeOrRefineFrom(CompressedVectors previousCV, VectorCompression preferredCompression)
+    VectorCompressor<?> computeOrRefineFrom(CompressedVectors previousCV, VectorCompression preferredCompression)
     {
         // refining an existing codebook is much faster than starting from scratch
         VectorCompressor<?> compressor;
