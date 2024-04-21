@@ -20,13 +20,16 @@ package org.apache.cassandra.index.sai.utils;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.util.zip.CRC32;
 
 import io.github.jbellis.jvector.disk.BufferedRandomAccessWriter;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.io.compress.CorruptBlockException;
+import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
@@ -55,6 +58,20 @@ public class SAICodecUtils
             }
         };
         return new OutputStreamDataOutput(os);
+    }
+
+    public static int headerSize() {
+        // Lucene's string-writing code is complex, let's just measure it directly by writing it to an in-memory DataOutput
+        var out = new ByteArrayDataOutput();
+        try
+        {
+            writeHeader(out);
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+        return Integer.BYTES + out.getPosition();
     }
 
     public static void writeHeader(DataOutput out) throws IOException

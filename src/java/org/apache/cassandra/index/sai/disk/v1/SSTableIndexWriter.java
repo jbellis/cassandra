@@ -58,6 +58,7 @@ public class SSTableIndexWriter implements PerIndexWriter
     private final AbstractAnalyzer analyzer;
     private final NamedMemoryLimiter limiter;
     private final BooleanSupplier isIndexValid;
+    private final long keyCount;
 
     private boolean aborted = false;
 
@@ -66,13 +67,14 @@ public class SSTableIndexWriter implements PerIndexWriter
     private final List<SegmentMetadata> segments = new ArrayList<>();
     private long maxSSTableRowId;
 
-    public SSTableIndexWriter(IndexDescriptor indexDescriptor, IndexContext indexContext, NamedMemoryLimiter limiter, BooleanSupplier isIndexValid)
+    public SSTableIndexWriter(IndexDescriptor indexDescriptor, IndexContext indexContext, NamedMemoryLimiter limiter, BooleanSupplier isIndexValid, long keyCount)
     {
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
         this.analyzer = indexContext.getAnalyzerFactory().create();
         this.limiter = limiter;
         this.isIndexValid = isIndexValid;
+        this.keyCount = keyCount;
     }
 
     @Override
@@ -320,7 +322,7 @@ public class SSTableIndexWriter implements PerIndexWriter
         SegmentBuilder builder;
 
         if (indexContext.isVector())
-            builder = new SegmentBuilder.VectorSegmentBuilder(rowIdOffset, indexContext.getValidator(), limiter, indexContext.getIndexWriterConfig());
+            builder = new SegmentBuilder.VectorSegmentBuilder(indexDescriptor, indexContext, rowIdOffset, keyCount, limiter);
         else if (indexContext.isLiteral())
             builder = new SegmentBuilder.RAMStringSegmentBuilder(rowIdOffset, indexContext.getValidator(), limiter);
         else

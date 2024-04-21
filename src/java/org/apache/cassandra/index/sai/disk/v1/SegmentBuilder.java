@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
@@ -44,6 +45,7 @@ import org.apache.cassandra.index.sai.disk.v1.kdtree.BKDTreeRamBuffer;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.InvertedIndexWriter;
 import org.apache.cassandra.index.sai.disk.vector.CassandraOnHeapGraph;
+import org.apache.cassandra.index.sai.disk.vector.CompactionGraph;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
@@ -189,12 +191,19 @@ public abstract class SegmentBuilder
 
     public static class VectorSegmentBuilder extends SegmentBuilder
     {
-        private final CassandraOnHeapGraph<Integer> graphIndex;
+        private final CompactionGraph graphIndex;
 
-        public VectorSegmentBuilder(long rowIdOffset, AbstractType<?> termComparator, NamedMemoryLimiter limiter, IndexWriterConfig indexWriterConfig)
+        public VectorSegmentBuilder(IndexDescriptor descriptor, IndexContext context, long rowIdOffset, long keyCount, NamedMemoryLimiter limiter)
         {
-            super(rowIdOffset, termComparator, limiter);
-            graphIndex = new CassandraOnHeapGraph<>(termComparator, indexWriterConfig, false);
+            super(rowIdOffset, context.getValidator(), limiter);
+            try
+            {
+                graphIndex = new CompactionGraph(descriptor, context, TODO, keyCount);
+            }
+            catch (IOException e)
+            {
+                throw new UncheckedIOException(e);
+            }
             totalBytesAllocated = graphIndex.ramBytesUsed();
             totalBytesAllocatedConcurrent.add(totalBytesAllocated);
         }
@@ -208,17 +217,13 @@ public abstract class SegmentBuilder
         @Override
         protected long addInternal(ByteBuffer term, int segmentRowId)
         {
-            return graphIndex.add(term, segmentRowId, IGNORE);
+            return graphIndex.add(term, segmentRowId);
         }
 
         @Override
         protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
         {
-            // VSTODO this is a bit of a hack. We call computeDeletedOrdinals to call computeRowIds on each
-            // VectorPostings, which will populate the rowIds field, but if we refactor the code, we could skip that.
-            var deletedOrdinals = graphIndex.computeDeletedOrdinals(p -> p);
-            assert deletedOrdinals.isEmpty() : "Deleted ordinals should be empty when built during compaction";
-            return graphIndex.writeData(indexDescriptor, indexContext, Collections.emptySet());
+            return graphIndex.writeData();
         }
 
         @Override

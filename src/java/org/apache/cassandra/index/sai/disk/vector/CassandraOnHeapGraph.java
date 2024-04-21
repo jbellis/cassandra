@@ -314,7 +314,7 @@ public class CassandraOnHeapGraph<T>
         return deletedOrdinals;
     }
 
-    public SegmentMetadata.ComponentMetadataMap writeData(IndexDescriptor indexDescriptor, IndexContext indexContext, Set<Integer> deletedOrdinals) throws IOException
+    public SegmentMetadata.ComponentMetadataMap writeData(IndexDescriptor descriptor, IndexContext context, Set<Integer> deletedOrdinals) throws IOException
     {
         int nInProgress = builder.insertsInProgress();
         assert nInProgress == 0 : String.format("Attempting to write graph while %d inserts are in progress", nInProgress);
@@ -326,25 +326,30 @@ public class CassandraOnHeapGraph<T>
                                                                                   postingsMap.keySet().size(), vectorValues.size());
         logger.debug("Writing graph with {} rows and {} distinct vectors", postingsMap.values().stream().mapToInt(VectorPostings::size).sum(), vectorValues.size());
 
-        try (var pqOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.PQ, indexContext), true);
-             var postingsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.POSTING_LISTS, indexContext), true);
-             var indexOutput = IndexFileUtils.instance.openRandomAccessOutput(indexDescriptor.fileFor(IndexComponent.TERMS_DATA, indexContext), true))
+        // map of existing ordinal to rowId (aka new ordinal if remapping is possible)
+        // null if remapping is not possible
+        final BiMap <Integer, Integer> ordinalMap = deletedOrdinals.isEmpty() ? buildOrdinalMap() : null;
+        boolean canFastFindRows = ordinalMap != null;
+        IntUnaryOperator reverseOrdinalMapper = canFastFindRows
+                                                ? x -> ordinalMap.inverse().getOrDefault(x, x)
+                                                : x -> x;
+        var finalOrdinalMap = ordinalMap == null ? OnDiskGraphIndexWriter.sequentialRenumbering(builder.getGraph()) : ordinalMap;
+
+        var indexFile = descriptor.fileFor(IndexComponent.TERMS_DATA, context);
+        try (var pqOutput = IndexFileUtils.instance.openOutput(descriptor.fileFor(IndexComponent.PQ, context), true);
+             var postingsOutput = IndexFileUtils.instance.openOutput(descriptor.fileFor(IndexComponent.POSTING_LISTS, context), true);
+             var indexWriter = new OnDiskGraphIndexWriter.Builder(builder.getGraph(), indexFile.toPath())
+                               .withMap(finalOrdinalMap)
+                               .with(new InlineVectors(vectorValues.dimension()))
+                               .build())
         {
             SAICodecUtils.writeHeader(pqOutput);
             SAICodecUtils.writeHeader(postingsOutput);
-            SAICodecUtils.writeHeader(SAICodecUtils.toLuceneOutput(indexOutput));
-
-            // map of existing ordinal to rowId (aka new ordinal if remapping is possible)
-            // null if remapping is not possible
-            final BiMap <Integer, Integer> ordinalMap = deletedOrdinals.isEmpty() ? buildOrdinalMap() : null;
-            boolean canFastFindRows = ordinalMap != null;
-            IntUnaryOperator reverseOrdinalMapper = canFastFindRows
-                                                        ? x -> ordinalMap.inverse().getOrDefault(x, x)
-                                                        : x -> x;
+            SAICodecUtils.writeHeader(SAICodecUtils.toLuceneOutput(indexWriter.getOutput()));
 
             // compute and write PQ
             long pqOffset = pqOutput.getFilePointer();
-            long pqPosition = writePQ(pqOutput.asSequentialWriter(), reverseOrdinalMapper, indexContext);
+            long pqPosition = writePQ(pqOutput.asSequentialWriter(), reverseOrdinalMapper, context);
             long pqLength = pqPosition - pqOffset;
 
             // write postings
@@ -356,33 +361,32 @@ public class CassandraOnHeapGraph<T>
 
             // complete (internal clean up) and write the graph
             builder.cleanup();
-            long termsOffset = indexOutput.getFilePointer();
+            long termsOffset = indexWriter.getOutput().position();
 
             var start = System.nanoTime();
-            var finalOrdinalMap = ordinalMap == null ? OnDiskGraphIndexWriter.sequentialRenumbering(builder.getGraph()) : ordinalMap;
-            try (var writer = new OnDiskGraphIndexWriter.Builder(builder.getGraph(), indexOutput, finalOrdinalMap)
-                              .with(new InlineVectors(vectorValues.dimension()))
-                              .build())
-            {
-                Map<FeatureId, IntFunction<Feature.State>> suppliers = Collections.singletonMap(FeatureId.INLINE_VECTORS, nodeId -> new InlineVectors.State(vectorValues.getVector(nodeId)));
-                writer.write(new EnumMap<>(suppliers));
-                SAICodecUtils.writeFooter(indexOutput, writer.checksum());
-            }
+            Map<FeatureId, IntFunction<Feature.State>> suppliers = Collections.singletonMap(FeatureId.INLINE_VECTORS, nodeId -> new InlineVectors.State(vectorValues.getVector(nodeId)));
+            indexWriter.write(new EnumMap<>(suppliers));
+            SAICodecUtils.writeFooter(indexWriter.getOutput(), indexWriter.checksum());
             logger.info("Writing graph took {}ms", (System.nanoTime() - start) / 1_000_000);
-            long termsLength = indexOutput.getFilePointer() - termsOffset;
+            long termsLength = indexWriter.getOutput().position() - termsOffset;
 
             // write remaining footers/checksums
             SAICodecUtils.writeFooter(pqOutput);
             SAICodecUtils.writeFooter(postingsOutput);
 
             // add components to the metadata map
-            SegmentMetadata.ComponentMetadataMap metadataMap = new SegmentMetadata.ComponentMetadataMap();
-            metadataMap.put(IndexComponent.TERMS_DATA, -1, termsOffset, termsLength, Map.of());
-            metadataMap.put(IndexComponent.POSTING_LISTS, -1, postingsOffset, postingsLength, Map.of());
-            Map<String, String> vectorConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(StringHelper.randomId())));
-            metadataMap.put(IndexComponent.PQ, -1, pqOffset, pqLength, vectorConfigs);
-            return metadataMap;
+            return createMetadataMap(termsOffset, termsLength, postingsOffset, postingsLength, pqOffset, pqLength);
         }
+    }
+
+    static SegmentMetadata.ComponentMetadataMap createMetadataMap(long termsOffset, long termsLength, long postingsOffset, long postingsLength, long pqOffset, long pqLength)
+    {
+        SegmentMetadata.ComponentMetadataMap metadataMap = new SegmentMetadata.ComponentMetadataMap();
+        metadataMap.put(IndexComponent.TERMS_DATA, -1, termsOffset, termsLength, Map.of());
+        metadataMap.put(IndexComponent.POSTING_LISTS, -1, postingsOffset, postingsLength, Map.of());
+        Map<String, String> vectorConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(StringHelper.randomId())));
+        metadataMap.put(IndexComponent.PQ, -1, pqOffset, pqLength, vectorConfigs);
+        return metadataMap;
     }
 
     static CompressedVectors getCompressedVectorsIfPresent(IndexContext indexContext, VectorCompression preferredCompression, boolean allowNonPreferred)
