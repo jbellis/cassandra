@@ -501,7 +501,7 @@ concurrent_materialized_view_writes: 32
 
 # Enable the sstable chunk cache.  The chunk cache will store recently accessed
 # sections of the sstable in-memory as uncompressed buffers.
-# file_cache_enabled: false
+file_cache_enabled: true
 
 # Maximum memory to use for sstable chunk cache and buffer pooling.
 # 32MB of this are reserved for pooling buffers, the rest is used for chunk cache
@@ -511,7 +511,7 @@ concurrent_materialized_view_writes: 32
 # overhead which is roughly 128 bytes per chunk (i.e. 0.2% of the reserved size
 # if the default 64k chunk size is used).
 # Memory is only allocated when needed.
-# file_cache_size_in_mb: 512
+file_cache_size_in_mb: 2048
 
 # Flag indicating whether to allocate on or off heap when the sstable buffer
 # pool is exhausted, that is when it has exceeded the maximum memory
@@ -529,8 +529,8 @@ concurrent_materialized_view_writes: 32
 # accepting writes when the limit is exceeded until a flush completes,
 # and will trigger a flush based on memtable_cleanup_threshold
 # If omitted, Cassandra will set both to 1/4 the size of the heap.
-# memtable_heap_space_in_mb: 2048
-# memtable_offheap_space_in_mb: 2048
+memtable_heap_space_in_mb: 4092
+memtable_offheap_space_in_mb: 4092
 
 # memtable_cleanup_threshold is deprecated. The default calculation
 # is the only reasonable choice. See the comments on  memtable_flush_writers
@@ -830,7 +830,7 @@ snapshot_before_compaction: false
 # or dropping of column families. The STRONGLY advised default of true 
 # should be used to provide data safety. If you set this flag to false, you will
 # lose data on truncation or drop.
-auto_snapshot: true
+auto_snapshot: false
 
 # The act of creating or clearing a snapshot involves creating or removing
 # potentially tens of thousands of links, which can cause significant performance
@@ -874,7 +874,7 @@ column_index_cache_size_in_kb: 2
 # 
 # If your data directories are backed by SSD, you should increase this
 # to the number of cores.
-#concurrent_compactors: 1
+concurrent_compactors: 1
 
 # Number of simultaneous repair validations to allow. If not set or set to
 # a value less than 1, it defaults to the value of concurrent_compactors.
@@ -956,7 +956,7 @@ read_request_timeout_in_ms: 5000
 range_request_timeout_in_ms: 10000
 # How long the coordinator should wait for writes to complete.
 # Lowest acceptable value is 10 ms.
-write_request_timeout_in_ms: 2000
+write_request_timeout_in_ms: 500000
 # How long the coordinator should wait for counter writes to complete.
 # Lowest acceptable value is 10 ms.
 counter_write_request_timeout_in_ms: 5000
@@ -1409,6 +1409,13 @@ report_unconfirmed_repaired_data_mismatches: false
 # This is the page size used internally by aggregation queries. It aims to limit the memory used by aggregation
 # queries when there is a lot of data to aggregate.
 # aggregation_subpage_size_in_kb: 2048
+
+#########################
+#      SAI OPTIONS      #
+#########################
+
+sai_options:
+  segment_write_buffer_space_mb: 10000
 
 #########################
 # EXPERIMENTAL FEATURES #
