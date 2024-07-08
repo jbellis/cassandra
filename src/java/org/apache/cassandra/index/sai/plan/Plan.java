@@ -1703,10 +1703,10 @@ abstract public class Plan
         public final static double ANN_OPEN_COST = 10.0;
 
         /** Additional overhead needed by processing each input key fed to the ANN index searcher */
-        public final static double ANN_INPUT_KEY_COST = 3.0;
+        public final static double ANN_INPUT_KEY_COST = 0.03;
 
         /** Cost to get a scored key from DiskANN */
-        public final static double ANN_SCORED_KEY_COST = 10.0;
+        public final static double ANN_SCORED_KEY_COST = 0.010;
 
         /** Cost to visit a DiskANN index node */
         public final static double ANN_NODE_COST = 20.0;
