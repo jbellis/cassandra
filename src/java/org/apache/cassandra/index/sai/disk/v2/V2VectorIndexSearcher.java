@@ -460,6 +460,11 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         if (observedValues.length >= 10)
         {
             var interceptSlope = LinearFit.interceptSlopeFor(observedValues);
+            if (interceptSlope.left < 0)
+            {
+                Tracing.logAndTrace(logger, "Negative intercept {} for {} values",
+                                    interceptSlope.left, observedValues.length);
+            }
             expectedNodes = (int) (interceptSlope.left + interceptSlope.right * rawExpectedNodes);
         }
         else
