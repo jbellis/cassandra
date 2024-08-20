@@ -43,7 +43,6 @@ import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKeyWithSortKey;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CloseableIterator;
 
 /**
@@ -230,8 +229,6 @@ public class Segment implements Closeable
         long segmentRows = 1 + metadata.maxSSTableRowId - metadata.minSSTableRowId;
         int proportionalLimit = (int) Math.ceil(limit * ((double) segmentRows / totalRows));
         assert proportionalLimit >= 1 : proportionalLimit;
-        Tracing.trace("Proportional limit for segment {}: {} ({} base, {} rows in segment, {} total rows in sstable)",
-                      metadata.segmentRowIdOffset, limit, proportionalLimit, segmentRows, totalRows);
         return proportionalLimit;
     }
 }
