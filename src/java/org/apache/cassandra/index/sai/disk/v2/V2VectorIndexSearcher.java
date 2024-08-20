@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk.v2;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -462,8 +463,8 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             var interceptSlope = LinearFit.interceptSlopeFor(observedValues);
             if (interceptSlope.left < 0)
             {
-                Tracing.logAndTrace(logger, "Negative intercept {} for {} values",
-                                    interceptSlope.left, observedValues.length);
+                Tracing.logAndTrace(logger, "Negative intercept {} for {}",
+                                    interceptSlope.left, Arrays.toString(observedValues));
             }
             expectedNodes = (int) (interceptSlope.left + interceptSlope.right * rawExpectedNodes);
         }
