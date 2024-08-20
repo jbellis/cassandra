@@ -1216,7 +1216,7 @@ abstract public class Plan
             int estimatedNodes = factory.costEstimator.estimateAnnNodesVisited(ordering,
                                                                                expectedKeysInt,
                                                                                Math.max(1, (int) Math.ceil(source.expectedKeys())));
-            return new KeysIterationCost(expectedKeys, 1.0, 1.0);
+            return new KeysIterationCost(expectedKeys, initCost, annSearchCost(estimatedNodes, expectedKeysInt));
         }
 
         private KeysIterationCost estimateGlobalSortCost()
@@ -1276,7 +1276,7 @@ abstract public class Plan
                                                                                factory.tableMetrics.rows);
             double initCost = ANN_OPEN_COST * factory.tableMetrics.sstables;
             double scanCost = annSearchCost(estimatedNodes, expectedKeysInt);
-            return new KeysIterationCost(expectedKeys, initCost, scanCost);
+            return new KeysIterationCost(expectedKeys, 1.0, 1.0);
         }
 
         @Nullable
