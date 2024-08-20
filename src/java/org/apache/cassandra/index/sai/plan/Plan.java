@@ -1216,7 +1216,7 @@ abstract public class Plan
             int estimatedNodes = factory.costEstimator.estimateAnnNodesVisited(ordering,
                                                                                expectedKeysInt,
                                                                                Math.max(1, (int) Math.ceil(source.expectedKeys())));
-            return new KeysIterationCost(expectedKeys, initCost, annSearchCost(estimatedNodes, expectedKeysInt));
+            return new KeysIterationCost(expectedKeys, 1.0, 1.0);
         }
 
         private KeysIterationCost estimateGlobalSortCost()
