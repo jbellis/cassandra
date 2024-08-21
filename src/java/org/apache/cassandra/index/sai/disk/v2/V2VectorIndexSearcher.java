@@ -514,6 +514,9 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         {
             // brute force using the in-memory compressed vectors to cut down the number of results returned
             var queryVector = vts.createFloatVector(orderer.vector);
+            // VSTODO save the mapping of rowid -> ordinal from flatmapPrimaryKeysToBitsAndRows and pass it
+            // to orderByBruteForce so we don't have to rebuild it.  (this is only meaningful when we have to
+            // perform disk-based zero-or-one-to-many ordinal mapping.)
             return toMetaSortedIterator(this.orderByBruteForce(queryVector, rowIds, limit, rerankK), context);
         }
         // else ask the index to perform a search limited to the bits we created
