@@ -51,16 +51,14 @@ import org.apache.cassandra.index.sai.disk.v1.IndexSearcher;
 import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.postings.VectorPostingList;
-import org.apache.cassandra.index.sai.disk.v2.hnsw.CassandraOnDiskHnsw;
 import org.apache.cassandra.index.sai.disk.v5.V5VectorPostingsWriter;
 import org.apache.cassandra.index.sai.disk.vector.BruteForceRowIdIterator;
 import org.apache.cassandra.index.sai.disk.vector.CassandraDiskAnn;
-import org.apache.cassandra.index.sai.disk.vector.JVectorLuceneOnDiskGraph;
+import org.apache.cassandra.index.sai.disk.vector.CloseableReranker;
 import org.apache.cassandra.index.sai.disk.vector.VectorCompression;
 import org.apache.cassandra.index.sai.disk.vector.VectorMemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.plan.Orderer;
-import org.apache.cassandra.index.sai.plan.Plan;
 import org.apache.cassandra.index.sai.plan.Plan.CostCoefficients;
 import org.apache.cassandra.index.sai.utils.IntIntPairArray;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -102,28 +100,16 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
     @VisibleForTesting
     public static double BRUTE_FORCE_EXPENSE_FACTOR = DatabaseDescriptor.getAnnBruteForceExpenseFactor();
 
-    protected final JVectorLuceneOnDiskGraph graph;
+    protected final CassandraDiskAnn graph;
     private final PrimaryKey.Factory keyFactory;
     private final PairedSlidingWindowReservoir expectedActualNodesVisited = new PairedSlidingWindowReservoir(20);
     private final ThreadLocal<SparseBits> cachedBits;
-
-    public V2VectorIndexSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
-                                 PerIndexFiles perIndexFiles,
-                                 SegmentMetadata segmentMetadata,
-                                 IndexContext indexContext) throws IOException
-    {
-        this(primaryKeyMapFactory,
-             perIndexFiles,
-             segmentMetadata,
-             indexContext,
-             new CassandraOnDiskHnsw(segmentMetadata.componentMetadatas, perIndexFiles, indexContext));
-    }
 
     protected V2VectorIndexSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                     PerIndexFiles perIndexFiles,
                                     SegmentMetadata segmentMetadata,
                                     IndexContext indexContext,
-                                    JVectorLuceneOnDiskGraph graph)
+                                    CassandraDiskAnn graph)
     {
         super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, indexContext);
         this.graph = graph;
@@ -144,7 +130,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
 
     public ProductQuantization getPQ()
     {
-        return ((CassandraDiskAnn) graph).getPQ();
+        return graph.getPQ();
     }
 
     @Override
@@ -318,7 +304,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         });
         // Leverage PQ's O(N) heapify time complexity
         var approximateScoresQueue = new PriorityQueue<>(approximateScores);
-        var reranker = new JVectorLuceneOnDiskGraph.CloseableReranker(similarityFunction, queryVector, graph.getVectorSupplier());
+        var reranker = new CloseableReranker(similarityFunction, queryVector, graph.getView());
         return new BruteForceRowIdIterator(approximateScoresQueue, reranker, limit, rerankK);
     }
 
@@ -354,9 +340,9 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                                             Collection<RowIdWithScore> collector) throws IOException
     {
         var similarityFunction = indexContext.getIndexWriterConfig().getSimilarityFunction();
-        try (var vectorsView = graph.getVectorSupplier())
+        try (var vectorsView = graph.getView())
         {
-            var esf = vectorsView.getScoreFunction(queryVector, similarityFunction);
+            var esf = vectorsView.rerankerFor(queryVector, similarityFunction);
             segmentOrdinalPairs.forEachIntPair((segmentRowId, ordinal) -> {
                 var score = esf.similarityTo(ordinal);
                 if (score >= threshold)
@@ -636,8 +622,8 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         graph.close();
     }
 
-    public Optional<Boolean> containsUnitVectors()
+    public boolean containsUnitVectors()
     {
-        return Optional.empty();
+        return graph.containsUnitVectors();
     }
 }
