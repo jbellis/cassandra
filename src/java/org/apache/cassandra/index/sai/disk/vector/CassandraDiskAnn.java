@@ -253,8 +253,8 @@ public class CassandraDiskAnn extends JVectorLuceneOnDiskGraph
         var result = searcher.search(ssp, limit, rerankK, threshold, context.getAnnRerankFloor(), ordinalsMap.ignoringDeleted(acceptBits));
         if (V3OnDiskFormat.ENABLE_RERANK_FLOOR)
             context.updateAnnRerankFloor(result.getWorstApproximateScoreInTopK());
-        Tracing.trace("DiskANN search for {}/{} visited {} nodes, reranked {} to return {} results",
-                      limit, rerankK, result.getVisitedCount(), result.getRerankedCount(), result.getNodes().length);
+        Tracing.trace("DiskANN search of {} for {}/{} visited {} nodes, reranked {} to return {} results",
+                      Integer.toHexString(System.identityHashCode(this)), limit, rerankK, result.getVisitedCount(), result.getRerankedCount(), result.getNodes().length);
         if (threshold > 0)
         {
             // Threshold based searches are comprehensive and do not need to resume the search.
